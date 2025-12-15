@@ -1,0 +1,237 @@
+package space.alnovis.protowrapper.generator;
+
+import com.squareup.javapoet.*;
+import space.alnovis.protowrapper.model.MergedSchema;
+import space.alnovis.protowrapper.model.MergedSchema.MergedMessage;
+
+import javax.lang.model.element.Modifier;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Map;
+
+/**
+ * Generates VersionContext interface and version-specific implementations.
+ *
+ * <p>Generates:</p>
+ * <ul>
+ *   <li>VersionContext interface with all wrap/create methods</li>
+ *   <li>VersionContextV202, VersionContextV203, etc. implementations</li>
+ * </ul>
+ */
+public class VersionContextGenerator {
+
+    private final GeneratorConfig config;
+
+    public VersionContextGenerator(GeneratorConfig config) {
+        this.config = config;
+    }
+
+    /**
+     * Generate VersionContext interface.
+     *
+     * @param schema Merged schema
+     * @return Generated JavaFile
+     */
+    public JavaFile generateInterface(MergedSchema schema) {
+        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder("VersionContext")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Version context for creating version-specific wrapper instances.\n\n")
+                .addJavadoc("<p>Provides factory methods for all wrapper types.</p>\n");
+
+        // Static factory method
+        MethodSpec.Builder forVersion = MethodSpec.methodBuilder("forVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(ClassName.get(config.getApiPackage(), "VersionContext"))
+                .addParameter(TypeName.INT, "version")
+                .addJavadoc("Get VersionContext for a specific protocol version.\n")
+                .addJavadoc("@param version Protocol version (e.g., 202, 203)\n")
+                .addJavadoc("@return VersionContext for the specified version\n")
+                .beginControlFlow("switch (version)");
+
+        for (String version : schema.getVersions()) {
+            int versionNum = extractVersionNumber(version);
+            String implPackage = config.getImplPackage(version);
+            String contextClass = "VersionContext" + version.substring(0, 1).toUpperCase() + version.substring(1);
+            ClassName contextClassName = ClassName.get(implPackage, contextClass);
+            forVersion.addStatement("case $L: return $T.INSTANCE",
+                    versionNum, contextClassName);
+        }
+
+        forVersion.addStatement("default: throw new $T($S + version)",
+                        IllegalArgumentException.class, "Unsupported version: ")
+                .endControlFlow();
+
+        interfaceBuilder.addMethod(forVersion.build());
+
+        // getVersion() method
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(TypeName.INT)
+                .addJavadoc("@return Protocol version number\n")
+                .build());
+
+        // Wrap methods for each message type
+        ClassName messageClass = ClassName.get("com.google.protobuf", "Message");
+
+        for (MergedMessage message : schema.getMessages()) {
+            ClassName returnType = ClassName.get(config.getApiPackage(), message.getInterfaceName());
+
+            // Check if message exists in all versions
+            boolean existsInAllVersions = message.getPresentInVersions().containsAll(schema.getVersions());
+
+            MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder("wrap" + message.getName())
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(messageClass, "proto")
+                    .addJavadoc("Wrap a proto $L message.\n", message.getName())
+                    .addJavadoc("@param proto Proto message\n")
+                    .addJavadoc("@return Wrapped $L, or null if proto is null\n", message.getName());
+
+            if (existsInAllVersions) {
+                // Abstract method for messages in all versions
+                methodBuilder.addModifiers(Modifier.ABSTRACT);
+            } else {
+                // Default method with UnsupportedOperationException for version-specific messages
+                methodBuilder.addModifiers(Modifier.DEFAULT);
+                methodBuilder.addJavadoc("@apiNote Present only in versions: $L\n", message.getPresentInVersions());
+                methodBuilder.addStatement("throw new $T($S + $S)",
+                        UnsupportedOperationException.class,
+                        message.getName() + " is not available in this version. Present in: ",
+                        message.getPresentInVersions().toString());
+            }
+
+            interfaceBuilder.addMethod(methodBuilder.build());
+        }
+
+        TypeSpec interfaceSpec = interfaceBuilder.build();
+
+        return JavaFile.builder(config.getApiPackage(), interfaceSpec)
+                .addFileComment("Generated by proto-wrapper-maven-plugin. DO NOT EDIT.")
+                .indent("    ")
+                .build();
+    }
+
+    /**
+     * Generate VersionContext implementation for a specific version.
+     *
+     * @param schema Merged schema
+     * @param version Version string (e.g., "v1")
+     * @param protoMappings Map of message name to proto class name
+     * @return Generated JavaFile
+     */
+    public JavaFile generateImpl(MergedSchema schema, String version,
+                                 Map<String, String> protoMappings) {
+        String className = "VersionContext" + version.toUpperCase();
+        String implPackage = config.getImplPackage(version);
+
+        ClassName versionContextInterface = ClassName.get(config.getApiPackage(), "VersionContext");
+
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addSuperinterface(versionContextInterface)
+                .addJavadoc("$L implementation of VersionContext.\n", version.toUpperCase());
+
+        // Singleton instance
+        classBuilder.addField(FieldSpec.builder(
+                        ClassName.get(implPackage, className),
+                        "INSTANCE",
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+                .initializer("new $L()", className)
+                .build());
+
+        // Private constructor
+        classBuilder.addMethod(MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PRIVATE)
+                .build());
+
+        // getVersion()
+        int versionNum = extractVersionNumber(version);
+        classBuilder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.INT)
+                .addStatement("return $L", versionNum)
+                .build());
+
+        // Wrap methods
+        ClassName messageClass = ClassName.get("com.google.protobuf", "Message");
+
+        for (MergedMessage message : schema.getMessages()) {
+            // Skip if message is not present in this version
+            // (will use default method from interface which throws UnsupportedOperationException)
+            if (!message.getPresentInVersions().contains(version)) {
+                continue;
+            }
+
+            String protoClassName = protoMappings.get(message.getName());
+            if (protoClassName == null) {
+                continue; // Skip if no proto mapping
+            }
+
+            ClassName returnType = ClassName.get(config.getApiPackage(), message.getInterfaceName());
+            ClassName protoType = ClassName.bestGuess(protoClassName);
+            ClassName implType = ClassName.get(implPackage, message.getVersionClassName(version));
+
+            MethodSpec.Builder wrapMethod = MethodSpec.methodBuilder("wrap" + message.getName())
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(messageClass, "proto")
+                    .beginControlFlow("if (proto == null)")
+                    .addStatement("return null")
+                    .endControlFlow()
+                    .addStatement("return new $T(($T) proto)", implType, protoType);
+
+            classBuilder.addMethod(wrapMethod.build());
+        }
+
+        TypeSpec classSpec = classBuilder.build();
+
+        return JavaFile.builder(implPackage, classSpec)
+                .addFileComment("Generated by proto-wrapper-maven-plugin. DO NOT EDIT.")
+                .indent("    ")
+                .build();
+    }
+
+    private int extractVersionNumber(String version) {
+        String numStr = version.replaceAll("[^0-9]", "");
+        try {
+            return Integer.parseInt(numStr);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Write generated file.
+     */
+    public void writeToFile(JavaFile javaFile) throws IOException {
+        javaFile.writeTo(config.getOutputDirectory());
+    }
+
+    /**
+     * Generate and write VersionContext interface.
+     */
+    public Path generateAndWriteInterface(MergedSchema schema) throws IOException {
+        JavaFile javaFile = generateInterface(schema);
+        writeToFile(javaFile);
+
+        String relativePath = config.getApiPackage().replace('.', '/')
+                + "/VersionContext.java";
+        return config.getOutputDirectory().resolve(relativePath);
+    }
+
+    /**
+     * Generate and write VersionContext implementation.
+     */
+    public Path generateAndWriteImpl(MergedSchema schema, String version,
+                                     Map<String, String> protoMappings) throws IOException {
+        JavaFile javaFile = generateImpl(schema, version, protoMappings);
+        writeToFile(javaFile);
+
+        String implPackage = config.getImplPackage(version);
+        String relativePath = implPackage.replace('.', '/')
+                + "/VersionContext" + version.toUpperCase() + ".java";
+        return config.getOutputDirectory().resolve(relativePath);
+    }
+}
