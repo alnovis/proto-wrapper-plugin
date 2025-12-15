@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-15
+
+### Added
+
+#### CI/CD
+- **GitHub Actions workflow** — Automated build and test pipeline
+  - Multi-version Java testing (11, 17, 21)
+  - Automatic protoc installation
+  - Maven dependency caching
+  - Build artifact upload (JAR files)
+  - Triggered on push/PR to `master` and `develop` branches
+
+### Changed
+- Minor documentation improvements
+
+---
+
 ## [1.0.0] - 2025-12-15
 
 ### Added
