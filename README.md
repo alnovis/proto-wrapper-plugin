@@ -38,10 +38,10 @@ mvn install
         <protoRoot>${basedir}/src/main/proto</protoRoot>
         <versions>
             <version>
-                <protoDir>v202</protoDir>
+                <protoDir>v1</protoDir>
             </version>
             <version>
-                <protoDir>v203</protoDir>
+                <protoDir>v2</protoDir>
             </version>
         </versions>
     </configuration>
@@ -57,8 +57,8 @@ mvn install
 
 Классы будут сгенерированы в:
 - `com.mycompany.myapp.model.api` — интерфейсы, enum'ы и абстрактные классы
-- `com.mycompany.myapp.model.v202` — реализации для v202
-- `com.mycompany.myapp.model.v203` — реализации для v203
+- `com.mycompany.myapp.model.v1` — реализации для v1
+- `com.mycompany.myapp.model.v2` — реализации для v2
 
 Плагин автоматически:
 1. Найдёт все `.proto` файлы в каждой директории
@@ -97,9 +97,9 @@ mvn compile
         <versions>
             <version>
                 <!-- Директория относительно protoRoot -->
-                <protoDir>v202</protoDir>
+                <protoDir>v1</protoDir>
                 <!-- Опционально: имя версии (по умолчанию — uppercase от protoDir) -->
-                <name>V202</name>
+                <name>V1</name>
                 <!-- Опционально: исключить определённые proto файлы -->
                 <excludeProtos>
                     <excludeProto>internal.proto</excludeProto>
@@ -107,7 +107,7 @@ mvn compile
                 </excludeProtos>
             </version>
             <version>
-                <protoDir>v203</protoDir>
+                <protoDir>v2</protoDir>
             </version>
         </versions>
     </configuration>
@@ -123,23 +123,23 @@ target/generated-sources/proto-wrapper/
 ├── com/mycompany/myapp/model/api/
 │   ├── Money.java                    # Интерфейс
 │   ├── DateTime.java                 # Интерфейс
-│   ├── TicketRequest.java            # Интерфейс с nested интерфейсами
+│   ├── Order.java                    # Интерфейс с nested интерфейсами
 │   ├── PaymentTypeEnum.java          # Enum
 │   ├── VersionContext.java           # Фабричный интерфейс
 │   └── impl/
 │       ├── AbstractMoney.java        # Абстрактный базовый класс
 │       ├── AbstractDateTime.java
-│       └── AbstractTicketRequest.java
-├── com/mycompany/myapp/model/v202/
-│   ├── MoneyV202.java                # Реализация
-│   ├── DateTimeV202.java
-│   ├── TicketRequestV202.java
-│   └── VersionContextV202.java
-└── com/mycompany/myapp/model/v203/
-    ├── MoneyV203.java
-    ├── DateTimeV203.java
-    ├── TicketRequestV203.java
-    └── VersionContextV203.java
+│       └── AbstractOrder.java
+├── com/mycompany/myapp/model/v1/
+│   ├── MoneyV1.java                  # Реализация
+│   ├── DateTimeV1.java
+│   ├── OrderV1.java
+│   └── VersionContextV1.java
+└── com/mycompany/myapp/model/v2/
+    ├── MoneyV2.java
+    ├── DateTimeV2.java
+    ├── OrderV2.java
+    └── VersionContextV2.java
 ```
 
 ## Примеры сгенерированного кода
@@ -150,13 +150,13 @@ target/generated-sources/proto-wrapper/
 /**
  * Version-agnostic interface for Money.
  *
- * <p>Supported in versions: [v202, v203]</p>
+ * <p>Supported in versions: [v1, v2]</p>
  */
 public interface Money {
     long getBills();
     int getCoins();
 
-    /** @return Protocol version (e.g., 202, 203) */
+    /** @return Protocol version (e.g., 1, 2) */
     int getWrapperVersion();
 
     /** Serialize to protobuf bytes. */
@@ -195,9 +195,9 @@ public abstract class AbstractMoney<PROTO extends Message> implements Money {
 ### Реализация
 
 ```java
-public class MoneyV202 extends AbstractMoney<Common.Money> {
+public class MoneyV1 extends AbstractMoney<Common.Money> {
 
-    public MoneyV202(Common.Money proto) {
+    public MoneyV1(Common.Money proto) {
         super(proto);
     }
 
@@ -211,8 +211,8 @@ public class MoneyV202 extends AbstractMoney<Common.Money> {
         return proto.getCoins();
     }
 
-    public static MoneyV202 from(Common.Money proto) {
-        return new MoneyV202(proto);
+    public static MoneyV1 from(Common.Money proto) {
+        return new MoneyV1(proto);
     }
 }
 ```
@@ -223,19 +223,19 @@ public class MoneyV202 extends AbstractMoney<Common.Money> {
 /**
  * Version-agnostic enum for PaymentTypeEnum.
  *
- * <p>Supported in versions: [v202, v203]</p>
+ * <p>Supported in versions: [v1, v2]</p>
  */
 public enum PaymentTypeEnum {
     CASH(0),
     CARD(1),
 
     /**
-     * Present only in versions: [v202]
+     * Present only in versions: [v1]
      */
     CREDIT(2),
 
     /**
-     * Present only in versions: [v202]
+     * Present only in versions: [v1]
      */
     TARE(3),
 
@@ -249,11 +249,11 @@ public enum PaymentTypeEnum {
 
 ```java
 // Получение контекста для версии
-VersionContext ctx = VersionContext.forVersion(203);
+VersionContext ctx = VersionContext.forVersion(2);
 
 // Обёртывание proto-сообщения
 Money money = ctx.wrapMoney(protoMessage);
-TicketRequest ticket = ctx.wrapTicketRequest(ticketProto);
+Order order = ctx.wrapOrder(orderProto);
 ```
 
 ## Параметры конфигурации
@@ -273,7 +273,7 @@ TicketRequest ticket = ctx.wrapTicketRequest(ticketProto);
 | Параметр | Описание |
 |----------|----------|
 | `protoDir` | Директория с proto файлами относительно `protoRoot` |
-| `name` | Имя версии (по умолчанию — uppercase от `protoDir`, например `v202` → `V202`) |
+| `name` | Имя версии (по умолчанию — uppercase от `protoDir`, например `v1` → `V1`) |
 | `excludeProtos` | Список proto файлов для исключения |
 
 ### Вычисляемые пакеты
@@ -290,8 +290,8 @@ TicketRequest ticket = ctx.wrapTicketRequest(ticketProto);
 
 | Ситуация | Решение |
 |----------|---------|
-| `int` в v202 → `long` в v203 | Используется `long`, в v202 применяется cast `(long)` |
-| `int` в v202 → `enum` в v203 | Используется `int`, enum конвертируется через `getNumber()` |
+| `int` в v1 → `long` в v2 | Используется `long`, в v1 применяется cast `(long)` |
+| `int` в v1 → `enum` в v2 | Используется `int`, enum конвертируется через `getNumber()` |
 | Несовместимые типы (message vs primitive) | Поле помечается как отсутствующее в конфликтующей версии |
 
 ### Эквивалентные enum'ы
@@ -299,12 +299,12 @@ TicketRequest ticket = ctx.wrapTicketRequest(ticketProto);
 Если enum определён как nested в одной версии и как top-level в другой:
 
 ```protobuf
-// v202: nested enum
-message NomenclatureResponse {
+// v1: nested enum
+message Product {
   enum TaxTypeEnum { VAT = 100; }
 }
 
-// v203: top-level enum (в отдельном файле)
+// v2: top-level enum (в отдельном файле)
 enum TaxTypeEnum { VAT = 100; }
 ```
 
@@ -318,7 +318,7 @@ enum TaxTypeEnum { VAT = 100; }
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Proto Files                               │
-│                  v202/*.proto, v203/*.proto                 │
+│                    v1/*.proto, v2/*.proto                   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -382,18 +382,18 @@ mvn install -DskipTests
 ```java
 // Парсинг proto-сообщения
 byte[] protoBytes = ...;
-Ticket.TicketRequest protoRequest = Ticket.TicketRequest.parseFrom(protoBytes);
+OrderProto.Order protoOrder = OrderProto.Order.parseFrom(protoBytes);
 
 // Определение версии и обёртывание
-int version = 203;
+int version = 2;
 VersionContext ctx = VersionContext.forVersion(version);
-TicketRequest request = ctx.wrapTicketRequest(protoRequest);
+Order order = ctx.wrapOrder(protoOrder);
 
 // Использование версионно-независимого API
-DateTime dateTime = request.getDateTime();
-List<TicketRequest.Item> items = request.getItems();
-OperationTypeEnum operation = request.getOperation();
+DateTime dateTime = order.getDateTime();
+List<Order.Item> items = order.getItems();
+OperationTypeEnum operation = order.getOperation();
 
 // Сериализация обратно в proto
-byte[] outputBytes = request.toBytes();
+byte[] outputBytes = order.toBytes();
 ```
