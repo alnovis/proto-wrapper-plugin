@@ -1,6 +1,6 @@
 # Release Notes — Proto Wrapper Maven Plugin v1.0.0
 
-**Release Date:** December 15, 2024
+**Release Date:** December 15, 2025
 
 ## Overview
 
