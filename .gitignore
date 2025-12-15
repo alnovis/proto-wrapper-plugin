@@ -26,3 +26,6 @@ dependency-reduced-pom.xml
 
 # Logs
 *.log
+
+# Service md documents
+REFACTORING.md
