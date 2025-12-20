@@ -3,8 +3,11 @@ package space.alnovis.protowrapper;
 import java.util.function.Consumer;
 
 /**
- * Logger interface for proto-wrapper-plugin.
+ * Logger interface for proto-wrapper.
  * Provides different log levels and can be adapted to various logging backends.
+ *
+ * <p>This interface is build-tool agnostic. For Maven-specific logging,
+ * see {@code MavenLogger} in the proto-wrapper-maven-plugin module.</p>
  */
 public interface PluginLogger {
 
@@ -104,37 +107,4 @@ public interface PluginLogger {
         };
     }
 
-    /**
-     * Creates a logger that delegates to Maven's Log interface.
-     * Usage in Maven plugins:
-     * <pre>
-     * PluginLogger logger = PluginLogger.maven(getLog());
-     * </pre>
-     *
-     * @param mavenLog Maven's Log instance (org.apache.maven.plugin.logging.Log)
-     * @return PluginLogger that delegates to Maven Log
-     */
-    static PluginLogger maven(org.apache.maven.plugin.logging.Log mavenLog) {
-        return new PluginLogger() {
-            @Override
-            public void info(String message) {
-                mavenLog.info(message);
-            }
-
-            @Override
-            public void warn(String message) {
-                mavenLog.warn(message);
-            }
-
-            @Override
-            public void debug(String message) {
-                mavenLog.debug(message);
-            }
-
-            @Override
-            public void error(String message) {
-                mavenLog.error(message);
-            }
-        };
-    }
 }

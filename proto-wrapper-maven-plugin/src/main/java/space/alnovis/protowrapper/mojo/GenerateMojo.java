@@ -7,7 +7,6 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
-import space.alnovis.protowrapper.PluginLogger;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import space.alnovis.protowrapper.analyzer.ProtocExecutor;
@@ -186,7 +185,7 @@ public class GenerateMojo extends AbstractMojo {
         initializePackages();
 
         // Initialize protoc executor
-        protocExecutor = new ProtocExecutor(PluginLogger.maven(getLog()));
+        protocExecutor = new ProtocExecutor(MavenLogger.from(getLog()));
         if (protocPath != null && !protocPath.isEmpty()) {
             protocExecutor.setProtocPath(protocPath);
         }
@@ -215,7 +214,7 @@ public class GenerateMojo extends AbstractMojo {
 
             // Merge schemas
             getLog().info("Merging " + schemas.size() + " schemas...");
-            VersionMerger merger = new VersionMerger(PluginLogger.maven(getLog()));
+            VersionMerger merger = new VersionMerger(MavenLogger.from(getLog()));
             MergedSchema mergedSchema = merger.merge(schemas);
 
             getLog().info("Merged schema: " + mergedSchema.getMessages().size() + " messages, " +
@@ -226,7 +225,7 @@ public class GenerateMojo extends AbstractMojo {
 
             // Use orchestrator for generation
             GenerationOrchestrator orchestrator = new GenerationOrchestrator(
-                    generatorConfig, PluginLogger.maven(getLog()));
+                    generatorConfig, MavenLogger.from(getLog()));
 
             int generatedFiles = orchestrator.generateAll(
                     mergedSchema,

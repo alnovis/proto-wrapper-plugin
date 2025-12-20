@@ -1,5 +1,6 @@
 # Build output
 target/
+out/
 
 # IDE
 .idea/
@@ -15,6 +16,10 @@ target/
 # OS
 .DS_Store
 Thumbs.db
+
+# Mill
+.bsp/
+.mill-version
 
 # Maven
 pom.xml.tag

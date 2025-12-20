@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>space.alnovis</groupId>
+        <artifactId>proto-wrapper-parent</artifactId>
+        <version>1.0.3</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>proto-wrapper-example</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Proto Wrapper Example</name>
+    <description>
+        Example project demonstrating proto-wrapper-maven-plugin features:
+        - Multi-version proto schema support
+        - Top-level and nested enums
+        - Deeply nested messages
+        - Repeated fields
+        - Optional fields with defaults
+        - Version-specific fields
+        - VersionContext for runtime version selection
+    </description>
+
+    <properties>
+        <!-- Use parent versions where possible -->
+        <proto-wrapper.version>${project.parent.version}</proto-wrapper.version>
+    </properties>
+
+    <dependencies>
+        <!-- Protobuf runtime (version from parent) -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <!-- Testing (versions from parent) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <extensions>
+            <!-- OS detection for protoc artifact -->
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
+
+        <plugins>
+            <!-- Compile proto files to Java -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+                <configuration>
+                    <protocArtifact>com.google.protobuf:protoc:3.24.0:exe:${os.detected.classifier}</protocArtifact>
+                    <protoSourceRoot>${basedir}/proto</protoSourceRoot>
+                </configuration>
+                <executions>
+                    <!-- Compile v1 protos -->
+                    <execution>
+                        <id>compile-v1</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>v1/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/protobuf-v1</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <!-- Compile v2 protos -->
+                    <execution>
+                        <id>compile-v2</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>v2/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/protobuf-v2</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Generate version-agnostic wrappers -->
+            <plugin>
+                <groupId>space.alnovis</groupId>
+                <artifactId>proto-wrapper-maven-plugin</artifactId>
+                <version>${proto-wrapper.version}</version>
+                <configuration>
+                    <!-- Base package for all generated code -->
+                    <basePackage>com.example.model</basePackage>
+
+                    <!-- Pattern for proto package (used to resolve proto class names) -->
+                    <protoPackagePattern>com.example.proto.{version}</protoPackagePattern>
+
+                    <!-- Root directory containing version subdirectories -->
+                    <protoRoot>${basedir}/proto</protoRoot>
+
+                    <!-- Whether to add version suffix to implementation class names -->
+                    <!-- true: MoneyV1, MoneyV2 -->
+                    <!-- false: Money, Money (differentiated by package) -->
+                    <includeVersionSuffix>false</includeVersionSuffix>
+
+                    <!-- Version configurations -->
+                    <versions>
+                        <version>
+                            <protoDir>v1</protoDir>
+                            <!-- Optional: custom name for logging -->
+                            <!-- <name>Version 1.0</name> -->
+                            <!-- Optional: exclude patterns -->
+                            <!-- <excludePatterns>*_internal.proto</excludePatterns> -->
+                        </version>
+                        <version>
+                            <protoDir>v2</protoDir>
+                        </version>
+                    </versions>
+
+                    <!-- Optional: API package (default: basePackage + ".api") -->
+                    <!-- <apiPackage>com.example.model.api</apiPackage> -->
+
+                    <!-- Optional: Implementation package pattern -->
+                    <!-- <implPackagePattern>com.example.model.{version}</implPackagePattern> -->
+
+                    <!-- Optional: Generation flags (all true by default) -->
+                    <!-- <generateInterfaces>true</generateInterfaces> -->
+                    <!-- <generateAbstractClasses>true</generateAbstractClasses> -->
+                    <!-- <generateImplClasses>true</generateImplClasses> -->
+                    <!-- <generateVersionContext>true</generateVersionContext> -->
+
+                    <!-- Optional: Include/exclude specific messages -->
+                    <!-- <includeMessages>Order,Customer</includeMessages> -->
+                    <!-- <excludeMessages>InternalMessage</excludeMessages> -->
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Compiler plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire for tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.2</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
