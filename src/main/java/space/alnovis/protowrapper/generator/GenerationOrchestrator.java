@@ -6,10 +6,12 @@ import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Orchestrates the code generation process.
@@ -83,16 +85,19 @@ public class GenerationOrchestrator {
      */
     public int generateEnums(MergedSchema schema) throws IOException {
         EnumGenerator generator = new EnumGenerator(config);
-        int count = 0;
 
-        for (MergedEnum enumInfo : schema.getEnums()) {
-            Path path = generator.generateAndWrite(enumInfo);
-            logger.debug("Generated enum: " + path);
-            count++;
+        try {
+            long count = schema.getEnums().stream()
+                    .map(enumInfo -> generateWithLogging(
+                            () -> generator.generateAndWrite(enumInfo),
+                            "Generated enum: "))
+                    .count();
+
+            logger.info("Generated " + count + " enums");
+            return (int) count;
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
         }
-
-        logger.info("Generated " + count + " enums");
-        return count;
     }
 
     /**
@@ -105,20 +110,20 @@ public class GenerationOrchestrator {
     public int generateInterfaces(MergedSchema schema) throws IOException {
         InterfaceGenerator generator = new InterfaceGenerator(config);
         GenerationContext ctx = GenerationContext.create(schema, config);
-        int count = 0;
 
-        for (MergedMessage message : schema.getMessages()) {
-            if (!config.shouldGenerate(message.getName())) {
-                continue;
-            }
+        try {
+            long count = schema.getMessages().stream()
+                    .filter(message -> config.shouldGenerate(message.getName()))
+                    .map(message -> generateWithLogging(
+                            () -> generator.generateAndWrite(message, ctx),
+                            "Generated interface: "))
+                    .count();
 
-            Path path = generator.generateAndWrite(message, ctx);
-            logger.debug("Generated interface: " + path);
-            count++;
+            logger.info("Generated " + count + " interfaces");
+            return (int) count;
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
         }
-
-        logger.info("Generated " + count + " interfaces");
-        return count;
     }
 
     /**
@@ -131,20 +136,20 @@ public class GenerationOrchestrator {
     public int generateAbstractClasses(MergedSchema schema) throws IOException {
         AbstractClassGenerator generator = new AbstractClassGenerator(config);
         GenerationContext ctx = GenerationContext.create(schema, config);
-        int count = 0;
 
-        for (MergedMessage message : schema.getMessages()) {
-            if (!config.shouldGenerate(message.getName())) {
-                continue;
-            }
+        try {
+            long count = schema.getMessages().stream()
+                    .filter(message -> config.shouldGenerate(message.getName()))
+                    .map(message -> generateWithLogging(
+                            () -> generator.generateAndWrite(message, ctx),
+                            "Generated abstract class: "))
+                    .count();
 
-            Path path = generator.generateAndWrite(message, ctx);
-            logger.debug("Generated abstract class: " + path);
-            count++;
+            logger.info("Generated " + count + " abstract classes");
+            return (int) count;
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
         }
-
-        logger.info("Generated " + count + " abstract classes");
-        return count;
     }
 
     /**
@@ -161,32 +166,36 @@ public class GenerationOrchestrator {
                                     ProtoClassNameResolver protoClassNameResolver) throws IOException {
         ImplClassGenerator generator = new ImplClassGenerator(config);
         GenerationContext baseCtx = GenerationContext.create(schema, config);
-        int count = 0;
 
-        for (VersionConfig versionConfig : versionConfigs) {
-            String version = versionConfig.getVersionId();
-            GenerationContext ctx = baseCtx.withVersion(version);
+        try {
+            long count = versionConfigs.stream()
+                    .flatMap(versionConfig -> {
+                        String version = versionConfig.getVersionId();
+                        GenerationContext ctx = baseCtx.withVersion(version);
 
-            for (MergedMessage message : schema.getMessages()) {
-                if (!config.shouldGenerate(message.getName())) {
-                    continue;
-                }
+                        return schema.getMessages().stream()
+                                .filter(message -> config.shouldGenerate(message.getName()))
+                                .filter(message -> {
+                                    if (!message.getPresentInVersions().contains(version)) {
+                                        logger.debug("Skipping " + message.getName() + " for " + version + " - not present");
+                                        return false;
+                                    }
+                                    return true;
+                                })
+                                .map(message -> {
+                                    String protoClassName = protoClassNameResolver.resolve(message, versionConfig);
+                                    return generateWithLogging(
+                                            () -> generator.generateAndWrite(message, protoClassName, ctx),
+                                            "Generated impl class: ");
+                                });
+                    })
+                    .count();
 
-                // Skip if message is not present in this version
-                if (!message.getPresentInVersions().contains(version)) {
-                    logger.debug("Skipping " + message.getName() + " for " + version + " - not present");
-                    continue;
-                }
-
-                String protoClassName = protoClassNameResolver.resolve(message, versionConfig);
-                Path path = generator.generateAndWrite(message, protoClassName, ctx);
-                logger.debug("Generated impl class: " + path);
-                count++;
-            }
+            logger.info("Generated " + count + " implementation classes");
+            return (int) count;
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
         }
-
-        logger.info("Generated " + count + " implementation classes");
-        return count;
     }
 
     /**
@@ -202,28 +211,32 @@ public class GenerationOrchestrator {
                                        List<VersionConfig> versionConfigs,
                                        ProtoClassNameResolver protoClassNameResolver) throws IOException {
         VersionContextGenerator generator = new VersionContextGenerator(config);
-        int count = 0;
 
-        // Generate interface
-        Path interfacePath = generator.generateAndWriteInterface(schema);
-        logger.debug("Generated VersionContext interface: " + interfacePath);
-        count++;
+        try {
+            // Generate interface
+            generateWithLogging(
+                    () -> generator.generateAndWriteInterface(schema),
+                    "Generated VersionContext interface: ");
 
-        // Generate implementations for each version
-        for (VersionConfig versionConfig : versionConfigs) {
-            Map<String, String> protoMappings = buildProtoMappings(schema, versionConfig, protoClassNameResolver);
+            // Generate implementations for each version
+            long implCount = versionConfigs.stream()
+                    .map(versionConfig -> {
+                        Map<String, String> protoMappings = buildProtoMappings(schema, versionConfig, protoClassNameResolver);
+                        return generateWithLogging(
+                                () -> generator.generateAndWriteImpl(
+                                        schema,
+                                        versionConfig.getVersionId(),
+                                        protoMappings),
+                                "Generated VersionContext impl: ");
+                    })
+                    .count();
 
-            Path implPath = generator.generateAndWriteImpl(
-                    schema,
-                    versionConfig.getVersionId(),
-                    protoMappings
-            );
-            logger.debug("Generated VersionContext impl: " + implPath);
-            count++;
+            int count = 1 + (int) implCount;
+            logger.info("Generated " + count + " VersionContext files");
+            return count;
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
         }
-
-        logger.info("Generated " + count + " VersionContext files");
-        return count;
     }
 
     /**
@@ -232,17 +245,37 @@ public class GenerationOrchestrator {
     private Map<String, String> buildProtoMappings(MergedSchema schema,
                                                     VersionConfig versionConfig,
                                                     ProtoClassNameResolver protoClassNameResolver) {
-        Map<String, String> mappings = new LinkedHashMap<>();
         String version = versionConfig.getVersionId();
 
-        for (MergedMessage message : schema.getMessages()) {
-            if (message.getPresentInVersions().contains(version)) {
-                String protoClassName = protoClassNameResolver.resolve(message, versionConfig);
-                mappings.put(message.getName(), protoClassName);
-            }
-        }
+        return schema.getMessages().stream()
+                .filter(message -> message.getPresentInVersions().contains(version))
+                .collect(Collectors.toMap(
+                        MergedMessage::getName,
+                        message -> protoClassNameResolver.resolve(message, versionConfig),
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                ));
+    }
 
-        return mappings;
+    /**
+     * Helper method to wrap IOException-throwing operations in streams.
+     */
+    private Path generateWithLogging(ThrowingSupplier<Path> generator, String logPrefix) {
+        try {
+            Path path = generator.get();
+            logger.debug(logPrefix + path);
+            return path;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Functional interface for suppliers that throw IOException.
+     */
+    @FunctionalInterface
+    private interface ThrowingSupplier<T> {
+        T get() throws IOException;
     }
 
     /**

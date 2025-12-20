@@ -6,6 +6,7 @@ import com.squareup.javapoet.TypeName;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Mapping between Java type names and JavaPoet TypeName objects.
@@ -136,6 +137,8 @@ public enum JavaTypeMapping {
         return mapping != null ? mapping.boxedName : typeName;
     }
 
+    private static final Set<String> PRIMITIVES = Set.of("int", "long", "double", "float", "boolean");
+
     /**
      * Check if the given type is a primitive (not boxed).
      *
@@ -143,15 +146,6 @@ public enum JavaTypeMapping {
      * @return true if primitive type
      */
     public static boolean isPrimitive(String typeName) {
-        switch (typeName) {
-            case "int":
-            case "long":
-            case "double":
-            case "float":
-            case "boolean":
-                return true;
-            default:
-                return false;
-        }
+        return PRIMITIVES.contains(typeName);
     }
 }

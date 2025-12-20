@@ -1,6 +1,8 @@
 package space.alnovis.protowrapper.model;
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents a merged message from multiple protocol versions.
@@ -95,19 +97,10 @@ public class MergedMessage {
     }
 
     private String toPascalCase(String snakeCase) {
-        StringBuilder result = new StringBuilder();
-        boolean capitalizeNext = true;
-        for (char c : snakeCase.toCharArray()) {
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                result.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
+        return Arrays.stream(snakeCase.split("_"))
+                .filter(s -> !s.isEmpty())
+                .map(s -> Character.toUpperCase(s.charAt(0)) + s.substring(1))
+                .collect(Collectors.joining());
     }
 
     public String getName() {
@@ -203,16 +196,11 @@ public class MergedMessage {
      * Find a nested message by name recursively (checks all descendants).
      */
     public Optional<MergedMessage> findNestedMessageRecursive(String nestedName) {
-        for (MergedMessage nested : nestedMessages) {
-            if (nested.getName().equals(nestedName)) {
-                return Optional.of(nested);
-            }
-            Optional<MergedMessage> found = nested.findNestedMessageRecursive(nestedName);
-            if (found.isPresent()) {
-                return found;
-            }
-        }
-        return Optional.empty();
+        return nestedMessages.stream()
+                .flatMap(nested -> Stream.concat(
+                        Stream.of(nested).filter(m -> m.getName().equals(nestedName)),
+                        nested.findNestedMessageRecursive(nestedName).stream()))
+                .findFirst();
     }
 
     /**
@@ -228,20 +216,11 @@ public class MergedMessage {
      * Find a nested enum by name recursively (checks all descendants).
      */
     public Optional<MergedEnum> findNestedEnumRecursive(String enumName) {
-        // Check direct nested enums
-        for (MergedEnum nestedEnum : nestedEnums) {
-            if (nestedEnum.getName().equals(enumName)) {
-                return Optional.of(nestedEnum);
-            }
-        }
-        // Check enums in nested messages
-        for (MergedMessage nested : nestedMessages) {
-            Optional<MergedEnum> found = nested.findNestedEnumRecursive(enumName);
-            if (found.isPresent()) {
-                return found;
-            }
-        }
-        return Optional.empty();
+        // Check direct nested enums first, then recurse into nested messages
+        return Stream.concat(
+                nestedEnums.stream().filter(e -> e.getName().equals(enumName)),
+                nestedMessages.stream().flatMap(nested -> nested.findNestedEnumRecursive(enumName).stream())
+        ).findFirst();
     }
 
     /**
@@ -255,22 +234,18 @@ public class MergedMessage {
      * Get fields that exist in all versions.
      */
     public List<MergedField> getCommonFields() {
-        List<MergedField> result = new ArrayList<>();
-        for (MergedField field : fields) {
-            if (field.getPresentInVersions().containsAll(presentInVersions)) {
-                result.add(field);
-            }
-        }
-        return result;
+        return fields.stream()
+                .filter(field -> field.getPresentInVersions().containsAll(presentInVersions))
+                .toList();
     }
 
     /**
      * Get fields sorted by field number.
      */
     public List<MergedField> getFieldsSorted() {
-        List<MergedField> sorted = new ArrayList<>(fields);
-        sorted.sort(Comparator.comparingInt(MergedField::getNumber));
-        return sorted;
+        return fields.stream()
+                .sorted(Comparator.comparingInt(MergedField::getNumber))
+                .toList();
     }
 
     @Override
