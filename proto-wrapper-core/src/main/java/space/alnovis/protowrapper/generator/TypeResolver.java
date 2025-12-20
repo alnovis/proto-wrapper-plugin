@@ -248,23 +248,20 @@ public class TypeResolver {
 
     /**
      * Extract the proto package from the pattern.
-     * The pattern is like "com.example.proto.{version}" and proto package
-     * is typically the last 3 parts.
+     * The pattern is like "com.example.proto.{version}" - replace {version} with
+     * a placeholder version to get the concrete package.
      *
      * @param pattern Proto package pattern
-     * @return Extracted proto package
+     * @return Extracted proto package with placeholder version
      */
     public String extractProtoPackage(String pattern) {
         if (pattern == null || pattern.isEmpty()) {
             return "";
         }
-        String javaPackage = pattern.replace("{version}", "v1");
-        String[] parts = javaPackage.split("\\.");
-        if (parts.length >= 3) {
-            int start = Math.max(0, parts.length - 3);
-            return String.join(".", Arrays.copyOfRange(parts, start, parts.length));
-        }
-        return javaPackage;
+        // Replace {version} placeholder with a concrete version for matching
+        // The actual version doesn't matter as FieldInfo.extractNestedTypePath
+        // handles version-independent matching
+        return pattern.replace("{version}", "v1");
     }
 
     /**

@@ -87,14 +87,18 @@ public class GenerationOrchestrator {
         EnumGenerator generator = new EnumGenerator(config);
 
         try {
-            long count = schema.getEnums().stream()
-                    .map(enumInfo -> generateWithLogging(
-                            () -> generator.generateAndWrite(enumInfo),
-                            "Generated enum: "))
-                    .count();
+            // Note: Using forEach instead of map().count() because Java 9+ optimizes
+            // count() to skip intermediate operations for sized streams
+            int[] count = {0};
+            schema.getEnums().forEach(enumInfo -> {
+                generateWithLogging(
+                        () -> generator.generateAndWrite(enumInfo),
+                        "Generated enum: ");
+                count[0]++;
+            });
 
-            logger.info("Generated " + count + " enums");
-            return (int) count;
+            logger.info("Generated " + count[0] + " enums");
+            return count[0];
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
@@ -219,19 +223,21 @@ public class GenerationOrchestrator {
                     "Generated VersionContext interface: ");
 
             // Generate implementations for each version
-            long implCount = versionConfigs.stream()
-                    .map(versionConfig -> {
-                        Map<String, String> protoMappings = buildProtoMappings(schema, versionConfig, protoClassNameResolver);
-                        return generateWithLogging(
-                                () -> generator.generateAndWriteImpl(
-                                        schema,
-                                        versionConfig.getVersionId(),
-                                        protoMappings),
-                                "Generated VersionContext impl: ");
-                    })
-                    .count();
+            // Note: forEach used instead of count() to ensure map() is executed
+            // (count() may optimize away intermediate operations in Java 9+)
+            int[] implCount = {0};
+            versionConfigs.forEach(versionConfig -> {
+                Map<String, String> protoMappings = buildProtoMappings(schema, versionConfig, protoClassNameResolver);
+                generateWithLogging(
+                        () -> generator.generateAndWriteImpl(
+                                schema,
+                                versionConfig.getVersionId(),
+                                protoMappings),
+                        "Generated VersionContext impl: ");
+                implCount[0]++;
+            });
 
-            int count = 1 + (int) implCount;
+            int count = 1 + implCount[0];
             logger.info("Generated " + count + " VersionContext files");
             return count;
         } catch (UncheckedIOException e) {

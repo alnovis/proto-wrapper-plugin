@@ -1,0 +1,88 @@
+// Order messages for v1
+syntax = "proto2";
+
+package com.example.proto.v1;
+
+option java_package = "com.example.proto.v1";
+option java_outer_classname = "Order";
+
+import "v1/common.proto";
+
+// Order status enum
+enum OrderStatus {
+    ORDER_PENDING = 0;
+    ORDER_CONFIRMED = 1;
+    ORDER_SHIPPED = 2;
+    ORDER_DELIVERED = 3;
+    ORDER_CANCELLED = 4;
+}
+
+// Payment method enum
+enum PaymentMethod {
+    PAYMENT_CASH = 0;
+    PAYMENT_CARD = 1;
+    PAYMENT_BANK_TRANSFER = 2;
+}
+
+// Order item with nested discount
+message OrderItem {
+    required string product_id = 1;
+    required string product_name = 2;
+    required int32 quantity = 3;
+    required Money unit_price = 4;
+
+    // Nested message for discount
+    message Discount {
+        enum DiscountType {
+            PERCENTAGE = 0;
+            FIXED_AMOUNT = 1;
+        }
+
+        required DiscountType type = 1;
+        required int32 value = 2;  // Percentage (0-100) or fixed amount in cents
+        optional string code = 3;  // Promo code if applicable
+    }
+
+    optional Discount discount = 5;
+    optional string notes = 6;
+}
+
+// Customer information
+message Customer {
+    required string id = 1;
+    required string name = 2;
+    required string email = 3;
+    optional string phone = 4;
+    optional Address billing_address = 5;
+    optional Address shipping_address = 6;
+}
+
+// Main order message
+message OrderRequest {
+    required string order_id = 1;
+    required Customer customer = 2;
+    repeated OrderItem items = 3;
+    required Money total_amount = 4;
+    required PaymentMethod payment_method = 5;
+    optional string notes = 6;
+    required Date order_date = 7;
+}
+
+// Order response
+message OrderResponse {
+    required string order_id = 1;
+    required OrderStatus status = 2;
+    optional string message = 3;
+    optional Date estimated_delivery = 4;
+    optional string tracking_number = 5;
+
+    // Nested message for payment details
+    message PaymentInfo {
+        required PaymentMethod method = 1;
+        required Money amount = 2;
+        optional string transaction_id = 3;
+        optional Date payment_date = 4;
+    }
+
+    optional PaymentInfo payment = 6;
+}

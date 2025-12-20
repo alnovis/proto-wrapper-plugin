@@ -1,0 +1,48 @@
+// Common types for v1
+syntax = "proto2";
+
+package com.example.proto.v1;
+
+option java_package = "com.example.proto.v1";
+option java_outer_classname = "Common";
+
+// Simple date representation
+message Date {
+    required int32 year = 1;
+    required int32 month = 2;
+    required int32 day = 3;
+}
+
+// Money with currency
+message Money {
+    required int64 amount = 1;      // Amount in smallest units (cents)
+    required string currency = 2;   // ISO 4217 currency code
+}
+
+// Address with nested structure
+message Address {
+    required string street = 1;
+    optional string building = 2;
+    optional string apartment = 3;
+    required string city = 4;
+    required string country = 5;
+    optional string postal_code = 6;
+
+    // Nested enum for address type
+    enum AddressType {
+        HOME = 0;
+        WORK = 1;
+        SHIPPING = 2;
+        BILLING = 3;
+    }
+
+    optional AddressType type = 7 [default = HOME];
+}
+
+// Top-level enum for status
+enum Status {
+    UNKNOWN = 0;
+    ACTIVE = 1;
+    INACTIVE = 2;
+    DELETED = 3;
+}

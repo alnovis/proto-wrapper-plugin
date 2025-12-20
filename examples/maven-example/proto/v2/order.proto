@@ -1,0 +1,168 @@
+// Order messages for v2 - Enhanced version
+syntax = "proto2";
+
+package com.example.proto.v2;
+
+option java_package = "com.example.proto.v2";
+option java_outer_classname = "Order";
+
+import "v2/common.proto";
+
+// Enhanced order status
+enum OrderStatus {
+    ORDER_PENDING = 0;
+    ORDER_CONFIRMED = 1;
+    ORDER_SHIPPED = 2;
+    ORDER_DELIVERED = 3;
+    ORDER_CANCELLED = 4;
+    // NEW in v2
+    ORDER_PROCESSING = 5;
+    ORDER_ON_HOLD = 6;
+    ORDER_RETURNED = 7;
+    ORDER_REFUNDED = 8;
+}
+
+// Enhanced payment methods
+enum PaymentMethod {
+    PAYMENT_CASH = 0;
+    PAYMENT_CARD = 1;
+    PAYMENT_BANK_TRANSFER = 2;
+    // NEW in v2
+    PAYMENT_CRYPTO = 3;
+    PAYMENT_WALLET = 4;
+    PAYMENT_INSTALLMENT = 5;
+}
+
+// NEW in v2: Delivery method
+enum DeliveryMethod {
+    DELIVERY_STANDARD = 0;
+    DELIVERY_EXPRESS = 1;
+    DELIVERY_SAME_DAY = 2;
+    DELIVERY_PICKUP = 3;
+}
+
+// Enhanced order item
+message OrderItem {
+    required string product_id = 1;
+    required string product_name = 2;
+    required int32 quantity = 3;
+    required Money unit_price = 4;
+
+    message Discount {
+        enum DiscountType {
+            PERCENTAGE = 0;
+            FIXED_AMOUNT = 1;
+            // NEW in v2
+            BUY_X_GET_Y = 2;
+            BUNDLE = 3;
+        }
+
+        required DiscountType type = 1;
+        required int32 value = 2;
+        optional string code = 3;
+        // NEW in v2
+        optional Date valid_until = 4;
+    }
+
+    optional Discount discount = 5;
+    optional string notes = 6;
+    // NEW in v2: product attributes
+    optional string sku = 7;
+    optional string category = 8;
+
+    // NEW in v2: variant info
+    message Variant {
+        optional string color = 1;
+        optional string size = 2;
+        optional string material = 3;
+    }
+
+    optional Variant variant = 9;
+}
+
+// Enhanced customer
+message Customer {
+    required string id = 1;
+    required string name = 2;
+    required string email = 3;
+    optional string phone = 4;
+    optional Address billing_address = 5;
+    optional Address shipping_address = 6;
+    // NEW in v2
+    optional bool is_verified = 7;
+    optional string loyalty_tier = 8;
+    optional int32 loyalty_points = 9;
+}
+
+// Enhanced order request
+message OrderRequest {
+    required string order_id = 1;
+    required Customer customer = 2;
+    repeated OrderItem items = 3;
+    required Money total_amount = 4;
+    required PaymentMethod payment_method = 5;
+    optional string notes = 6;
+    required Date order_date = 7;
+    // NEW in v2
+    optional DeliveryMethod delivery_method = 8;
+    optional Priority priority = 9;
+    optional string coupon_code = 10;
+
+    // NEW in v2: Gift options
+    message GiftOptions {
+        required bool is_gift = 1;
+        optional string gift_message = 2;
+        optional bool gift_wrap = 3;
+        optional string recipient_name = 4;
+    }
+
+    optional GiftOptions gift = 11;
+}
+
+// Enhanced order response
+message OrderResponse {
+    required string order_id = 1;
+    required OrderStatus status = 2;
+    optional string message = 3;
+    optional Date estimated_delivery = 4;
+    optional string tracking_number = 5;
+
+    message PaymentInfo {
+        required PaymentMethod method = 1;
+        required Money amount = 2;
+        optional string transaction_id = 3;
+        optional Date payment_date = 4;
+        // NEW in v2
+        optional string receipt_url = 5;
+
+        // NEW in v2: installment details
+        message InstallmentPlan {
+            required int32 total_installments = 1;
+            required int32 current_installment = 2;
+            required Money installment_amount = 3;
+            optional Date next_payment_date = 4;
+        }
+
+        optional InstallmentPlan installment_plan = 6;
+    }
+
+    optional PaymentInfo payment = 6;
+
+    // NEW in v2: delivery tracking
+    message DeliveryInfo {
+        required DeliveryMethod method = 1;
+        optional string carrier = 2;
+        optional string tracking_url = 3;
+
+        message TrackingEvent {
+            required Date timestamp = 1;
+            required string status = 2;
+            optional string location = 3;
+            optional string description = 4;
+        }
+
+        repeated TrackingEvent events = 4;
+    }
+
+    optional DeliveryInfo delivery = 7;
+}
