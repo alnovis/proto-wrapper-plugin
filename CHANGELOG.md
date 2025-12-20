@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-20
+
+### Added
+
+#### New Configuration Options
+- **`includeVersionSuffix` parameter** — Controls version suffix in generated class names
+  - `true` (default): `MoneyV1`, `DateTimeV2` — backward compatible
+  - `false`: `Money`, `DateTime` — version determined by package only
+- **`PluginLogger` interface** — Unified logging abstraction with multiple backends:
+  - `PluginLogger.maven(getLog())` — Maven plugin logging
+  - `PluginLogger.console()` — Console output for standalone usage
+  - `PluginLogger.noop()` — Silent mode for testing
+  - `PluginLogger.fromConsumer()` — Custom consumer adapter
+
+### Changed
+
+#### Code Modernization (Java 17+)
+- **Minimum Java version raised to 17** — Required for records and modern language features
+- **Records for helper classes** — Replaced inner helper classes with Java 17 records:
+  - `FieldWithVersion` — Holds field info with its version
+  - `EnumValueWithVersion` — Holds enum value with its version
+- **Stream API throughout codebase** — Replaced ~45 imperative loops with functional streams (~70% Stream usage)
+- **Modern collection APIs** — `Set.of()` for immutable sets, `List.of()` for immutable lists
+- **Functional patterns** — `reduce()`, `flatMap()`, `groupingBy()`, `Collectors.toMap()`
+- **String utilities** — `String.join()` and `Arrays.copyOfRange()` instead of manual loops
+
+#### Refactored Components
+- **VersionMerger** — Complete Stream API refactoring with `flatMap`, `groupingBy`, and `Optional.stream()`
+- **GenerationOrchestrator** — Added `ThrowingSupplier` functional interface, stream-based file generation
+- **MergedMessage** — Stream-based recursive search and filtering methods
+- **TypeResolver** — `reduce()` for nested class name building, cleaner type resolution
+- **JavaTypeMapping** — `Set.of()` for primitive type checking
+
+### Fixed
+- Improved code readability and maintainability through functional style
+- Reduced code duplication in merge and generation logic
+
+---
+
 ## [1.0.1] - 2025-12-15
 
 ### Added
@@ -76,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Requirements
 
-- Java 11+
+- Java 17+ (as of v1.0.2)
 - Maven 3.8+
 - protoc (Protocol Buffers compiler) in PATH
 
