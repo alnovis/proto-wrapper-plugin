@@ -1,163 +1,169 @@
-# Release Notes — Proto Wrapper Maven Plugin v1.0.2
+# Release Notes — Proto Wrapper Maven Plugin v1.0.3
 
-**Release Date:** December 20, 2025
+**Release Date:** December 21, 2025
 
 ## Overview
 
-This release brings significant code modernization with a focus on functional programming patterns and Java 17+ features. The codebase has been refactored to use Stream API, records, and modern collection utilities for improved readability and maintainability.
-
-## Breaking Changes
-
-### Java Version Requirement
-
-**Minimum Java version is now 17** (previously 11).
-
-This change was necessary to leverage:
-- **Records** — Immutable data carriers for helper classes
-- **Modern Stream API enhancements** — `Optional.stream()`, improved collectors
-- **Text blocks** — Better string handling (future use)
+This release introduces a multi-module architecture, comprehensive integration tests, and critical bug fixes. The project is now split into `proto-wrapper-core` and `proto-wrapper-maven-plugin` modules for better separation of concerns and potential reuse of the core library.
 
 ## What's New
 
-### New Configuration: `includeVersionSuffix`
+### Multi-Module Architecture
 
-Control whether generated implementation classes include version suffix:
+The project has been restructured into separate Maven modules:
 
-```xml
-<configuration>
-    <!-- Default: true (backward compatible) -->
-    <includeVersionSuffix>false</includeVersionSuffix>
-</configuration>
+```
+proto-wrapper-plugin/
+├── proto-wrapper-core/           # Core library (no Maven dependencies)
+│   └── src/main/java/
+│       └── space/alnovis/protowrapper/
+│           ├── analyzer/         # Proto file analysis
+│           ├── generator/        # Code generation
+│           ├── merger/           # Schema merging
+│           └── model/            # Data models
+├── proto-wrapper-maven-plugin/   # Maven plugin
+│   └── src/main/java/
+│       └── space/alnovis/protowrapper/mojo/
+└── examples/maven-example/       # Example with tests
 ```
 
-| Setting | Generated Class | Package |
-|---------|----------------|---------|
-| `true` (default) | `MoneyV1`, `MoneyV2` | `com.example.model.v1` |
-| `false` | `Money`, `Money` | `com.example.model.v1`, `com.example.model.v2` |
+**Benefits:**
+- Core library can be used independently of Maven
+- Cleaner dependency management
+- Easier testing and maintenance
+- Foundation for future Gradle plugin
 
-### Unified Logging: `PluginLogger`
+### Integration Tests
 
-New logging interface replaces direct `Consumer<String>` usage:
+Added 75 comprehensive tests in `examples/maven-example/` that validate generated code against proto files:
 
-```java
-// Maven plugin integration
-PluginLogger logger = PluginLogger.maven(getLog());
+| Test Class | Tests | Purpose |
+|------------|-------|---------|
+| `InterfaceGenerationTest` | 16 | Validates interfaces have correct methods |
+| `EnumGenerationTest` | 15 | Validates enum values (top-level and nested) |
+| `FieldMappingTest` | 13 | Validates proto→wrapper field mapping |
+| `VersionContextTest` | 16 | Validates VersionContext factory |
+| `VersionEvolutionTest` | 13 | Validates V1/V2 compatibility |
 
-// Standalone/testing
-PluginLogger logger = PluginLogger.console();
+Tests run automatically as part of the main build:
 
-// Silent mode
-PluginLogger logger = PluginLogger.noop();
-
-// Custom handler
-PluginLogger logger = PluginLogger.fromConsumer(msg -> myLogger.log(msg));
+```bash
+mvn clean test
+# Runs: core tests (70) + example integration tests (75) = 145 tests
 ```
 
-Logging levels: `info()`, `warn()`, `debug()`, `error()`
+### Example Project
 
-### Functional Refactoring
+A fully working example in `examples/maven-example/` demonstrates all plugin features:
 
-The entire codebase has been modernized to follow functional programming paradigms:
+```
+examples/maven-example/
+├── proto/
+│   ├── v1/                    # Version 1 proto files
+│   │   ├── common.proto       # Date, Money, Address, Status
+│   │   ├── order.proto        # OrderItem, OrderRequest, OrderResponse
+│   │   └── user.proto         # UserProfile, AuthRequest, AuthResponse
+│   └── v2/                    # Version 2 with additional fields/enums
+├── src/main/java/
+│   └── com/example/demo/
+│       └── ProtoWrapperDemo.java   # Usage examples
+└── src/test/java/
+    └── com/example/model/     # Integration tests
+```
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Imperative loops | ~45 | ~10 |
-| Stream API usage | ~5% | ~70% |
-| Records | 0 | 2 |
-| Helper inner classes | 2 | 0 |
+Run the demo:
 
-### Java 17 Records
+```bash
+cd examples/maven-example
+mvn exec:java -Dexec.mainClass=com.example.demo.ProtoWrapperDemo
+```
 
-New immutable record types replace verbose inner classes:
+## Bug Fixes
+
+### Enum Generation Bug
+
+**Problem:** Enum files were not being generated despite logs showing "Generated N enums".
+
+**Cause:** Java 9+ optimizes `stream().map().count()` to skip intermediate operations when the stream size is known. The `map()` operation (which performed file generation) was being skipped.
+
+**Fix:** Changed `GenerationOrchestrator.generateEnums()` from:
 
 ```java
-// Before
-private static class FieldWithVersion {
-    private final FieldInfo field;
-    private final String version;
-    // constructor, getters...
+// Before (broken in Java 9+)
+return schema.getEnums().stream()
+    .map(enumInfo -> {
+        generator.generateAndWrite(enumInfo);  // SKIPPED!
+        return 1;
+    })
+    .count();
+```
+
+To:
+
+```java
+// After (works correctly)
+int[] count = {0};
+schema.getEnums().forEach(enumInfo -> {
+    generator.generateAndWrite(enumInfo);
+    count[0]++;
+});
+return count[0];
+```
+
+### Package Name Truncation Bug
+
+**Problem:** Nested types were not resolving correctly (e.g., `SessionInfo` instead of `AuthResponse.SessionInfo`).
+
+**Cause:** `TypeResolver.extractProtoPackage()` was incorrectly truncating package names using `Arrays.copyOfRange()`, resulting in:
+- Input: `com.example.proto.v1`
+- Output: `example.proto.v1` (wrong!)
+
+**Fix:** Simplified method to just replace the `{version}` placeholder:
+
+```java
+public String extractProtoPackage(String pattern) {
+    if (pattern == null || pattern.isEmpty()) {
+        return "";
+    }
+    return pattern.replace("{version}", "v1");
 }
-
-// After
-private record FieldWithVersion(FieldInfo field, String version) {}
 ```
-
-### Stream API Patterns
-
-Modern functional patterns throughout the codebase:
-
-```java
-// groupingBy for collecting
-Map<Integer, List<FieldWithVersion>> fieldsByNumber = schemas.stream()
-    .flatMap(schema -> schema.getMessage(messageName).stream()
-        .flatMap(msg -> msg.getFields().stream()
-            .map(field -> new FieldWithVersion(field, schema.getVersion()))))
-    .collect(Collectors.groupingBy(
-        fv -> fv.field().getNumber(),
-        LinkedHashMap::new,
-        Collectors.toList()
-    ));
-
-// reduce for nested class names
-return Arrays.stream(parts)
-    .skip(1)
-    .reduce(
-        ClassName.get(config.getApiPackage(), parts[0]),
-        ClassName::nestedClass,
-        (a, b) -> b
-    );
-```
-
-### Refactored Components
-
-| Component | Changes |
-|-----------|---------|
-| `VersionMerger` | `flatMap`, `groupingBy`, `Optional.stream()`, records |
-| `GenerationOrchestrator` | `ThrowingSupplier` interface, stream-based generation |
-| `MergedMessage` | Stream-based recursive search and filtering |
-| `TypeResolver` | `reduce()` for class name building |
-| `JavaTypeMapping` | `Set.of()` for immutable primitive set |
 
 ## Upgrade Guide
 
-### 1. Update Java Version
-
-Ensure your project uses Java 17 or higher:
-
-```xml
-<properties>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
-</properties>
-```
-
-### 2. Update Plugin Version
+### 1. Update Plugin Version
 
 ```xml
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.2</version>
-    <!-- ... -->
+    <version>1.0.3</version>
 </plugin>
 ```
 
-### 3. Verify Build
+### 2. Verify Build
 
 ```bash
 mvn clean compile
 ```
 
+### 3. (Optional) Run Integration Tests
+
+Clone the repository and run:
+
+```bash
+mvn clean test
+```
+
 ## API Compatibility
 
-No changes to the generated code or public API. All existing configurations remain valid.
+No breaking changes to the generated code or configuration. All existing setups remain valid.
 
-## Performance
+## Dependencies
 
-The functional refactoring maintains the same performance characteristics while improving:
-- Code readability
-- Maintainability
-- Reduced cognitive complexity
+No new runtime dependencies. The core module has minimal dependencies:
+- `protobuf-java` — For proto descriptor parsing
+- `javapoet` — For Java code generation
 
 ## Full Changelog
 
@@ -169,6 +175,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 - [Documentation (EN)](README.md)
 - [Documentation (RU)](README.ru.md)
 - [Changelog](CHANGELOG.md)
+- [Example Project](examples/maven-example/)
 
 ## License
 

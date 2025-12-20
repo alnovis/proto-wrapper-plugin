@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-12-21
+
+### Added
+
+#### Multi-Module Architecture
+- **Project split into separate modules** — Better separation of concerns and reusability:
+  - `proto-wrapper-core` — Core library with generators, analyzers, and models
+  - `proto-wrapper-maven-plugin` — Maven plugin depending on core
+  - `examples/maven-example` — Example project with integration tests
+
+#### Integration Tests (75 tests)
+- **InterfaceGenerationTest** — Validates generated interfaces have correct methods
+- **EnumGenerationTest** — Validates enum generation (top-level and nested)
+- **FieldMappingTest** — Validates proto field mapping to wrapper classes
+- **VersionContextTest** — Validates VersionContext factory methods
+- **VersionEvolutionTest** — Validates V1/V2 field handling and version compatibility
+
+#### Example Project
+- **Comprehensive example** in `examples/maven-example/` demonstrating:
+  - Multi-version proto support (v1, v2)
+  - Top-level and nested enums
+  - Deeply nested messages (`UserProfile.Preferences.DisplaySettings`)
+  - Version-specific fields
+  - VersionContext for runtime version selection
+  - Working demo application
+
+### Fixed
+
+- **Enum generation bug** — Fixed Java 9+ `Stream.count()` optimization skipping intermediate `map()` operations in `GenerationOrchestrator.generateEnums()`. Changed to `forEach()` with manual counter.
+- **Package name truncation** — Fixed `TypeResolver.extractProtoPackage()` incorrectly truncating package names (e.g., `com.example.proto.v1` → `example.proto.v1`), causing nested type resolution failures.
+
+### Changed
+
+- **MavenLogger extracted** — Logging adapter moved from inline to separate `MavenLogger` class in maven-plugin module
+- **PluginLogger simplified** — Core library uses simple `PluginLogger` interface without Maven dependencies
+
+---
+
 ## [1.0.2] - 2025-12-20
 
 ### Added
