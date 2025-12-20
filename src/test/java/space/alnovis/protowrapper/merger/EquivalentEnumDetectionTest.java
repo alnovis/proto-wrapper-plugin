@@ -10,7 +10,7 @@ import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import space.alnovis.protowrapper.model.EnumInfo;
 import space.alnovis.protowrapper.model.MessageInfo;
 import space.alnovis.protowrapper.model.MergedSchema;
-import space.alnovis.protowrapper.model.MergedSchema.MergedMessage;
+import space.alnovis.protowrapper.model.MergedMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

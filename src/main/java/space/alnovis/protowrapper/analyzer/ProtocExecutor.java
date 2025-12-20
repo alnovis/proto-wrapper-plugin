@@ -1,5 +1,7 @@
 package space.alnovis.protowrapper.analyzer;
 
+import space.alnovis.protowrapper.PluginLogger;
+
 import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -29,14 +31,22 @@ public class ProtocExecutor {
     private static final String PROTOC_COMMAND = "protoc";
     private static final int TIMEOUT_SECONDS = 60;
 
-    private final Consumer<String> logger;
+    private final PluginLogger logger;
     private String protocPath = PROTOC_COMMAND;
 
     public ProtocExecutor() {
-        this(System.out::println);
+        this(PluginLogger.console());
     }
 
+    /**
+     * @deprecated Use {@link #ProtocExecutor(PluginLogger)} instead
+     */
+    @Deprecated
     public ProtocExecutor(Consumer<String> logger) {
+        this(PluginLogger.fromConsumer(logger));
+    }
+
+    public ProtocExecutor(PluginLogger logger) {
         this.logger = logger;
     }
 
@@ -80,7 +90,7 @@ public class ProtocExecutor {
             throw new IOException("No .proto files found in " + sourceDir);
         }
 
-        logger.accept("Found " + protoFiles.size() + " proto files in " + sourceDir);
+        logger.info("Found " + protoFiles.size() + " proto files in " + sourceDir);
 
         // Build command
         List<String> command = new ArrayList<>();
@@ -108,7 +118,7 @@ public class ProtocExecutor {
         Files.createDirectories(outputFile.getParent());
 
         // Execute protoc
-        logger.accept("Executing: " + String.join(" ", command.subList(0, Math.min(5, command.size()))) + "...");
+        logger.info("Executing: " + String.join(" ", command.subList(0, Math.min(5, command.size()))) + "...");
 
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
@@ -147,7 +157,7 @@ public class ProtocExecutor {
             throw new IOException("Protoc completed but output file not created: " + outputFile);
         }
 
-        logger.accept("Generated descriptor: " + outputFile + " (" + Files.size(outputFile) + " bytes)");
+        logger.info("Generated descriptor: " + outputFile + " (" + Files.size(outputFile) + " bytes)");
         return outputFile;
     }
 

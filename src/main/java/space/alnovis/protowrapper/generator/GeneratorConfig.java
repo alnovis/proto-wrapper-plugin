@@ -18,6 +18,7 @@ public class GeneratorConfig {
     private boolean generateAbstractClasses = true;
     private boolean generateImplClasses = true;
     private boolean generateVersionContext = true;
+    private boolean includeVersionSuffix = true;
 
     private Set<String> includedMessages = new HashSet<>();
     private Set<String> excludedMessages = new HashSet<>();
@@ -47,6 +48,20 @@ public class GeneratorConfig {
     public boolean isGenerateAbstractClasses() { return generateAbstractClasses; }
     public boolean isGenerateImplClasses() { return generateImplClasses; }
     public boolean isGenerateVersionContext() { return generateVersionContext; }
+    public boolean isIncludeVersionSuffix() { return includeVersionSuffix; }
+
+    /**
+     * Get the implementation class name for a message in a specific version.
+     * @param messageName Simple message name (e.g., "Money")
+     * @param version Version string (e.g., "v1")
+     * @return Class name with or without version suffix based on configuration
+     */
+    public String getImplClassName(String messageName, String version) {
+        if (includeVersionSuffix) {
+            return messageName + version.substring(0, 1).toUpperCase() + version.substring(1);
+        }
+        return messageName;
+    }
 
     public boolean shouldGenerate(String messageName) {
         if (!includedMessages.isEmpty() && !includedMessages.contains(messageName)) {
@@ -103,6 +118,11 @@ public class GeneratorConfig {
 
         public Builder generateVersionContext(boolean value) {
             config.generateVersionContext = value;
+            return this;
+        }
+
+        public Builder includeVersionSuffix(boolean value) {
+            config.includeVersionSuffix = value;
             return this;
         }
 

@@ -28,7 +28,7 @@ mvn install
 
 ### Minimal Configuration (Recommended)
 
-Specify `basePackage`, `protoRoot` and proto directories — the plugin will do the rest:
+Specify `basePackage`, `protoRoot` and proto directories - the plugin will do the rest:
 
 ```xml
 <plugin>
@@ -58,9 +58,9 @@ Specify `basePackage`, `protoRoot` and proto directories — the plugin will do 
 ```
 
 Classes will be generated in:
-- `com.mycompany.myapp.model.api` — interfaces, enums and abstract classes
-- `com.mycompany.myapp.model.v1` — v1 implementations
-- `com.mycompany.myapp.model.v2` — v2 implementations
+- `com.mycompany.myapp.model.api` - interfaces, enums and abstract classes
+- `com.mycompany.myapp.model.v1` - v1 implementations
+- `com.mycompany.myapp.model.v2` - v2 implementations
 
 The plugin automatically:
 1. Finds all `.proto` files in each directory
@@ -264,11 +264,18 @@ Order order = ctx.wrapOrder(orderProto);
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `basePackage` | — | Base package for all generated classes |
-| `protoRoot` | — | Root directory with proto files |
+| `basePackage` | - | Base package for all generated classes |
+| `protoRoot` | - | Root directory with proto files |
 | `versions` | (required) | List of version configurations |
 | `outputDirectory` | `${project.build.directory}/generated-sources/proto-wrapper` | Output directory for generated files |
 | `protoPackagePattern` | `{basePackage}.proto.{version}` | Package pattern for proto classes |
+| `generateInterfaces` | `true` | Generate interface files |
+| `generateAbstractClasses` | `true` | Generate abstract base classes |
+| `generateImplClasses` | `true` | Generate version-specific implementations |
+| `generateVersionContext` | `true` | Generate VersionContext factory |
+| `includeVersionSuffix` | `true` | Include version suffix in impl class names (MoneyV1 vs Money) |
+| `includeMessages` | - | List of message names to include (empty = all) |
+| `excludeMessages` | - | List of message names to exclude |
 
 ### Version Parameters
 
@@ -325,8 +332,8 @@ The plugin automatically:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    protoc                                   │
-│            Generates FileDescriptorSet (.pb)                │
+│                    ProtocExecutor                           │
+│            Invokes protoc, generates descriptors            │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -344,14 +351,28 @@ The plugin automatically:
 │         Handles type conflicts                              │
 └─────────────────────────────────────────────────────────────┘
                               │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                GenerationOrchestrator                       │
+│         Coordinates all code generators                     │
+│         Uses GenerationContext for state                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
               ┌───────────────┼───────────────┬───────────────┐
               ▼               ▼               ▼               ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
 │    Interface    │ │  AbstractClass  │ │    ImplClass    │ │ VersionContext  │
 │    Generator    │ │   Generator     │ │   Generator     │ │   Generator     │
+│  (BaseGenerator)│ │ (BaseGenerator) │ │ (BaseGenerator) │ │ (BaseGenerator) │
 └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
               │               │               │               │
               └───────────────┴───────────────┴───────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              TypeResolver + JavaTypeMapping                 │
+│         Shared type resolution logic                        │
+└─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -359,6 +380,20 @@ The plugin automatically:
 │              Generates .java source files                   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Key Components
+
+| Component | Description |
+|-----------|-------------|
+| `GenerateMojo` | Maven plugin entry point, configuration handling |
+| `ProtocExecutor` | Invokes protoc compiler, generates descriptors |
+| `ProtoAnalyzer` | Parses protobuf descriptors into model objects |
+| `VersionMerger` | Merges multiple version schemas into unified schema |
+| `GenerationOrchestrator` | Coordinates all code generation |
+| `GenerationContext` | Immutable context for generation (schema, config, version) |
+| `TypeResolver` | Resolves Java types from proto types |
+| `BaseGenerator` | Abstract base class for all generators |
+| `PluginLogger` | Callback-based logging abstraction |
 
 ## Limitations
 

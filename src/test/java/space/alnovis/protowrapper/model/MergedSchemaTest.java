@@ -3,10 +3,10 @@ package space.alnovis.protowrapper.model;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
-import space.alnovis.protowrapper.model.MergedSchema.MergedEnum;
-import space.alnovis.protowrapper.model.MergedSchema.MergedEnumValue;
-import space.alnovis.protowrapper.model.MergedSchema.MergedField;
-import space.alnovis.protowrapper.model.MergedSchema.MergedMessage;
+import space.alnovis.protowrapper.model.MergedEnum;
+import space.alnovis.protowrapper.model.MergedEnumValue;
+import space.alnovis.protowrapper.model.MergedField;
+import space.alnovis.protowrapper.model.MergedMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
