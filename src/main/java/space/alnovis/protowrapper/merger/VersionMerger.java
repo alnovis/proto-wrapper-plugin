@@ -5,6 +5,7 @@ import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import space.alnovis.protowrapper.model.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Merges multiple version schemas into a unified schema.
@@ -51,39 +52,33 @@ public class VersionMerger {
             throw new IllegalArgumentException("At least one schema required");
         }
 
-        List<String> versions = new ArrayList<>();
-        for (VersionSchema schema : schemas) {
-            versions.add(schema.getVersion());
-        }
+        // Collect versions using stream
+        List<String> versions = schemas.stream()
+                .map(VersionSchema::getVersion)
+                .toList();
 
         MergedSchema merged = new MergedSchema(versions);
 
-        // Collect all message names across versions
-        Set<String> allMessageNames = new LinkedHashSet<>();
-        for (VersionSchema schema : schemas) {
-            allMessageNames.addAll(schema.getMessageNames());
-        }
+        // Collect all message names across versions using flatMap
+        Set<String> allMessageNames = schemas.stream()
+                .flatMap(schema -> schema.getMessageNames().stream())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        // Merge each message
-        for (String messageName : allMessageNames) {
-            MergedMessage mergedMessage = mergeMessage(messageName, schemas);
-            if (mergedMessage != null) {
-                merged.addMessage(mergedMessage);
-            }
-        }
+        // Merge each message using stream with filter
+        allMessageNames.stream()
+                .map(name -> mergeMessage(name, schemas))
+                .filter(Objects::nonNull)
+                .forEach(merged::addMessage);
 
-        // Collect and merge enums
-        Set<String> allEnumNames = new LinkedHashSet<>();
-        for (VersionSchema schema : schemas) {
-            allEnumNames.addAll(schema.getEnumNames());
-        }
+        // Collect and merge enums using stream
+        Set<String> allEnumNames = schemas.stream()
+                .flatMap(schema -> schema.getEnumNames().stream())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        for (String enumName : allEnumNames) {
-            MergedEnum mergedEnum = mergeEnum(enumName, schemas);
-            if (mergedEnum != null) {
-                merged.addEnum(mergedEnum);
-            }
-        }
+        allEnumNames.stream()
+                .map(name -> mergeEnum(name, schemas))
+                .filter(Objects::nonNull)
+                .forEach(merged::addEnum);
 
         // Detect equivalent enums (nested vs top-level)
         detectEquivalentEnums(merged, schemas);
@@ -97,19 +92,21 @@ public class VersionMerger {
      * Register mappings and remove duplicate nested enums.
      */
     private void detectEquivalentEnums(MergedSchema merged, List<VersionSchema> schemas) {
-        // Collect all top-level enum infos for comparison
-        Map<String, EnumInfo> topLevelEnumInfos = new LinkedHashMap<>();
-        for (VersionSchema schema : schemas) {
-            for (String enumName : schema.getEnumNames()) {
-                Optional<EnumInfo> enumOpt = schema.getEnum(enumName);
-                enumOpt.ifPresent(e -> topLevelEnumInfos.putIfAbsent(enumName, e));
-            }
-        }
+        // Collect all top-level enum infos for comparison using streams
+        Map<String, EnumInfo> topLevelEnumInfos = schemas.stream()
+                .flatMap(schema -> schema.getEnumNames().stream()
+                        .flatMap(name -> schema.getEnum(name).stream()
+                                .map(e -> Map.entry(name, e))))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                ));
 
         // Check each message's nested enums for equivalence with top-level enums
-        for (MergedMessage message : merged.getMessages()) {
-            detectEquivalentEnumsInMessage(message, topLevelEnumInfos, merged, schemas);
-        }
+        merged.getMessages().forEach(message ->
+                detectEquivalentEnumsInMessage(message, topLevelEnumInfos, merged, schemas));
     }
 
     /**
@@ -119,152 +116,122 @@ public class VersionMerger {
                                                  Map<String, EnumInfo> topLevelEnumInfos,
                                                  MergedSchema merged,
                                                  List<VersionSchema> schemas) {
-        // Get nested enums to check
-        List<MergedEnum> nestedEnumsToRemove = new ArrayList<>();
-
-        for (MergedEnum nestedEnum : message.getNestedEnums()) {
-            String nestedEnumName = nestedEnum.getName();
-
-            // Check if there's a top-level enum with the same name
-            if (topLevelEnumInfos.containsKey(nestedEnumName)) {
-                EnumInfo topLevelInfo = topLevelEnumInfos.get(nestedEnumName);
-
-                // Find the nested enum's EnumInfo to compare
-                EnumInfo nestedInfo = findNestedEnumInfo(message.getName(), nestedEnumName, schemas);
-
-                if (nestedInfo != null && nestedInfo.isEquivalentTo(topLevelInfo)) {
-                    // They are equivalent - register mapping and mark for removal
-                    String nestedPath = message.getQualifiedInterfaceName() + "." + nestedEnumName;
-                    merged.addEquivalentEnumMapping(nestedPath, nestedEnumName);
-                    nestedEnumsToRemove.add(nestedEnum);
-
-                    logger.info("Detected equivalent enums: " + nestedPath + " -> " + nestedEnumName);
-                }
-            }
-        }
+        // Find nested enums that are equivalent to top-level enums
+        List<MergedEnum> nestedEnumsToRemove = message.getNestedEnums().stream()
+                .filter(nestedEnum -> {
+                    String nestedEnumName = nestedEnum.getName();
+                    EnumInfo topLevelInfo = topLevelEnumInfos.get(nestedEnumName);
+                    if (topLevelInfo == null) {
+                        return false;
+                    }
+                    EnumInfo nestedInfo = findNestedEnumInfo(message.getName(), nestedEnumName, schemas);
+                    if (nestedInfo != null && nestedInfo.isEquivalentTo(topLevelInfo)) {
+                        String nestedPath = message.getQualifiedInterfaceName() + "." + nestedEnumName;
+                        merged.addEquivalentEnumMapping(nestedPath, nestedEnumName);
+                        logger.info("Detected equivalent enums: " + nestedPath + " -> " + nestedEnumName);
+                        return true;
+                    }
+                    return false;
+                })
+                .toList();
 
         // Remove equivalent nested enums from the message
-        for (MergedEnum toRemove : nestedEnumsToRemove) {
-            message.removeNestedEnum(toRemove);
-        }
+        nestedEnumsToRemove.forEach(message::removeNestedEnum);
 
         // Recursively check nested messages
-        for (MergedMessage nested : message.getNestedMessages()) {
-            detectEquivalentEnumsInMessage(nested, topLevelEnumInfos, merged, schemas);
-        }
+        message.getNestedMessages().forEach(nested ->
+                detectEquivalentEnumsInMessage(nested, topLevelEnumInfos, merged, schemas));
     }
 
     /**
      * Find the EnumInfo for a nested enum by searching through version schemas.
      */
     private EnumInfo findNestedEnumInfo(String messageName, String enumName, List<VersionSchema> schemas) {
-        for (VersionSchema schema : schemas) {
-            Optional<MessageInfo> messageOpt = schema.getMessage(messageName);
-            if (messageOpt.isPresent()) {
-                for (EnumInfo nestedEnum : messageOpt.get().getNestedEnums()) {
-                    if (nestedEnum.getName().equals(enumName)) {
-                        return nestedEnum;
-                    }
-                }
-            }
-        }
-        return null;
+        return schemas.stream()
+                .map(schema -> schema.getMessage(messageName))
+                .flatMap(Optional::stream)
+                .flatMap(msg -> msg.getNestedEnums().stream())
+                .filter(e -> e.getName().equals(enumName))
+                .findFirst()
+                .orElse(null);
     }
 
     private MergedMessage mergeMessage(String messageName, List<VersionSchema> schemas) {
         MergedMessage merged = new MergedMessage(messageName);
 
-        // Collect fields from all versions
-        Map<Integer, List<FieldWithVersion>> fieldsByNumber = new LinkedHashMap<>();
+        // Process schemas and collect data using streams
+        Map<Integer, List<FieldWithVersion>> fieldsByNumber = schemas.stream()
+                .flatMap(schema -> schema.getMessage(messageName).stream()
+                        .peek(msg -> {
+                            merged.addVersion(schema.getVersion());
+                            if (msg.getSourceFileName() != null) {
+                                merged.addSourceFile(schema.getVersion(), msg.getSourceFileName());
+                            }
+                        })
+                        .flatMap(msg -> msg.getFields().stream()
+                                .map(field -> new FieldWithVersion(field, schema.getVersion()))))
+                .collect(Collectors.groupingBy(
+                        fv -> fv.field().getNumber(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
 
-        // Collect nested message and enum names across all versions to avoid duplicates
-        Set<String> processedNestedMessages = new LinkedHashSet<>();
-        Set<String> processedNestedEnums = new LinkedHashSet<>();
+        // Collect nested message and enum names across all versions
+        Set<String> processedNestedMessages = schemas.stream()
+                .flatMap(schema -> schema.getMessage(messageName).stream())
+                .flatMap(msg -> msg.getNestedMessages().stream())
+                .map(MessageInfo::getName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        for (VersionSchema schema : schemas) {
-            Optional<MessageInfo> messageOpt = schema.getMessage(messageName);
-            if (messageOpt.isPresent()) {
-                MessageInfo message = messageOpt.get();
-                merged.addVersion(schema.getVersion());
-                // Store source file name for outer class detection
-                if (message.getSourceFileName() != null) {
-                    merged.addSourceFile(schema.getVersion(), message.getSourceFileName());
-                }
+        Set<String> processedNestedEnums = schemas.stream()
+                .flatMap(schema -> schema.getMessage(messageName).stream())
+                .flatMap(msg -> msg.getNestedEnums().stream())
+                .map(EnumInfo::getName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-                for (FieldInfo field : message.getFields()) {
-                    fieldsByNumber
-                            .computeIfAbsent(field.getNumber(), k -> new ArrayList<>())
-                            .add(new FieldWithVersion(field, schema.getVersion()));
-                }
+        // Merge each unique nested message across all versions
+        processedNestedMessages.forEach(nestedName -> {
+            List<VersionSchema> nestedSchemas = schemas.stream()
+                    .flatMap(s -> s.getMessage(messageName).stream()
+                            .flatMap(parent -> parent.getNestedMessages().stream()
+                                    .filter(n -> n.getName().equals(nestedName))
+                                    .map(n -> {
+                                        VersionSchema nestedSchema = new VersionSchema(s.getVersion());
+                                        nestedSchema.addMessage(n);
+                                        return nestedSchema;
+                                    })))
+                    .toList();
 
-                // Collect nested message names (don't process yet)
-                for (MessageInfo nested : message.getNestedMessages()) {
-                    processedNestedMessages.add(nested.getName());
-                }
-
-                // Collect nested enum names
-                for (EnumInfo nestedEnum : message.getNestedEnums()) {
-                    processedNestedEnums.add(nestedEnum.getName());
-                }
-            }
-        }
-
-        // Now merge each unique nested message across all versions
-        for (String nestedName : processedNestedMessages) {
-            List<VersionSchema> nestedSchemas = new ArrayList<>();
-            for (VersionSchema s : schemas) {
-                Optional<MessageInfo> parentOpt = s.getMessage(messageName);
-                if (parentOpt.isPresent()) {
-                    for (MessageInfo n : parentOpt.get().getNestedMessages()) {
-                        if (n.getName().equals(nestedName)) {
-                            VersionSchema nestedSchema = new VersionSchema(s.getVersion());
-                            nestedSchema.addMessage(n);
-                            nestedSchemas.add(nestedSchema);
-                            break;
-                        }
-                    }
-                }
-            }
             if (!nestedSchemas.isEmpty()) {
-                MergedMessage nestedMerged = mergeMessage(nestedName, nestedSchemas);
-                if (nestedMerged != null) {
-                    merged.addNestedMessage(nestedMerged);
-                }
+                Optional.ofNullable(mergeMessage(nestedName, nestedSchemas))
+                        .ifPresent(merged::addNestedMessage);
             }
-        }
+        });
 
         // Merge nested enums
-        for (String enumName : processedNestedEnums) {
-            List<VersionSchema> enumSchemas = new ArrayList<>();
-            for (VersionSchema s : schemas) {
-                Optional<MessageInfo> parentOpt = s.getMessage(messageName);
-                if (parentOpt.isPresent()) {
-                    for (EnumInfo e : parentOpt.get().getNestedEnums()) {
-                        if (e.getName().equals(enumName)) {
-                            // Create a temporary schema with just this enum
-                            VersionSchema enumSchema = new VersionSchema(s.getVersion());
-                            enumSchema.addEnum(e);
-                            enumSchemas.add(enumSchema);
-                            break;
-                        }
-                    }
-                }
-            }
+        processedNestedEnums.forEach(enumName -> {
+            List<VersionSchema> enumSchemas = schemas.stream()
+                    .flatMap(s -> s.getMessage(messageName).stream()
+                            .flatMap(parent -> parent.getNestedEnums().stream()
+                                    .filter(e -> e.getName().equals(enumName))
+                                    .map(e -> {
+                                        VersionSchema enumSchema = new VersionSchema(s.getVersion());
+                                        enumSchema.addEnum(e);
+                                        return enumSchema;
+                                    })))
+                    .toList();
+
             if (!enumSchemas.isEmpty()) {
-                MergedEnum mergedEnum = mergeEnum(enumName, enumSchemas);
-                if (mergedEnum != null) {
-                    merged.addNestedEnum(mergedEnum);
-                }
+                Optional.ofNullable(mergeEnum(enumName, enumSchemas))
+                        .ifPresent(merged::addNestedEnum);
             }
-        }
+        });
 
         // Merge fields with same number
-        for (Map.Entry<Integer, List<FieldWithVersion>> entry : fieldsByNumber.entrySet()) {
-            MergedField mergedField = mergeFields(entry.getValue());
-            if (mergedField != null) {
-                merged.addField(mergedField);
-            }
-        }
+        fieldsByNumber.values().stream()
+                .map(this::mergeFields)
+                .filter(Objects::nonNull)
+                .forEach(merged::addField);
 
         return merged.getPresentInVersions().isEmpty() ? null : merged;
     }
@@ -274,34 +241,28 @@ public class VersionMerger {
             return null;
         }
 
-        // Use first field as base
         FieldWithVersion first = fields.get(0);
-        MergedField merged = new MergedField(first.field, first.version);
+        MergedField merged = new MergedField(first.field(), first.version());
 
-        // Add other versions
-        for (int i = 1; i < fields.size(); i++) {
-            FieldWithVersion fv = fields.get(i);
-
-            // Check for type conflicts
-            if (!first.field.getJavaType().equals(fv.field.getJavaType())) {
-                // Type conflict - check if it's in allowed mappings
-                String resolvedType = config.resolveTypeConflict(
-                        first.field.getProtoName(),
-                        first.field.getJavaType(),
-                        fv.field.getJavaType()
-                );
-
-                if (resolvedType == null) {
-                    // Log warning but continue - use Object type
-                    logger.warn(String.format("Type conflict for field '%s': %s vs %s",
-                            first.field.getProtoName(),
-                            first.field.getJavaType(),
-                            fv.field.getJavaType()));
-                }
-            }
-
-            merged.addVersion(fv.version, fv.field);
-        }
+        // Check for type conflicts and add other versions
+        fields.stream()
+                .skip(1)
+                .peek(fv -> {
+                    if (!first.field().getJavaType().equals(fv.field().getJavaType())) {
+                        String resolvedType = config.resolveTypeConflict(
+                                first.field().getProtoName(),
+                                first.field().getJavaType(),
+                                fv.field().getJavaType()
+                        );
+                        if (resolvedType == null) {
+                            logger.warn(String.format("Type conflict for field '%s': %s vs %s",
+                                    first.field().getProtoName(),
+                                    first.field().getJavaType(),
+                                    fv.field().getJavaType()));
+                        }
+                    }
+                })
+                .forEach(fv -> merged.addVersion(fv.version(), fv.field()));
 
         return merged;
     }
@@ -309,59 +270,37 @@ public class VersionMerger {
     private MergedEnum mergeEnum(String enumName, List<VersionSchema> schemas) {
         MergedEnum merged = new MergedEnum(enumName);
 
-        Map<Integer, List<EnumValueWithVersion>> valuesByNumber = new LinkedHashMap<>();
-
-        for (VersionSchema schema : schemas) {
-            Optional<EnumInfo> enumOpt = schema.getEnum(enumName);
-            if (enumOpt.isPresent()) {
-                EnumInfo enumInfo = enumOpt.get();
-                merged.addVersion(schema.getVersion());
-
-                for (EnumInfo.EnumValue value : enumInfo.getValues()) {
-                    valuesByNumber
-                            .computeIfAbsent(value.getNumber(), k -> new ArrayList<>())
-                            .add(new EnumValueWithVersion(value, schema.getVersion()));
-                }
-            }
-        }
+        // Collect values and add versions using streams
+        Map<Integer, List<EnumValueWithVersion>> valuesByNumber = schemas.stream()
+                .flatMap(schema -> schema.getEnum(enumName).stream()
+                        .peek(e -> merged.addVersion(schema.getVersion()))
+                        .flatMap(enumInfo -> enumInfo.getValues().stream()
+                                .map(value -> new EnumValueWithVersion(value, schema.getVersion()))))
+                .collect(Collectors.groupingBy(
+                        evv -> evv.value().getNumber(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
 
         // Merge enum values
-        for (List<EnumValueWithVersion> values : valuesByNumber.values()) {
-            if (!values.isEmpty()) {
-                EnumValueWithVersion first = values.get(0);
-                MergedEnumValue mergedValue = new MergedEnumValue(first.value, first.version);
-
-                for (int i = 1; i < values.size(); i++) {
-                    mergedValue.addVersion(values.get(i).version);
-                }
-
-                merged.addValue(mergedValue);
-            }
-        }
+        valuesByNumber.values().stream()
+                .filter(values -> !values.isEmpty())
+                .forEach(values -> {
+                    EnumValueWithVersion first = values.get(0);
+                    MergedEnumValue mergedValue = new MergedEnumValue(first.value(), first.version());
+                    values.stream()
+                            .skip(1)
+                            .map(EnumValueWithVersion::version)
+                            .forEach(mergedValue::addVersion);
+                    merged.addValue(mergedValue);
+                });
 
         return merged.getPresentInVersions().isEmpty() ? null : merged;
     }
 
-    // Helper classes
-    private static class FieldWithVersion {
-        final FieldInfo field;
-        final String version;
-
-        FieldWithVersion(FieldInfo field, String version) {
-            this.field = field;
-            this.version = version;
-        }
-    }
-
-    private static class EnumValueWithVersion {
-        final EnumInfo.EnumValue value;
-        final String version;
-
-        EnumValueWithVersion(EnumInfo.EnumValue value, String version) {
-            this.value = value;
-            this.version = version;
-        }
-    }
+    // Helper records (Java 17+)
+    private record FieldWithVersion(FieldInfo field, String version) {}
+    private record EnumValueWithVersion(EnumInfo.EnumValue value, String version) {}
 
     /**
      * Configuration for the merger.

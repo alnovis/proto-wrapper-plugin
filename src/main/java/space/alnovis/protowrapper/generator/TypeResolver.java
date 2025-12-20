@@ -6,6 +6,7 @@ import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -218,14 +219,13 @@ public class TypeResolver {
      */
     public ClassName buildNestedClassName(String qualifiedPath) {
         String[] parts = qualifiedPath.split("\\.");
-        if (parts.length == 1) {
-            return ClassName.get(config.getApiPackage(), parts[0]);
-        }
-        ClassName result = ClassName.get(config.getApiPackage(), parts[0]);
-        for (int i = 1; i < parts.length; i++) {
-            result = result.nestedClass(parts[i]);
-        }
-        return result;
+        return Arrays.stream(parts)
+                .skip(1)
+                .reduce(
+                        ClassName.get(config.getApiPackage(), parts[0]),
+                        ClassName::nestedClass,
+                        (a, b) -> b  // combiner not used in sequential stream
+                );
     }
 
     /**
@@ -237,14 +237,13 @@ public class TypeResolver {
      */
     public ClassName buildRelativeNestedClassName(String qualifiedPath) {
         String[] parts = qualifiedPath.split("\\.");
-        if (parts.length == 1) {
-            return ClassName.get("", parts[0]);
-        }
-        ClassName result = ClassName.get("", parts[0]);
-        for (int i = 1; i < parts.length; i++) {
-            result = result.nestedClass(parts[i]);
-        }
-        return result;
+        return Arrays.stream(parts)
+                .skip(1)
+                .reduce(
+                        ClassName.get("", parts[0]),
+                        ClassName::nestedClass,
+                        (a, b) -> b  // combiner not used in sequential stream
+                );
     }
 
     /**
@@ -262,14 +261,8 @@ public class TypeResolver {
         String javaPackage = pattern.replace("{version}", "v1");
         String[] parts = javaPackage.split("\\.");
         if (parts.length >= 3) {
-            StringBuilder protoPackage = new StringBuilder();
-            for (int i = Math.max(0, parts.length - 3); i < parts.length; i++) {
-                if (protoPackage.length() > 0) {
-                    protoPackage.append(".");
-                }
-                protoPackage.append(parts[i]);
-            }
-            return protoPackage.toString();
+            int start = Math.max(0, parts.length - 3);
+            return String.join(".", Arrays.copyOfRange(parts, start, parts.length));
         }
         return javaPackage;
     }
