@@ -28,13 +28,13 @@ mvn install
 
 ### Минимальная конфигурация (рекомендуется)
 
-Укажите `basePackage`, `protoRoot` и директории с proto файлами — плагин сделает остальное:
+Укажите `basePackage`, `protoRoot` и директории с proto файлами - плагин сделает остальное:
 
 ```xml
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.2-SNAPSHOT</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -58,9 +58,9 @@ mvn install
 ```
 
 Классы будут сгенерированы в:
-- `com.mycompany.myapp.model.api` — интерфейсы, enum'ы и абстрактные классы
-- `com.mycompany.myapp.model.v1` — реализации для v1
-- `com.mycompany.myapp.model.v2` — реализации для v2
+- `com.mycompany.myapp.model.api` - интерфейсы, enum'ы и абстрактные классы
+- `com.mycompany.myapp.model.v1` - реализации для v1
+- `com.mycompany.myapp.model.v2` - реализации для v2
 
 Плагин автоматически:
 1. Найдёт все `.proto` файлы в каждой директории
@@ -82,7 +82,7 @@ mvn compile
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.2-SNAPSHOT</version>
     <configuration>
         <!-- Базовый пакет для генерируемых классов -->
         <basePackage>com.mycompany.myapp.model</basePackage>
@@ -100,7 +100,7 @@ mvn compile
             <version>
                 <!-- Директория относительно protoRoot -->
                 <protoDir>v1</protoDir>
-                <!-- Опционально: имя версии (по умолчанию — uppercase от protoDir) -->
+                <!-- Опционально: имя версии (по умолчанию - uppercase от protoDir) -->
                 <name>V1</name>
                 <!-- Опционально: исключить определённые proto файлы -->
                 <excludeProtos>
@@ -264,18 +264,25 @@ Order order = ctx.wrapOrder(orderProto);
 
 | Параметр | По умолчанию | Описание |
 |----------|--------------|----------|
-| `basePackage` | — | Базовый пакет для всех генерируемых классов |
-| `protoRoot` | — | Корневая директория с proto файлами |
+| `basePackage` | - | Базовый пакет для всех генерируемых классов |
+| `protoRoot` | - | Корневая директория с proto файлами |
 | `versions` | (обязательный) | Список конфигураций версий |
 | `outputDirectory` | `${project.build.directory}/generated-sources/proto-wrapper` | Директория для сгенерированных файлов |
 | `protoPackagePattern` | `{basePackage}.proto.{version}` | Паттерн пакета для proto-классов |
+| `generateInterfaces` | `true` | Генерировать интерфейсы |
+| `generateAbstractClasses` | `true` | Генерировать абстрактные базовые классы |
+| `generateImplClasses` | `true` | Генерировать версионно-специфичные реализации |
+| `generateVersionContext` | `true` | Генерировать VersionContext фабрику |
+| `includeVersionSuffix` | `true` | Включать суффикс версии в имена impl классов (MoneyV1 vs Money) |
+| `includeMessages` | - | Список имён сообщений для включения (пусто = все) |
+| `excludeMessages` | - | Список имён сообщений для исключения |
 
 ### Параметры версии
 
 | Параметр | Описание |
 |----------|----------|
 | `protoDir` | Директория с proto файлами относительно `protoRoot` |
-| `name` | Имя версии (по умолчанию — uppercase от `protoDir`, например `v1` → `V1`) |
+| `name` | Имя версии (по умолчанию - uppercase от `protoDir`, например `v1` → `V1`) |
 | `excludeProtos` | Список proto файлов для исключения |
 
 ### Вычисляемые пакеты
@@ -325,8 +332,8 @@ enum TaxTypeEnum { VAT = 100; }
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    protoc                                   │
-│            Генерирует FileDescriptorSet (.pb)               │
+│                    ProtocExecutor                           │
+│            Вызывает protoc, генерирует дескрипторы          │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -344,14 +351,28 @@ enum TaxTypeEnum { VAT = 100; }
 │         Обрабатывает конфликты типов                        │
 └─────────────────────────────────────────────────────────────┘
                               │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                GenerationOrchestrator                       │
+│         Координирует все генераторы                         │
+│         Использует GenerationContext для состояния          │
+└─────────────────────────────────────────────────────────────┘
+                              │
               ┌───────────────┼───────────────┬───────────────┐
               ▼               ▼               ▼               ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
 │    Interface    │ │  AbstractClass  │ │    ImplClass    │ │ VersionContext  │
 │    Generator    │ │   Generator     │ │   Generator     │ │   Generator     │
+│  (BaseGenerator)│ │ (BaseGenerator) │ │ (BaseGenerator) │ │ (BaseGenerator) │
 └─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
               │               │               │               │
               └───────────────┴───────────────┴───────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              TypeResolver + JavaTypeMapping                 │
+│         Общая логика разрешения типов                       │
+└─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -359,6 +380,20 @@ enum TaxTypeEnum { VAT = 100; }
 │              Генерирует .java исходные файлы                │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Ключевые компоненты
+
+| Компонент | Описание |
+|-----------|----------|
+| `GenerateMojo` | Точка входа Maven-плагина, обработка конфигурации |
+| `ProtocExecutor` | Вызывает компилятор protoc, генерирует дескрипторы |
+| `ProtoAnalyzer` | Парсит protobuf дескрипторы в объекты модели |
+| `VersionMerger` | Объединяет схемы нескольких версий в единую схему |
+| `GenerationOrchestrator` | Координирует всю генерацию кода |
+| `GenerationContext` | Immutable контекст генерации (схема, конфиг, версия) |
+| `TypeResolver` | Разрешает Java типы из proto типов |
+| `BaseGenerator` | Абстрактный базовый класс для всех генераторов |
+| `PluginLogger` | Callback-based абстракция логирования |
 
 ## Ограничения
 

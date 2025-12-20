@@ -7,13 +7,15 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import space.alnovis.protowrapper.PluginLogger;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import space.alnovis.protowrapper.analyzer.ProtocExecutor;
 import space.alnovis.protowrapper.generator.*;
 import space.alnovis.protowrapper.merger.VersionMerger;
+import space.alnovis.protowrapper.model.MergedEnum;
+import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
-import space.alnovis.protowrapper.model.MergedSchema.MergedMessage;
 
 import java.io.File;
 import java.io.IOException;
@@ -138,6 +140,14 @@ public class GenerateMojo extends AbstractMojo {
     private boolean generateVersionContext;
 
     /**
+     * Whether to include version suffix in implementation class names.
+     * If true (default for backward compatibility): MoneyV1, DateTimeV2
+     * If false: Money, DateTime (version is determined by package only)
+     */
+    @Parameter(defaultValue = "true")
+    private boolean includeVersionSuffix;
+
+    /**
      * Messages to include (empty = all).
      */
     @Parameter
@@ -176,7 +186,7 @@ public class GenerateMojo extends AbstractMojo {
         initializePackages();
 
         // Initialize protoc executor
-        protocExecutor = new ProtocExecutor(msg -> getLog().info(msg));
+        protocExecutor = new ProtocExecutor(PluginLogger.maven(getLog()));
         if (protocPath != null && !protocPath.isEmpty()) {
             protocExecutor.setProtocPath(protocPath);
         }
@@ -205,7 +215,7 @@ public class GenerateMojo extends AbstractMojo {
 
             // Merge schemas
             getLog().info("Merging " + schemas.size() + " schemas...");
-            VersionMerger merger = new VersionMerger();
+            VersionMerger merger = new VersionMerger(PluginLogger.maven(getLog()));
             MergedSchema mergedSchema = merger.merge(schemas);
 
             getLog().info("Merged schema: " + mergedSchema.getMessages().size() + " messages, " +
@@ -214,27 +224,15 @@ public class GenerateMojo extends AbstractMojo {
             // Configure generators
             GeneratorConfig generatorConfig = buildGeneratorConfig();
 
-            // Generate code
-            int generatedFiles = 0;
+            // Use orchestrator for generation
+            GenerationOrchestrator orchestrator = new GenerationOrchestrator(
+                    generatorConfig, PluginLogger.maven(getLog()));
 
-            // Generate enums first (interfaces depend on them)
-            generatedFiles += generateEnums(mergedSchema, generatorConfig);
-
-            if (generateInterfaces) {
-                generatedFiles += generateInterfaces(mergedSchema, generatorConfig);
-            }
-
-            if (generateAbstractClasses) {
-                generatedFiles += generateAbstractClasses(mergedSchema, generatorConfig);
-            }
-
-            if (generateImplClasses) {
-                generatedFiles += generateImplClasses(mergedSchema, generatorConfig);
-            }
-
-            if (generateVersionContext) {
-                generatedFiles += generateVersionContext(mergedSchema, generatorConfig);
-            }
+            int generatedFiles = orchestrator.generateAll(
+                    mergedSchema,
+                    new ArrayList<>(versions),
+                    this::getProtoClassName
+            );
 
             getLog().info("Generated " + generatedFiles + " files in " + outputDirectory);
 
@@ -385,7 +383,8 @@ public class GenerateMojo extends AbstractMojo {
                 .generateInterfaces(generateInterfaces)
                 .generateAbstractClasses(generateAbstractClasses)
                 .generateImplClasses(generateImplClasses)
-                .generateVersionContext(generateVersionContext);
+                .generateVersionContext(generateVersionContext)
+                .includeVersionSuffix(includeVersionSuffix);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {
@@ -402,145 +401,14 @@ public class GenerateMojo extends AbstractMojo {
         return builder.build();
     }
 
-    private int generateEnums(MergedSchema schema, GeneratorConfig config) throws IOException {
-        EnumGenerator generator = new EnumGenerator(config);
-        int count = 0;
-
-        for (MergedSchema.MergedEnum enumInfo : schema.getEnums()) {
-            Path path = generator.generateAndWrite(enumInfo);
-            getLog().debug("Generated enum: " + path);
-            count++;
-        }
-
-        getLog().info("Generated " + count + " enums");
-        return count;
-    }
-
-    private int generateInterfaces(MergedSchema schema, GeneratorConfig config) throws IOException {
-        InterfaceGenerator generator = new InterfaceGenerator(config);
-        generator.setSchema(schema);
-        int count = 0;
-
-        for (MergedMessage message : schema.getMessages()) {
-            if (!config.shouldGenerate(message.getName())) {
-                continue;
-            }
-
-            Path path = generator.generateAndWrite(message);
-            getLog().debug("Generated interface: " + path);
-            count++;
-        }
-
-        getLog().info("Generated " + count + " interfaces");
-        return count;
-    }
-
-    private int generateAbstractClasses(MergedSchema schema, GeneratorConfig config) throws IOException {
-        AbstractClassGenerator generator = new AbstractClassGenerator(config);
-        generator.setSchema(schema);
-        int count = 0;
-
-        for (MergedMessage message : schema.getMessages()) {
-            if (!config.shouldGenerate(message.getName())) {
-                continue;
-            }
-
-            Path path = generator.generateAndWrite(message);
-            getLog().debug("Generated abstract class: " + path);
-            count++;
-
-            // Generate abstract classes for nested messages too
-            count += generateNestedAbstractClasses(generator, message);
-        }
-
-        getLog().info("Generated " + count + " abstract classes");
-        return count;
-    }
-
-    /**
-     * Recursively generate abstract classes for nested messages.
-     */
-    private int generateNestedAbstractClasses(AbstractClassGenerator generator, MergedMessage parent) throws IOException {
-        int count = 0;
-        for (MergedMessage nested : parent.getNestedMessages()) {
-            Path path = generator.generateAndWriteNested(nested);
-            getLog().debug("Generated nested abstract class: " + path);
-            count++;
-
-            // Recursively handle deeply nested messages
-            count += generateNestedAbstractClasses(generator, nested);
-        }
-        return count;
-    }
-
-    private int generateImplClasses(MergedSchema schema, GeneratorConfig config) throws IOException {
-        ImplClassGenerator generator = new ImplClassGenerator(config);
-        generator.setSchema(schema);
-        int count = 0;
-
-        for (ProtoWrapperConfig versionConfig : versions) {
-            String version = versionConfig.getVersionId();
-
-            for (MergedMessage message : schema.getMessages()) {
-                if (!config.shouldGenerate(message.getName())) {
-                    continue;
-                }
-
-                // Skip if message is not present in this version
-                if (!message.getPresentInVersions().contains(version)) {
-                    getLog().debug("Skipping " + message.getName() + " for " + version + " - not present in this version");
-                    continue;
-                }
-
-                // Get proto class name
-                String protoClassName = getProtoClassName(message, versionConfig);
-
-                Path path = generator.generateAndWrite(message, version, protoClassName);
-                getLog().debug("Generated impl class: " + path);
-                count++;
-
-                // Generate impl classes for nested messages too
-                count += generateNestedImplClasses(generator, message, version, protoClassName, versionConfig);
-            }
-        }
-
-        getLog().info("Generated " + count + " implementation classes");
-        return count;
-    }
-
-    /**
-     * Recursively generate impl classes for nested messages.
-     */
-    private int generateNestedImplClasses(ImplClassGenerator generator, MergedMessage parent,
-                                          String version, String parentProtoClassName,
-                                          ProtoWrapperConfig versionConfig) throws IOException {
-        int count = 0;
-        for (MergedMessage nested : parent.getNestedMessages()) {
-            // Skip if nested message is not present in this version
-            if (!nested.getPresentInVersions().contains(version)) {
-                continue;
-            }
-
-            // Nested proto class name: ParentProto.NestedName
-            String nestedProtoClassName = parentProtoClassName + "." + nested.getName();
-
-            Path path = generator.generateAndWriteNested(nested, version, nestedProtoClassName, parent);
-            getLog().debug("Generated nested impl class: " + path);
-            count++;
-
-            // Recursively handle deeply nested messages
-            count += generateNestedImplClasses(generator, nested, version, nestedProtoClassName, versionConfig);
-        }
-        return count;
-    }
-
     /**
      * Get proto class name for a message.
-     * Uses the outer class name derived from the proto file name.
+     * Used by GenerationOrchestrator via method reference.
      */
-    private String getProtoClassName(MergedMessage message, ProtoWrapperConfig versionConfig) {
-        String version = versionConfig.getVersionId();
-        String protoPackage = versionConfig.getDetectedProtoPackage();
+    private String getProtoClassName(MergedMessage message, GenerationOrchestrator.VersionConfig versionConfig) {
+        ProtoWrapperConfig config = (ProtoWrapperConfig) versionConfig;
+        String version = config.getVersionId();
+        String protoPackage = config.getDetectedProtoPackage();
         if (protoPackage == null) {
             protoPackage = protoPackagePattern.replace("{version}", version);
         }
@@ -556,49 +424,5 @@ public class GenerateMojo extends AbstractMojo {
             // Fallback for messages without source file info (multiple files mode)
             return protoPackage + "." + message.getName();
         }
-    }
-
-    private int generateVersionContext(MergedSchema schema, GeneratorConfig config) throws IOException {
-        VersionContextGenerator generator = new VersionContextGenerator(config);
-        int count = 0;
-
-        // Generate interface
-        Path interfacePath = generator.generateAndWriteInterface(schema);
-        getLog().debug("Generated VersionContext interface: " + interfacePath);
-        count++;
-
-        // Generate implementations
-        for (ProtoWrapperConfig versionConfig : versions) {
-            // Build proto mappings for this version
-            Map<String, String> protoMappings = buildProtoMappingsForVersion(schema, versionConfig);
-
-            Path implPath = generator.generateAndWriteImpl(
-                    schema,
-                    versionConfig.getVersionId(),
-                    protoMappings
-            );
-            getLog().debug("Generated VersionContext impl: " + implPath);
-            count++;
-        }
-
-        getLog().info("Generated " + count + " VersionContext files");
-        return count;
-    }
-
-    /**
-     * Build proto mappings for a specific version based on messages present in that version.
-     */
-    private Map<String, String> buildProtoMappingsForVersion(MergedSchema schema, ProtoWrapperConfig versionConfig) {
-        Map<String, String> mappings = new LinkedHashMap<>();
-        String version = versionConfig.getVersionId();
-
-        for (MergedMessage message : schema.getMessages()) {
-            if (message.getPresentInVersions().contains(version)) {
-                String protoClassName = getProtoClassName(message, versionConfig);
-                mappings.put(message.getName(), protoClassName);
-            }
-        }
-
-        return mappings;
     }
 }

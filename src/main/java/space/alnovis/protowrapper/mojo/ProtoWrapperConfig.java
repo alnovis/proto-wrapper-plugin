@@ -1,5 +1,7 @@
 package space.alnovis.protowrapper.mojo;
 
+import space.alnovis.protowrapper.generator.GenerationOrchestrator;
+
 import java.io.File;
 
 /**
@@ -13,7 +15,7 @@ import java.io.File;
  * </version>
  * }</pre>
  */
-public class ProtoWrapperConfig {
+public class ProtoWrapperConfig implements GenerationOrchestrator.VersionConfig {
 
     /**
      * Directory containing .proto files for this version.
