@@ -1,8 +1,8 @@
 package space.alnovis.protowrapper.merger;
 
+import space.alnovis.protowrapper.PluginLogger;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import space.alnovis.protowrapper.model.*;
-import space.alnovis.protowrapper.model.MergedSchema.*;
 
 import java.util.*;
 
@@ -21,13 +21,23 @@ import java.util.*;
 public class VersionMerger {
 
     private final MergerConfig config;
+    private final PluginLogger logger;
 
     public VersionMerger() {
-        this(new MergerConfig());
+        this(new MergerConfig(), PluginLogger.console());
     }
 
     public VersionMerger(MergerConfig config) {
+        this(config, PluginLogger.console());
+    }
+
+    public VersionMerger(PluginLogger logger) {
+        this(new MergerConfig(), logger);
+    }
+
+    public VersionMerger(MergerConfig config, PluginLogger logger) {
         this.config = config;
+        this.logger = logger;
     }
 
     /**
@@ -128,7 +138,7 @@ public class VersionMerger {
                     merged.addEquivalentEnumMapping(nestedPath, nestedEnumName);
                     nestedEnumsToRemove.add(nestedEnum);
 
-                    System.out.println("Detected equivalent enums: " + nestedPath + " -> " + nestedEnumName);
+                    logger.info("Detected equivalent enums: " + nestedPath + " -> " + nestedEnumName);
                 }
             }
         }
@@ -283,10 +293,10 @@ public class VersionMerger {
 
                 if (resolvedType == null) {
                     // Log warning but continue - use Object type
-                    System.err.printf("Warning: Type conflict for field '%s': %s vs %s%n",
+                    logger.warn(String.format("Type conflict for field '%s': %s vs %s",
                             first.field.getProtoName(),
                             first.field.getJavaType(),
-                            fv.field.getJavaType());
+                            fv.field.getJavaType()));
                 }
             }
 

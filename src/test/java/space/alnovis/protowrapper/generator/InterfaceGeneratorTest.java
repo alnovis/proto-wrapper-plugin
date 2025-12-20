@@ -2,8 +2,11 @@ package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.JavaFile;
 import space.alnovis.protowrapper.model.FieldInfo;
-import space.alnovis.protowrapper.model.MergedSchema.MergedField;
-import space.alnovis.protowrapper.model.MergedSchema.MergedMessage;
+import space.alnovis.protowrapper.model.MergedField;
+import space.alnovis.protowrapper.model.MergedMessage;
+import space.alnovis.protowrapper.model.MergedSchema;
+
+import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,6 +33,7 @@ class InterfaceGeneratorTest {
                 .apiPackage("org.example.api")
                 .build();
         generator = new InterfaceGenerator(config);
+        generator.setSchema(new MergedSchema(Arrays.asList("v1", "v2")));
     }
 
     @Test
