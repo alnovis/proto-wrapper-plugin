@@ -19,6 +19,7 @@ public final class ProtobufConstants {
 
     // Class names
     public static final ClassName MESSAGE_CLASS = ClassName.get(PROTOBUF_PACKAGE, "Message");
+    public static final ClassName BYTE_STRING_CLASS = ClassName.get(PROTOBUF_PACKAGE, "ByteString");
 
     // Package suffixes
     public static final String IMPL_PACKAGE_SUFFIX = ".impl";

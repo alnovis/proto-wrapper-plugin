@@ -2,6 +2,7 @@ package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
+import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
@@ -11,6 +12,7 @@ import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -250,8 +252,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract doSet/doClear methods
         for (MergedField field : nested.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded methods
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(nested.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -260,9 +267,15 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with wider type
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with wider type (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 addWideningAbstractMethods(builder, field, resolver);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with dual setters (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                addStringBytesAbstractMethods(builder, field, resolver);
                 continue;
             }
 
@@ -316,8 +329,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add concrete implementations
         for (MergedField field : nested.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded methods
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(nested.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -326,9 +344,15 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with wider type
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with wider type (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 addWideningConcreteMethods(builder, field, resolver, builderInterfaceType);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with dual setters (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                addStringBytesConcreteMethods(builder, field, resolver, builderInterfaceType);
                 continue;
             }
 
@@ -430,8 +454,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addParameter(protoType, "proto")
                 .build());
 
-        // For INT_ENUM conflicts, add enum extract method
-        if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+        // For INT_ENUM conflicts (scalar only), add enum extract method
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
             Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                     .getConflictEnum(message.getName(), field.getName());
             if (enumInfoOpt.isPresent()) {
@@ -442,6 +466,29 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 classBuilder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
                         .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                         .returns(enumType)
+                        .addParameter(protoType, "proto")
+                        .build());
+            }
+        }
+
+        // For STRING_BYTES conflicts (scalar only), add bytes extract method
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+            String bytesExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Bytes";
+            classBuilder.addMethod(MethodSpec.methodBuilder(bytesExtractMethodName)
+                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                    .returns(ArrayTypeName.of(TypeName.BYTE))
+                    .addParameter(protoType, "proto")
+                    .build());
+        }
+
+        // For PRIMITIVE_MESSAGE conflicts (scalar only), add message extract method
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+            TypeName messageType = getMessageTypeForField(field, resolver);
+            if (messageType != null) {
+                String messageExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Message";
+                classBuilder.addMethod(MethodSpec.methodBuilder(messageExtractMethodName)
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .returns(messageType)
                         .addParameter(protoType, "proto")
                         .build());
             }
@@ -479,8 +526,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
             classBuilder.addMethod(has);
         }
 
-        // Add enum getter for INT_ENUM conflicts
-        if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+        // Add enum getter for INT_ENUM conflicts (scalar only)
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
             Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                     .getConflictEnum(message.getName(), field.getName());
             if (enumInfoOpt.isPresent()) {
@@ -494,6 +541,35 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                         .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                         .returns(enumType)
                         .addStatement("return $L(proto)", enumExtractMethodName)
+                        .build());
+            }
+        }
+
+        // Add bytes getter for STRING_BYTES conflicts (scalar only)
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+            String bytesGetterName = "get" + resolver.capitalize(field.getJavaName()) + "Bytes";
+            String bytesExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Bytes";
+
+            classBuilder.addMethod(MethodSpec.methodBuilder(bytesGetterName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                    .returns(ArrayTypeName.of(TypeName.BYTE))
+                    .addStatement("return $L(proto)", bytesExtractMethodName)
+                    .build());
+        }
+
+        // Add message getter for PRIMITIVE_MESSAGE conflicts (scalar only)
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+            TypeName messageType = getMessageTypeForField(field, resolver);
+            if (messageType != null) {
+                String messageGetterName = "get" + resolver.capitalize(field.getJavaName()) + "Message";
+                String messageExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Message";
+
+                classBuilder.addMethod(MethodSpec.methodBuilder(messageGetterName)
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .returns(messageType)
+                        .addStatement("return $L(proto)", messageExtractMethodName)
                         .build());
             }
         }
@@ -605,8 +681,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract doSet/doClear/doAdd/doBuild methods
         for (MergedField field : message.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded methods
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -615,9 +696,15 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with wider type
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with wider type (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 addWideningAbstractMethods(builder, field, resolver);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with dual setters (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                addStringBytesAbstractMethods(builder, field, resolver);
                 continue;
             }
 
@@ -678,8 +765,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add concrete implementations that delegate to abstract methods
         for (MergedField field : message.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded methods
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -688,9 +780,15 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with wider type
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with wider type (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 addWideningConcreteMethods(builder, field, resolver, builderInterfaceType);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with dual setters (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                addStringBytesConcreteMethods(builder, field, resolver, builderInterfaceType);
                 continue;
             }
 
@@ -907,6 +1005,72 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     /**
+     * Add abstract methods for STRING_BYTES conflict field.
+     * Provides dual setters: one for String, one for byte[].
+     */
+    private void addStringBytesAbstractMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
+        String capName = resolver.capitalize(field.getJavaName());
+
+        // doSetXxx(String) - for String value
+        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .addParameter(ClassName.get(String.class), field.getJavaName())
+                .build());
+
+        // doSetXxxBytes(byte[]) - for byte[] value
+        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName + "Bytes")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName())
+                .build());
+
+        // doClearXxx() for optional fields
+        if (field.isOptional()) {
+            builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
+                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                    .build());
+        }
+    }
+
+    /**
+     * Add concrete implementations for STRING_BYTES conflict field.
+     */
+    private void addStringBytesConcreteMethods(TypeSpec.Builder builder, MergedField field,
+                                                TypeResolver resolver, ClassName builderInterfaceType) {
+        String capName = resolver.capitalize(field.getJavaName());
+
+        // setXxx(String)
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(ClassName.get(String.class), field.getJavaName())
+                .returns(builderInterfaceType)
+                .addStatement("doSet$L($L)", capName, field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // setXxxBytes(byte[])
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName + "Bytes")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName())
+                .returns(builderInterfaceType)
+                .addStatement("doSet$L$L($L)", capName, "Bytes", field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // clearXxx() for optional
+        if (field.isOptional()) {
+            builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                    .returns(builderInterfaceType)
+                    .addStatement("doClear$L()", capName)
+                    .addStatement("return this")
+                    .build());
+        }
+    }
+
+    /**
      * Extract element type from List<T> type.
      */
     private TypeName extractListElementType(TypeName listType) {
@@ -917,6 +1081,26 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
             }
         }
         return ClassName.get(Object.class);
+    }
+
+    /**
+     * Get the message type for a PRIMITIVE_MESSAGE conflict field.
+     * Returns the wrapper interface type for the message version.
+     */
+    private TypeName getMessageTypeForField(MergedField field, TypeResolver resolver) {
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            FieldInfo fieldInfo = entry.getValue();
+            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
+                // Found message version - extract simple type name and use api package
+                String javaType = fieldInfo.getJavaType();
+                String simpleTypeName = javaType.contains(".")
+                        ? javaType.substring(javaType.lastIndexOf('.') + 1)
+                        : javaType;
+                // Return the type with the api package
+                return ClassName.get(config.getApiPackage(), simpleTypeName);
+            }
+        }
+        return null;
     }
 
     /**

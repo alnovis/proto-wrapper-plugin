@@ -1,45 +1,32 @@
 # Known Issues and Limitations
 
-This document describes known issues and limitations of the proto-wrapper-maven-plugin, particularly related to Builder generation.
+This document describes known issues and limitations of the proto-wrapper-maven-plugin.
 
 ## Table of Contents
 
-- [Builder Generation Issues](#builder-generation-issues)
-  - [Type Conflicts Across Versions](#type-conflicts-across-versions)
-  - [bytes Field Handling](#bytes-field-handling)
-  - [Protobuf Version Compatibility](#protobuf-version-compatibility)
+- [Type Conflict Handling](#type-conflict-handling)
+- [Repeated Fields with Type Conflicts](#repeated-fields-with-type-conflicts)
 - [General Limitations](#general-limitations)
 - [Workarounds](#workarounds)
 
 ---
 
-## Builder Generation Issues
+## Type Conflict Handling
 
-Builder generation (`generateBuilders=true`) has several known limitations that may cause compilation errors in certain scenarios.
+**Status:** Fully Handled (v1.0.5+)
 
-### Type Conflicts Across Versions
+When a field has different types in different schema versions, the plugin automatically detects and handles these conflicts.
 
-**Status:** ✅ Handled (since v1.0.5)
+### Supported Conflict Types
 
-**Description:**
-When a field has different types in different schema versions, the plugin now automatically detects and handles these conflicts.
+| Conflict Type | Example | Read | Builder |
+|--------------|---------|------|---------|
+| `INT_ENUM` | int ↔ TaxTypeEnum | `getXxx()` + `getXxxEnum()` | `setXxx(int)` + `setXxx(Enum)` |
+| `WIDENING` | int → long, float → double | Auto-widened to wider type | Setter available |
+| `STRING_BYTES` | string ↔ bytes | `getXxx()` + `getXxxBytes()` | `setXxx(String)` + `setXxxBytes(byte[])` |
+| `PRIMITIVE_MESSAGE` | int → Message | Returns null for message versions | Setter skipped |
 
-**Handled conflict types:**
-
-| Conflict Type | Example | Handling |
-|--------------|---------|----------|
-| `INT_ENUM` | int ↔ TaxTypeEnum | **Full support** with unified enum (Phase 2) |
-| `WIDENING` | int → long, int → double | Setter skipped, field read-only in builder |
-| `NARROWING` | long → int | Setter skipped, field read-only in builder |
-| `STRING_BYTES` | string ↔ bytes | Setter skipped, field read-only in builder |
-| `PRIMITIVE_MESSAGE` | int → Message | Setter skipped, field read-only in builder |
-
-**INT_ENUM Conflicts - Full Support (Phase 2):**
-
-For fields that are `int` in one version and `enum` in another, the plugin generates:
-1. **Unified Enum:** A merged enum with all values from all versions
-2. **Dual Getters:** `getField()` returns int, `getFieldEnum()` returns unified enum
-3. **Overloaded Setters:** Builder accepts both `int` and unified enum values
+### INT_ENUM Example
 
 ```java
 // Unified enum generated automatically
@@ -47,111 +34,166 @@ public enum UnitType {
     UNIT_CELSIUS(0), UNIT_FAHRENHEIT(1), UNIT_KELVIN(2), ...
 }
 
-// Interface with dual getters
+// Interface with dual getters and overloaded setters
 interface SensorReading {
     int getUnitType();              // Returns int value
-    UnitType getUnitTypeEnum();     // Returns unified enum (or null)
+    UnitType getUnitTypeEnum();     // Returns unified enum
 
     interface Builder {
         Builder setUnitType(int value);       // Set via int
         Builder setUnitType(UnitType value);  // Set via enum
     }
 }
-
-// Usage
-SensorReading reading = ...;
-UnitType type = reading.getUnitTypeEnum();  // Type-safe access
-
-SensorReading modified = reading.toBuilder()
-    .setUnitType(UnitType.UNIT_KELVIN)  // Set via enum
-    .build();
 ```
 
-**How it works:**
+### STRING_BYTES Example
 
-1. **Conflict Detection:** During schema merge, fields with type mismatches are detected and classified
-2. **Builder Setters:** Conflicting fields are excluded from the builder interface
-3. **Javadoc:** Builder interface documents which fields are unavailable and why
-4. **Getters:** Conflicting fields return default values (0, null, false) through the unified interface
-5. **Access:** Full access to version-specific data via `getTypedProto()`
-
-**Generated Javadoc example:**
 ```java
-/**
- * Builder for creating and modifying SensorReading instances.
- *
- * <p><b>Note:</b> {@code unitType} setter not available due to type conflict (INT_ENUM).</p>
- * <p><b>Note:</b> {@code calibrationId} setter not available due to type conflict (PRIMITIVE_MESSAGE).</p>
- */
-interface Builder {
-    // Only non-conflicting fields have setters
+interface TelemetryReport {
+    String getChecksum();       // String representation (UTF-8 for bytes versions)
+    byte[] getChecksumBytes();  // Raw bytes (UTF-8 encoded for string versions)
+
+    interface Builder {
+        Builder setChecksum(String value);
+        Builder setChecksumBytes(byte[] value);
+    }
 }
 ```
 
-**Accessing conflicting fields:**
+### WIDENING Example
+
 ```java
-// INT_ENUM conflicts (Phase 2): Full support via unified interface
-int unitType = reading.getUnitType();           // Returns actual int value
-UnitType type = reading.getUnitTypeEnum();      // Returns unified enum
+interface SensorReading {
+    long getRawValue();    // int32 in v1, int64 in v2 → unified as long
+    double getValues();    // float in v1, double in v2 → unified as double
 
-// Modify via builder with type-safe enum
-SensorReading modified = reading.toBuilder()
-    .setUnitType(UnitType.UNIT_KELVIN)
-    .build();
-
-// Other conflict types: Access via typed proto
-if (reading instanceof SensorReadingV2 v2) {
-    double precision = v2.getTypedProto().getPrecisionLevel();  // WIDENING conflict
+    interface Builder {
+        Builder setRawValue(long value);  // Range check for narrower versions
+    }
 }
 ```
 
 ---
 
-### bytes Field Handling
+## Repeated Fields with Type Conflicts
 
-**Status:** Partial support
+**Status:** Read-only (v1.0.6+)
 
-**Description:**
-Fields of type `bytes` in protobuf require conversion between `byte[]` (Java) and `ByteString` (protobuf).
+Repeated fields with type conflicts are fully readable but not settable via the unified builder.
 
-**Error example:**
-```
-incompatible types: byte[] cannot be converted to com.google.protobuf.ByteString
-```
+### Supported Read Operations
 
-**Root cause:**
-The generated builder setters pass `byte[]` directly to proto builder, but proto builders expect `ByteString`.
+| Conflict Type | Example | Unified Type |
+|--------------|---------|--------------|
+| `WIDENING` | `repeated int32` → `repeated int64` | `List<Long>` |
+| `WIDENING` | `repeated float` → `repeated double` | `List<Double>` |
+| `INT_ENUM` | `repeated int32` → `repeated SomeEnum` | `List<Integer>` |
+| `STRING_BYTES` | `repeated string` → `repeated bytes` | `List<String>` |
 
-**Required fix:**
-Builder setters for `bytes` fields should use:
+### Example
+
 ```java
-protoBuilder.setData(ByteString.copyFrom(bytes))
+interface RepeatedConflicts {
+    List<Long> getNumbers();    // int32 in v1, int64 in v2 → widened elements
+    List<Integer> getCodes();   // int32 in v1, enum in v2 → enum.getNumber()
+    List<String> getTexts();    // string in v1, bytes in v2 → UTF-8 conversion
+    List<Double> getValues();   // float in v1, double in v2 → widened elements
+
+    // Builder - repeated conflict fields NOT available
+    interface Builder {
+        // Note: setNumbers, setCodes, setTexts, setValues are NOT generated
+        // Use typed proto builder for direct access
+    }
+}
 ```
 
-Instead of:
+### Accessing Repeated Conflict Fields for Modification
+
+Use the typed proto builder directly:
+
 ```java
-protoBuilder.setData(bytes)  // Error!
+// For V2 version
+var v2 = (RepeatedConflictsV2) wrapper;
+var modified = new RepeatedConflictsV2(
+    v2.getTypedProto().toBuilder()
+        .addNumbers(12345L)
+        .addCodes(CodeEnum.CODE_SUCCESS)
+        .build()
+);
 ```
-
-**Workaround:**
-- Use proto builder directly for messages with `bytes` fields
-- Disable builders for affected messages
 
 ---
 
-### Protobuf Version Compatibility
+## General Limitations
+
+### 1. oneof Fields
+- **Status:** Not supported
+- **Description:** Protobuf `oneof` fields are not handled specially
+
+### 2. map Fields
+- **Status:** Basic support
+- **Description:** Map fields have limited support, may not work correctly in all cases
+
+### 3. Extensions
+- **Status:** Not supported
+- **Description:** Protobuf extensions are not supported
+
+### 4. Version Conversion (`asVersion`)
+- **Status:** Not implemented
+- **Description:** The `asVersion(Class<T> versionClass)` method throws `UnsupportedOperationException`
+- **Workaround:** Use serialization: `targetVersion.from(TargetProto.parseFrom(source.toBytes()))`
+
+### 5. Complex Nested Hierarchies
+- **Status:** Partial support
+- **Description:** Deeply nested message hierarchies with conflicts may require manual configuration
+
+---
+
+## Workarounds
+
+### For Repeated Conflict Fields in Builders
+
+Use the typed proto builder:
+
+```java
+var v2 = (MyMessageV2) wrapper;
+var protoBuilder = v2.getTypedProto().toBuilder();
+protoBuilder.addRepeatedField(value);
+MyMessage modified = new MyMessageV2(protoBuilder.build());
+```
+
+### For PRIMITIVE_MESSAGE Conflicts
+
+Access via typed proto:
+
+```java
+if (wrapper instanceof MyMessageV2 v2) {
+    NestedMessage nested = v2.getTypedProto().getNestedField();
+}
+```
+
+### For Version Conversion
+
+Serialize and parse:
+
+```java
+// Convert from V1 to V2
+byte[] bytes = v1Wrapper.toBytes();
+V2Proto proto = V2Proto.parseFrom(bytes);
+MyMessageV2 v2Wrapper = new MyMessageV2(proto);
+```
+
+---
+
+## Protobuf Version Compatibility
 
 **Status:** Supported via configuration
 
-**Description:**
-Protobuf 2.x and 3.x have different APIs for converting integers to enum values.
-
-| Protobuf Version | Method |
-|-----------------|--------|
+| Protobuf Version | Method for enum conversion |
+|-----------------|---------------------------|
 | 2.x | `EnumType.valueOf(int)` |
 | 3.x | `EnumType.forNumber(int)` |
 
-**Solution:**
 Set `protobufMajorVersion` parameter in plugin configuration:
 
 ```xml
@@ -162,69 +204,6 @@ Set `protobufMajorVersion` parameter in plugin configuration:
 ```
 
 **Default value:** `3` (protobuf 3.x)
-
----
-
-## General Limitations
-
-These limitations apply to all generated code (not just builders):
-
-### 1. oneof Fields
-- **Status:** Not supported
-- **Description:** Protobuf `oneof` fields are not handled specially
-
-### 2. map Fields
-- **Status:** Basic support
-- **Description:** Map fields have limited support, may not work correctly in all cases
-
-### 3. Complex Nested Hierarchies
-- **Status:** Partial support
-- **Description:** Deeply nested message hierarchies may require manual configuration
-
-### 4. Extensions
-- **Status:** Not supported
-- **Description:** Protobuf extensions are not supported
-
----
-
-## Workarounds
-
-### For INT_ENUM Conflicts ✅ Fully Resolved
-
-**No workaround needed!** INT_ENUM conflicts now have full support with unified enums (Phase 2):
-
-```java
-// Direct access via unified enum
-UnitType type = reading.getUnitTypeEnum();
-
-// Modify via builder - works with both int and enum
-SensorReading modified = reading.toBuilder()
-    .setUnitType(UnitType.UNIT_KELVIN)  // or .setUnitType(2)
-    .build();
-```
-
-### For Other Type Conflicts (WIDENING, PRIMITIVE_MESSAGE, etc.)
-
-Use the typed proto for modifications:
-
-```java
-// Access typed proto for version-specific operations
-var v2 = (SensorReadingV2) reading;
-var protoBuilder = v2.getTypedProto().toBuilder();
-protoBuilder.setPrecisionLevel(3.14);  // WIDENING: int → double
-SensorReading modified = new SensorReadingV2(protoBuilder.build());
-```
-
-### For bytes Field Issues
-
-Use native proto builder:
-
-```java
-// Get underlying proto and modify
-var protoBuilder = wrapper.getTypedProto().toBuilder();
-protoBuilder.setSignature(ByteString.copyFrom(signatureBytes));
-TicketResponse modified = new TicketResponse(protoBuilder.build());
-```
 
 ---
 

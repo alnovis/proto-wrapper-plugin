@@ -82,14 +82,30 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 interfaceBuilder.addMethod(generateSupportsMethod(field, message, resolver));
             }
 
-            // Add enum getter for INT_ENUM conflict fields
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Add enum getter for INT_ENUM conflict fields (scalar only - repeated handled differently)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
                     ConflictEnumInfo enumInfo = enumInfoOpt.get();
                     MethodSpec enumGetter = generateEnumGetter(field, enumInfo, resolver);
                     interfaceBuilder.addMethod(enumGetter);
+                }
+            }
+
+            // Add bytes getter for STRING_BYTES conflict fields (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                MethodSpec bytesGetter = generateBytesGetter(field, resolver);
+                interfaceBuilder.addMethod(bytesGetter);
+            }
+
+            // Add message getter for PRIMITIVE_MESSAGE conflict fields (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+                MethodSpec messageGetter = generateMessageGetter(field, message, resolver);
+                if (messageGetter != null) {
+                    interfaceBuilder.addMethod(messageGetter);
+                    // Also add supportsXxxMessage() method
+                    interfaceBuilder.addMethod(generateSupportsMessageMethod(field, resolver));
                 }
             }
         }
@@ -170,7 +186,8 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                         resolver.capitalize(field.getJavaName()));
                 case WIDENING -> builder.addJavadoc("<p>Value is automatically widened to the larger type.</p>\n");
                 case NARROWING -> builder.addJavadoc("<p>Returns default value (0) for versions with wider type.</p>\n");
-                case STRING_BYTES -> builder.addJavadoc("<p>Returns null for versions with incompatible type.</p>\n");
+                case STRING_BYTES -> builder.addJavadoc("<p>For bytes versions, converts using UTF-8. Use {@code get$LBytes()} for raw bytes.</p>\n",
+                        resolver.capitalize(field.getJavaName()));
                 case PRIMITIVE_MESSAGE -> builder.addJavadoc("<p>Returns null/default for versions with message type.</p>\n");
                 default -> {}
             }
@@ -301,6 +318,96 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .build();
     }
 
+    /**
+     * Generate bytes getter for STRING_BYTES conflict field.
+     */
+    private MethodSpec generateBytesGetter(MergedField field, TypeResolver resolver) {
+        String methodName = "get" + resolver.capitalize(field.getJavaName()) + "Bytes";
+
+        return MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(ArrayTypeName.of(TypeName.BYTE))
+                .addJavadoc("Get $L as raw bytes.\n", field.getJavaName())
+                .addJavadoc("<p>This method provides byte array access for a field that has\n")
+                .addJavadoc("different types across protocol versions (String in some, bytes in others).</p>\n")
+                .addJavadoc("<p>For String versions, converts using UTF-8 encoding.</p>\n")
+                .addJavadoc("@return Byte array value\n")
+                .build();
+    }
+
+    /**
+     * Generate message getter for PRIMITIVE_MESSAGE conflict field.
+     * Returns the message type for versions where the field is a message, null for primitive versions.
+     */
+    private MethodSpec generateMessageGetter(MergedField field, MergedMessage message, TypeResolver resolver) {
+        // Find the message type from the version fields
+        String messageTypeName = null;
+        Set<String> messageVersions = new java.util.LinkedHashSet<>();
+
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            FieldInfo fieldInfo = entry.getValue();
+            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
+                messageTypeName = fieldInfo.getJavaType();
+                messageVersions.add(entry.getKey());
+            }
+        }
+
+        if (messageTypeName == null) {
+            return null; // No message type found
+        }
+
+        // Determine the return type - it should be the wrapper interface type in the api package
+        // Extract simple name from the full type (e.g., "CalibrationInfo" from "space.alnovis...CalibrationInfo")
+        String simpleTypeName = messageTypeName.contains(".")
+                ? messageTypeName.substring(messageTypeName.lastIndexOf('.') + 1)
+                : messageTypeName;
+
+        String methodName = "get" + resolver.capitalize(field.getJavaName()) + "Message";
+        String versionsStr = String.join(", ", messageVersions);
+
+        // Use simple name for interface (same package)
+        return MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(ClassName.bestGuess(simpleTypeName))
+                .addJavadoc("Get $L as message type.\n", field.getJavaName())
+                .addJavadoc("<p>This method provides access to the message type for a field that has\n")
+                .addJavadoc("different types across protocol versions (primitive in some, message in others).</p>\n")
+                .addJavadoc("<p>Available in versions: [$L]</p>\n", versionsStr)
+                .addJavadoc("<p>Returns null for primitive versions.</p>\n")
+                .addJavadoc("@return Message wrapper, or null if this version has primitive type\n")
+                .build();
+    }
+
+    /**
+     * Generate supportsXxxMessage() method for PRIMITIVE_MESSAGE conflict field.
+     */
+    private MethodSpec generateSupportsMessageMethod(MergedField field, TypeResolver resolver) {
+        String methodName = "supports" + resolver.capitalize(field.getJavaName()) + "Message";
+
+        // Find message versions
+        Set<String> messageVersions = new java.util.LinkedHashSet<>();
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            FieldInfo fieldInfo = entry.getValue();
+            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
+                messageVersions.add(entry.getKey());
+            }
+        }
+
+        String versionsStr = String.join(", ", messageVersions);
+
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .returns(TypeName.BOOLEAN)
+                .addJavadoc("Check if $L message type is available in the current version.\n", field.getJavaName())
+                .addJavadoc("<p>This field has a type conflict [PRIMITIVE_MESSAGE] across versions.</p>\n")
+                .addJavadoc("<p>Returns true only for versions with message type: [$L]</p>\n", versionsStr)
+                .addJavadoc("@return true if this version has message type for this field\n");
+
+        builder.addStatement("return $L", buildVersionCheck(messageVersions));
+
+        return builder.build();
+    }
+
     private TypeSpec generateNestedInterface(MergedMessage nested, GenerationContext ctx) {
         TypeResolver resolver = ctx.getTypeResolver();
         TypeSpec.Builder builder = TypeSpec.interfaceBuilder(nested.getInterfaceName())
@@ -316,14 +423,29 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 builder.addMethod(generateHasMethod(field, resolver));
             }
 
-            // Add enum getter for INT_ENUM conflict fields in nested messages
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Add enum getter for INT_ENUM conflict fields in nested messages (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(nested.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
                     ConflictEnumInfo enumInfo = enumInfoOpt.get();
                     MethodSpec enumGetter = generateEnumGetter(field, enumInfo, resolver);
                     builder.addMethod(enumGetter);
+                }
+            }
+
+            // Add bytes getter for STRING_BYTES conflict fields in nested messages (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                MethodSpec bytesGetter = generateBytesGetter(field, resolver);
+                builder.addMethod(bytesGetter);
+            }
+
+            // Add message getter for PRIMITIVE_MESSAGE conflict fields in nested messages (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+                MethodSpec messageGetter = generateMessageGetter(field, nested, resolver);
+                if (messageGetter != null) {
+                    builder.addMethod(messageGetter);
+                    builder.addMethod(generateSupportsMessageMethod(field, resolver));
                 }
             }
         }
@@ -357,8 +479,14 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
         for (MergedField field : nested.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded setters
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                addSkippedFieldNote(builder, field, "type conflict");
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded setters (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(nested.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -367,9 +495,15 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with setter using wider type
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with setter using wider type (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 addWideningBuilderMethods(builder, field, resolver);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with dual setters (String and byte[]) (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                addStringBytesBuilderMethods(builder, field, resolver);
                 continue;
             }
 
@@ -437,8 +571,14 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
         // Add setter methods for each field
         for (MergedField field : message.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded setters
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                addSkippedFieldNote(builder, field, "type conflict");
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded setters (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -447,9 +587,15 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with setter using wider type
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with setter using wider type (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 addWideningBuilderMethods(builder, field, resolver);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with dual setters (String and byte[]) (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                addStringBytesBuilderMethods(builder, field, resolver);
                 continue;
             }
 
@@ -618,6 +764,64 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             case "int", "Integer" -> TypeName.INT;
             default -> TypeName.LONG; // Default to long for numeric widening
         };
+    }
+
+    /**
+     * Add a javadoc note about a skipped field in the builder.
+     */
+    private void addSkippedFieldNote(TypeSpec.Builder builder, MergedField field, String reason) {
+        builder.addJavadoc("\n<p><b>Note:</b> {@code $L} setter not available due to $L ($L).</p>\n",
+                field.getJavaName(), reason, field.getConflictType());
+    }
+
+    /**
+     * Add builder methods for STRING_BYTES conflict field.
+     * Generates both String and byte[] setters for unified access.
+     */
+    private void addStringBytesBuilderMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
+        String capName = resolver.capitalize(field.getJavaName());
+        ClassName builderType = ClassName.get("", "Builder");
+
+        // Build version info for javadoc
+        Map<String, FieldInfo> versionFields = field.getVersionFields();
+        List<String> typeInfo = new java.util.ArrayList<>();
+        for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
+            typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
+        }
+        String versionsStr = String.join(", ", typeInfo);
+
+        // String setter
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(ClassName.get(String.class), field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Set $L value as String.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [STRING_BYTES]:</b> $L</p>\n", versionsStr)
+                .addJavadoc("<p>For bytes versions, converts using UTF-8 encoding.</p>\n")
+                .addJavadoc("@param $L The String value to set\n", field.getJavaName())
+                .addJavadoc("@return This builder\n")
+                .build());
+
+        // byte[] setter
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName + "Bytes")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Set $L value as raw bytes.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [STRING_BYTES]:</b> $L</p>\n", versionsStr)
+                .addJavadoc("<p>For String versions, converts using UTF-8 encoding.</p>\n")
+                .addJavadoc("@param $L The byte array value to set\n", field.getJavaName())
+                .addJavadoc("@return This builder\n")
+                .build());
+
+        // clear method
+        if (field.isOptional()) {
+            builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(builderType)
+                    .addJavadoc("Clear $L value.\n", field.getJavaName())
+                    .build());
+        }
     }
 
     /**

@@ -395,8 +395,17 @@ public class VersionMerger {
             if (conflictType == MergedField.ConflictType.WIDENING) {
                 String widerType = determineWiderType(uniqueTypes);
                 if (widerType != null) {
-                    builder.resolvedJavaType(widerType);
-                    builder.resolvedGetterType(widerType);
+                    boolean isRepeated = first.field().isRepeated();
+                    if (isRepeated) {
+                        // For repeated fields, use List<BoxedWiderType>
+                        String listType = "java.util.List<" + boxType(widerType) + ">";
+                        builder.resolvedJavaType(listType);
+                        builder.resolvedGetterType(listType);
+                    } else {
+                        // For scalar fields, use primitive wider type
+                        builder.resolvedJavaType(widerType);
+                        builder.resolvedGetterType(widerType);
+                    }
                 }
             }
 
@@ -415,18 +424,27 @@ public class VersionMerger {
      * Detect the type of conflict between field types across versions.
      */
     private MergedField.ConflictType detectConflictType(List<FieldWithVersion> fields) {
-        Set<String> types = fields.stream()
+        Set<String> rawTypes = fields.stream()
                 .map(fv -> fv.field().getJavaType())
                 .collect(Collectors.toSet());
 
-        if (types.size() == 1) {
+        if (rawTypes.size() == 1) {
             return MergedField.ConflictType.NONE;
         }
 
-        // Collect field characteristics
+        // Check if all fields are repeated - if so, analyze element types
+        boolean allRepeated = fields.stream().allMatch(fv -> fv.field().isRepeated());
+
+        // Extract element types for repeated fields, otherwise use raw types
+        Set<String> types = rawTypes.stream()
+                .map(this::extractElementType)
+                .collect(Collectors.toSet());
+
+        // Collect field characteristics based on element types
         boolean hasInt = types.stream().anyMatch(this::isIntType);
         boolean hasLong = types.stream().anyMatch(this::isLongType);
-        boolean hasDouble = types.stream().anyMatch(this::isDoubleType);
+        boolean hasFloat = types.stream().anyMatch(this::isFloatType);
+        boolean hasDouble = types.stream().anyMatch(this::isDoubleOnlyType);
         boolean hasEnum = fields.stream().anyMatch(fv -> fv.field().isEnum());
         boolean hasMessage = fields.stream().anyMatch(fv -> fv.field().isMessage());
         boolean hasPrimitive = fields.stream().anyMatch(fv -> fv.field().isPrimitive());
@@ -438,15 +456,16 @@ public class VersionMerger {
             return MergedField.ConflictType.INT_ENUM;
         }
 
-        // Check for widening: int → long, int → double
-        if ((hasInt && hasLong && !hasDouble && !hasMessage && !hasEnum) ||
-            (hasInt && hasDouble && !hasLong && !hasMessage && !hasEnum)) {
+        // Check for widening: int → long, int → double, float → double
+        if ((hasInt && hasLong && !hasDouble && !hasFloat && !hasMessage && !hasEnum) ||
+            (hasInt && (hasDouble || hasFloat) && !hasLong && !hasMessage && !hasEnum) ||
+            (hasFloat && hasDouble && !hasInt && !hasLong && !hasMessage && !hasEnum)) {
             return MergedField.ConflictType.WIDENING;
         }
 
         // Check for narrowing: long → int (if long comes first and int later, or vice versa)
-        // This is lossy, so we mark it as NARROWING
-        if (hasLong && hasInt && !hasDouble && !hasMessage && !hasEnum) {
+        // This is lossy, so we mark it as NARROWING but handle as WIDENING (use wider type)
+        if (hasLong && hasInt && !hasDouble && !hasFloat && !hasMessage && !hasEnum) {
             // Already handled as WIDENING above if int→long
             // If long→int pattern exists, it would still be WIDENING (use long)
             return MergedField.ConflictType.WIDENING;
@@ -466,6 +485,16 @@ public class VersionMerger {
         return MergedField.ConflictType.INCOMPATIBLE;
     }
 
+    /**
+     * Extract element type from List<X> or return type as-is.
+     */
+    private String extractElementType(String type) {
+        if (type.startsWith("java.util.List<") && type.endsWith(">")) {
+            return type.substring("java.util.List<".length(), type.length() - 1);
+        }
+        return type;
+    }
+
     private boolean isIntType(String type) {
         return "int".equals(type) || "Integer".equals(type) || "int32".equals(type) || "uint32".equals(type);
     }
@@ -474,29 +503,66 @@ public class VersionMerger {
         return "long".equals(type) || "Long".equals(type) || "int64".equals(type) || "uint64".equals(type);
     }
 
-    private boolean isDoubleType(String type) {
-        return "double".equals(type) || "Double".equals(type) || "float".equals(type) || "Float".equals(type);
+    private boolean isFloatType(String type) {
+        return "float".equals(type) || "Float".equals(type);
+    }
+
+    private boolean isDoubleOnlyType(String type) {
+        return "double".equals(type) || "Double".equals(type);
+    }
+
+    /**
+     * Check if type is any floating point (float or double).
+     */
+    private boolean isFloatingPointType(String type) {
+        return isFloatType(type) || isDoubleOnlyType(type);
+    }
+
+    /**
+     * Box a primitive type name to its wrapper type name.
+     */
+    private String boxType(String type) {
+        return switch (type) {
+            case "int" -> "Integer";
+            case "long" -> "Long";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "boolean" -> "Boolean";
+            default -> type;
+        };
     }
 
     /**
      * Determine the wider type for WIDENING conflicts.
-     * Priority: double > long > int
+     * Priority: double > float > long > int
      */
     private String determineWiderType(Set<String> types) {
-        // Check for double/float (widest)
-        for (String type : types) {
-            if (isDoubleType(type)) {
+        // Extract element types in case of repeated fields
+        Set<String> elementTypes = types.stream()
+                .map(this::extractElementType)
+                .collect(Collectors.toSet());
+
+        // Check for double (widest floating point)
+        for (String type : elementTypes) {
+            if (isDoubleOnlyType(type)) {
                 return "double";
             }
         }
+        // Check for float
+        for (String type : elementTypes) {
+            if (isFloatType(type)) {
+                // If there's also double, use double; otherwise float
+                return elementTypes.stream().anyMatch(this::isDoubleOnlyType) ? "double" : "float";
+            }
+        }
         // Check for long (wider than int)
-        for (String type : types) {
+        for (String type : elementTypes) {
             if (isLongType(type)) {
                 return "long";
             }
         }
         // Default to int (narrowest)
-        for (String type : types) {
+        for (String type : elementTypes) {
             if (isIntType(type)) {
                 return "int";
             }

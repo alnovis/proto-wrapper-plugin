@@ -463,6 +463,64 @@ class TypeConflictTest {
             assertThat(reading.getTypedProto().getCalibrationInfo().getTechnicianId())
                     .isEqualTo("TECH-42");
         }
+
+        @Test
+        @DisplayName("V1 supportsCalibrationId returns true, supportsCalibrationIdMessage returns false")
+        void v1SupportsPrimitiveOnly() {
+            Telemetry.SensorReading proto = Telemetry.SensorReading.newBuilder()
+                    .setSensorId("SENSOR-001")
+                    .setDeviceName("Sensor")
+                    .setUnitType(1)
+                    .setPrecisionLevel(2)
+                    .setCalibrationId(12345)
+                    .setRawValue(500)
+                    .setReadingDate(createV1Date(2024, 4, 5))
+                    .build();
+
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(proto);
+
+            // V1 supports primitive, not message
+            assertThat(reading.supportsCalibrationId()).isTrue();
+            assertThat(reading.supportsCalibrationIdMessage()).isFalse();
+
+            // Message getter returns null for v1
+            assertThat(reading.getCalibrationIdMessage()).isNull();
+        }
+
+        @Test
+        @DisplayName("V2 supportsCalibrationIdMessage returns true, can access CalibrationInfo via message getter")
+        void v2SupportsMessageOnly() {
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo calibInfo =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo.newBuilder()
+                    .setCalibrationId("CAL-2024-001")
+                    .setTechnicianId("TECH-42")
+                    .setAccuracyRating(99)
+                    .build();
+
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
+                    .setSensorId("SENSOR-002")
+                    .setDeviceName("V2 Sensor")
+                    .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
+                    .setPrecisionLevel(2.0)
+                    .setCalibrationInfo(calibInfo)
+                    .setRawValue(500L)
+                    .setReadingDate(createV2Date(2024, 4, 5))
+                    .build();
+
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
+
+            // V2 supports message, not primitive
+            assertThat(reading.supportsCalibrationId()).isFalse();
+            assertThat(reading.supportsCalibrationIdMessage()).isTrue();
+
+            // Can access CalibrationInfo via unified message getter
+            CalibrationInfo calibWrapper = reading.getCalibrationIdMessage();
+            assertThat(calibWrapper).isNotNull();
+            assertThat(calibWrapper.getCalibrationId()).isEqualTo("CAL-2024-001");
+            assertThat(calibWrapper.getTechnicianId()).isEqualTo("TECH-42");
+            assertThat(calibWrapper.getAccuracyRating()).isEqualTo(99);
+        }
     }
 
     @Nested
@@ -538,12 +596,17 @@ class TypeConflictTest {
 
             assertThat(report.hasChecksum()).isTrue();
             assertThat(report.getChecksum()).isEqualTo("abc123def456");
+            // Bytes getter converts String to UTF-8 bytes
+            assertThat(report.getChecksumBytes())
+                    .isEqualTo("abc123def456".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
 
         @Test
-        @DisplayName("V2 checksum (bytes) returns null through unified interface")
-        void v2ReturnsNullForChecksum() {
-            byte[] checksumBytes = new byte[]{0x01, 0x02, 0x03, 0x04, 0x05};
+        @DisplayName("V2 checksum (bytes) can be accessed as String via UTF-8 conversion")
+        void v2ChecksumAccessibleAsStringViaUtf8() {
+            // Use a valid UTF-8 string encoded as bytes
+            String originalChecksum = "checksum123";
+            byte[] checksumBytes = originalChecksum.getBytes(java.nio.charset.StandardCharsets.UTF_8);
 
             space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport proto =
                     space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
@@ -555,9 +618,11 @@ class TypeConflictTest {
 
             TelemetryReport report = new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto);
 
-            // Conflicting field returns false/null
-            assertThat(report.hasChecksum()).isFalse();
-            assertThat(report.getChecksum()).isNull();
+            // With STRING_BYTES unified access, bytes are converted to String via UTF-8
+            assertThat(report.hasChecksum()).isTrue();
+            assertThat(report.getChecksum()).isEqualTo(originalChecksum);
+            // Also verify bytes getter
+            assertThat(report.getChecksumBytes()).isEqualTo(checksumBytes);
         }
 
         @Test
@@ -579,6 +644,281 @@ class TypeConflictTest {
             assertThat(report.getTypedProto().hasChecksum()).isTrue();
             assertThat(report.getTypedProto().getChecksum().toByteArray())
                     .isEqualTo(checksumBytes);
+        }
+
+        @Test
+        @DisplayName("V1 builder can set checksum via String and Bytes")
+        void v1BuilderStringBytesSetters() {
+            // Set via String - note: generatedAt is a required field in proto but has PRIMITIVE_MESSAGE conflict
+            // So we build using the proto builder first to satisfy required fields
+            Telemetry.TelemetryReport proto1 = Telemetry.TelemetryReport.newBuilder()
+                    .setReportNumber("RPT-001")
+                    .setReading(createMinimalV1SensorReading())
+                    .setChecksum("initial")
+                    .setGeneratedAt(1704067200000L)
+                    .build();
+
+            TelemetryReport report1 = new space.alnovis.protowrapper.it.model.v1.TelemetryReport(proto1)
+                    .toBuilder()
+                    .setChecksum("test-checksum")
+                    .build();
+
+            assertThat(report1.getChecksum()).isEqualTo("test-checksum");
+            assertThat(report1.getChecksumBytes())
+                    .isEqualTo("test-checksum".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            // Set via Bytes (will be converted to String for V1)
+            byte[] checksumBytes = "bytes-checksum".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            TelemetryReport report2 = new space.alnovis.protowrapper.it.model.v1.TelemetryReport(proto1)
+                    .toBuilder()
+                    .setChecksumBytes(checksumBytes)
+                    .build();
+
+            assertThat(report2.getChecksum()).isEqualTo("bytes-checksum");
+            assertThat(report2.getChecksumBytes()).isEqualTo(checksumBytes);
+        }
+
+        @Test
+        @DisplayName("V2 builder can set checksum via String and Bytes")
+        void v2BuilderStringBytesSetters() {
+            // Build using proto builder first to satisfy required fields
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport proto1 =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
+                            .setReportNumber("RPT-001")
+                            .setReading(createMinimalV2SensorReading())
+                            .setChecksum(ByteString.copyFrom("initial".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                            .setGeneratedAt(createV2Date(2024, 1, 1))
+                            .build();
+
+            // Set via String (will be converted to bytes for V2)
+            TelemetryReport report1 = new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto1)
+                    .toBuilder()
+                    .setChecksum("test-checksum")
+                    .build();
+
+            assertThat(report1.getChecksum()).isEqualTo("test-checksum");
+            assertThat(report1.getChecksumBytes())
+                    .isEqualTo("test-checksum".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            // Set via Bytes
+            byte[] checksumBytes = "bytes-checksum".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            TelemetryReport report2 = new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto1)
+                    .toBuilder()
+                    .setChecksumBytes(checksumBytes)
+                    .build();
+
+            assertThat(report2.getChecksum()).isEqualTo("bytes-checksum");
+            assertThat(report2.getChecksumBytes()).isEqualTo(checksumBytes);
+        }
+    }
+
+    // ==================== REPEATED Conflicts ====================
+
+    @Nested
+    @DisplayName("REPEATED field conflicts (WIDENING, INT_ENUM, STRING_BYTES)")
+    class RepeatedConflictsTest {
+
+        @Test
+        @DisplayName("V1 repeated int32 widened to List<Long>")
+        void v1RepeatedIntWidenedToLong() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .addNumbers(100)
+                            .addNumbers(200)
+                            .addNumbers(300)
+                            .setBatchId("BATCH-V1-001")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto);
+
+            // Widening: int32 → long
+            assertThat(wrapper.getNumbers()).containsExactly(100L, 200L, 300L);
+            assertThat(wrapper.getWrapperVersion()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("V2 repeated int64 returns List<Long> directly")
+        void v2RepeatedLongReturnsList() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .addNumbers(1_000_000_000_000L)
+                            .addNumbers(2_000_000_000_000L)
+                            .setBatchId("BATCH-V2-001")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto);
+
+            assertThat(wrapper.getNumbers()).containsExactly(1_000_000_000_000L, 2_000_000_000_000L);
+            assertThat(wrapper.getWrapperVersion()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("V1 repeated float widened to List<Double>")
+        void v1RepeatedFloatWidenedToDouble() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .addValues(1.5f)
+                            .addValues(2.5f)
+                            .addValues(3.5f)
+                            .setBatchId("BATCH-V1-002")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto);
+
+            // Widening: float → double
+            assertThat(wrapper.getValues()).containsExactly(1.5d, 2.5d, 3.5d);
+        }
+
+        @Test
+        @DisplayName("V2 repeated double returns List<Double> directly")
+        void v2RepeatedDoubleReturnsList() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .addValues(3.141592653589793)
+                            .addValues(2.718281828459045)
+                            .setBatchId("BATCH-V2-002")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto);
+
+            assertThat(wrapper.getValues()).containsExactly(3.141592653589793, 2.718281828459045);
+        }
+
+        @Test
+        @DisplayName("V1 repeated int32 returns List<Integer> for INT_ENUM")
+        void v1RepeatedIntForIntEnum() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .addCodes(1)
+                            .addCodes(2)
+                            .addCodes(3)
+                            .setBatchId("BATCH-V1-003")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto);
+
+            // INT_ENUM: returns int values
+            assertThat(wrapper.getCodes()).containsExactly(1, 2, 3);
+        }
+
+        @Test
+        @DisplayName("V2 repeated enum converted to List<Integer>")
+        void v2RepeatedEnumConvertedToInt() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .addCodes(space.alnovis.protowrapper.it.proto.v2.Conflicts.CodeEnum.CODE_SUCCESS)
+                            .addCodes(space.alnovis.protowrapper.it.proto.v2.Conflicts.CodeEnum.CODE_WARNING)
+                            .addCodes(space.alnovis.protowrapper.it.proto.v2.Conflicts.CodeEnum.CODE_ERROR)
+                            .setBatchId("BATCH-V2-003")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto);
+
+            // INT_ENUM: enum converted to int values (SUCCESS=1, WARNING=2, ERROR=3)
+            assertThat(wrapper.getCodes()).containsExactly(1, 2, 3);
+        }
+
+        @Test
+        @DisplayName("V1 repeated string returns List<String> for STRING_BYTES")
+        void v1RepeatedStringForStringBytes() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .addTexts("hello")
+                            .addTexts("world")
+                            .addTexts("test")
+                            .setBatchId("BATCH-V1-004")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto);
+
+            assertThat(wrapper.getTexts()).containsExactly("hello", "world", "test");
+        }
+
+        @Test
+        @DisplayName("V2 repeated bytes converted to List<String> via UTF-8")
+        void v2RepeatedBytesConvertedToString() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .addTexts(ByteString.copyFromUtf8("привет"))
+                            .addTexts(ByteString.copyFromUtf8("мир"))
+                            .addTexts(ByteString.copyFromUtf8("тест"))
+                            .setBatchId("BATCH-V2-004")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto);
+
+            // STRING_BYTES: bytes converted to String via UTF-8
+            assertThat(wrapper.getTexts()).containsExactly("привет", "мир", "тест");
+        }
+
+        @Test
+        @DisplayName("Non-conflicting fields work across versions")
+        void nonConflictingFieldsWork() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts v1Proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-001")
+                            .build();
+
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts v2Proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-002")
+                            .setItemCount(42)
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts v1 =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(v1Proto);
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts v2 =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(v2Proto);
+
+            // BatchId works in both
+            assertThat(v1.getBatchId()).isEqualTo("BATCH-001");
+            assertThat(v2.getBatchId()).isEqualTo("BATCH-002");
+
+            // ItemCount only in v2
+            assertThat(v1.hasItemCount()).isFalse();
+            assertThat(v1.getItemCount()).isNull();
+            assertThat(v2.hasItemCount()).isTrue();
+            assertThat(v2.getItemCount()).isEqualTo(42);
+        }
+
+        @Test
+        @DisplayName("Builder skips repeated conflict fields, sets non-conflicting")
+        void builderSkipsRepeatedConflictFields() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .addNumbers(100L)
+                            .addCodes(space.alnovis.protowrapper.it.proto.v2.Conflicts.CodeEnum.CODE_SUCCESS)
+                            .addTexts(ByteString.copyFromUtf8("text"))
+                            .addValues(1.5)
+                            .setBatchId("INITIAL")
+                            .setItemCount(10)
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto);
+
+            // Builder can modify non-conflicting fields
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts modified = wrapper.toBuilder()
+                    .setBatchId("MODIFIED")
+                    .setItemCount(20)
+                    .build();
+
+            assertThat(modified.getBatchId()).isEqualTo("MODIFIED");
+            assertThat(modified.getItemCount()).isEqualTo(20);
+
+            // Repeated conflict fields remain unchanged
+            assertThat(modified.getNumbers()).containsExactly(100L);
+            assertThat(modified.getCodes()).containsExactly(1);
+            assertThat(modified.getTexts()).containsExactly("text");
+            assertThat(modified.getValues()).containsExactly(1.5);
         }
     }
 

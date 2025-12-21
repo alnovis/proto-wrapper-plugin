@@ -327,8 +327,12 @@ class TypeConflictRoundTripTest {
             assertThat(report.getExportFormat()).isEqualTo("JSON");
             assertThat(report.isCompressed()).isTrue();
 
-            // Conflicting fields return defaults
-            assertThat(report.hasChecksum()).isFalse();
+            // STRING_BYTES conflict: checksum is now accessible via UTF-8 conversion
+            assertThat(report.hasChecksum()).isTrue();
+            assertThat(report.getChecksumBytes()).isEqualTo(checksumData);
+            // Note: getChecksum() returns UTF-8 decoded string (may have replacement chars for binary data)
+
+            // PRIMITIVE_MESSAGE conflict: generatedAt returns default (no conversion available)
             assertThat(report.getGeneratedAt()).isEqualTo(0L);
 
             // Round-trip

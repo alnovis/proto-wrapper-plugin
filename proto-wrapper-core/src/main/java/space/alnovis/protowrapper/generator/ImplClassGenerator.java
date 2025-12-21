@@ -11,6 +11,7 @@ import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,9 +101,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         // Implement extract methods for fields present in this version
         for (MergedField field : message.getFieldsSorted()) {
             if (field.getPresentInVersions().contains(version)) {
-                // Handle INT_ENUM conflicts specially
-                if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                // Handle conflict types specially (but only for scalar fields - repeated handled separately)
+                if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                     addIntEnumExtractImplementation(classBuilder, field, protoType, message, ctx);
+                } else if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                    addStringBytesExtractImplementation(classBuilder, field, protoType, message, ctx);
+                } else if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+                    addPrimitiveMessageExtractImplementation(classBuilder, field, protoType, message, ctx);
+                } else if (field.isRepeated() && field.hasTypeConflict()) {
+                    // Repeated fields with type conflicts - use widening extraction
+                    addRepeatedConflictExtractImplementation(classBuilder, field, protoType, message, ctx);
                 } else if (hasIncompatibleTypeConflict(field, version)) {
                     addMissingFieldImplementation(classBuilder, field, protoType, message, ctx);
                 } else {
@@ -229,9 +237,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         for (MergedField field : nested.getFieldsSorted()) {
             if (field.getPresentInVersions().contains(version)) {
-                // Handle INT_ENUM conflicts specially
-                if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                // Handle conflict types specially (but only for scalar fields - repeated handled separately)
+                if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                     addIntEnumExtractImplementation(classBuilder, field, protoType, nested, ctx);
+                } else if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                    addStringBytesExtractImplementation(classBuilder, field, protoType, nested, ctx);
+                } else if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+                    addPrimitiveMessageExtractImplementation(classBuilder, field, protoType, nested, ctx);
+                } else if (field.isRepeated() && field.hasTypeConflict()) {
+                    // Repeated fields with type conflicts - use widening extraction
+                    addRepeatedConflictExtractImplementation(classBuilder, field, protoType, nested, ctx);
                 } else if (hasIncompatibleTypeConflict(field, version)) {
                     addMissingFieldImplementation(classBuilder, field, protoType, nested, ctx);
                 } else {
@@ -386,6 +401,314 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         }
     }
 
+    /**
+     * Add extract implementations for STRING_BYTES conflict fields.
+     * Provides both String and byte[] access with UTF-8 conversion.
+     */
+    private void addStringBytesExtractImplementation(TypeSpec.Builder classBuilder, MergedField field,
+                                                      ClassName protoType, MergedMessage message,
+                                                      GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        String versionType = versionField != null ? versionField.getJavaType() : "String";
+        boolean versionIsBytes = "byte[]".equals(versionType) || "ByteString".equals(versionType);
+
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+        String capName = resolver.capitalize(field.getJavaName());
+
+        // Add extractHas for optional fields
+        if (field.isOptional() && !field.isRepeated()) {
+            classBuilder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(TypeName.BOOLEAN)
+                    .addParameter(protoType, "proto")
+                    .addStatement("return proto.has$L()", versionJavaName)
+                    .build());
+        }
+
+        // Extract String value
+        MethodSpec.Builder extractString = MethodSpec.methodBuilder(field.getExtractMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(ClassName.get(String.class))
+                .addParameter(protoType, "proto");
+
+        if (versionIsBytes) {
+            // Version has bytes - convert to String using UTF-8
+            extractString.addStatement("return proto.get$L().toString($T.UTF_8)",
+                    versionJavaName, StandardCharsets.class);
+        } else {
+            // Version has String - return directly
+            extractString.addStatement("return proto.get$L()", versionJavaName);
+        }
+        classBuilder.addMethod(extractString.build());
+
+        // Extract byte[] value
+        String bytesExtractMethodName = "extract" + capName + "Bytes";
+        MethodSpec.Builder extractBytes = MethodSpec.methodBuilder(bytesExtractMethodName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(ArrayTypeName.of(TypeName.BYTE))
+                .addParameter(protoType, "proto");
+
+        if (versionIsBytes) {
+            // Version has bytes - return as byte array
+            extractBytes.addStatement("return proto.get$L().toByteArray()", versionJavaName);
+        } else {
+            // Version has String - convert to bytes using UTF-8
+            extractBytes.addStatement("return proto.get$L().getBytes($T.UTF_8)",
+                    versionJavaName, StandardCharsets.class);
+        }
+        classBuilder.addMethod(extractBytes.build());
+    }
+
+    /**
+     * Add extract implementations for PRIMITIVE_MESSAGE conflict fields.
+     * Provides both primitive and message access.
+     */
+    private void addPrimitiveMessageExtractImplementation(TypeSpec.Builder classBuilder, MergedField field,
+                                                           ClassName protoType, MergedMessage message,
+                                                           GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        boolean versionIsPrimitive = versionField != null && versionField.isPrimitive();
+
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+        String capName = resolver.capitalize(field.getJavaName());
+
+        // Add extractHas for optional fields
+        // For message versions, hasXxx() returns false since primitive is not available
+        if (field.isOptional() && !field.isRepeated()) {
+            MethodSpec.Builder extractHas = MethodSpec.methodBuilder(field.getExtractHasMethodName())
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(TypeName.BOOLEAN)
+                    .addParameter(protoType, "proto");
+
+            if (versionIsPrimitive) {
+                extractHas.addStatement("return proto.has$L()", versionJavaName);
+            } else {
+                extractHas.addJavadoc("Version has message type - primitive not available.\n");
+                extractHas.addStatement("return false");
+            }
+            classBuilder.addMethod(extractHas.build());
+        }
+
+        // Extract primitive value
+        TypeName primitiveReturnType = resolver.parseFieldType(field, message);
+        MethodSpec.Builder extractPrimitive = MethodSpec.methodBuilder(field.getExtractMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(primitiveReturnType)
+                .addParameter(protoType, "proto");
+
+        if (versionIsPrimitive) {
+            // Version has primitive - return directly
+            extractPrimitive.addStatement("return proto.get$L()", versionJavaName);
+        } else {
+            // Version has message - return default value for primitive
+            String defaultValue = resolver.getDefaultValue(field.getGetterType());
+            extractPrimitive.addJavadoc("Version has message type - returns default.\n");
+            extractPrimitive.addStatement("return $L", defaultValue);
+        }
+        classBuilder.addMethod(extractPrimitive.build());
+
+        // Extract message value
+        TypeName messageType = getMessageTypeForField(field, resolver);
+        if (messageType != null) {
+            String messageExtractMethodName = "extract" + capName + "Message";
+            MethodSpec.Builder extractMessage = MethodSpec.methodBuilder(messageExtractMethodName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(messageType)
+                    .addParameter(protoType, "proto");
+
+            if (versionIsPrimitive) {
+                // Version has primitive - return null for message
+                extractMessage.addJavadoc("Version has primitive type - returns null.\n");
+                extractMessage.addStatement("return null");
+            } else {
+                // Version has message - wrap and return
+                String wrapperClassName = getMessageWrapperClassName(field, version, ctx);
+                extractMessage.addStatement("return new $L(proto.get$L())", wrapperClassName, versionJavaName);
+            }
+            classBuilder.addMethod(extractMessage.build());
+        }
+    }
+
+    /**
+     * Add extract implementation for repeated fields with type conflicts.
+     * Handles WIDENING, INT_ENUM, STRING_BYTES conflicts for repeated fields.
+     */
+    private void addRepeatedConflictExtractImplementation(TypeSpec.Builder classBuilder, MergedField field,
+                                                           ClassName protoType, MergedMessage message,
+                                                           GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+        TypeName returnType = resolver.parseFieldType(field, message);
+
+        MergedField.ConflictType conflictType = field.getConflictType();
+
+        MethodSpec.Builder extract = MethodSpec.methodBuilder(field.getExtractMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(returnType)
+                .addParameter(protoType, "proto");
+
+        if (conflictType == MergedField.ConflictType.WIDENING) {
+            // WIDENING: convert each element to wider type
+            String versionType = versionField != null ? versionField.getJavaType() : null;
+            String targetType = field.getGetterType();
+
+            // Extract element types
+            String targetElementType = extractListElementTypeName(targetType);
+            String versionElementType = versionType != null ? extractListElementTypeName(versionType) : null;
+
+            if (versionElementType != null && needsWideningConversion(versionElementType, targetElementType)) {
+                // Need to widen each element using Number methods (elements are boxed in List)
+                String wideningMethod = getWideningMethod(targetElementType);
+                extract.addStatement("return proto.get$LList().stream().map(e -> e.$L()).collect(java.util.stream.Collectors.toList())",
+                        versionJavaName, wideningMethod);
+            } else {
+                extract.addStatement("return proto.get$LList()", versionJavaName);
+            }
+        } else if (conflictType == MergedField.ConflictType.INT_ENUM) {
+            // INT_ENUM: return as int list, convert enum to int if needed
+            boolean versionIsEnum = versionField != null && versionField.isEnum();
+            if (versionIsEnum) {
+                extract.addStatement("return proto.get$LList().stream().map(e -> e.getNumber()).collect(java.util.stream.Collectors.toList())",
+                        versionJavaName);
+            } else {
+                extract.addStatement("return proto.get$LList()", versionJavaName);
+            }
+        } else if (conflictType == MergedField.ConflictType.STRING_BYTES) {
+            // STRING_BYTES: return as String list, convert bytes to String if needed
+            String versionType = versionField != null ? versionField.getJavaType() : "String";
+            boolean versionIsBytes = versionType.contains("byte[]") || versionType.contains("ByteString");
+            if (versionIsBytes) {
+                extract.addStatement("return proto.get$LList().stream().map(b -> b.toString($T.UTF_8)).collect(java.util.stream.Collectors.toList())",
+                        versionJavaName, StandardCharsets.class);
+            } else {
+                extract.addStatement("return proto.get$LList()", versionJavaName);
+            }
+        } else {
+            // Default: just get the list
+            extract.addStatement("return proto.get$LList()", versionJavaName);
+        }
+
+        classBuilder.addMethod(extract.build());
+    }
+
+    /**
+     * Extract element type name from List<X> pattern.
+     */
+    private String extractListElementTypeName(String listType) {
+        if (listType != null && listType.startsWith("java.util.List<") && listType.endsWith(">")) {
+            return listType.substring("java.util.List<".length(), listType.length() - 1);
+        }
+        return listType;
+    }
+
+    /**
+     * Check if widening conversion is needed between element types.
+     */
+    private boolean needsWideningConversion(String fromType, String toType) {
+        String normalizedFrom = normalizeType(fromType);
+        String normalizedTo = normalizeType(toType);
+        if (normalizedFrom.equals(normalizedTo)) {
+            return false;
+        }
+        // int → long, int → double, float → double need conversion
+        return ("int".equals(normalizedFrom) && ("long".equals(normalizedTo) || "double".equals(normalizedTo))) ||
+               ("Integer".equals(normalizedFrom) && ("Long".equals(normalizedTo) || "Double".equals(normalizedTo))) ||
+               ("float".equals(normalizedFrom) && "double".equals(normalizedTo)) ||
+               ("Float".equals(normalizedFrom) && "Double".equals(normalizedTo)) ||
+               ("long".equals(normalizedFrom) && "double".equals(normalizedTo)) ||
+               ("Long".equals(normalizedFrom) && "Double".equals(normalizedTo));
+    }
+
+    /**
+     * Unbox a wrapper type to its primitive.
+     */
+    private String unboxType(String type) {
+        return switch (type) {
+            case "Integer" -> "int";
+            case "Long" -> "long";
+            case "Double" -> "double";
+            case "Float" -> "float";
+            case "Boolean" -> "boolean";
+            default -> type;
+        };
+    }
+
+    /**
+     * Get the Number method name for widening conversion.
+     * Elements in proto repeated fields are boxed (Integer, Float, etc).
+     */
+    private String getWideningMethod(String targetType) {
+        String normalized = normalizeType(targetType);
+        return switch (normalized) {
+            case "long", "Long" -> "longValue";
+            case "double", "Double" -> "doubleValue";
+            case "float", "Float" -> "floatValue";
+            case "int", "Integer" -> "intValue";
+            default -> "longValue"; // fallback
+        };
+    }
+
+    /**
+     * Get the message type for a PRIMITIVE_MESSAGE conflict field.
+     */
+    private TypeName getMessageTypeForField(MergedField field, TypeResolver resolver) {
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            FieldInfo fieldInfo = entry.getValue();
+            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
+                String javaType = fieldInfo.getJavaType();
+                String simpleTypeName = javaType.contains(".")
+                        ? javaType.substring(javaType.lastIndexOf('.') + 1)
+                        : javaType;
+                return ClassName.get(config.getApiPackage(), simpleTypeName);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the wrapper class name for a PRIMITIVE_MESSAGE conflict message field.
+     * Returns fully qualified implementation class name (e.g., package.v2.RefInfoV2).
+     */
+    private String getMessageWrapperClassName(MergedField field, String version, GenerationContext ctx) {
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            if (entry.getKey().equals(version)) {
+                FieldInfo fieldInfo = entry.getValue();
+                if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
+                    TypeResolver resolver = ctx.getTypeResolver();
+                    String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+                    String fullTypePath = fieldInfo.extractNestedTypePath(protoPackage);
+                    String implPackage = ctx.getImplPackage();
+
+                    if (fullTypePath.contains(".")) {
+                        String[] parts = fullTypePath.split("\\.");
+                        StringBuilder result = new StringBuilder(implPackage);
+                        result.append(".").append(ctx.getImplClassName(parts[0]));
+                        for (int i = 1; i < parts.length; i++) {
+                            result.append(".").append(parts[i]);
+                        }
+                        return result.toString();
+                    } else {
+                        return implPackage + "." + ctx.getImplClassName(fullTypePath);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private void addMissingFieldImplementation(TypeSpec.Builder classBuilder, MergedField field,
                                                ClassName protoType, MergedMessage message, GenerationContext ctx) {
         TypeResolver resolver = ctx.getTypeResolver();
@@ -413,6 +736,39 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         extract.addStatement("return $L", defaultValue);
 
         classBuilder.addMethod(extract.build());
+
+        // For STRING_BYTES conflicts, also add the bytes extract method
+        if (field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+            String capName = resolver.capitalize(field.getJavaName());
+            String bytesExtractMethodName = "extract" + capName + "Bytes";
+
+            classBuilder.addMethod(MethodSpec.methodBuilder(bytesExtractMethodName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(ArrayTypeName.of(TypeName.BYTE))
+                    .addParameter(protoType, "proto")
+                    .addJavadoc("Field not present in this version.\n")
+                    .addStatement("return null")
+                    .build());
+        }
+
+        // For PRIMITIVE_MESSAGE conflicts, also add the message extract method
+        if (field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+            TypeName messageType = getMessageTypeForField(field, resolver);
+            if (messageType != null) {
+                String capName = resolver.capitalize(field.getJavaName());
+                String messageExtractMethodName = "extract" + capName + "Message";
+
+                classBuilder.addMethod(MethodSpec.methodBuilder(messageExtractMethodName)
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PROTECTED)
+                        .returns(messageType)
+                        .addParameter(protoType, "proto")
+                        .addJavadoc("Field not present in this version.\n")
+                        .addStatement("return null")
+                        .build());
+            }
+        }
     }
 
     /**
@@ -654,8 +1010,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         for (MergedField field : nested.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded methods
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(nested.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -665,10 +1026,17 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with range checking
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with range checking (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 boolean presentInVersion = field.getPresentInVersions().contains(version);
                 addWideningBuilderMethods(builder, field, presentInVersion, nested, ctx);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with UTF-8 conversion (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                boolean presentInVersion = field.getPresentInVersions().contains(version);
+                addStringBytesBuilderMethods(builder, field, presentInVersion, nested, ctx);
                 continue;
             }
 
@@ -778,8 +1146,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Implement doSet/doClear/doAdd methods for each field
         for (MergedField field : message.getFieldsSorted()) {
-            // Handle INT_ENUM conflicts with overloaded methods
-            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            // Skip repeated fields with type conflicts (not supported in builder yet)
+            if (field.isRepeated() && field.hasTypeConflict()) {
+                continue;
+            }
+
+            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
                 Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
@@ -789,10 +1162,17 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            // Handle WIDENING conflicts with range checking
-            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+            // Handle WIDENING conflicts with range checking (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 boolean presentInVersion = field.getPresentInVersions().contains(version);
                 addWideningBuilderMethods(builder, field, presentInVersion, message, ctx);
+                continue;
+            }
+
+            // Handle STRING_BYTES conflicts with UTF-8 conversion (scalar only)
+            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
+                boolean presentInVersion = field.getPresentInVersions().contains(version);
+                addStringBytesBuilderMethods(builder, field, presentInVersion, message, ctx);
                 continue;
             }
 
@@ -975,6 +1355,79 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             doSet.addComment("Field not present in this version - ignored");
         }
         builder.addMethod(doSet.build());
+
+        // doClearXxx() for optional fields
+        if (field.isOptional()) {
+            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED);
+
+            if (presentInVersion) {
+                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
+            } else {
+                doClear.addComment("Field not present in this version - ignored");
+            }
+            builder.addMethod(doClear.build());
+        }
+    }
+
+    /**
+     * Add builder methods for STRING_BYTES conflict field.
+     * Generates doSetXxx(String) and doSetXxxBytes(byte[]) with UTF-8 conversion.
+     */
+    private void addStringBytesBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                               boolean presentInVersion, MergedMessage message,
+                                               GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        String capitalizedName = resolver.capitalize(field.getJavaName());
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        // Determine if this version uses bytes or string
+        FieldInfo versionField = field.getVersionFields().get(version);
+        String versionType = versionField != null ? versionField.getJavaType() : "String";
+        boolean versionIsBytes = "byte[]".equals(versionType) || "ByteString".equals(versionType);
+
+        // doSetXxx(String value)
+        MethodSpec.Builder doSetString = MethodSpec.methodBuilder("doSet" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(ClassName.get(String.class), field.getJavaName());
+
+        if (presentInVersion) {
+            if (versionIsBytes) {
+                // Version has bytes - convert String to ByteString using UTF-8
+                doSetString.addStatement("protoBuilder.set$L($T.copyFrom($L, $T.UTF_8))",
+                        versionJavaName, BYTE_STRING_CLASS, field.getJavaName(), StandardCharsets.class);
+            } else {
+                // Version has String - set directly
+                doSetString.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+            }
+        } else {
+            doSetString.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSetString.build());
+
+        // doSetXxxBytes(byte[] value)
+        MethodSpec.Builder doSetBytes = MethodSpec.methodBuilder("doSet" + capitalizedName + "Bytes")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName());
+
+        if (presentInVersion) {
+            if (versionIsBytes) {
+                // Version has bytes - convert byte[] to ByteString
+                doSetBytes.addStatement("protoBuilder.set$L($T.copyFrom($L))",
+                        versionJavaName, BYTE_STRING_CLASS, field.getJavaName());
+            } else {
+                // Version has String - convert bytes to String using UTF-8
+                doSetBytes.addStatement("protoBuilder.set$L(new $T($L, $T.UTF_8))",
+                        versionJavaName, String.class, field.getJavaName(), StandardCharsets.class);
+            }
+        } else {
+            doSetBytes.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSetBytes.build());
 
         // doClearXxx() for optional fields
         if (field.isOptional()) {
