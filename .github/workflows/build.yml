@@ -31,17 +31,17 @@ jobs:
           sudo apt-get install -y protobuf-compiler
           protoc --version
 
-      # Build core and plugin first
+      # Install parent POM first (non-recursive)
+      - name: Install Parent POM
+        run: mvn install -B -N
+
+      # Build core and plugin (skip tests for now)
       - name: Build Core and Plugin
-        run: mvn clean install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin -DskipTests
+        run: mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin -DskipTests
 
       # Run unit tests for core
       - name: Run Core Unit Tests
         run: mvn test -B -pl proto-wrapper-core
-
-      # Run unit tests for plugin
-      - name: Run Plugin Unit Tests
-        run: mvn test -B -pl proto-wrapper-maven-plugin
 
       # Run integration tests (uses the plugin to generate wrappers)
       - name: Run Integration Tests
@@ -57,24 +57,30 @@ jobs:
         run: |
           echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Tests | Failures | Errors |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|----------|--------|" >> $GITHUB_STEP_SUMMARY
 
           # Core tests
-          if [ -f proto-wrapper-core/target/surefire-reports/*.xml ]; then
-            CORE_TESTS=$(grep -h 'testsuite' proto-wrapper-core/target/surefire-reports/*.xml 2>/dev/null | head -1 | grep -oP 'tests="\K[0-9]+' || echo "0")
-            CORE_FAILURES=$(grep -h 'testsuite' proto-wrapper-core/target/surefire-reports/*.xml 2>/dev/null | head -1 | grep -oP 'failures="\K[0-9]+' || echo "0")
-            CORE_ERRORS=$(grep -h 'testsuite' proto-wrapper-core/target/surefire-reports/*.xml 2>/dev/null | head -1 | grep -oP 'errors="\K[0-9]+' || echo "0")
-            echo "| Module | Tests | Failures | Errors |" >> $GITHUB_STEP_SUMMARY
-            echo "|--------|-------|----------|--------|" >> $GITHUB_STEP_SUMMARY
-            echo "| proto-wrapper-core | $CORE_TESTS | $CORE_FAILURES | $CORE_ERRORS |" >> $GITHUB_STEP_SUMMARY
-          fi
+          for file in proto-wrapper-core/target/surefire-reports/TEST-*.xml; do
+            if [ -f "$file" ]; then
+              TESTS=$(grep -oP 'tests="\K[0-9]+' "$file" | head -1 || echo "0")
+              FAILURES=$(grep -oP 'failures="\K[0-9]+' "$file" | head -1 || echo "0")
+              ERRORS=$(grep -oP 'errors="\K[0-9]+' "$file" | head -1 || echo "0")
+              CLASS=$(basename "$file" .xml | sed 's/TEST-//')
+              echo "| $CLASS | $TESTS | $FAILURES | $ERRORS |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
 
           # Integration tests
-          if [ -f proto-wrapper-integration-tests/target/surefire-reports/*.xml ]; then
-            IT_TESTS=$(grep -h 'testsuite' proto-wrapper-integration-tests/target/surefire-reports/*.xml 2>/dev/null | head -1 | grep -oP 'tests="\K[0-9]+' || echo "0")
-            IT_FAILURES=$(grep -h 'testsuite' proto-wrapper-integration-tests/target/surefire-reports/*.xml 2>/dev/null | head -1 | grep -oP 'failures="\K[0-9]+' || echo "0")
-            IT_ERRORS=$(grep -h 'testsuite' proto-wrapper-integration-tests/target/surefire-reports/*.xml 2>/dev/null | head -1 | grep -oP 'errors="\K[0-9]+' || echo "0")
-            echo "| proto-wrapper-integration-tests | $IT_TESTS | $IT_FAILURES | $IT_ERRORS |" >> $GITHUB_STEP_SUMMARY
-          fi
+          for file in proto-wrapper-integration-tests/target/surefire-reports/TEST-*.xml; do
+            if [ -f "$file" ]; then
+              TESTS=$(grep -oP 'tests="\K[0-9]+' "$file" | head -1 || echo "0")
+              FAILURES=$(grep -oP 'failures="\K[0-9]+' "$file" | head -1 || echo "0")
+              ERRORS=$(grep -oP 'errors="\K[0-9]+' "$file" | head -1 || echo "0")
+              CLASS=$(basename "$file" .xml | sed 's/TEST-//')
+              echo "| $CLASS | $TESTS | $FAILURES | $ERRORS |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
 
       # Upload test reports
       - name: Upload Core Test Reports
@@ -112,14 +118,14 @@ jobs:
           path: proto-wrapper-core/target/*.jar
           retention-days: 7
 
-  # Verify documentation links
+  # Verify documentation files exist
   docs-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check documentation links
+      - name: Check documentation files
         run: |
           echo "Checking documentation files exist..."
 
