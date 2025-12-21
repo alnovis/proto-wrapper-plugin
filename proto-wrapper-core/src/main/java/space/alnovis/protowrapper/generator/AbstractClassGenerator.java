@@ -120,13 +120,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         // Add abstract extract methods
-        classBuilder.addJavadoc("\n// ========== Abstract Extract Methods ==========\n\n");
         for (MergedField field : message.getFieldsSorted()) {
             addExtractMethods(classBuilder, field, protoType, message, resolver);
         }
 
         // Add concrete getter implementations
-        classBuilder.addJavadoc("\n// ========== Concrete Getter Implementations ==========\n\n");
         for (MergedField field : message.getFieldsSorted()) {
             addGetterImplementation(classBuilder, field, message, resolver);
         }
