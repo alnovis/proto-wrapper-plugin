@@ -1,6 +1,7 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
+import space.alnovis.protowrapper.model.ConflictEnumInfo;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
@@ -14,6 +15,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Generates version-specific implementation classes.
@@ -98,7 +100,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         // Implement extract methods for fields present in this version
         for (MergedField field : message.getFieldsSorted()) {
             if (field.getPresentInVersions().contains(version)) {
-                if (hasIncompatibleTypeConflict(field, version)) {
+                // Handle INT_ENUM conflicts specially
+                if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                    addIntEnumExtractImplementation(classBuilder, field, protoType, message, ctx);
+                } else if (hasIncompatibleTypeConflict(field, version)) {
                     addMissingFieldImplementation(classBuilder, field, protoType, message, ctx);
                 } else {
                     addExtractImplementation(classBuilder, field, protoType, message, ctx);
@@ -224,7 +229,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         for (MergedField field : nested.getFieldsSorted()) {
             if (field.getPresentInVersions().contains(version)) {
-                if (hasIncompatibleTypeConflict(field, version)) {
+                // Handle INT_ENUM conflicts specially
+                if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                    addIntEnumExtractImplementation(classBuilder, field, protoType, nested, ctx);
+                } else if (hasIncompatibleTypeConflict(field, version)) {
                     addMissingFieldImplementation(classBuilder, field, protoType, nested, ctx);
                 } else {
                     addExtractImplementation(classBuilder, field, protoType, nested, ctx);
@@ -305,6 +313,77 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         extract.addStatement("return $L", getterCall);
 
         classBuilder.addMethod(extract.build());
+    }
+
+    /**
+     * Add extract implementations for INT_ENUM conflict fields.
+     * This generates both int and enum getter implementations.
+     */
+    private void addIntEnumExtractImplementation(TypeSpec.Builder classBuilder, MergedField field,
+                                                   ClassName protoType, MergedMessage message,
+                                                   GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        boolean versionIsEnum = versionField != null && versionField.isEnum();
+
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        // Extract int value - unified getter type is int
+        TypeName intReturnType = resolver.parseFieldType(field, message);
+
+        // Add extractHas for optional fields
+        if (field.isOptional() && !field.isRepeated()) {
+            classBuilder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(TypeName.BOOLEAN)
+                    .addParameter(protoType, "proto")
+                    .addStatement("return proto.has$L()", versionJavaName)
+                    .build());
+        }
+
+        // Main extract - returns int
+        MethodSpec.Builder extractInt = MethodSpec.methodBuilder(field.getExtractMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(intReturnType)
+                .addParameter(protoType, "proto");
+
+        if (versionIsEnum) {
+            // Version has enum type - convert to int
+            extractInt.addStatement("return proto.get$L().getNumber()", versionJavaName);
+        } else {
+            // Version has int type - return directly
+            extractInt.addStatement("return proto.get$L()", versionJavaName);
+        }
+        classBuilder.addMethod(extractInt.build());
+
+        // Enum extract - returns unified enum
+        Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                .getConflictEnum(message.getName(), field.getName());
+        if (enumInfoOpt.isPresent()) {
+            ConflictEnumInfo enumInfo = enumInfoOpt.get();
+            ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
+            String enumExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Enum";
+
+            MethodSpec.Builder extractEnum = MethodSpec.methodBuilder(enumExtractMethodName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(enumType)
+                    .addParameter(protoType, "proto");
+
+            if (versionIsEnum) {
+                // Version has enum type - convert proto enum value to unified enum
+                extractEnum.addStatement("return $T.fromProtoValue(proto.get$L().getNumber())",
+                        enumType, versionJavaName);
+            } else {
+                // Version has int type - convert int to unified enum
+                extractEnum.addStatement("return $T.fromProtoValue(proto.get$L())",
+                        enumType, versionJavaName);
+            }
+            classBuilder.addMethod(extractEnum.build());
+        }
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder classBuilder, MergedField field,
@@ -575,7 +654,18 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         for (MergedField field : nested.getFieldsSorted()) {
-            // Skip fields with non-convertible type conflicts
+            // Handle INT_ENUM conflicts with overloaded methods
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(nested.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    boolean presentInVersion = field.getPresentInVersions().contains(version);
+                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, nested, ctx);
+                    continue;
+                }
+            }
+
+            // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
             }
@@ -681,7 +771,18 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Implement doSet/doClear/doAdd methods for each field
         for (MergedField field : message.getFieldsSorted()) {
-            // Skip fields with non-convertible type conflicts
+            // Handle INT_ENUM conflicts with overloaded methods
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(message.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    boolean presentInVersion = field.getPresentInVersions().contains(version);
+                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, message, ctx);
+                    continue;
+                }
+            }
+
+            // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
             }
@@ -725,6 +826,81 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         return builder.build();
+    }
+
+    /**
+     * Add builder methods for INT_ENUM conflict field.
+     * Generates overloaded doSetXxx(int) and doSetXxx(EnumType) methods.
+     */
+    private void addIntEnumBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                           ConflictEnumInfo enumInfo, boolean presentInVersion,
+                                           MergedMessage message, GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        String capitalizedName = resolver.capitalize(field.getJavaName());
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
+
+        FieldInfo versionField = field.getVersionFields().get(version);
+        boolean versionIsEnum = versionField != null && versionField.isEnum();
+
+        // doSetXxx(int value)
+        MethodSpec.Builder doSetInt = MethodSpec.methodBuilder("doSet" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(TypeName.INT, field.getJavaName());
+
+        if (presentInVersion) {
+            if (versionIsEnum) {
+                // Version has enum - need to convert int to proto enum
+                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+                String enumMethod = getEnumFromIntMethod();
+                doSetInt.addStatement("protoBuilder.set$L($L.$L($L))",
+                        versionJavaName, protoEnumType, enumMethod, field.getJavaName());
+            } else {
+                // Version has int - use directly
+                doSetInt.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+            }
+        } else {
+            doSetInt.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSetInt.build());
+
+        // doSetXxx(EnumType value)
+        MethodSpec.Builder doSetEnum = MethodSpec.methodBuilder("doSet" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(enumType, field.getJavaName());
+
+        if (presentInVersion) {
+            if (versionIsEnum) {
+                // Version has enum - need to convert unified enum to proto enum
+                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+                String enumMethod = getEnumFromIntMethod();
+                doSetEnum.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
+                        versionJavaName, protoEnumType, enumMethod, field.getJavaName());
+            } else {
+                // Version has int - get value from unified enum
+                doSetEnum.addStatement("protoBuilder.set$L($L.getValue())",
+                        versionJavaName, field.getJavaName());
+            }
+        } else {
+            doSetEnum.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSetEnum.build());
+
+        // doClearXxx()
+        MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED);
+
+        if (presentInVersion) {
+            doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
+        } else {
+            doClear.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doClear.build());
     }
 
     private void addSingleFieldBuilderMethods(TypeSpec.Builder builder, MergedField field,

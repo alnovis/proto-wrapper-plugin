@@ -14,12 +14,16 @@ public class MergedSchema {
     // Maps nested enum path to equivalent top-level enum name
     // E.g., "Product.CategoryEnum" -> "CategoryEnum"
     private final Map<String, String> equivalentEnumMappings;
+    // Conflict enums for INT_ENUM type conflicts
+    // Maps "MessageName.fieldName" -> ConflictEnumInfo
+    private final Map<String, ConflictEnumInfo> conflictEnums;
 
     public MergedSchema(List<String> versions) {
         this.versions = new ArrayList<>(versions);
         this.messages = new LinkedHashMap<>();
         this.enums = new LinkedHashMap<>();
         this.equivalentEnumMappings = new LinkedHashMap<>();
+        this.conflictEnums = new LinkedHashMap<>();
     }
 
     /**
@@ -82,6 +86,42 @@ public class MergedSchema {
 
     public Collection<MergedEnum> getEnums() {
         return Collections.unmodifiableCollection(enums.values());
+    }
+
+    /**
+     * Add a conflict enum for an INT_ENUM type conflict field.
+     * @param info Conflict enum information
+     */
+    public void addConflictEnum(ConflictEnumInfo info) {
+        conflictEnums.put(info.getFullPath(), info);
+    }
+
+    /**
+     * Get conflict enum info for a field.
+     * @param messageName Message name
+     * @param fieldName Field name
+     * @return ConflictEnumInfo if exists
+     */
+    public Optional<ConflictEnumInfo> getConflictEnum(String messageName, String fieldName) {
+        return Optional.ofNullable(conflictEnums.get(messageName + "." + fieldName));
+    }
+
+    /**
+     * Get all conflict enums.
+     * @return Collection of all ConflictEnumInfo
+     */
+    public Collection<ConflictEnumInfo> getConflictEnums() {
+        return Collections.unmodifiableCollection(conflictEnums.values());
+    }
+
+    /**
+     * Check if a field has a conflict enum.
+     * @param messageName Message name
+     * @param fieldName Field name
+     * @return true if conflict enum exists
+     */
+    public boolean hasConflictEnum(String messageName, String fieldName) {
+        return conflictEnums.containsKey(messageName + "." + fieldName);
     }
 
     /**

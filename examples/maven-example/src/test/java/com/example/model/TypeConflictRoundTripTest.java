@@ -408,8 +408,8 @@ class TypeConflictRoundTripTest {
             assertThat(batch.getCollectorId()).isEqualTo("COLLECTOR-42");
             assertThat(batch.getSuccessCount()).isEqualTo(1);
 
-            // syncStatus is conflicting, returns default
-            assertThat(batch.getSyncStatus()).isEqualTo(0);
+            // Phase 2: syncStatus returns actual int value from enum
+            assertThat(batch.getSyncStatus()).isEqualTo(2);  // SYNC_COMPLETED = 2
 
             // Nested statistics
             assertThat(batch.hasStatistics()).isTrue();
@@ -479,9 +479,9 @@ class TypeConflictRoundTripTest {
                     assertThat(reading.getUnitType()).isEqualTo(3);
                     assertThat(reading.getRawValue()).isEqualTo(12345);
                 } else {
-                    // V2 conflicting fields return defaults
-                    assertThat(reading.getUnitType()).isEqualTo(0);
-                    assertThat(reading.getRawValue()).isEqualTo(0);
+                    // V2: unitType (INT_ENUM) returns actual int, rawValue (WIDENING) returns default
+                    assertThat(reading.getUnitType()).isEqualTo(4);  // UNIT_BAR = 4
+                    assertThat(reading.getRawValue()).isEqualTo(0);  // WIDENING still returns default
                 }
             }
         }

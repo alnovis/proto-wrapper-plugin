@@ -28,11 +28,44 @@ When a field has different types in different schema versions, the plugin now au
 
 | Conflict Type | Example | Handling |
 |--------------|---------|----------|
-| `INT_ENUM` | int ↔ TaxTypeEnum | Setter skipped, field read-only in builder |
+| `INT_ENUM` | int ↔ TaxTypeEnum | **Full support** with unified enum (Phase 2) |
 | `WIDENING` | int → long, int → double | Setter skipped, field read-only in builder |
 | `NARROWING` | long → int | Setter skipped, field read-only in builder |
 | `STRING_BYTES` | string ↔ bytes | Setter skipped, field read-only in builder |
 | `PRIMITIVE_MESSAGE` | int → Message | Setter skipped, field read-only in builder |
+
+**INT_ENUM Conflicts - Full Support (Phase 2):**
+
+For fields that are `int` in one version and `enum` in another, the plugin generates:
+1. **Unified Enum:** A merged enum with all values from all versions
+2. **Dual Getters:** `getField()` returns int, `getFieldEnum()` returns unified enum
+3. **Overloaded Setters:** Builder accepts both `int` and unified enum values
+
+```java
+// Unified enum generated automatically
+public enum UnitType {
+    UNIT_CELSIUS(0), UNIT_FAHRENHEIT(1), UNIT_KELVIN(2), ...
+}
+
+// Interface with dual getters
+interface SensorReading {
+    int getUnitType();              // Returns int value
+    UnitType getUnitTypeEnum();     // Returns unified enum (or null)
+
+    interface Builder {
+        Builder setUnitType(int value);       // Set via int
+        Builder setUnitType(UnitType value);  // Set via enum
+    }
+}
+
+// Usage
+SensorReading reading = ...;
+UnitType type = reading.getUnitTypeEnum();  // Type-safe access
+
+SensorReading modified = reading.toBuilder()
+    .setUnitType(UnitType.UNIT_KELVIN)  // Set via enum
+    .build();
+```
 
 **How it works:**
 
@@ -57,18 +90,19 @@ interface Builder {
 
 **Accessing conflicting fields:**
 ```java
-// For read access via unified interface:
-int unitType = reading.getUnitType();  // Returns 0 for V2 (conflict)
+// INT_ENUM conflicts (Phase 2): Full support via unified interface
+int unitType = reading.getUnitType();           // Returns actual int value
+UnitType type = reading.getUnitTypeEnum();      // Returns unified enum
 
-// For full access via typed proto:
+// Modify via builder with type-safe enum
+SensorReading modified = reading.toBuilder()
+    .setUnitType(UnitType.UNIT_KELVIN)
+    .build();
+
+// Other conflict types: Access via typed proto
 if (reading instanceof SensorReadingV2 v2) {
-    UnitTypeEnum unitType = v2.getTypedProto().getUnitType();  // Actual enum value
+    double precision = v2.getTypedProto().getPrecisionLevel();  // WIDENING conflict
 }
-
-// For modifications:
-var protoBuilder = v2.getTypedProto().toBuilder();
-protoBuilder.setUnitType(UnitTypeEnum.UNIT_KELVIN);
-SensorReading modified = new SensorReadingV2(protoBuilder.build());
 ```
 
 ---
@@ -155,17 +189,29 @@ These limitations apply to all generated code (not just builders):
 
 ## Workarounds
 
-### For Type Conflict Issues ✅
+### For INT_ENUM Conflicts ✅ Fully Resolved
 
-**Note:** Type conflicts are now automatically handled (see above). Conflicting fields are read-only in builders, and you can access them via `getTypedProto()`.
+**No workaround needed!** INT_ENUM conflicts now have full support with unified enums (Phase 2):
 
-For fields with type conflicts, use the typed proto for modifications:
+```java
+// Direct access via unified enum
+UnitType type = reading.getUnitTypeEnum();
+
+// Modify via builder - works with both int and enum
+SensorReading modified = reading.toBuilder()
+    .setUnitType(UnitType.UNIT_KELVIN)  // or .setUnitType(2)
+    .build();
+```
+
+### For Other Type Conflicts (WIDENING, PRIMITIVE_MESSAGE, etc.)
+
+Use the typed proto for modifications:
 
 ```java
 // Access typed proto for version-specific operations
 var v2 = (SensorReadingV2) reading;
 var protoBuilder = v2.getTypedProto().toBuilder();
-protoBuilder.setUnitType(UnitTypeEnum.UNIT_KELVIN);
+protoBuilder.setPrecisionLevel(3.14);  // WIDENING: int → double
 SensorReading modified = new SensorReadingV2(protoBuilder.build());
 ```
 

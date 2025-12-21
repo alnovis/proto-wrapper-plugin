@@ -51,7 +51,7 @@ class TypeConflictTest {
         }
 
         @Test
-        @DisplayName("V2 reads unitType as enum, unified interface returns 0 (default)")
+        @DisplayName("V2 reads unitType as enum, unified interface returns int value")
         void v2ReturnsDefaultForConflictingField() {
             com.example.proto.v2.Telemetry.SensorReading proto =
                     com.example.proto.v2.Telemetry.SensorReading.newBuilder()
@@ -65,8 +65,8 @@ class TypeConflictTest {
 
             SensorReading reading = new com.example.model.v2.SensorReading(proto);
 
-            // Conflicting field returns default (0) through unified interface
-            assertThat(reading.getUnitType()).isEqualTo(0);
+            // Phase 2: Conflicting field now returns actual int value from enum
+            assertThat(reading.getUnitType()).isEqualTo(3);  // UNIT_PASCAL = 3
             assertThat(reading.getWrapperVersion()).isEqualTo(2);
         }
 
@@ -90,6 +90,97 @@ class TypeConflictTest {
             assertThat(reading.getTypedProto().getUnitType()).isEqualTo(UnitTypeEnum.UNIT_BAR);
             assertThat(reading.getTypedProto().getUnitType().getNumber()).isEqualTo(4);
         }
+
+        @Test
+        @DisplayName("Phase 2: getUnitTypeEnum returns unified enum for V1")
+        void v1ReturnsUnifiedEnum() {
+            Telemetry.SensorReading proto = Telemetry.SensorReading.newBuilder()
+                    .setSensorId("SENSOR-001")
+                    .setDeviceName("Temperature Sensor")
+                    .setUnitType(3)  // UNIT_PASCAL
+                    .setPrecisionLevel(2)
+                    .setRawValue(1000)
+                    .setReadingDate(createV1Date(2024, 1, 15))
+                    .build();
+
+            SensorReading reading = new com.example.model.v1.SensorReading(proto);
+
+            // Unified enum getter
+            assertThat(reading.getUnitTypeEnum()).isEqualTo(UnitType.UNIT_PASCAL);
+            assertThat(reading.getUnitTypeEnum().getValue()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("Phase 2: getUnitTypeEnum returns unified enum for V2")
+        void v2ReturnsUnifiedEnum() {
+            com.example.proto.v2.Telemetry.SensorReading proto =
+                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+                    .setSensorId("SENSOR-002")
+                    .setDeviceName("Pressure Sensor")
+                    .setUnitType(UnitTypeEnum.UNIT_BAR)
+                    .setPrecisionLevel(2.5)
+                    .setRawValue(1013L)
+                    .setReadingDate(createV2Date(2024, 1, 15))
+                    .build();
+
+            SensorReading reading = new com.example.model.v2.SensorReading(proto);
+
+            // Unified enum getter
+            assertThat(reading.getUnitTypeEnum()).isEqualTo(UnitType.UNIT_BAR);
+            assertThat(reading.getUnitTypeEnum().getValue()).isEqualTo(4);
+        }
+
+        @Test
+        @DisplayName("Phase 2: Builder accepts unified enum type")
+        void builderAcceptsUnifiedEnum() {
+            // V1 builder with unified enum
+            SensorReading v1Reading = new com.example.model.v1.SensorReading(
+                    Telemetry.SensorReading.newBuilder()
+                            .setSensorId("SENSOR-001")
+                            .setDeviceName("Test")
+                            .setUnitType(0)
+                            .setPrecisionLevel(0)
+                            .setRawValue(0)
+                            .setReadingDate(createV1Date(2024, 1, 1))
+                            .build());
+
+            SensorReading modified = v1Reading.toBuilder()
+                    .setUnitType(UnitType.UNIT_KELVIN)  // Use unified enum
+                    .build();
+
+            assertThat(modified.getUnitType()).isEqualTo(2);  // UNIT_KELVIN = 2
+            assertThat(modified.getUnitTypeEnum()).isEqualTo(UnitType.UNIT_KELVIN);
+        }
+
+        @Test
+        @DisplayName("Phase 2: Both int and enum setters produce same result")
+        void bothSettersProduceSameResult() {
+            Telemetry.SensorReading baseProto = Telemetry.SensorReading.newBuilder()
+                    .setSensorId("SENSOR-001")
+                    .setDeviceName("Test")
+                    .setUnitType(0)
+                    .setPrecisionLevel(0)
+                    .setRawValue(0)
+                    .setReadingDate(createV1Date(2024, 1, 1))
+                    .build();
+
+            SensorReading base = new com.example.model.v1.SensorReading(baseProto);
+
+            // Set via int
+            SensorReading viaInt = base.toBuilder()
+                    .setUnitType(5)  // UNIT_PERCENT = 5
+                    .build();
+
+            // Set via enum
+            SensorReading viaEnum = base.toBuilder()
+                    .setUnitType(UnitType.UNIT_PERCENT)
+                    .build();
+
+            // Both produce same result
+            assertThat(viaInt.getUnitType()).isEqualTo(viaEnum.getUnitType());
+            assertThat(viaInt.getUnitTypeEnum()).isEqualTo(viaEnum.getUnitTypeEnum());
+            assertThat(viaInt.getUnitType()).isEqualTo(5);
+        }
     }
 
     @Nested
@@ -112,7 +203,7 @@ class TypeConflictTest {
         }
 
         @Test
-        @DisplayName("V2 severity returns default through unified interface")
+        @DisplayName("V2 severity returns int value from enum")
         void v2ReturnsDefaultForSeverity() {
             com.example.proto.v2.Telemetry.AlertNotification proto =
                     com.example.proto.v2.Telemetry.AlertNotification.newBuilder()
@@ -124,8 +215,8 @@ class TypeConflictTest {
 
             AlertNotification alert = new com.example.model.v2.AlertNotification(proto);
 
-            // Conflicting field returns default
-            assertThat(alert.getSeverityCode()).isEqualTo(0);
+            // Phase 2: Conflicting field now returns actual int value from enum
+            assertThat(alert.getSeverityCode()).isEqualTo(4);  // SEVERITY_EMERGENCY = 4
         }
     }
 
@@ -149,7 +240,7 @@ class TypeConflictTest {
         }
 
         @Test
-        @DisplayName("V2 syncStatus returns default through unified interface")
+        @DisplayName("V2 syncStatus returns int value from enum")
         void v2ReturnsDefaultForSyncStatus() {
             com.example.proto.v2.Telemetry.BatchTelemetry proto =
                     com.example.proto.v2.Telemetry.BatchTelemetry.newBuilder()
@@ -161,7 +252,8 @@ class TypeConflictTest {
 
             BatchTelemetry batch = new com.example.model.v2.BatchTelemetry(proto);
 
-            assertThat(batch.getSyncStatus()).isEqualTo(0);
+            // Phase 2: Conflicting field now returns actual int value from enum
+            assertThat(batch.getSyncStatus()).isEqualTo(2);  // SYNC_COMPLETED = 2
         }
     }
 

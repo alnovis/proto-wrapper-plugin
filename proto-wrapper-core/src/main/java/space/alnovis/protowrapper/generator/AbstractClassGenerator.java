@@ -1,6 +1,7 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
+import space.alnovis.protowrapper.model.ConflictEnumInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
@@ -10,6 +11,7 @@ import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 
 /**
  * Generates abstract base classes using template method pattern.
@@ -69,7 +71,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
      */
     public JavaFile generate(MergedMessage message, GenerationContext ctx) {
         TypeResolver resolver = ctx.getTypeResolver();
-        return generateInternal(message, resolver);
+        return generateInternal(message, resolver, ctx);
     }
 
     /**
@@ -85,10 +87,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         if (typeResolver == null) {
             throw new IllegalStateException("Schema not set. Call setSchema() first or use generate(message, ctx)");
         }
-        return generateInternal(message, typeResolver);
+        GenerationContext ctx = GenerationContext.create(typeResolver.getSchema(), config);
+        return generateInternal(message, typeResolver, ctx);
     }
 
-    private JavaFile generateInternal(MergedMessage message, TypeResolver resolver) {
+    private JavaFile generateInternal(MergedMessage message, TypeResolver resolver, GenerationContext ctx) {
         String className = message.getAbstractClassName();
         String interfaceName = message.getInterfaceName();
 
@@ -121,12 +124,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract extract methods
         for (MergedField field : message.getFieldsSorted()) {
-            addExtractMethods(classBuilder, field, protoType, message, resolver);
+            addExtractMethods(classBuilder, field, protoType, message, resolver, ctx);
         }
 
         // Add concrete getter implementations
         for (MergedField field : message.getFieldsSorted()) {
-            addGetterImplementation(classBuilder, field, message, resolver);
+            addGetterImplementation(classBuilder, field, message, resolver, ctx);
         }
 
         // Add common methods
@@ -134,12 +137,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add Builder support if enabled
         if (config.isGenerateBuilders()) {
-            addBuilderSupport(classBuilder, message, protoType, interfaceType, resolver);
+            addBuilderSupport(classBuilder, message, protoType, interfaceType, resolver, ctx);
         }
 
         // Add nested abstract classes for nested messages
         for (MergedMessage nested : message.getNestedMessages()) {
-            TypeSpec nestedClass = generateNestedAbstractClass(nested, message, resolver);
+            TypeSpec nestedClass = generateNestedAbstractClass(nested, message, resolver, ctx);
             classBuilder.addType(nestedClass);
         }
 
@@ -155,7 +158,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
      * Generate a nested abstract class as a static inner class.
      * Recursively handles deeply nested messages.
      */
-    private TypeSpec generateNestedAbstractClass(MergedMessage nested, MergedMessage parent, TypeResolver resolver) {
+    private TypeSpec generateNestedAbstractClass(MergedMessage nested, MergedMessage parent,
+                                                  TypeResolver resolver, GenerationContext ctx) {
         String className = nested.getName();
         String qualifiedInterfaceName = nested.getQualifiedInterfaceName();
 
@@ -188,30 +192,31 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract extract methods
         for (MergedField field : nested.getFieldsSorted()) {
-            addExtractMethods(classBuilder, field, protoType, nested, resolver);
+            addExtractMethods(classBuilder, field, protoType, nested, resolver, ctx);
         }
 
         // Add concrete getter implementations
         for (MergedField field : nested.getFieldsSorted()) {
-            addGetterImplementation(classBuilder, field, nested, resolver);
+            addGetterImplementation(classBuilder, field, nested, resolver, ctx);
         }
 
         // Recursively add deeply nested abstract classes
         for (MergedMessage deeplyNested : nested.getNestedMessages()) {
-            TypeSpec deeplyNestedClass = generateNestedAbstractClass(deeplyNested, nested, resolver);
+            TypeSpec deeplyNestedClass = generateNestedAbstractClass(deeplyNested, nested, resolver, ctx);
             classBuilder.addType(deeplyNestedClass);
         }
 
         // Add Builder support for nested message if enabled
         if (config.isGenerateBuilders()) {
-            addNestedBuilderSupport(classBuilder, nested, interfaceType, resolver);
+            addNestedBuilderSupport(classBuilder, nested, interfaceType, resolver, ctx);
         }
 
         return classBuilder.build();
     }
 
     private void addNestedBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage nested,
-                                         ClassName interfaceType, TypeResolver resolver) {
+                                         ClassName interfaceType, TypeResolver resolver,
+                                         GenerationContext ctx) {
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
 
         // Abstract method to create builder
@@ -229,11 +234,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         // Generate nested AbstractBuilder
-        TypeSpec abstractBuilder = generateNestedAbstractBuilder(nested, interfaceType, resolver);
+        TypeSpec abstractBuilder = generateNestedAbstractBuilder(nested, interfaceType, resolver, ctx);
         classBuilder.addType(abstractBuilder);
     }
 
-    private TypeSpec generateNestedAbstractBuilder(MergedMessage nested, ClassName interfaceType, TypeResolver resolver) {
+    private TypeSpec generateNestedAbstractBuilder(MergedMessage nested, ClassName interfaceType,
+                                                     TypeResolver resolver, GenerationContext ctx) {
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
         TypeVariableName protoType = TypeVariableName.get("PROTO", MESSAGE_CLASS);
 
@@ -244,7 +250,17 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract doSet/doClear methods
         for (MergedField field : nested.getFieldsSorted()) {
-            // Skip fields with non-convertible type conflicts
+            // Handle INT_ENUM conflicts with overloaded methods
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(nested.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    addIntEnumAbstractMethods(builder, field, enumInfoOpt.get(), resolver);
+                    continue;
+                }
+            }
+
+            // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
             }
@@ -294,7 +310,17 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add concrete implementations
         for (MergedField field : nested.getFieldsSorted()) {
-            // Skip fields with non-convertible type conflicts
+            // Handle INT_ENUM conflicts with overloaded methods
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(nested.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
+                    continue;
+                }
+            }
+
+            // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
             }
@@ -372,7 +398,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     private void addExtractMethods(TypeSpec.Builder classBuilder, MergedField field,
-                                   TypeVariableName protoType, MergedMessage message, TypeResolver resolver) {
+                                   TypeVariableName protoType, MergedMessage message,
+                                   TypeResolver resolver, GenerationContext ctx) {
         TypeName returnType = resolver.parseFieldType(field, message);
 
         // For optional fields (not repeated), add extractHas method
@@ -390,10 +417,28 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .returns(returnType)
                 .addParameter(protoType, "proto")
                 .build());
+
+        // For INT_ENUM conflicts, add enum extract method
+        if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                    .getConflictEnum(message.getName(), field.getName());
+            if (enumInfoOpt.isPresent()) {
+                ConflictEnumInfo enumInfo = enumInfoOpt.get();
+                ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
+                String enumExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Enum";
+
+                classBuilder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .returns(enumType)
+                        .addParameter(protoType, "proto")
+                        .build());
+            }
+        }
     }
 
     private void addGetterImplementation(TypeSpec.Builder classBuilder, MergedField field,
-                                         MergedMessage message, TypeResolver resolver) {
+                                         MergedMessage message, TypeResolver resolver,
+                                         GenerationContext ctx) {
         TypeName returnType = resolver.parseFieldType(field, message);
 
         MethodSpec.Builder getter = MethodSpec.methodBuilder(field.getGetterName())
@@ -420,6 +465,25 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                     .addStatement("return $L(proto)", field.getExtractHasMethodName())
                     .build();
             classBuilder.addMethod(has);
+        }
+
+        // Add enum getter for INT_ENUM conflicts
+        if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+            Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                    .getConflictEnum(message.getName(), field.getName());
+            if (enumInfoOpt.isPresent()) {
+                ConflictEnumInfo enumInfo = enumInfoOpt.get();
+                ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
+                String enumGetterName = "get" + resolver.capitalize(field.getJavaName()) + "Enum";
+                String enumExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Enum";
+
+                classBuilder.addMethod(MethodSpec.methodBuilder(enumGetterName)
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .returns(enumType)
+                        .addStatement("return $L(proto)", enumExtractMethodName)
+                        .build());
+            }
         }
     }
 
@@ -491,7 +555,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     private void addBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage message,
-                                   TypeVariableName protoType, ClassName interfaceType, TypeResolver resolver) {
+                                   TypeVariableName protoType, ClassName interfaceType,
+                                   TypeResolver resolver, GenerationContext ctx) {
         // Builder interface type from the interface
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
 
@@ -510,11 +575,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         // Generate AbstractBuilder nested class
-        TypeSpec abstractBuilder = generateAbstractBuilder(message, interfaceType, resolver);
+        TypeSpec abstractBuilder = generateAbstractBuilder(message, interfaceType, resolver, ctx);
         classBuilder.addType(abstractBuilder);
     }
 
-    private TypeSpec generateAbstractBuilder(MergedMessage message, ClassName interfaceType, TypeResolver resolver) {
+    private TypeSpec generateAbstractBuilder(MergedMessage message, ClassName interfaceType,
+                                              TypeResolver resolver, GenerationContext ctx) {
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
         TypeVariableName protoType = TypeVariableName.get("PROTO", MESSAGE_CLASS);
 
@@ -527,7 +593,17 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract doSet/doClear/doAdd/doBuild methods
         for (MergedField field : message.getFieldsSorted()) {
-            // Skip fields with non-convertible type conflicts
+            // Handle INT_ENUM conflicts with overloaded methods
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(message.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    addIntEnumAbstractMethods(builder, field, enumInfoOpt.get(), resolver);
+                    continue;
+                }
+            }
+
+            // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
             }
@@ -584,7 +660,17 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add concrete implementations that delegate to abstract methods
         for (MergedField field : message.getFieldsSorted()) {
-            // Skip fields with non-convertible type conflicts
+            // Handle INT_ENUM conflicts with overloaded methods
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(message.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
+                    continue;
+                }
+            }
+
+            // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
             }
@@ -665,6 +751,71 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         return builder.build();
+    }
+
+    /**
+     * Add abstract methods for INT_ENUM conflict field.
+     */
+    private void addIntEnumAbstractMethods(TypeSpec.Builder builder, MergedField field,
+                                            ConflictEnumInfo enumInfo, TypeResolver resolver) {
+        String capName = resolver.capitalize(field.getJavaName());
+        ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
+
+        // doSetXxx(int) - for int value
+        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .addParameter(TypeName.INT, field.getJavaName())
+                .build());
+
+        // doSetXxx(EnumType) - for enum value
+        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .addParameter(enumType, field.getJavaName())
+                .build());
+
+        // doClearXxx()
+        builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .build());
+    }
+
+    /**
+     * Add concrete implementations for INT_ENUM conflict field.
+     */
+    private void addIntEnumConcreteMethods(TypeSpec.Builder builder, MergedField field,
+                                            ConflictEnumInfo enumInfo, TypeResolver resolver,
+                                            ClassName builderInterfaceType) {
+        String capName = resolver.capitalize(field.getJavaName());
+        ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
+
+        // setXxx(int)
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(TypeName.INT, field.getJavaName())
+                .returns(builderInterfaceType)
+                .addStatement("doSet$L($L)", capName, field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // setXxx(EnumType)
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(enumType, field.getJavaName())
+                .returns(builderInterfaceType)
+                .addStatement("doSet$L($L)", capName, field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // clearXxx()
+        builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("doClear$L()", capName)
+                .addStatement("return this")
+                .build());
     }
 
     /**

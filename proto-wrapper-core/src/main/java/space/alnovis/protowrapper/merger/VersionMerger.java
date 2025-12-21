@@ -83,7 +83,140 @@ public class VersionMerger {
         // Detect equivalent enums (nested vs top-level)
         detectEquivalentEnums(merged, schemas);
 
+        // Collect conflict enums for INT_ENUM type conflicts
+        collectConflictEnums(merged, schemas);
+
         return merged;
+    }
+
+    /**
+     * Collect conflict enum information for all fields with INT_ENUM type conflicts.
+     */
+    private void collectConflictEnums(MergedSchema merged, List<VersionSchema> schemas) {
+        merged.getMessages().forEach(message ->
+                collectConflictEnumsForMessage(message, schemas, merged));
+    }
+
+    /**
+     * Collect conflict enums for a single message and its nested messages.
+     */
+    private void collectConflictEnumsForMessage(MergedMessage message,
+                                                  List<VersionSchema> schemas,
+                                                  MergedSchema merged) {
+        // Process fields with INT_ENUM conflict
+        message.getFields().stream()
+                .filter(field -> field.getConflictType() == MergedField.ConflictType.INT_ENUM)
+                .forEach(field -> {
+                    ConflictEnumInfo enumInfo = createConflictEnumInfo(
+                            message.getName(), field, schemas);
+                    if (enumInfo != null) {
+                        merged.addConflictEnum(enumInfo);
+                        logger.info(String.format("Created conflict enum '%s' for %s.%s with %d values",
+                                enumInfo.getEnumName(), message.getName(), field.getName(),
+                                enumInfo.getValues().size()));
+                    }
+                });
+
+        // Recursively process nested messages
+        message.getNestedMessages().forEach(nested ->
+                collectConflictEnumsForMessage(nested, schemas, merged));
+    }
+
+    /**
+     * Create ConflictEnumInfo for a field with INT_ENUM conflict.
+     */
+    private ConflictEnumInfo createConflictEnumInfo(String messageName,
+                                                      MergedField field,
+                                                      List<VersionSchema> schemas) {
+        ConflictEnumInfo.Builder builder = ConflictEnumInfo.builder()
+                .messageName(messageName)
+                .fieldName(field.getName());
+
+        // Collect enum values from all versions that have enum type
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            String version = entry.getKey();
+            FieldInfo fieldInfo = entry.getValue();
+
+            if (fieldInfo.isEnum()) {
+                // Find the enum info for this field
+                EnumInfo enumInfo = findEnumForField(messageName, fieldInfo, version, schemas);
+                if (enumInfo != null) {
+                    builder.addValuesFrom(enumInfo);
+                    // Store the proto enum FQN for this version
+                    String protoEnumFqn = getProtoEnumFqn(fieldInfo, version, schemas);
+                    if (protoEnumFqn != null) {
+                        builder.addVersionEnumType(version, protoEnumFqn);
+                    }
+                }
+            }
+        }
+
+        try {
+            return builder.build();
+        } catch (IllegalStateException e) {
+            logger.warn("Failed to create ConflictEnumInfo for " + messageName + "." + field.getName() + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Find the EnumInfo for a field that is of enum type.
+     */
+    private EnumInfo findEnumForField(String messageName, FieldInfo field,
+                                       String version, List<VersionSchema> schemas) {
+        // The field's javaType contains the enum name (simple name or qualified)
+        String enumTypeName = extractEnumName(field.getJavaType());
+
+        // First, try to find as a nested enum in the message
+        for (VersionSchema schema : schemas) {
+            if (!schema.getVersion().equals(version)) continue;
+
+            Optional<MessageInfo> msgOpt = schema.getMessage(messageName);
+            if (msgOpt.isPresent()) {
+                MessageInfo msg = msgOpt.get();
+                for (EnumInfo nestedEnum : msg.getNestedEnums()) {
+                    if (nestedEnum.getName().equals(enumTypeName)) {
+                        return nestedEnum;
+                    }
+                }
+            }
+        }
+
+        // Try to find as a top-level enum
+        for (VersionSchema schema : schemas) {
+            if (!schema.getVersion().equals(version)) continue;
+
+            Optional<EnumInfo> enumOpt = schema.getEnum(enumTypeName);
+            if (enumOpt.isPresent()) {
+                return enumOpt.get();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the fully qualified proto enum name for a field.
+     */
+    private String getProtoEnumFqn(FieldInfo field, String version, List<VersionSchema> schemas) {
+        // The field's typeName contains the proto path
+        String typeName = field.getTypeName();
+        if (typeName != null && !typeName.isEmpty()) {
+            // Remove leading dot if present
+            return typeName.startsWith(".") ? typeName.substring(1) : typeName;
+        }
+        // Fallback to java type
+        return field.getJavaType();
+    }
+
+    /**
+     * Extract simple enum name from a potentially qualified type name.
+     */
+    private String extractEnumName(String javaType) {
+        if (javaType == null) return null;
+        // Handle qualified names like "com.example.MyEnum" or "OuterClass.InnerEnum"
+        int lastDot = javaType.lastIndexOf('.');
+        return lastDot >= 0 ? javaType.substring(lastDot + 1) : javaType;
     }
 
     /**

@@ -1,6 +1,7 @@
 package space.alnovis.protowrapper.generator;
 
 import space.alnovis.protowrapper.PluginLogger;
+import space.alnovis.protowrapper.model.ConflictEnumInfo;
 import space.alnovis.protowrapper.model.MergedEnum;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
@@ -56,6 +57,12 @@ public class GenerationOrchestrator {
         // Generate enums first (interfaces depend on them)
         generatedFiles += generateEnums(schema);
 
+        // Generate conflict enums for INT_ENUM type conflicts
+        // Always generate if there are conflicts - interfaces reference them via getXxxEnum()
+        if (!schema.getConflictEnums().isEmpty()) {
+            generatedFiles += generateConflictEnums(schema);
+        }
+
         if (config.isGenerateInterfaces()) {
             generatedFiles += generateInterfaces(schema);
         }
@@ -98,6 +105,34 @@ public class GenerationOrchestrator {
             });
 
             logger.info("Generated " + count[0] + " enums");
+            return count[0];
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    /**
+     * Generate conflict enum classes for INT_ENUM type conflicts.
+     *
+     * @param schema Merged schema
+     * @return Number of generated files
+     * @throws IOException if generation fails
+     */
+    public int generateConflictEnums(MergedSchema schema) throws IOException {
+        ConflictEnumGenerator generator = new ConflictEnumGenerator(config);
+
+        try {
+            int[] count = {0};
+            schema.getConflictEnums().forEach(enumInfo -> {
+                generateWithLogging(
+                        () -> generator.generateAndWrite(enumInfo),
+                        "Generated conflict enum: ");
+                count[0]++;
+            });
+
+            if (count[0] > 0) {
+                logger.info("Generated " + count[0] + " conflict enums for INT_ENUM type conflicts");
+            }
             return count[0];
         } catch (UncheckedIOException e) {
             throw e.getCause();
