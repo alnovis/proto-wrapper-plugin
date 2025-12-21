@@ -1,0 +1,88 @@
+// Invoice messages for v1
+// NOTE: proto package differs from java_package to test nested type resolution
+syntax = "proto2";
+
+// Proto package is different from java_package - this tests the fix for
+// nested type resolution when packages don't match
+package billing.v1;
+
+option java_package = "com.example.proto.v1";
+option java_outer_classname = "Invoice";
+
+import "v1/common.proto";
+
+// Main invoice with multiple nested types
+message InvoiceDocument {
+    // Nested fee calculation
+    message Fee {
+        required int32 fee_code = 1;
+        required int32 rate = 2;
+        required com.example.proto.v1.Money calculated = 3;
+    }
+
+    // Nested line item with deeply nested types
+    message LineItem {
+        // Deeply nested article info
+        message Article {
+            required string sku = 1;
+            required string title = 2;
+            optional string ean = 3;
+        }
+
+        // Deeply nested measure info
+        message Measure {
+            required int64 count = 1;
+            required string unit_name = 2;
+        }
+
+        required Article article = 1;
+        required Measure measure = 2;
+        required com.example.proto.v1.Money unit_cost = 3;
+        required com.example.proto.v1.Money line_total = 4;
+        repeated Fee fees = 5;
+    }
+
+    // Nested settlement information
+    message Settlement {
+        enum SettlementType {
+            SETTLEMENT_CASH = 0;
+            SETTLEMENT_TRANSFER = 1;
+            SETTLEMENT_DEFERRED = 2;
+        }
+
+        required SettlementType type = 1;
+        required com.example.proto.v1.Money paid = 2;
+        optional string payment_ref = 3;
+    }
+
+    // Nested summary
+    message Summary {
+        required com.example.proto.v1.Money net_amount = 1;
+        required com.example.proto.v1.Money fee_amount = 2;
+        required com.example.proto.v1.Money total_due = 3;
+        optional com.example.proto.v1.Money rebate = 4;
+    }
+
+    required string invoice_number = 1;
+    required com.example.proto.v1.Date issue_date = 2;
+    repeated LineItem line_items = 3;
+    repeated Settlement settlements = 4;
+    repeated Fee all_fees = 5;
+    required Summary summary = 6;
+    optional string memo = 7;
+}
+
+// Invoice processing response
+message InvoiceResult {
+    // Nested outcome info
+    message Outcome {
+        required bool accepted = 1;
+        optional string rejection_code = 2;
+        optional string rejection_reason = 3;
+    }
+
+    required string invoice_number = 1;
+    required Outcome outcome = 2;
+    optional string confirmation_code = 3;
+    optional com.example.proto.v1.Date finalized_at = 4;
+}

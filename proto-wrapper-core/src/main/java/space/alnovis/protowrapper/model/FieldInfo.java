@@ -171,7 +171,16 @@ public class FieldInfo {
             }
         }
 
-        // Fallback to simple name
+        // Fallback: try to find version pattern in typeName directly
+        // This handles cases where proto package differs from java package
+        // e.g., typeName = "billing.v1.InvoiceDocument.Fee" when java_package = "com.example.proto.v1"
+        String versionRegex = "^[a-zA-Z0-9_.]*\\.v\\d+\\.";
+        String result = cleanTypeName.replaceFirst(versionRegex, "");
+        if (!result.equals(cleanTypeName)) {
+            return result;
+        }
+
+        // Final fallback to simple name
         return extractSimpleTypeName(typeName);
     }
 

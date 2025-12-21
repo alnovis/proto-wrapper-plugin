@@ -1,0 +1,135 @@
+// Invoice messages for v2
+// NOTE: proto package differs from java_package to test nested type resolution
+syntax = "proto2";
+
+// Proto package is different from java_package - this tests the fix for
+// nested type resolution when packages don't match
+package billing.v2;
+
+option java_package = "com.example.proto.v2";
+option java_outer_classname = "Invoice";
+
+import "v2/common.proto";
+
+// Main invoice with multiple nested types (extended in v2)
+message InvoiceDocument {
+    // Nested fee calculation (extended in v2)
+    message Fee {
+        required int32 fee_code = 1;
+        required int32 rate = 2;
+        required com.example.proto.v2.Money calculated = 3;
+        // V2 additions
+        optional string fee_name = 4;
+        optional bool is_refundable = 5;
+    }
+
+    // Nested line item with deeply nested types
+    message LineItem {
+        // Deeply nested article info (extended in v2)
+        message Article {
+            required string sku = 1;
+            required string title = 2;
+            optional string ean = 3;
+            // V2 additions
+            optional string category = 4;
+            optional string brand = 5;
+        }
+
+        // Deeply nested measure info (extended in v2)
+        message Measure {
+            required int64 count = 1;
+            required string unit_name = 2;
+            // V2 additions
+            optional int32 decimals = 3;
+        }
+
+        // V2-only: nested warranty info
+        message Warranty {
+            required int32 months = 1;
+            optional string terms = 2;
+        }
+
+        required Article article = 1;
+        required Measure measure = 2;
+        required com.example.proto.v2.Money unit_cost = 3;
+        required com.example.proto.v2.Money line_total = 4;
+        repeated Fee fees = 5;
+        // V2 additions
+        optional Warranty warranty = 6;
+        optional string serial_number = 7;
+    }
+
+    // Nested settlement information (extended in v2)
+    message Settlement {
+        enum SettlementType {
+            SETTLEMENT_CASH = 0;
+            SETTLEMENT_TRANSFER = 1;
+            SETTLEMENT_DEFERRED = 2;
+            // V2 additions
+            SETTLEMENT_CRYPTO = 3;
+            SETTLEMENT_VOUCHER = 4;
+        }
+
+        required SettlementType type = 1;
+        required com.example.proto.v2.Money paid = 2;
+        optional string payment_ref = 3;
+        // V2 additions
+        optional com.example.proto.v2.Date payment_date = 4;
+        optional string processor = 5;
+    }
+
+    // Nested summary (extended in v2)
+    message Summary {
+        required com.example.proto.v2.Money net_amount = 1;
+        required com.example.proto.v2.Money fee_amount = 2;
+        required com.example.proto.v2.Money total_due = 3;
+        optional com.example.proto.v2.Money rebate = 4;
+        // V2 additions
+        optional com.example.proto.v2.Money outstanding = 5;
+        optional int32 installments = 6;
+    }
+
+    // V2-only: nested shipping info
+    message Shipping {
+        required com.example.proto.v2.Address destination = 1;
+        optional string carrier = 2;
+        optional string tracking_code = 3;
+    }
+
+    required string invoice_number = 1;
+    required com.example.proto.v2.Date issue_date = 2;
+    repeated LineItem line_items = 3;
+    repeated Settlement settlements = 4;
+    repeated Fee all_fees = 5;
+    required Summary summary = 6;
+    optional string memo = 7;
+    // V2 additions
+    optional Shipping shipping = 8;
+    optional com.example.proto.v2.Date due_date = 9;
+}
+
+// Invoice processing response (extended in v2)
+message InvoiceResult {
+    // Nested outcome info (extended in v2)
+    message Outcome {
+        required bool accepted = 1;
+        optional string rejection_code = 2;
+        optional string rejection_reason = 3;
+        // V2 additions
+        optional int32 retry_after_seconds = 4;
+    }
+
+    // V2-only: nested audit info
+    message Audit {
+        required string processed_by = 1;
+        required com.example.proto.v2.Date processed_at = 2;
+        optional string notes = 3;
+    }
+
+    required string invoice_number = 1;
+    required Outcome outcome = 2;
+    optional string confirmation_code = 3;
+    optional com.example.proto.v2.Date finalized_at = 4;
+    // V2 additions
+    optional Audit audit = 5;
+}
