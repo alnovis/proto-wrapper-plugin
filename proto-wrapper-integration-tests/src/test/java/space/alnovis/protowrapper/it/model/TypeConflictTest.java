@@ -712,6 +712,173 @@ class TypeConflictTest {
         }
     }
 
+    // ==================== NESTED PRIMITIVE_MESSAGE Conflicts ====================
+
+    @Nested
+    @DisplayName("NESTED PRIMITIVE_MESSAGE Conflict: parent_id (int32 → NestedPrimitiveMessageConflicts.ParentRef)")
+    class NestedPrimitiveMessageConflictTest {
+
+        @Test
+        @DisplayName("V1 reads parent_id as int correctly")
+        void v1ReadsParentIdAsInt() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.NestedPrimitiveMessageConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("TEST-001")
+                            .setName("Test Item")
+                            .setParentId(12345)
+                            .setDescription("Test description")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v1.NestedPrimitiveMessageConflicts(proto);
+
+            assertThat(wrapper.hasParentId()).isTrue();
+            assertThat(wrapper.getParentId()).isEqualTo(12345);
+            assertThat(wrapper.getWrapperVersion()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("V1 supportsParentId returns true, supportsParentIdMessage returns false")
+        void v1SupportsPrimitiveOnly() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.NestedPrimitiveMessageConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("TEST-001")
+                            .setName("Test Item")
+                            .setParentId(12345)
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v1.NestedPrimitiveMessageConflicts(proto);
+
+            // V1 supports primitive, not message
+            assertThat(wrapper.supportsParentId()).isTrue();
+            assertThat(wrapper.supportsParentIdMessage()).isFalse();
+
+            // Message getter returns null for V1
+            assertThat(wrapper.getParentIdMessage()).isNull();
+        }
+
+        @Test
+        @DisplayName("V2 reads parent_id as nested message (ParentRef)")
+        void v2ReadsParentIdAsNestedMessage() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.ParentRef parentRef =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.ParentRef.newBuilder()
+                            .setRefNumber("REF-2024-001")
+                            .setRefType("PARENT")
+                            .build();
+
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("TEST-002")
+                            .setName("Test Item V2")
+                            .setParentId(parentRef)
+                            .setDescription("Test description V2")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.NestedPrimitiveMessageConflicts(proto);
+
+            // Primitive getter returns null/default for V2 (message type)
+            assertThat(wrapper.hasParentId()).isFalse();
+            assertThat(wrapper.getParentId()).isNull();
+            assertThat(wrapper.getWrapperVersion()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("V2 supportsParentIdMessage returns true, can access nested ParentRef via message getter")
+        void v2SupportsNestedMessageOnly() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.ParentRef parentRef =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.ParentRef.newBuilder()
+                            .setRefNumber("REF-2024-002")
+                            .setRefType("CHILD")
+                            .build();
+
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("TEST-003")
+                            .setName("Test V2")
+                            .setParentId(parentRef)
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.NestedPrimitiveMessageConflicts(proto);
+
+            // V2 supports message, not primitive
+            assertThat(wrapper.supportsParentId()).isFalse();
+            assertThat(wrapper.supportsParentIdMessage()).isTrue();
+
+            // Access nested message via unified message getter
+            // The type should be NestedPrimitiveMessageConflicts.ParentRef (nested interface)
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts.ParentRef parentWrapper =
+                    wrapper.getParentIdMessage();
+            assertThat(parentWrapper).isNotNull();
+            assertThat(parentWrapper.getRefNumber()).isEqualTo("REF-2024-002");
+            assertThat(parentWrapper.getRefType()).isEqualTo("CHILD");
+        }
+
+        @Test
+        @DisplayName("V2 can access nested ParentRef via typed proto")
+        void v2CanAccessNestedMessageViaTypedProto() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.ParentRef parentRef =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.ParentRef.newBuilder()
+                            .setRefNumber("REF-TYPED")
+                            .setRefType("TYPED_ACCESS")
+                            .build();
+
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("TEST-004")
+                            .setName("Typed Test")
+                            .setParentId(parentRef)
+                            .build();
+
+            space.alnovis.protowrapper.it.model.v2.NestedPrimitiveMessageConflicts wrapper =
+                    new space.alnovis.protowrapper.it.model.v2.NestedPrimitiveMessageConflicts(proto);
+
+            // Direct access via typed proto
+            assertThat(wrapper.getTypedProto().hasParentId()).isTrue();
+            assertThat(wrapper.getTypedProto().getParentId().getRefNumber()).isEqualTo("REF-TYPED");
+            assertThat(wrapper.getTypedProto().getParentId().getRefType()).isEqualTo("TYPED_ACCESS");
+        }
+
+        @Test
+        @DisplayName("Non-conflicting fields work across versions")
+        void nonConflictingFieldsWork() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.NestedPrimitiveMessageConflicts v1Proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("ID-V1")
+                            .setName("Name V1")
+                            .setDescription("Desc V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts v2Proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.NestedPrimitiveMessageConflicts.newBuilder()
+                            .setId("ID-V2")
+                            .setName("Name V2")
+                            .setDescription("Desc V2")
+                            .setCreatedAt(createV2Date(2024, 12, 21))
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts v1 =
+                    new space.alnovis.protowrapper.it.model.v1.NestedPrimitiveMessageConflicts(v1Proto);
+            space.alnovis.protowrapper.it.model.api.NestedPrimitiveMessageConflicts v2 =
+                    new space.alnovis.protowrapper.it.model.v2.NestedPrimitiveMessageConflicts(v2Proto);
+
+            // Common fields work in both versions
+            assertThat(v1.getId()).isEqualTo("ID-V1");
+            assertThat(v1.getName()).isEqualTo("Name V1");
+            assertThat(v1.getDescription()).isEqualTo("Desc V1");
+
+            assertThat(v2.getId()).isEqualTo("ID-V2");
+            assertThat(v2.getName()).isEqualTo("Name V2");
+            assertThat(v2.getDescription()).isEqualTo("Desc V2");
+
+            // createdAt only in v2
+            assertThat(v1.hasCreatedAt()).isFalse();
+            assertThat(v2.hasCreatedAt()).isTrue();
+        }
+    }
+
     // ==================== REPEATED Conflicts ====================
 
     @Nested

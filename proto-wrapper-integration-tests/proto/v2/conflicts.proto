@@ -289,3 +289,30 @@ message SimpleNestedConflicts {
     // V2-only
     optional Date last_updated = 11;
 }
+
+// =============================================================================
+// NESTED PRIMITIVE_MESSAGE CONFLICTS
+// Tests the case where a nested message type is used in PRIMITIVE_MESSAGE conflict.
+// This is the scenario that was broken with ParentTicket in domain project.
+// =============================================================================
+
+message NestedPrimitiveMessageConflicts {
+    required string id = 1;
+    required string name = 2;
+
+    // Nested message definition (same as v1 but now used)
+    message ParentRef {
+        required string ref_number = 1;
+        optional string ref_type = 2;
+    }
+
+    // In v1: was primitive int32
+    // In v2: nested message ParentRef
+    optional ParentRef parent_id = 3;       // was int32 in v1 (PRIMITIVE_MESSAGE)
+
+    // Non-conflicting fields
+    optional string description = 10;
+
+    // V2-only field
+    optional Date created_at = 11;
+}

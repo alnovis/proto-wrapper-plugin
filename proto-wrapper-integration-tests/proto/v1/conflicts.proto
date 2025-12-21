@@ -187,3 +187,27 @@ message SimpleNestedConflicts {
     required InnerData data = 2;
     optional string description = 10;
 }
+
+// =============================================================================
+// NESTED PRIMITIVE_MESSAGE CONFLICTS
+// Tests the case where a nested message type is used in PRIMITIVE_MESSAGE conflict.
+// This is the scenario that was broken with ParentTicket in domain project.
+// =============================================================================
+
+message NestedPrimitiveMessageConflicts {
+    required string id = 1;
+    required string name = 2;
+
+    // Nested message definition (will be used in v2)
+    message ParentRef {
+        required string ref_number = 1;
+        optional string ref_type = 2;
+    }
+
+    // In v1: primitive int32
+    // In v2: will become ParentRef (nested message)
+    optional int32 parent_id = 3;           // -> ParentRef in v2
+
+    // Non-conflicting fields
+    optional string description = 10;
+}

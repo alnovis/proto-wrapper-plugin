@@ -114,7 +114,7 @@ public final class CodeGenerationHelper {
 
         if (field.isRepeated()) {
             if (field.isEnum()) {
-                return String.format("proto.get%sList().stream().map(e -> %s.fromProtoValue(e.getNumber())).toList()",
+                return String.format("proto.get%sList().stream().map(e -> %s.fromProtoValue(e.getNumber())).collect(java.util.stream.Collectors.toList())",
                         javaName, enumType);
             } else if (field.isMessage()) {
                 String wrapperClass = getWrapperClassName(field, ctx);
@@ -280,17 +280,28 @@ public final class CodeGenerationHelper {
 
     /**
      * Get message type for PRIMITIVE_MESSAGE conflict field.
+     * Handles nested types correctly (e.g., TicketRequest.ParentTicket).
      */
     public static TypeName getMessageTypeForField(MergedField field, ProcessingContext ctx) {
         return field.getVersionFields().values().stream()
                 .filter(fieldInfo -> !fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null)
                 .findFirst()
                 .map(fieldInfo -> {
-                    String javaType = fieldInfo.getJavaType();
-                    String simpleTypeName = javaType.contains(".")
-                            ? javaType.substring(javaType.lastIndexOf('.') + 1)
-                            : javaType;
-                    return (TypeName) ClassName.get(ctx.apiPackage(), simpleTypeName);
+                    TypeResolver resolver = ctx.resolver();
+                    GeneratorConfig config = ctx.config();
+                    String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+                    String fullTypePath = fieldInfo.extractNestedTypePath(protoPackage);
+
+                    if (fullTypePath.contains(".")) {
+                        // Nested type: e.g., "TicketRequest.ParentTicket"
+                        String[] parts = fullTypePath.split("\\.");
+                        // First part is the outer class, rest are nested
+                        String[] nestedParts = java.util.Arrays.copyOfRange(parts, 1, parts.length);
+                        return (TypeName) ClassName.get(ctx.apiPackage(), parts[0], nestedParts);
+                    } else {
+                        // Top-level type
+                        return (TypeName) ClassName.get(ctx.apiPackage(), fullTypePath);
+                    }
                 })
                 .orElse(null);
     }

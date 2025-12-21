@@ -176,7 +176,7 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
 
         if (versionElementType != null && needsWideningConversion(versionElementType, targetElementType)) {
             String wideningMethod = TypeNormalizer.getWideningMethodName(targetElementType);
-            extract.addStatement("return proto.get$LList().stream().map(e -> e.$L()).toList()",
+            extract.addStatement("return proto.get$LList().stream().map(e -> e.$L()).collect(java.util.stream.Collectors.toList())",
                     versionJavaName, wideningMethod);
         } else {
             extract.addStatement("return proto.get$LList()", versionJavaName);
@@ -186,7 +186,7 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
     private void addIntEnumExtraction(MethodSpec.Builder extract, FieldInfo versionField, String versionJavaName) {
         boolean versionIsEnum = versionField != null && versionField.isEnum();
         if (versionIsEnum) {
-            extract.addStatement("return proto.get$LList().stream().map(e -> e.getNumber()).toList()",
+            extract.addStatement("return proto.get$LList().stream().map(e -> e.getNumber()).collect(java.util.stream.Collectors.toList())",
                     versionJavaName);
         } else {
             extract.addStatement("return proto.get$LList()", versionJavaName);
@@ -197,7 +197,7 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
         String versionType = versionField != null ? versionField.getJavaType() : "String";
         boolean versionIsBytes = versionType.contains("byte[]") || versionType.contains("ByteString");
         if (versionIsBytes) {
-            extract.addStatement("return proto.get$LList().stream().map(b -> b.toString($T.UTF_8)).toList()",
+            extract.addStatement("return proto.get$LList().stream().map(b -> b.toString($T.UTF_8)).collect(java.util.stream.Collectors.toList())",
                     versionJavaName, StandardCharsets.class);
         } else {
             extract.addStatement("return proto.get$LList()", versionJavaName);
