@@ -1,6 +1,6 @@
 # Proto Wrapper Maven Plugin
 
-[🇬🇧 English version](README.md)
+[English version](README.md)
 
 Maven-плагин для генерации версионно-независимых Java wrapper-классов из нескольких версий protobuf-схем.
 
@@ -13,9 +13,23 @@ Maven-плагин для генерации версионно-независи
   - Абстрактных базовых классов (паттерн Template Method)
   - Версионно-специфичных реализаций
   - VersionContext для фабричных операций
+  - Паттерн Builder для модификации (опционально)
+- Автоматическая обработка конфликтов типов:
+  - `INT_ENUM`: int ↔ enum конвертация
+  - `WIDENING`: int → long, float → double
+  - `STRING_BYTES`: string ↔ bytes (UTF-8)
+  - `PRIMITIVE_MESSAGE`: primitive ↔ message
 - Автоматическое обнаружение эквивалентных enum'ов (nested vs top-level)
-- Обработка конфликтов типов между версиями (int→Long, несовместимые типы)
 - Информация о поддерживаемых версиях в Javadoc
+- Потокобезопасные неизменяемые обёртки
+
+## Документация
+
+| Документ | Описание |
+|----------|----------|
+| [COOKBOOK.ru.md](docs/COOKBOOK.ru.md) | Практическое руководство с примерами |
+| [VERSION_AGNOSTIC_API.ru.md](docs/VERSION_AGNOSTIC_API.ru.md) | Детальная документация API |
+| [KNOWN_ISSUES.ru.md](docs/KNOWN_ISSUES.ru.md) | Известные ограничения и обходные пути |
 
 ## Установка
 
@@ -24,96 +38,65 @@ cd proto-wrapper-plugin
 mvn install
 ```
 
-## Использование
+## Быстрый старт
 
-### Минимальная конфигурация (рекомендуется)
-
-Укажите `basePackage`, `protoRoot` и директории с proto файлами - плагин сделает остальное:
+### 1. Добавьте плагин в pom.xml
 
 ```xml
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
         <versions>
-            <version>
-                <protoDir>v1</protoDir>
-            </version>
-            <version>
-                <protoDir>v2</protoDir>
-            </version>
+            <version><protoDir>v1</protoDir></version>
+            <version><protoDir>v2</protoDir></version>
         </versions>
     </configuration>
     <executions>
         <execution>
-            <goals>
-                <goal>generate</goal>
-            </goals>
+            <goals><goal>generate</goal></goals>
         </execution>
     </executions>
 </plugin>
 ```
 
-Классы будут сгенерированы в:
-- `com.mycompany.myapp.model.api` - интерфейсы, enum'ы и абстрактные классы
-- `com.mycompany.myapp.model.v1` - реализации для v1
-- `com.mycompany.myapp.model.v2` - реализации для v2
+### 2. Организуйте proto-файлы
 
-Плагин автоматически:
-1. Найдёт все `.proto` файлы в каждой директории
-2. Вызовет `protoc` для генерации дескрипторов
-3. Проанализирует proto файлы и создаст маппинги классов
-4. Сгенерирует все wrapper-классы
+```
+src/main/proto/
+├── v1/
+│   ├── common.proto
+│   └── order.proto
+└── v2/
+    ├── common.proto
+    └── order.proto
+```
 
-### Запуск генерации
+### 3. Сгенерируйте код
 
 ```bash
 mvn generate-sources
-# или
-mvn compile
 ```
 
-### Расширенная конфигурация
+### 4. Используйте API
 
-```xml
-<plugin>
-    <groupId>space.alnovis</groupId>
-    <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.3</version>
-    <configuration>
-        <!-- Базовый пакет для генерируемых классов -->
-        <basePackage>com.mycompany.myapp.model</basePackage>
+```java
+// Определите версию и оберните proto
+int version = determineVersion(protoBytes);
+VersionContext ctx = VersionContext.forVersion(version);
 
-        <!-- Корневая директория с proto файлами -->
-        <protoRoot>${basedir}/proto</protoRoot>
+Order order = ctx.wrapOrder(OrderProto.parseFrom(protoBytes));
 
-        <!-- Паттерн пакета для proto-классов (сгенерированных protoc) -->
-        <protoPackagePattern>com.mycompany.myapp.proto.{version}</protoPackagePattern>
+// Используйте версионно-независимый API
+DateTime dateTime = order.getDateTime();
+List<OrderItem> items = order.getItems();
+PaymentType payment = order.getPaymentType();
 
-        <!-- Директория для сгенерированных файлов -->
-        <outputDirectory>${project.build.directory}/generated-sources/proto-wrapper</outputDirectory>
-
-        <versions>
-            <version>
-                <!-- Директория относительно protoRoot -->
-                <protoDir>v1</protoDir>
-                <!-- Опционально: имя версии (по умолчанию - uppercase от protoDir) -->
-                <name>V1</name>
-                <!-- Опционально: исключить определённые proto файлы -->
-                <excludeProtos>
-                    <excludeProto>internal.proto</excludeProto>
-                    <excludeProto>deprecated.proto</excludeProto>
-                </excludeProtos>
-            </version>
-            <version>
-                <protoDir>v2</protoDir>
-            </version>
-        </versions>
-    </configuration>
-</plugin>
+// Сериализуйте обратно
+byte[] outputBytes = order.toBytes();
 ```
 
 ## Структура генерируемого кода
@@ -124,63 +107,163 @@ mvn compile
 target/generated-sources/proto-wrapper/
 ├── com/mycompany/myapp/model/api/
 │   ├── Money.java                    # Интерфейс
-│   ├── DateTime.java                 # Интерфейс
 │   ├── Order.java                    # Интерфейс с nested интерфейсами
-│   ├── PaymentTypeEnum.java          # Enum
+│   ├── PaymentTypeEnum.java          # Унифицированный enum
 │   ├── VersionContext.java           # Фабричный интерфейс
 │   └── impl/
 │       ├── AbstractMoney.java        # Абстрактный базовый класс
-│       ├── AbstractDateTime.java
 │       └── AbstractOrder.java
 ├── com/mycompany/myapp/model/v1/
 │   ├── MoneyV1.java                  # Реализация
-│   ├── DateTimeV1.java
 │   ├── OrderV1.java
 │   └── VersionContextV1.java
 └── com/mycompany/myapp/model/v2/
     ├── MoneyV2.java
-    ├── DateTimeV2.java
     ├── OrderV2.java
     └── VersionContextV2.java
 ```
+
+## Конфигурация
+
+### Основные параметры
+
+| Параметр | По умолчанию | Описание |
+|----------|--------------|----------|
+| `basePackage` | (обязательный) | Базовый пакет для всех генерируемых классов |
+| `protoRoot` | (обязательный) | Корневая директория с proto файлами |
+| `versions` | (обязательный) | Список конфигураций версий |
+| `outputDirectory` | `target/generated-sources/proto-wrapper` | Директория вывода |
+| `protoPackagePattern` | `{basePackage}.proto.{version}` | Паттерн пакета для proto-классов |
+| `generateBuilders` | `false` | Генерировать паттерн Builder |
+| `protobufMajorVersion` | `3` | Версия Protobuf (2 или 3) |
+| `includeVersionSuffix` | `true` | Включать суффикс версии (MoneyV1 vs Money) |
+| `includeMessages` | (все) | Список имён сообщений для включения |
+| `excludeMessages` | (нет) | Список имён сообщений для исключения |
+
+### Параметры версии
+
+| Параметр | Описание |
+|----------|----------|
+| `protoDir` | Директория с proto файлами относительно `protoRoot` |
+| `name` | Имя версии (по умолчанию uppercase: `v1` → `V1`) |
+| `excludeProtos` | Список proto файлов для исключения |
+
+### Расширенная конфигурация
+
+```xml
+<configuration>
+    <basePackage>com.mycompany.myapp.model</basePackage>
+    <protoRoot>${basedir}/proto</protoRoot>
+    <protoPackagePattern>com.mycompany.myapp.proto.{version}</protoPackagePattern>
+    <outputDirectory>${project.build.directory}/generated-sources/proto-wrapper</outputDirectory>
+    <generateBuilders>true</generateBuilders>
+    <protobufMajorVersion>3</protobufMajorVersion>
+
+    <versions>
+        <version>
+            <protoDir>v1</protoDir>
+            <name>V1</name>
+            <excludeProtos>
+                <excludeProto>internal.proto</excludeProto>
+            </excludeProtos>
+        </version>
+        <version>
+            <protoDir>v2</protoDir>
+        </version>
+    </versions>
+
+    <includeMessages>
+        <message>Order</message>
+        <message>Customer</message>
+    </includeMessages>
+</configuration>
+```
+
+## Обработка конфликтов типов
+
+Плагин автоматически обрабатывает ситуации, когда тип поля различается между версиями:
+
+| Тип конфликта | Пример | Read API | Builder API |
+|---------------|--------|----------|-------------|
+| `NONE` | Одинаковый тип | Обычный getter | Обычный setter |
+| `INT_ENUM` | int ↔ enum | `getXxx()` + `getXxxEnum()` | `setXxx(int)` + `setXxx(Enum)` |
+| `WIDENING` | int → long | Авто-расширение | Setter с проверкой диапазона |
+| `NARROWING` | long → int | Использует широкий тип | Setter с проверкой диапазона |
+| `STRING_BYTES` | string ↔ bytes | `getXxx()` + `getXxxBytes()` | `setXxx(String)` |
+| `PRIMITIVE_MESSAGE` | int → Message | `getXxx()` + `getXxxMessage()` | Не генерируется |
+| `INCOMPATIBLE` | string ↔ int | Возвращает default | Не генерируется |
+
+Подробные примеры см. в [COOKBOOK.ru.md](docs/COOKBOOK.ru.md).
+
+## Поддержка Builder
+
+Включите генерацию Builder для создания и модификации сообщений:
+
+```xml
+<configuration>
+    <generateBuilders>true</generateBuilders>
+</configuration>
+```
+
+### Использование
+
+```java
+// Модификация существующей обёртки
+Order modified = order.toBuilder()
+    .setCustomerId("CUST-123")
+    .setTotalAmount(10000L)
+    .build();
+
+// Создание новой обёртки
+Order newOrder = ctx.newOrderBuilder()
+    .setOrderId("ORD-456")
+    .setCustomerId("CUST-789")
+    .build();
+```
+
+### Совместимость версий Protobuf
+
+| protobufMajorVersion | Метод конвертации Enum |
+|---------------------|----------------------|
+| `2` | `EnumType.valueOf(int)` |
+| `3` (по умолчанию) | `EnumType.forNumber(int)` |
 
 ## Примеры сгенерированного кода
 
 ### Интерфейс
 
 ```java
-/**
- * Version-agnostic interface for Money.
- *
- * <p>Supported in versions: [v1, v2]</p>
- */
 public interface Money {
     long getBills();
     int getCoins();
 
-    /** @return Protocol version (e.g., 1, 2) */
     int getWrapperVersion();
-
-    /** Serialize to protobuf bytes. */
     byte[] toBytes();
+    Message getProto();
 
-    /** Convert to a specific version implementation. */
-    <T extends Money> T asVersion(Class<T> versionClass);
+    // При generateBuilders=true
+    Builder toBuilder();
+
+    interface Builder {
+        Builder setBills(long value);
+        Builder setCoins(int value);
+        Money build();
+    }
 }
 ```
 
-### Абстрактный класс
+### Абстрактный класс (паттерн Template Method)
 
 ```java
-public abstract class AbstractMoney<PROTO extends Message> implements Money {
-    protected final PROTO proto;
+public abstract class AbstractMoney<P extends Message> implements Money {
+    protected final P proto;
 
-    protected AbstractMoney(PROTO proto) {
+    protected AbstractMoney(P proto) {
         this.proto = proto;
     }
 
-    protected abstract long extractBills(PROTO proto);
-    protected abstract int extractCoins(PROTO proto);
+    protected abstract long extractBills(P proto);
+    protected abstract int extractCoins(P proto);
 
     @Override
     public final long getBills() {
@@ -194,59 +277,6 @@ public abstract class AbstractMoney<PROTO extends Message> implements Money {
 }
 ```
 
-### Реализация
-
-```java
-public class MoneyV1 extends AbstractMoney<Common.Money> {
-
-    public MoneyV1(Common.Money proto) {
-        super(proto);
-    }
-
-    @Override
-    protected long extractBills(Common.Money proto) {
-        return proto.getBills();
-    }
-
-    @Override
-    protected int extractCoins(Common.Money proto) {
-        return proto.getCoins();
-    }
-
-    public static MoneyV1 from(Common.Money proto) {
-        return new MoneyV1(proto);
-    }
-}
-```
-
-### Enum с информацией о версиях
-
-```java
-/**
- * Version-agnostic enum for PaymentTypeEnum.
- *
- * <p>Supported in versions: [v1, v2]</p>
- */
-public enum PaymentTypeEnum {
-    CASH(0),
-    CARD(1),
-
-    /**
-     * Present only in versions: [v1]
-     */
-    CREDIT(2),
-
-    /**
-     * Present only in versions: [v1]
-     */
-    TARE(3),
-
-    MOBILE(4);
-
-    // ...
-}
-```
-
 ### VersionContext
 
 ```java
@@ -256,73 +286,10 @@ VersionContext ctx = VersionContext.forVersion(2);
 // Обёртывание proto-сообщения
 Money money = ctx.wrapMoney(protoMessage);
 Order order = ctx.wrapOrder(orderProto);
+
+// Создание нового builder (при generateBuilders=true)
+Order.Builder builder = ctx.newOrderBuilder();
 ```
-
-## Параметры конфигурации
-
-### Основные параметры
-
-| Параметр | По умолчанию | Описание |
-|----------|--------------|----------|
-| `basePackage` | - | Базовый пакет для всех генерируемых классов |
-| `protoRoot` | - | Корневая директория с proto файлами |
-| `versions` | (обязательный) | Список конфигураций версий |
-| `outputDirectory` | `${project.build.directory}/generated-sources/proto-wrapper` | Директория для сгенерированных файлов |
-| `protoPackagePattern` | `{basePackage}.proto.{version}` | Паттерн пакета для proto-классов |
-| `generateInterfaces` | `true` | Генерировать интерфейсы |
-| `generateAbstractClasses` | `true` | Генерировать абстрактные базовые классы |
-| `generateImplClasses` | `true` | Генерировать версионно-специфичные реализации |
-| `generateVersionContext` | `true` | Генерировать VersionContext фабрику |
-| `includeVersionSuffix` | `true` | Включать суффикс версии в имена impl классов (MoneyV1 vs Money) |
-| `generateBuilders` | `false` | Генерировать паттерн Builder для изменения wrapper-объектов |
-| `protobufMajorVersion` | `3` | Версия библиотеки protobuf (2 или 3). Влияет на API конвертации enum |
-| `includeMessages` | - | Список имён сообщений для включения (пусто = все) |
-| `excludeMessages` | - | Список имён сообщений для исключения |
-
-### Параметры версии
-
-| Параметр | Описание |
-|----------|----------|
-| `protoDir` | Директория с proto файлами относительно `protoRoot` |
-| `name` | Имя версии (по умолчанию - uppercase от `protoDir`, например `v1` → `V1`) |
-| `excludeProtos` | Список proto файлов для исключения |
-
-### Вычисляемые пакеты
-
-При установке `basePackage` остальные пакеты вычисляются автоматически:
-- `apiPackage` = `basePackage` + `.api`
-- `implPackagePattern` = `basePackage` + `.{version}`
-
-## Обработка различий между версиями
-
-### Конфликты типов
-
-Плагин автоматически обрабатывает ситуации, когда тип поля различается между версиями:
-
-| Ситуация | Решение |
-|----------|---------|
-| `int` в v1 → `long` в v2 | Используется `long`, в v1 применяется cast `(long)` |
-| `int` в v1 → `enum` в v2 | Используется `int`, enum конвертируется через `getNumber()` |
-| Несовместимые типы (message vs primitive) | Поле помечается как отсутствующее в конфликтующей версии |
-
-### Эквивалентные enum'ы
-
-Если enum определён как nested в одной версии и как top-level в другой:
-
-```protobuf
-// v1: nested enum
-message Product {
-  enum TaxTypeEnum { VAT = 100; }
-}
-
-// v2: top-level enum (в отдельном файле)
-enum TaxTypeEnum { VAT = 100; }
-```
-
-Плагин автоматически:
-1. Обнаружит эквивалентность по имени и значениям
-2. Использует единый top-level enum
-3. Удалит дублирующийся nested enum
 
 ## Архитектура
 
@@ -334,121 +301,53 @@ enum TaxTypeEnum { VAT = 100; }
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    ProtocExecutor                           │
-│            Вызывает protoc, генерирует дескрипторы          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    ProtoAnalyzer                            │
-│          Парсит дескрипторы в VersionSchema                 │
-│          Фильтрует по sourcePrefix (директории)             │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    VersionMerger                            │
-│         Объединяет схемы в единую MergedSchema              │
-│         Обнаруживает эквивалентные enum'ы                   │
-│         Обрабатывает конфликты типов                        │
+│  ProtocExecutor → ProtoAnalyzer → VersionMerger             │
+│         Парсит proto файлы, объединяет в единую схему       │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                GenerationOrchestrator                       │
-│         Координирует все генераторы                         │
-│         Использует GenerationContext для состояния          │
+│         Координирует все генераторы кода                    │
 └─────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┼───────────────┬───────────────┐
               ▼               ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│    Interface    │ │  AbstractClass  │ │    ImplClass    │ │ VersionContext  │
-│    Generator    │ │   Generator     │ │   Generator     │ │   Generator     │
-│  (BaseGenerator)│ │ (BaseGenerator) │ │ (BaseGenerator) │ │ (BaseGenerator) │
-└─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
+       InterfaceGen    AbstractClassGen   ImplClassGen   VersionContextGen
               │               │               │               │
               └───────────────┴───────────────┴───────────────┘
                               │
                               ▼
+                         JavaPoet → .java файлы
+```
+
+### Архитектура обработки конфликтов
+
+```
 ┌─────────────────────────────────────────────────────────────┐
-│              TypeResolver + JavaTypeMapping                 │
-│         Общая логика разрешения типов                       │
+│                  FieldProcessingChain                       │
+│         Распределяет поля по соответствующим обработчикам   │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    JavaPoet                                 │
-│              Генерирует .java исходные файлы                │
-└─────────────────────────────────────────────────────────────┘
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                    ▼
+   IntEnumHandler      WideningHandler      StringBytesHandler
+         │                    │                    │
+         ▼                    ▼                    ▼
+   PrimitiveMessageHandler   DefaultHandler   RepeatedConflictHandler
 ```
-
-### Ключевые компоненты
-
-| Компонент | Описание |
-|-----------|----------|
-| `GenerateMojo` | Точка входа Maven-плагина, обработка конфигурации |
-| `ProtocExecutor` | Вызывает компилятор protoc, генерирует дескрипторы |
-| `ProtoAnalyzer` | Парсит protobuf дескрипторы в объекты модели |
-| `VersionMerger` | Объединяет схемы нескольких версий в единую схему |
-| `GenerationOrchestrator` | Координирует всю генерацию кода |
-| `GenerationContext` | Immutable контекст генерации (схема, конфиг, версия) |
-| `TypeResolver` | Разрешает Java типы из proto типов |
-| `BaseGenerator` | Абстрактный базовый класс для всех генераторов |
-| `PluginLogger` | Callback-based абстракция логирования |
-
-## Поддержка Builder
-
-При `generateBuilders=true` плагин генерирует паттерн Builder для изменения wrapper-объектов:
-
-```xml
-<configuration>
-    <generateBuilders>true</generateBuilders>
-    <protobufMajorVersion>3</protobufMajorVersion> <!-- Используйте 2 для protobuf 2.x -->
-</configuration>
-```
-
-### Использование
-
-```java
-// Изменение существующего wrapper через builder
-OrderItem modified = wrapper.toBuilder()
-        .setQuantity(10)
-        .setUnitPrice(newPrice)
-        .build();
-
-// Создание нового wrapper с нуля
-OrderItem newItem = OrderItem.newBuilder()
-        .setProductId("SKU-123")
-        .setQuantity(5)
-        .build();
-```
-
-### Совместимость версий Protobuf
-
-| protobufMajorVersion | Библиотека Protobuf | Метод конвертации Enum |
-|---------------------|---------------------|----------------------|
-| `2` | protobuf 2.x | `EnumType.valueOf(int)` |
-| `3` (по умолчанию) | protobuf 3.x | `EnumType.forNumber(int)` |
-
-### Ограничения Builder
-
-Подробная информация об известных проблемах: [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)
-
-**Текущие ограничения:**
-
-1. **Конфликты типов между версиями**: Когда поле имеет разные типы в разных версиях схемы (например, `int` в v1 vs `EnumType` в v2), builder-сеттеры могут не работать корректно.
-
-2. **Поля bytes**: Поля типа `bytes` требуют ручной конвертации в `ByteString` в builder-сеттерах.
-
-3. **Изменение типов между версиями**: Поля, которые меняют тип с примитива на message между версиями, не полностью поддерживаются в builders.
 
 ## Ограничения
 
-- Поля `oneof` не поддерживаются
-- Поля `map` имеют базовую поддержку
-- Сложные иерархии вложенных сообщений могут потребовать ручной настройки
-- Генерация Builder имеет дополнительные ограничения (см. выше)
+Полную документацию см. в [KNOWN_ISSUES.ru.md](docs/KNOWN_ISSUES.ru.md).
+
+**Краткое резюме:**
+- Поля `oneof`: не обрабатываются специально
+- Поля `map`: базовая поддержка
+- Extensions (proto2): не поддерживаются
+- Well-known types (google.protobuf.*): обрабатываются как обычные сообщения
+- Конвертация версий (`asVersion`): не реализована
+- Repeated-поля с конфликтами: только чтение (нет builder setters)
 
 ## Разработка
 
@@ -456,30 +355,17 @@ OrderItem newItem = OrderItem.newBuilder()
 # Сборка
 mvn clean install
 
-# Запуск тестов
+# Запуск тестов (106 тестов)
 mvn test
 
 # Сборка без тестов
 mvn install -DskipTests
 ```
 
-## Пример использования сгенерированных классов
+## См. также
 
-```java
-// Парсинг proto-сообщения
-byte[] protoBytes = ...;
-OrderProto.Order protoOrder = OrderProto.Order.parseFrom(protoBytes);
+- [COOKBOOK.ru.md](docs/COOKBOOK.ru.md) - Практическое руководство
+- [VERSION_AGNOSTIC_API.ru.md](docs/VERSION_AGNOSTIC_API.ru.md) - Детальная документация API
+- [KNOWN_ISSUES.ru.md](docs/KNOWN_ISSUES.ru.md) - Известные ограничения и обходные пути
+- [examples/maven-example](examples/maven-example) - Рабочий пример проекта
 
-// Определение версии и обёртывание
-int version = 2;
-VersionContext ctx = VersionContext.forVersion(version);
-Order order = ctx.wrapOrder(protoOrder);
-
-// Использование версионно-независимого API
-DateTime dateTime = order.getDateTime();
-List<Order.Item> items = order.getItems();
-OperationTypeEnum operation = order.getOperation();
-
-// Сериализация обратно в proto
-byte[] outputBytes = order.toBytes();
-```
