@@ -358,6 +358,106 @@ public class MergedField {
     }
 
     /**
+     * Get extract method name for enum value (INT_ENUM conflicts).
+     */
+    public String getExtractEnumMethodName() {
+        return "extract" + capitalize(javaName) + "Enum";
+    }
+
+    /**
+     * Get extract method name for bytes value (STRING_BYTES conflicts).
+     */
+    public String getExtractBytesMethodName() {
+        return "extract" + capitalize(javaName) + "Bytes";
+    }
+
+    /**
+     * Get extract method name for message value (PRIMITIVE_MESSAGE conflicts).
+     */
+    public String getExtractMessageMethodName() {
+        return "extract" + capitalize(javaName) + "Message";
+    }
+
+    // ==================== Builder Method Names ====================
+
+    /**
+     * Get doSet method name for builder.
+     */
+    public String getDoSetMethodName() {
+        return "doSet" + capitalize(javaName);
+    }
+
+    /**
+     * Get doClear method name for builder.
+     */
+    public String getDoClearMethodName() {
+        return "doClear" + capitalize(javaName);
+    }
+
+    /**
+     * Get doAdd method name for repeated field builder.
+     */
+    public String getDoAddMethodName() {
+        return "doAdd" + capitalize(javaName);
+    }
+
+    /**
+     * Get doAddAll method name for repeated field builder.
+     */
+    public String getDoAddAllMethodName() {
+        return "doAddAll" + capitalize(javaName);
+    }
+
+    /**
+     * Get setter method name for builder interface.
+     */
+    public String getSetterMethodName() {
+        return "set" + capitalize(javaName);
+    }
+
+    /**
+     * Get clear method name for builder interface.
+     */
+    public String getClearMethodName() {
+        return "clear" + capitalize(javaName);
+    }
+
+    /**
+     * Get add method name for repeated field builder interface.
+     */
+    public String getAddMethodName() {
+        return "add" + capitalize(javaName);
+    }
+
+    /**
+     * Get addAll method name for repeated field builder interface.
+     */
+    public String getAddAllMethodName() {
+        return "addAll" + capitalize(javaName);
+    }
+
+    /**
+     * Get has method name for optional fields.
+     */
+    public String getHasMethodName() {
+        return "has" + capitalize(javaName);
+    }
+
+    /**
+     * Get supports method name for version-specific fields.
+     */
+    public String getSupportsMethodName() {
+        return "supports" + capitalize(javaName);
+    }
+
+    /**
+     * Get the capitalized java name (useful for building method names).
+     */
+    public String getCapitalizedName() {
+        return capitalize(javaName);
+    }
+
+    /**
      * Whether this field needs has-check pattern (optional primitive).
      */
     public boolean needsHasCheck() {

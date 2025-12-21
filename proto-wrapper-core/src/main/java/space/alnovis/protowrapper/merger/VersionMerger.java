@@ -2,6 +2,7 @@ package space.alnovis.protowrapper.merger;
 
 import space.alnovis.protowrapper.PluginLogger;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
+import space.alnovis.protowrapper.generator.TypeNormalizer;
 import space.alnovis.protowrapper.model.*;
 
 import java.util.*;
@@ -489,47 +490,37 @@ public class VersionMerger {
      * Extract element type from List<X> or return type as-is.
      */
     private String extractElementType(String type) {
-        if (type.startsWith("java.util.List<") && type.endsWith(">")) {
-            return type.substring("java.util.List<".length(), type.length() - 1);
-        }
-        return type;
+        return TypeNormalizer.extractListElementType(type);
     }
 
     private boolean isIntType(String type) {
-        return "int".equals(type) || "Integer".equals(type) || "int32".equals(type) || "uint32".equals(type);
+        return TypeNormalizer.isIntType(type);
     }
 
     private boolean isLongType(String type) {
-        return "long".equals(type) || "Long".equals(type) || "int64".equals(type) || "uint64".equals(type);
+        return TypeNormalizer.isLongType(type);
     }
 
     private boolean isFloatType(String type) {
-        return "float".equals(type) || "Float".equals(type);
+        return TypeNormalizer.isFloatType(type);
     }
 
     private boolean isDoubleOnlyType(String type) {
-        return "double".equals(type) || "Double".equals(type);
+        return TypeNormalizer.isDoubleType(type);
     }
 
     /**
      * Check if type is any floating point (float or double).
      */
     private boolean isFloatingPointType(String type) {
-        return isFloatType(type) || isDoubleOnlyType(type);
+        return TypeNormalizer.isFloatingPointType(type);
     }
 
     /**
      * Box a primitive type name to its wrapper type name.
      */
     private String boxType(String type) {
-        return switch (type) {
-            case "int" -> "Integer";
-            case "long" -> "Long";
-            case "double" -> "Double";
-            case "float" -> "Float";
-            case "boolean" -> "Boolean";
-            default -> type;
-        };
+        return TypeNormalizer.toWrapper(type);
     }
 
     /**

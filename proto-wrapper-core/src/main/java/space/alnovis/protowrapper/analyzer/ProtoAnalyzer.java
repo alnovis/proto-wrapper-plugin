@@ -184,7 +184,7 @@ public class ProtoAnalyzer {
             String regex = pattern.replace("*", ".*");
             return messages.values().stream()
                     .filter(m -> m.getName().matches(regex))
-                    .collect(Collectors.toList());
+                    .toList();
         }
 
         /**

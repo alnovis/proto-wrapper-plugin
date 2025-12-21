@@ -1,0 +1,333 @@
+package space.alnovis.protowrapper.generator.conflict;
+
+import com.squareup.javapoet.ArrayTypeName;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeName;
+import com.squareup.javapoet.TypeSpec;
+import space.alnovis.protowrapper.generator.GeneratorConfig;
+import space.alnovis.protowrapper.generator.TypeResolver;
+import space.alnovis.protowrapper.model.FieldInfo;
+import space.alnovis.protowrapper.model.MergedField;
+import space.alnovis.protowrapper.model.MergedMessage;
+import space.alnovis.protowrapper.model.MergedSchema;
+
+import javax.lang.model.element.Modifier;
+import java.util.Map;
+
+/**
+ * Helper class containing code generation utilities shared by conflict handlers.
+ *
+ * <p>This class centralizes common code generation patterns to avoid duplication
+ * across different handlers.</p>
+ */
+public final class CodeGenerationHelper {
+
+    private CodeGenerationHelper() {
+        // Utility class
+    }
+
+    /**
+     * Get the version-specific Java name for a field.
+     */
+    public static String getVersionSpecificJavaName(MergedField field, ProcessingContext ctx) {
+        String version = ctx.version();
+        if (version == null) {
+            return ctx.capitalize(field.getJavaName());
+        }
+        Map<String, FieldInfo> versionFields = field.getVersionFields();
+        FieldInfo versionField = versionFields.get(version);
+        if (versionField != null) {
+            return ctx.capitalize(versionField.getJavaName());
+        }
+        return ctx.capitalize(field.getJavaName());
+    }
+
+    /**
+     * Get the wrapper class name for a message field.
+     */
+    public static String getWrapperClassName(MergedField field, ProcessingContext ctx) {
+        TypeResolver resolver = ctx.resolver();
+        GeneratorConfig config = ctx.config();
+        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+        String fullTypePath = field.getNestedTypePath(protoPackage);
+
+        String implPackage = ctx.implPackage();
+
+        if (fullTypePath.contains(".")) {
+            String[] parts = fullTypePath.split("\\.");
+            StringBuilder result = new StringBuilder(implPackage);
+            result.append(".").append(ctx.getImplClassName(parts[0]));
+            for (int i = 1; i < parts.length; i++) {
+                result.append(".").append(parts[i]);
+            }
+            return result.toString();
+        } else {
+            return implPackage + "." + ctx.getImplClassName(fullTypePath);
+        }
+    }
+
+    /**
+     * Get the enum type for fromProtoValue conversion.
+     */
+    public static String getEnumTypeForFromProtoValue(MergedField field, ProcessingContext ctx) {
+        if (!field.isEnum()) {
+            return extractSimpleTypeName(field.getGetterType());
+        }
+
+        TypeResolver resolver = ctx.resolver();
+        GeneratorConfig config = ctx.config();
+        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+        String fullTypePath = field.getNestedTypePath(protoPackage);
+
+        MergedSchema schema = ctx.schema();
+        if (schema != null && schema.hasEquivalentTopLevelEnum(fullTypePath)) {
+            return schema.getEquivalentTopLevelEnum(fullTypePath);
+        }
+
+        return fullTypePath;
+    }
+
+    /**
+     * Extract simple type name from a potentially qualified name.
+     */
+    public static String extractSimpleTypeName(String typeName) {
+        if (typeName == null) {
+            return "Object";
+        }
+        int lastDot = typeName.lastIndexOf('.');
+        return lastDot >= 0 ? typeName.substring(lastDot + 1) : typeName;
+    }
+
+    /**
+     * Generate the proto getter call for a field.
+     */
+    public static String generateProtoGetterCall(MergedField field, ProcessingContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.resolver();
+
+        String javaName = getVersionSpecificJavaName(field, ctx);
+        String enumType = getEnumTypeForFromProtoValue(field, ctx);
+
+        FieldInfo versionField = field.getVersionFields().get(version);
+        boolean versionIsEnum = versionField != null && versionField.isEnum();
+        boolean mergedIsInt = "int".equals(field.getGetterType()) || "Integer".equals(field.getGetterType())
+                || "long".equals(field.getGetterType()) || "Long".equals(field.getGetterType());
+
+        boolean needsEnumToIntConversion = versionIsEnum && mergedIsInt;
+
+        if (field.isRepeated()) {
+            if (field.isEnum()) {
+                return String.format("proto.get%sList().stream().map(e -> %s.fromProtoValue(e.getNumber())).toList()",
+                        javaName, enumType);
+            } else if (field.isMessage()) {
+                String wrapperClass = getWrapperClassName(field, ctx);
+                return String.format("proto.get%sList().stream().map(%s::new).collect(java.util.stream.Collectors.toList())",
+                        javaName, wrapperClass);
+            }
+            return String.format("proto.get%sList()", javaName);
+        } else if (field.isEnum()) {
+            return String.format("%s.fromProtoValue(proto.get%s().getNumber())", enumType, javaName);
+        } else if (field.isMessage()) {
+            String wrapperClass = getWrapperClassName(field, ctx);
+            return String.format("new %s(proto.get%s())", wrapperClass, javaName);
+        } else if ("byte[]".equals(field.getGetterType())) {
+            return String.format("proto.get%s().toByteArray()", javaName);
+        } else if (needsEnumToIntConversion) {
+            return String.format("proto.get%s().getNumber()", javaName);
+        } else {
+            String mergedType = field.getGetterType();
+            String versionType = versionField != null ? versionField.getJavaType() : mergedType;
+
+            if (("Long".equals(mergedType) || "long".equals(mergedType)) && "int".equals(versionType)) {
+                return String.format("(long) proto.get%s()", javaName);
+            }
+
+            return String.format("proto.get%s()", javaName);
+        }
+    }
+
+    /**
+     * Get default value for a type.
+     */
+    public static String getDefaultValue(String javaType, TypeResolver resolver) {
+        return resolver.getDefaultValue(javaType);
+    }
+
+    /**
+     * Get the proto type for a message field.
+     */
+    public static String getProtoTypeForField(MergedField field, ProcessingContext ctx,
+                                               String currentProtoClassName) {
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        if (versionField == null) {
+            return "com.google.protobuf.Message";
+        }
+
+        String typeName = versionField.getTypeName();
+        if (typeName.startsWith(".")) {
+            typeName = typeName.substring(1);
+        }
+
+        GeneratorConfig config = ctx.config();
+        String javaProtoPackage = config.getProtoPackage(version);
+        TypeResolver resolver = ctx.resolver();
+        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+
+        String messagePath = versionField.extractNestedTypePath(protoPackage);
+
+        MergedSchema schema = ctx.schema();
+        String outerClassName = findOuterClassForType(messagePath, schema, version);
+
+        if (outerClassName != null) {
+            return javaProtoPackage + "." + outerClassName + "." + messagePath;
+        }
+
+        if (currentProtoClassName != null && currentProtoClassName.startsWith(javaProtoPackage + ".")) {
+            String afterPackage = currentProtoClassName.substring(javaProtoPackage.length() + 1);
+            int dotIdx = afterPackage.indexOf('.');
+            if (dotIdx > 0) {
+                String currentOuterClass = afterPackage.substring(0, dotIdx);
+                return javaProtoPackage + "." + currentOuterClass + "." + messagePath;
+            }
+        }
+
+        return javaProtoPackage + "." + messagePath;
+    }
+
+    /**
+     * Find the outer class name for a message type.
+     */
+    public static String findOuterClassForType(String messagePath, MergedSchema schema, String version) {
+        if (schema == null || messagePath == null) {
+            return null;
+        }
+
+        String topLevelName = messagePath.contains(".")
+                ? messagePath.substring(0, messagePath.indexOf('.'))
+                : messagePath;
+
+        return schema.getMessage(topLevelName)
+                .map(msg -> msg.getOuterClassName(version))
+                .orElse(null);
+    }
+
+    /**
+     * Get the proto enum type for a field.
+     */
+    public static String getProtoEnumTypeForField(MergedField field, ProcessingContext ctx,
+                                                    String currentProtoClassName) {
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        if (versionField == null) {
+            return "Object";
+        }
+
+        String typeName = versionField.getTypeName();
+        if (typeName.startsWith(".")) {
+            typeName = typeName.substring(1);
+        }
+
+        GeneratorConfig config = ctx.config();
+        String javaProtoPackage = config.getProtoPackage(version);
+        TypeResolver resolver = ctx.resolver();
+        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+
+        String enumPath = versionField.extractNestedTypePath(protoPackage);
+
+        MergedSchema schema = ctx.schema();
+        String outerClassName = findOuterClassForEnum(enumPath, schema, version);
+
+        if (outerClassName != null) {
+            return javaProtoPackage + "." + outerClassName + "." + enumPath;
+        }
+
+        if (currentProtoClassName != null && currentProtoClassName.startsWith(javaProtoPackage + ".")) {
+            String afterPackage = currentProtoClassName.substring(javaProtoPackage.length() + 1);
+            int dotIdx = afterPackage.indexOf('.');
+            if (dotIdx > 0) {
+                String currentOuterClass = afterPackage.substring(0, dotIdx);
+                return javaProtoPackage + "." + currentOuterClass + "." + enumPath;
+            }
+        }
+
+        return javaProtoPackage + "." + enumPath;
+    }
+
+    /**
+     * Find the outer class name for an enum type.
+     */
+    public static String findOuterClassForEnum(String enumPath, MergedSchema schema, String version) {
+        if (schema == null || enumPath == null) {
+            return null;
+        }
+
+        if (!enumPath.contains(".")) {
+            return schema.getEnum(enumPath)
+                    .map(e -> e.getOuterClassName(version))
+                    .orElse(null);
+        } else {
+            String topLevelName = enumPath.substring(0, enumPath.indexOf('.'));
+            return schema.getMessage(topLevelName)
+                    .map(msg -> msg.getOuterClassName(version))
+                    .orElse(null);
+        }
+    }
+
+    /**
+     * Get the enum conversion method name based on protobuf version.
+     */
+    public static String getEnumFromIntMethod(GeneratorConfig config) {
+        return config.isProtobuf2() ? "valueOf" : "forNumber";
+    }
+
+    /**
+     * Get message type for PRIMITIVE_MESSAGE conflict field.
+     */
+    public static TypeName getMessageTypeForField(MergedField field, ProcessingContext ctx) {
+        return field.getVersionFields().values().stream()
+                .filter(fieldInfo -> !fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null)
+                .findFirst()
+                .map(fieldInfo -> {
+                    String javaType = fieldInfo.getJavaType();
+                    String simpleTypeName = javaType.contains(".")
+                            ? javaType.substring(javaType.lastIndexOf('.') + 1)
+                            : javaType;
+                    return (TypeName) ClassName.get(ctx.apiPackage(), simpleTypeName);
+                })
+                .orElse(null);
+    }
+
+    /**
+     * Get the message wrapper class name for a PRIMITIVE_MESSAGE conflict field.
+     */
+    public static String getMessageWrapperClassName(MergedField field, ProcessingContext ctx) {
+        String version = ctx.version();
+        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            if (entry.getKey().equals(version)) {
+                FieldInfo fieldInfo = entry.getValue();
+                if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
+                    TypeResolver resolver = ctx.resolver();
+                    GeneratorConfig config = ctx.config();
+                    String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+                    String fullTypePath = fieldInfo.extractNestedTypePath(protoPackage);
+                    String implPackage = ctx.implPackage();
+
+                    if (fullTypePath.contains(".")) {
+                        String[] parts = fullTypePath.split("\\.");
+                        StringBuilder result = new StringBuilder(implPackage);
+                        result.append(".").append(ctx.getImplClassName(parts[0]));
+                        for (int i = 1; i < parts.length; i++) {
+                            result.append(".").append(parts[i]);
+                        }
+                        return result.toString();
+                    } else {
+                        return implPackage + "." + ctx.getImplClassName(fullTypePath);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+}

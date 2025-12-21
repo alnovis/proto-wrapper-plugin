@@ -217,7 +217,7 @@ public class ProtocExecutor {
 
         return result.stream()
                 .sorted()
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -271,7 +271,7 @@ public class ProtocExecutor {
 
         return result.stream()
                 .sorted()
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**

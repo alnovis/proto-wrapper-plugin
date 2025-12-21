@@ -36,16 +36,16 @@ public class MessageInfo {
 
         this.fields = proto.getFieldList().stream()
                 .map(FieldInfo::new)
-                .collect(Collectors.toList());
+                .toList();
 
         this.nestedMessages = proto.getNestedTypeList().stream()
                 .filter(nested -> !nested.getOptions().getMapEntry()) // Skip map entries
                 .map(nested -> new MessageInfo(nested, packageName, fullName + "." + nested.getName(), sourceFileName))
-                .collect(Collectors.toList());
+                .toList();
 
         this.nestedEnums = proto.getEnumTypeList().stream()
                 .map(EnumInfo::new)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     // Constructor for merged messages
@@ -68,7 +68,7 @@ public class MessageInfo {
     public List<FieldInfo> getFieldsSorted() {
         return fields.stream()
                 .sorted(Comparator.comparingInt(FieldInfo::getNumber))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -77,7 +77,7 @@ public class MessageInfo {
     public List<FieldInfo> getRequiredFields() {
         return fields.stream()
                 .filter(f -> !f.isOptional() && !f.isRepeated())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -86,7 +86,7 @@ public class MessageInfo {
     public List<FieldInfo> getOptionalPrimitiveFields() {
         return fields.stream()
                 .filter(f -> f.isOptional() && f.isPrimitive())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -95,7 +95,7 @@ public class MessageInfo {
     public List<FieldInfo> getOptionalMessageFields() {
         return fields.stream()
                 .filter(f -> f.isOptional() && f.isMessage())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -104,7 +104,7 @@ public class MessageInfo {
     public List<FieldInfo> getRepeatedFields() {
         return fields.stream()
                 .filter(FieldInfo::isRepeated)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**

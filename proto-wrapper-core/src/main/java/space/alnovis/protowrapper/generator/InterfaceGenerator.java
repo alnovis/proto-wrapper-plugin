@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
@@ -111,16 +112,14 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
         }
 
         // Add nested enums first
-        for (MergedEnum nestedEnum : message.getNestedEnums()) {
-            TypeSpec enumSpec = generateNestedEnum(nestedEnum);
-            interfaceBuilder.addType(enumSpec);
-        }
+        message.getNestedEnums().stream()
+                .map(this::generateNestedEnum)
+                .forEach(interfaceBuilder::addType);
 
         // Add nested interfaces for nested messages
-        for (MergedMessage nested : message.getNestedMessages()) {
-            TypeSpec nestedInterface = generateNestedInterface(nested, ctx);
-            interfaceBuilder.addType(nestedInterface);
-        }
+        message.getNestedMessages().stream()
+                .map(nested -> generateNestedInterface(nested, ctx))
+                .forEach(interfaceBuilder::addType);
 
         // Add common utility methods
         addCommonMethods(interfaceBuilder, message);
@@ -173,12 +172,10 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             builder.addJavadoc("<p><b>Type conflict [$L]:</b> ", conflictType.name());
 
             // Add version-specific type info
-            Map<String, FieldInfo> versionFields = field.getVersionFields();
-            List<String> typeInfo = new java.util.ArrayList<>();
-            for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
-                typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
-            }
-            builder.addJavadoc(String.join(", ", typeInfo) + "</p>\n");
+            String typeInfo = field.getVersionFields().entrySet().stream()
+                    .map(e -> e.getKey() + "=" + e.getValue().getJavaType())
+                    .collect(Collectors.joining(", "));
+            builder.addJavadoc(typeInfo + "</p>\n");
 
             // Add behavior note based on conflict type
             switch (conflictType) {
@@ -241,12 +238,10 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             } else if (conflictType == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
                 // For PRIMITIVE_MESSAGE, the getter returns the primitive type
                 // Only return true for versions where the field IS primitive
-                Set<String> primitiveVersions = new java.util.HashSet<>();
-                for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
-                    if (entry.getValue().isPrimitive()) {
-                        primitiveVersions.add(entry.getKey());
-                    }
-                }
+                Set<String> primitiveVersions = field.getVersionFields().entrySet().stream()
+                        .filter(entry -> entry.getValue().isPrimitive())
+                        .map(Map.Entry::getKey)
+                        .collect(java.util.stream.Collectors.toSet());
                 if (primitiveVersions.isEmpty()) {
                     builder.addJavadoc("<p>This field is a message type in all versions.</p>\n");
                     builder.addJavadoc("@return false (primitive getter not available)\n");
@@ -286,18 +281,13 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             }
             return "true"; // Fallback
         } else {
-            // Multiple versions - build OR condition
-            List<String> checks = new java.util.ArrayList<>();
-            for (String version : versions) {
-                String numericPart = version.replaceAll("[^0-9]", "");
-                if (!numericPart.isEmpty()) {
-                    checks.add("getWrapperVersion() == " + numericPart);
-                }
-            }
-            if (checks.isEmpty()) {
-                return "true";
-            }
-            return String.join(" || ", checks);
+            // Multiple versions - build OR condition using stream
+            String result = versions.stream()
+                    .map(version -> version.replaceAll("[^0-9]", ""))
+                    .filter(numericPart -> !numericPart.isEmpty())
+                    .map(numericPart -> "getWrapperVersion() == " + numericPart)
+                    .collect(Collectors.joining(" || "));
+            return result.isEmpty() ? "true" : result;
         }
     }
 
@@ -340,21 +330,18 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
      * Returns the message type for versions where the field is a message, null for primitive versions.
      */
     private MethodSpec generateMessageGetter(MergedField field, MergedMessage message, TypeResolver resolver) {
-        // Find the message type from the version fields
-        String messageTypeName = null;
-        Set<String> messageVersions = new java.util.LinkedHashSet<>();
+        // Find the message type from the version fields using stream
+        Map<String, FieldInfo> messageFields = field.getVersionFields().entrySet().stream()
+                .filter(entry -> !entry.getValue().isPrimitive() && entry.getValue().getTypeName() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, java.util.LinkedHashMap::new));
 
-        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
-            FieldInfo fieldInfo = entry.getValue();
-            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
-                messageTypeName = fieldInfo.getJavaType();
-                messageVersions.add(entry.getKey());
-            }
-        }
-
-        if (messageTypeName == null) {
+        if (messageFields.isEmpty()) {
             return null; // No message type found
         }
+
+        String messageTypeName = messageFields.values().iterator().next().getJavaType();
+        Set<String> messageVersions = messageFields.keySet();
 
         // Determine the return type - it should be the wrapper interface type in the api package
         // Extract simple name from the full type (e.g., "CalibrationInfo" from "space.alnovis...CalibrationInfo")
@@ -384,14 +371,11 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
     private MethodSpec generateSupportsMessageMethod(MergedField field, TypeResolver resolver) {
         String methodName = "supports" + resolver.capitalize(field.getJavaName()) + "Message";
 
-        // Find message versions
-        Set<String> messageVersions = new java.util.LinkedHashSet<>();
-        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
-            FieldInfo fieldInfo = entry.getValue();
-            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
-                messageVersions.add(entry.getKey());
-            }
-        }
+        // Find message versions using stream
+        Set<String> messageVersions = field.getVersionFields().entrySet().stream()
+                .filter(entry -> !entry.getValue().isPrimitive() && entry.getValue().getTypeName() != null)
+                .map(Map.Entry::getKey)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
 
         String versionsStr = String.join(", ", messageVersions);
 
@@ -450,15 +434,13 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             }
         }
 
-        for (MergedEnum nestedEnum : nested.getNestedEnums()) {
-            TypeSpec enumSpec = generateNestedEnum(nestedEnum);
-            builder.addType(enumSpec);
-        }
+        nested.getNestedEnums().stream()
+                .map(this::generateNestedEnum)
+                .forEach(builder::addType);
 
-        for (MergedMessage deeplyNested : nested.getNestedMessages()) {
-            TypeSpec deeplyNestedInterface = generateNestedInterface(deeplyNested, ctx);
-            builder.addType(deeplyNestedInterface);
-        }
+        nested.getNestedMessages().stream()
+                .map(deeplyNested -> generateNestedInterface(deeplyNested, ctx))
+                .forEach(builder::addType);
 
         // Add Builder interface for nested message if enabled
         if (config.isGenerateBuilders()) {
@@ -724,12 +706,9 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
         TypeName widerType = getWiderPrimitiveType(field.getJavaType());
 
         // Build version info for javadoc
-        Map<String, FieldInfo> versionFields = field.getVersionFields();
-        List<String> typeInfo = new java.util.ArrayList<>();
-        for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
-            typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
-        }
-        String versionsStr = String.join(", ", typeInfo);
+        String versionsStr = field.getVersionFields().entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue().getJavaType())
+                .collect(Collectors.joining(", "));
 
         // setter with wider type
         builder.addMethod(MethodSpec.methodBuilder(methodName)
@@ -783,12 +762,9 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
         ClassName builderType = ClassName.get("", "Builder");
 
         // Build version info for javadoc
-        Map<String, FieldInfo> versionFields = field.getVersionFields();
-        List<String> typeInfo = new java.util.ArrayList<>();
-        for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
-            typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
-        }
-        String versionsStr = String.join(", ", typeInfo);
+        String versionsStr = field.getVersionFields().entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue().getJavaType())
+                .collect(Collectors.joining(", "));
 
         // String setter
         builder.addMethod(MethodSpec.methodBuilder("set" + capName)
@@ -828,11 +804,9 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
      * Extract element type from List<T> type.
      */
     private TypeName extractListElementType(TypeName listType) {
-        if (listType instanceof ParameterizedTypeName) {
-            ParameterizedTypeName parameterized = (ParameterizedTypeName) listType;
-            if (!parameterized.typeArguments.isEmpty()) {
-                return parameterized.typeArguments.get(0);
-            }
+        if (listType instanceof ParameterizedTypeName parameterized
+                && !parameterized.typeArguments.isEmpty()) {
+            return parameterized.typeArguments.get(0);
         }
         // Fallback to Object
         return ClassName.get(Object.class);

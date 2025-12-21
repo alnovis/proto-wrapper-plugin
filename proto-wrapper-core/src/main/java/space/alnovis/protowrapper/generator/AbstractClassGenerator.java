@@ -2,17 +2,18 @@ package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
-import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
+import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
+import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
+
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -124,15 +125,10 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("this.proto = proto")
                 .build());
 
-        // Add abstract extract methods
-        for (MergedField field : message.getFieldsSorted()) {
-            addExtractMethods(classBuilder, field, protoType, message, resolver, ctx);
-        }
-
-        // Add concrete getter implementations
-        for (MergedField field : message.getFieldsSorted()) {
-            addGetterImplementation(classBuilder, field, message, resolver, ctx);
-        }
+        // Add abstract extract methods and getter implementations using handler chain
+        ProcessingContext procCtx = ProcessingContext.forAbstract(message, protoType, ctx, config);
+        FieldProcessingChain.getInstance().addAbstractExtractMethods(classBuilder, message, procCtx);
+        FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, message, procCtx);
 
         // Add common methods
         addCommonMethods(classBuilder, message, protoType);
@@ -192,15 +188,10 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("this.proto = proto")
                 .build());
 
-        // Add abstract extract methods
-        for (MergedField field : nested.getFieldsSorted()) {
-            addExtractMethods(classBuilder, field, protoType, nested, resolver, ctx);
-        }
-
-        // Add concrete getter implementations
-        for (MergedField field : nested.getFieldsSorted()) {
-            addGetterImplementation(classBuilder, field, nested, resolver, ctx);
-        }
+        // Add abstract extract methods and getter implementations using handler chain
+        ProcessingContext nestedProcCtx = ProcessingContext.forAbstract(nested, protoType, ctx, config);
+        FieldProcessingChain.getInstance().addAbstractExtractMethods(classBuilder, nested, nestedProcCtx);
+        FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, nested, nestedProcCtx);
 
         // Recursively add deeply nested abstract classes
         for (MergedMessage deeplyNested : nested.getNestedMessages()) {
@@ -431,148 +422,6 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         return builder.build();
-    }
-
-    private void addExtractMethods(TypeSpec.Builder classBuilder, MergedField field,
-                                   TypeVariableName protoType, MergedMessage message,
-                                   TypeResolver resolver, GenerationContext ctx) {
-        TypeName returnType = resolver.parseFieldType(field, message);
-
-        // For optional fields (not repeated), add extractHas method
-        if (field.isOptional() && !field.isRepeated()) {
-            classBuilder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .returns(TypeName.BOOLEAN)
-                    .addParameter(protoType, "proto")
-                    .build());
-        }
-
-        // Main extract method
-        classBuilder.addMethod(MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(returnType)
-                .addParameter(protoType, "proto")
-                .build());
-
-        // For INT_ENUM conflicts (scalar only), add enum extract method
-        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-            Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
-                    .getConflictEnum(message.getName(), field.getName());
-            if (enumInfoOpt.isPresent()) {
-                ConflictEnumInfo enumInfo = enumInfoOpt.get();
-                ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
-                String enumExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Enum";
-
-                classBuilder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .returns(enumType)
-                        .addParameter(protoType, "proto")
-                        .build());
-            }
-        }
-
-        // For STRING_BYTES conflicts (scalar only), add bytes extract method
-        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-            String bytesExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Bytes";
-            classBuilder.addMethod(MethodSpec.methodBuilder(bytesExtractMethodName)
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .returns(ArrayTypeName.of(TypeName.BYTE))
-                    .addParameter(protoType, "proto")
-                    .build());
-        }
-
-        // For PRIMITIVE_MESSAGE conflicts (scalar only), add message extract method
-        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
-            TypeName messageType = getMessageTypeForField(field, resolver);
-            if (messageType != null) {
-                String messageExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Message";
-                classBuilder.addMethod(MethodSpec.methodBuilder(messageExtractMethodName)
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .returns(messageType)
-                        .addParameter(protoType, "proto")
-                        .build());
-            }
-        }
-    }
-
-    private void addGetterImplementation(TypeSpec.Builder classBuilder, MergedField field,
-                                         MergedMessage message, TypeResolver resolver,
-                                         GenerationContext ctx) {
-        TypeName returnType = resolver.parseFieldType(field, message);
-
-        MethodSpec.Builder getter = MethodSpec.methodBuilder(field.getGetterName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(returnType);
-
-        // For optional primitives, use has-check pattern to return boxed null
-        if (field.needsHasCheck()) {
-            getter.addStatement("return $L(proto) ? $L(proto) : null",
-                    field.getExtractHasMethodName(), field.getExtractMethodName());
-        } else {
-            getter.addStatement("return $L(proto)", field.getExtractMethodName());
-        }
-
-        classBuilder.addMethod(getter.build());
-
-        // Add hasXxx method for optional fields (not repeated)
-        if (field.isOptional() && !field.isRepeated()) {
-            MethodSpec has = MethodSpec.methodBuilder("has" + resolver.capitalize(field.getJavaName()))
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(TypeName.BOOLEAN)
-                    .addStatement("return $L(proto)", field.getExtractHasMethodName())
-                    .build();
-            classBuilder.addMethod(has);
-        }
-
-        // Add enum getter for INT_ENUM conflicts (scalar only)
-        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-            Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
-                    .getConflictEnum(message.getName(), field.getName());
-            if (enumInfoOpt.isPresent()) {
-                ConflictEnumInfo enumInfo = enumInfoOpt.get();
-                ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
-                String enumGetterName = "get" + resolver.capitalize(field.getJavaName()) + "Enum";
-                String enumExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Enum";
-
-                classBuilder.addMethod(MethodSpec.methodBuilder(enumGetterName)
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .returns(enumType)
-                        .addStatement("return $L(proto)", enumExtractMethodName)
-                        .build());
-            }
-        }
-
-        // Add bytes getter for STRING_BYTES conflicts (scalar only)
-        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-            String bytesGetterName = "get" + resolver.capitalize(field.getJavaName()) + "Bytes";
-            String bytesExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Bytes";
-
-            classBuilder.addMethod(MethodSpec.methodBuilder(bytesGetterName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(ArrayTypeName.of(TypeName.BYTE))
-                    .addStatement("return $L(proto)", bytesExtractMethodName)
-                    .build());
-        }
-
-        // Add message getter for PRIMITIVE_MESSAGE conflicts (scalar only)
-        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
-            TypeName messageType = getMessageTypeForField(field, resolver);
-            if (messageType != null) {
-                String messageGetterName = "get" + resolver.capitalize(field.getJavaName()) + "Message";
-                String messageExtractMethodName = "extract" + resolver.capitalize(field.getJavaName()) + "Message";
-
-                classBuilder.addMethod(MethodSpec.methodBuilder(messageGetterName)
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .returns(messageType)
-                        .addStatement("return $L(proto)", messageExtractMethodName)
-                        .build());
-            }
-        }
     }
 
     private void addCommonMethods(TypeSpec.Builder classBuilder, MergedMessage message,
@@ -1074,33 +923,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
      * Extract element type from List<T> type.
      */
     private TypeName extractListElementType(TypeName listType) {
-        if (listType instanceof ParameterizedTypeName) {
-            ParameterizedTypeName parameterized = (ParameterizedTypeName) listType;
-            if (!parameterized.typeArguments.isEmpty()) {
-                return parameterized.typeArguments.get(0);
-            }
+        if (listType instanceof ParameterizedTypeName parameterized
+                && !parameterized.typeArguments.isEmpty()) {
+            return parameterized.typeArguments.get(0);
         }
         return ClassName.get(Object.class);
-    }
-
-    /**
-     * Get the message type for a PRIMITIVE_MESSAGE conflict field.
-     * Returns the wrapper interface type for the message version.
-     */
-    private TypeName getMessageTypeForField(MergedField field, TypeResolver resolver) {
-        for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
-            FieldInfo fieldInfo = entry.getValue();
-            if (!fieldInfo.isPrimitive() && fieldInfo.getTypeName() != null) {
-                // Found message version - extract simple type name and use api package
-                String javaType = fieldInfo.getJavaType();
-                String simpleTypeName = javaType.contains(".")
-                        ? javaType.substring(javaType.lastIndexOf('.') + 1)
-                        : javaType;
-                // Return the type with the api package
-                return ClassName.get(config.getApiPackage(), simpleTypeName);
-            }
-        }
-        return null;
     }
 
     /**

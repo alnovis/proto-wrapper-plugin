@@ -25,7 +25,7 @@ public class EnumInfo {
         this.name = proto.getName();
         this.values = proto.getValueList().stream()
                 .map(EnumValue::new)
-                .collect(Collectors.toList());
+                .toList();
         this.sourceFileName = sourceFileName;
     }
 
@@ -54,7 +54,7 @@ public class EnumInfo {
     public List<String> getValueNames() {
         return values.stream()
                 .map(EnumValue::getName)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
