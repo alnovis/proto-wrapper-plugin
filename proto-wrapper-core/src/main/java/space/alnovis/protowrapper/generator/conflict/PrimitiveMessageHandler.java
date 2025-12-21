@@ -221,11 +221,7 @@ public final class PrimitiveMessageHandler extends AbstractConflictHandler imple
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED);
 
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                doClear.addComment("Field not present in this version - ignored");
-            }
+            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
             builder.addMethod(doClear.build());
         }
     }

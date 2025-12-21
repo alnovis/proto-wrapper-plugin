@@ -43,19 +43,17 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
         addAbstractExtractMethod(builder, field, returnType, ctx);
 
         // Add enum extract method
-        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema()
-                .getConflictEnum(ctx.message().getName(), field.getName());
-        if (enumInfoOpt.isPresent()) {
-            ConflictEnumInfo enumInfo = enumInfoOpt.get();
-            ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-            String enumExtractMethodName = field.getExtractEnumMethodName();
+        ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
+                .ifPresent(enumInfo -> {
+                    ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+                    String enumExtractMethodName = field.getExtractEnumMethodName();
 
-            builder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .returns(enumType)
-                    .addParameter(ctx.protoType(), "proto")
-                    .build());
-        }
+                    builder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
+                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                            .returns(enumType)
+                            .addParameter(ctx.protoType(), "proto")
+                            .build());
+                });
     }
 
     @Override
@@ -90,28 +88,28 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
         builder.addMethod(extractInt.build());
 
         // Enum extract - returns unified enum
-        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema()
-                .getConflictEnum(ctx.message().getName(), field.getName());
-        if (enumInfoOpt.isPresent()) {
-            ConflictEnumInfo enumInfo = enumInfoOpt.get();
-            ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-            String enumExtractMethodName = field.getExtractEnumMethodName();
+        final boolean isEnumVersion = versionIsEnum;
+        final String javaName = versionJavaName;
+        ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
+                .ifPresent(enumInfo -> {
+                    ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+                    String enumExtractMethodName = field.getExtractEnumMethodName();
 
-            MethodSpec.Builder extractEnum = MethodSpec.methodBuilder(enumExtractMethodName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .returns(enumType)
-                    .addParameter(ctx.protoClassName(), "proto");
+                    MethodSpec.Builder extractEnum = MethodSpec.methodBuilder(enumExtractMethodName)
+                            .addAnnotation(Override.class)
+                            .addModifiers(Modifier.PROTECTED)
+                            .returns(enumType)
+                            .addParameter(ctx.protoClassName(), "proto");
 
-            if (versionIsEnum) {
-                extractEnum.addStatement("return $T.fromProtoValue(proto.get$L().getNumber())",
-                        enumType, versionJavaName);
-            } else {
-                extractEnum.addStatement("return $T.fromProtoValue(proto.get$L())",
-                        enumType, versionJavaName);
-            }
-            builder.addMethod(extractEnum.build());
-        }
+                    if (isEnumVersion) {
+                        extractEnum.addStatement("return $T.fromProtoValue(proto.get$L().getNumber())",
+                                enumType, javaName);
+                    } else {
+                        extractEnum.addStatement("return $T.fromProtoValue(proto.get$L())",
+                                enumType, javaName);
+                    }
+                    builder.addMethod(extractEnum.build());
+                });
     }
 
     @Override
@@ -125,28 +123,26 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
         addHasMethodToAbstract(builder, field, ctx);
 
         // Add enum getter
-        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema()
-                .getConflictEnum(ctx.message().getName(), field.getName());
-        if (enumInfoOpt.isPresent()) {
-            ConflictEnumInfo enumInfo = enumInfoOpt.get();
-            ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-            String enumGetterName = "get" + ctx.capitalize(field.getJavaName()) + "Enum";
-            String enumExtractMethodName = field.getExtractEnumMethodName();
+        ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
+                .ifPresent(enumInfo -> {
+                    ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+                    String enumGetterName = "get" + ctx.capitalize(field.getJavaName()) + "Enum";
+                    String enumExtractMethodName = field.getExtractEnumMethodName();
 
-            MethodSpec.Builder enumGetter = MethodSpec.methodBuilder(enumGetterName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(enumType);
+                    MethodSpec.Builder enumGetter = MethodSpec.methodBuilder(enumGetterName)
+                            .addAnnotation(Override.class)
+                            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                            .returns(enumType);
 
-            if (field.needsHasCheck()) {
-                enumGetter.addStatement("return $L(proto) ? $L(proto) : null",
-                        field.getExtractHasMethodName(), enumExtractMethodName);
-            } else {
-                enumGetter.addStatement("return $L(proto)", enumExtractMethodName);
-            }
+                    if (field.needsHasCheck()) {
+                        enumGetter.addStatement("return $L(proto) ? $L(proto) : null",
+                                field.getExtractHasMethodName(), enumExtractMethodName);
+                    } else {
+                        enumGetter.addStatement("return $L(proto)", enumExtractMethodName);
+                    }
 
-            builder.addMethod(enumGetter.build());
-        }
+                    builder.addMethod(enumGetter.build());
+                });
     }
 
     @Override
@@ -160,17 +156,15 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
                 .build());
 
         // Add enum setter
-        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema()
-                .getConflictEnum(ctx.message().getName(), field.getName());
-        if (enumInfoOpt.isPresent()) {
-            ConflictEnumInfo enumInfo = enumInfoOpt.get();
-            ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+        ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
+                .ifPresent(enumInfo -> {
+                    ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
 
-            builder.addMethod(MethodSpec.methodBuilder(field.getDoSetMethodName())
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .addParameter(enumType, field.getJavaName())
-                    .build());
-        }
+                    builder.addMethod(MethodSpec.methodBuilder(field.getDoSetMethodName())
+                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                            .addParameter(enumType, field.getJavaName())
+                            .build());
+                });
 
         // doClear for optional
         if (field.isOptional()) {
@@ -195,47 +189,43 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(intType, field.getJavaName());
 
-        if (presentInVersion) {
+        addVersionConditional(doSetInt, presentInVersion, m -> {
             if (versionIsEnum) {
                 String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
                 String enumMethod = getEnumFromIntMethod(ctx.config());
-                doSetInt.addStatement("protoBuilder.set$L($L.$L($L))",
+                m.addStatement("protoBuilder.set$L($L.$L($L))",
                         versionJavaName, protoEnumType, enumMethod, field.getJavaName());
             } else {
-                doSetInt.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
             }
-        } else {
-            doSetInt.addComment("Field not present in this version - ignored");
-        }
+        });
         builder.addMethod(doSetInt.build());
 
         // doSet (enum)
-        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema()
-                .getConflictEnum(ctx.message().getName(), field.getName());
-        if (enumInfoOpt.isPresent()) {
-            ConflictEnumInfo enumInfo = enumInfoOpt.get();
-            ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+        final boolean isEnumVersion = versionIsEnum;
+        final String javaName = versionJavaName;
+        ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
+                .ifPresent(enumInfo -> {
+                    ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
 
-            MethodSpec.Builder doSetEnum = MethodSpec.methodBuilder(field.getDoSetMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .addParameter(enumType, field.getJavaName());
+                    MethodSpec.Builder doSetEnum = MethodSpec.methodBuilder(field.getDoSetMethodName())
+                            .addAnnotation(Override.class)
+                            .addModifiers(Modifier.PROTECTED)
+                            .addParameter(enumType, field.getJavaName());
 
-            if (presentInVersion) {
-                if (versionIsEnum) {
-                    String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                    String enumMethod = getEnumFromIntMethod(ctx.config());
-                    doSetEnum.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
-                            versionJavaName, protoEnumType, enumMethod, field.getJavaName());
-                } else {
-                    doSetEnum.addStatement("protoBuilder.set$L($L.getValue())",
-                            versionJavaName, field.getJavaName());
-                }
-            } else {
-                doSetEnum.addComment("Field not present in this version - ignored");
-            }
-            builder.addMethod(doSetEnum.build());
-        }
+                    addVersionConditional(doSetEnum, presentInVersion, m -> {
+                        if (isEnumVersion) {
+                            String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
+                            String enumMethod = getEnumFromIntMethod(ctx.config());
+                            m.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
+                                    javaName, protoEnumType, enumMethod, field.getJavaName());
+                        } else {
+                            m.addStatement("protoBuilder.set$L($L.getValue())",
+                                    javaName, field.getJavaName());
+                        }
+                    });
+                    builder.addMethod(doSetEnum.build());
+                });
 
         // doClear for optional
         if (field.isOptional()) {
@@ -243,11 +233,7 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED);
 
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                doClear.addComment("Field not present in this version - ignored");
-            }
+            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
             builder.addMethod(doClear.build());
         }
     }
@@ -271,21 +257,19 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
         builder.addMethod(extract.build());
 
         // Add missing enum extract method
-        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema()
-                .getConflictEnum(ctx.message().getName(), field.getName());
-        if (enumInfoOpt.isPresent()) {
-            ConflictEnumInfo enumInfo = enumInfoOpt.get();
-            ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-            String enumExtractMethodName = field.getExtractEnumMethodName();
+        ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
+                .ifPresent(enumInfo -> {
+                    ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+                    String enumExtractMethodName = field.getExtractEnumMethodName();
 
-            builder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .returns(enumType)
-                    .addParameter(ctx.protoClassName(), "proto")
-                    .addJavadoc("Field not present in this version.\n")
-                    .addStatement("return null")
-                    .build());
-        }
+                    builder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
+                            .addAnnotation(Override.class)
+                            .addModifiers(Modifier.PROTECTED)
+                            .returns(enumType)
+                            .addParameter(ctx.protoClassName(), "proto")
+                            .addJavadoc("Field not present in this version.\n")
+                            .addStatement("return null")
+                            .build());
+                });
     }
 }

@@ -17,9 +17,13 @@ import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Generates version-specific implementation classes.
@@ -253,27 +257,22 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     private ClassName buildNestedAbstractClassName(MergedMessage nested, ClassName topLevelAbstract) {
-        // Build path from nested to parent using iteration (collect then reverse)
-        List<String> path = new java.util.ArrayList<>();
-        for (MergedMessage current = nested; current.getParent() != null; current = current.getParent()) {
-            path.add(current.getName());
-        }
-        java.util.Collections.reverse(path);
-
-        // Reduce path elements into nested class name
-        return path.stream()
-                .reduce(topLevelAbstract,
-                        (className, name) -> className.nestedClass(name),
-                        (a, b) -> b);
+        // Build path from nested to parent using Stream.iterate(), then reverse and reduce
+        return Stream.iterate(nested, m -> m.getParent() != null, MergedMessage::getParent)
+                .map(MergedMessage::getName)
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toCollection(ArrayList::new),
+                        names -> {
+                            Collections.reverse(names);
+                            return names.stream().reduce(topLevelAbstract, ClassName::nestedClass, (a, b) -> b);
+                        }
+                ));
     }
 
     private String getVersionSpecificJavaName(MergedField field, String version, TypeResolver resolver) {
-        Map<String, FieldInfo> versionFields = field.getVersionFields();
-        FieldInfo versionField = versionFields.get(version);
-        if (versionField != null) {
-            return resolver.capitalize(versionField.getJavaName());
-        }
-        return resolver.capitalize(field.getJavaName());
+        return Optional.ofNullable(field.getVersionFields().get(version))
+                .map(vf -> resolver.capitalize(vf.getJavaName()))
+                .orElseGet(() -> resolver.capitalize(field.getJavaName()));
     }
 
 
@@ -552,25 +551,18 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         if (presentInVersion) {
             if (needsNarrowing) {
                 // Need to check range and narrow
-                if ("long".equals(widerType) || "Long".equals(widerType)) {
-                    // long -> int narrowing
-                    doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
-                            field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
-                    doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
-                            IllegalArgumentException.class, field.getJavaName(), version);
-                    doSet.endControlFlow();
-                    doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, field.getJavaName());
-                } else if ("double".equals(widerType) || "Double".equals(widerType)) {
-                    // double -> int narrowing (with range check)
-                    doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
-                            field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
-                    doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
-                            IllegalArgumentException.class, field.getJavaName(), version);
-                    doSet.endControlFlow();
-                    doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, field.getJavaName());
-                } else {
-                    // Unknown narrowing - just cast
-                    doSet.addStatement("protoBuilder.set$L(($L) $L)", versionJavaName, versionType, field.getJavaName());
+                switch (widerType) {
+                    case "long", "Long", "double", "Double" -> {
+                        // Narrowing to int with range check
+                        doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                                field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+                        doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
+                                IllegalArgumentException.class, field.getJavaName(), version);
+                        doSet.endControlFlow();
+                        doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, field.getJavaName());
+                    }
+                    default -> // Unknown narrowing - just cast
+                            doSet.addStatement("protoBuilder.set$L(($L) $L)", versionJavaName, versionType, field.getJavaName());
                 }
             } else {
                 // No narrowing needed - use directly

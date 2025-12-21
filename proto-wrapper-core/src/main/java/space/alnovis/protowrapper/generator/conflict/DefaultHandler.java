@@ -183,12 +183,10 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(fieldType, field.getJavaName());
 
-        if (presentInVersion) {
+        addVersionConditional(doSet, presentInVersion, m -> {
             String setterCall = generateProtoSetterCall(field, versionJavaName, ctx);
-            doSet.addStatement(setterCall, field.getJavaName());
-        } else {
-            doSet.addComment("Field not present in this version - ignored");
-        }
+            m.addStatement(setterCall, field.getJavaName());
+        });
         builder.addMethod(doSet.build());
 
         // doClear for optional
@@ -197,11 +195,7 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED);
 
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                doClear.addComment("Field not present in this version - ignored");
-            }
+            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
             builder.addMethod(doClear.build());
         }
     }
@@ -217,22 +211,8 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(singleElementType, field.getJavaName());
 
-        if (presentInVersion) {
-            if (field.isMessage()) {
-                String protoTypeName = getProtoTypeForField(field, ctx, null);
-                doAdd.addStatement("protoBuilder.add$L(($L) extractProto($L))",
-                        versionJavaName, protoTypeName, field.getJavaName());
-            } else if (field.isEnum()) {
-                String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                String enumMethod = getEnumFromIntMethod(ctx.config());
-                doAdd.addStatement("protoBuilder.add$L($L.$L($L.getValue()))",
-                        versionJavaName, protoEnumType, enumMethod, field.getJavaName());
-            } else {
-                doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            doAdd.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditional(doAdd, presentInVersion, m ->
+                ADD_SINGLE_DISPATCHER.dispatch(m, field, versionJavaName, ctx));
         builder.addMethod(doAdd.build());
 
         // doAddAll
@@ -241,22 +221,8 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(listType, field.getJavaName());
 
-        if (presentInVersion) {
-            if (field.isMessage()) {
-                String protoTypeName = getProtoTypeForField(field, ctx, null);
-                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
-                        field.getJavaName(), versionJavaName, protoTypeName);
-            } else if (field.isEnum()) {
-                String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                String enumMethod = getEnumFromIntMethod(ctx.config());
-                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L.$L(e.getValue())))",
-                        field.getJavaName(), versionJavaName, protoEnumType, enumMethod);
-            } else {
-                doAddAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            doAddAll.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditional(doAddAll, presentInVersion, m ->
+                ADD_ALL_DISPATCHER.dispatch(m, field, versionJavaName, ctx));
         builder.addMethod(doAddAll.build());
 
         // doSet (replace all)
@@ -265,23 +231,10 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(listType, field.getJavaName());
 
-        if (presentInVersion) {
-            doSetAll.addStatement("protoBuilder.clear$L()", versionJavaName);
-            if (field.isMessage()) {
-                String protoTypeName = getProtoTypeForField(field, ctx, null);
-                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
-                        field.getJavaName(), versionJavaName, protoTypeName);
-            } else if (field.isEnum()) {
-                String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                String enumMethod = getEnumFromIntMethod(ctx.config());
-                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L.$L(e.getValue())))",
-                        field.getJavaName(), versionJavaName, protoEnumType, enumMethod);
-            } else {
-                doSetAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            doSetAll.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditional(doSetAll, presentInVersion, m -> {
+            m.addStatement("protoBuilder.clear$L()", versionJavaName);
+            ADD_ALL_DISPATCHER.dispatch(m, field, versionJavaName, ctx);
+        });
         builder.addMethod(doSetAll.build());
 
         // doClear
@@ -289,24 +242,8 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED);
 
-        if (presentInVersion) {
-            doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-        } else {
-            doClear.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
         builder.addMethod(doClear.build());
     }
 
-    private String generateProtoSetterCall(MergedField field, String versionJavaName, ProcessingContext ctx) {
-        if (field.isMessage()) {
-            String protoTypeName = getProtoTypeForField(field, ctx, null);
-            return "protoBuilder.set" + versionJavaName + "((" + protoTypeName + ") extractProto($L))";
-        } else if (field.isEnum()) {
-            String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-            String enumMethod = getEnumFromIntMethod(ctx.config());
-            return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
-        } else {
-            return "protoBuilder.set" + versionJavaName + "($L)";
-        }
-    }
 }

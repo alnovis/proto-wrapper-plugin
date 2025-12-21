@@ -229,33 +229,37 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             builder.addJavadoc("Check if $L is fully supported in the current version.\n", field.getJavaName());
             builder.addJavadoc("<p>This field has a type conflict [$L] across versions.</p>\n", conflictType.name());
 
-            if (conflictType == MergedField.ConflictType.INT_ENUM || conflictType == MergedField.ConflictType.WIDENING) {
-                // These conflicts are resolved - return true for all versions where field exists
-                builder.addJavadoc("<p>The conflict is automatically handled; this method returns true for versions: $L</p>\n",
-                        presentVersions);
-                builder.addJavadoc("@return true if this version has the field\n");
-                builder.addStatement("return $L", buildVersionCheck(presentVersions));
-            } else if (conflictType == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
-                // For PRIMITIVE_MESSAGE, the getter returns the primitive type
-                // Only return true for versions where the field IS primitive
-                Set<String> primitiveVersions = field.getVersionFields().entrySet().stream()
-                        .filter(entry -> entry.getValue().isPrimitive())
-                        .map(Map.Entry::getKey)
-                        .collect(java.util.stream.Collectors.toSet());
-                if (primitiveVersions.isEmpty()) {
-                    builder.addJavadoc("<p>This field is a message type in all versions.</p>\n");
-                    builder.addJavadoc("@return false (primitive getter not available)\n");
-                    builder.addStatement("return false");
-                } else {
-                    builder.addJavadoc("<p>Returns true only for versions with primitive type: $L</p>\n", primitiveVersions);
-                    builder.addJavadoc("@return true if this version has primitive type for this field\n");
-                    builder.addStatement("return $L", buildVersionCheck(primitiveVersions));
+            switch (conflictType) {
+                case INT_ENUM, WIDENING -> {
+                    // These conflicts are resolved - return true for all versions where field exists
+                    builder.addJavadoc("<p>The conflict is automatically handled; this method returns true for versions: $L</p>\n",
+                            presentVersions);
+                    builder.addJavadoc("@return true if this version has the field\n");
+                    builder.addStatement("return $L", buildVersionCheck(presentVersions));
                 }
-            } else {
-                // NARROWING, STRING_BYTES - only some versions work properly
-                builder.addJavadoc("<p>Returns false for versions where the field type is incompatible.</p>\n");
-                builder.addJavadoc("@return true if this version has compatible type for this field\n");
-                builder.addStatement("return $L", buildVersionCheck(presentVersions));
+                case PRIMITIVE_MESSAGE -> {
+                    // For PRIMITIVE_MESSAGE, the getter returns the primitive type
+                    // Only return true for versions where the field IS primitive
+                    Set<String> primitiveVersions = field.getVersionFields().entrySet().stream()
+                            .filter(entry -> entry.getValue().isPrimitive())
+                            .map(Map.Entry::getKey)
+                            .collect(java.util.stream.Collectors.toSet());
+                    if (primitiveVersions.isEmpty()) {
+                        builder.addJavadoc("<p>This field is a message type in all versions.</p>\n");
+                        builder.addJavadoc("@return false (primitive getter not available)\n");
+                        builder.addStatement("return false");
+                    } else {
+                        builder.addJavadoc("<p>Returns true only for versions with primitive type: $L</p>\n", primitiveVersions);
+                        builder.addJavadoc("@return true if this version has primitive type for this field\n");
+                        builder.addStatement("return $L", buildVersionCheck(primitiveVersions));
+                    }
+                }
+                default -> {
+                    // NARROWING, STRING_BYTES, etc. - only some versions work properly
+                    builder.addJavadoc("<p>Returns false for versions where the field type is incompatible.</p>\n");
+                    builder.addJavadoc("@return true if this version has compatible type for this field\n");
+                    builder.addStatement("return $L", buildVersionCheck(presentVersions));
+                }
             }
         } else {
             // Version-specific field (not present in all versions)

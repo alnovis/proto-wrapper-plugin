@@ -14,6 +14,8 @@ import space.alnovis.protowrapper.model.MergedSchema;
 
 import javax.lang.model.element.Modifier;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Helper class containing code generation utilities shared by conflict handlers.
@@ -31,16 +33,10 @@ public final class CodeGenerationHelper {
      * Get the version-specific Java name for a field.
      */
     public static String getVersionSpecificJavaName(MergedField field, ProcessingContext ctx) {
-        String version = ctx.version();
-        if (version == null) {
-            return ctx.capitalize(field.getJavaName());
-        }
-        Map<String, FieldInfo> versionFields = field.getVersionFields();
-        FieldInfo versionField = versionFields.get(version);
-        if (versionField != null) {
-            return ctx.capitalize(versionField.getJavaName());
-        }
-        return ctx.capitalize(field.getJavaName());
+        return Optional.ofNullable(ctx.version())
+                .flatMap(version -> Optional.ofNullable(field.getVersionFields().get(version)))
+                .map(vf -> ctx.capitalize(vf.getJavaName()))
+                .orElseGet(() -> ctx.capitalize(field.getJavaName()));
     }
 
     /**
@@ -329,5 +325,160 @@ public final class CodeGenerationHelper {
             }
         }
         return null;
+    }
+
+    // ============== Version-Conditional Helpers ==============
+
+    private static final String VERSION_NOT_PRESENT_COMMENT = "Field not present in this version - ignored";
+
+    /**
+     * Add a version-conditional block to a method.
+     * If presentInVersion is true, executes the ifPresent consumer.
+     * Otherwise, adds a comment indicating the field is not present.
+     *
+     * @param method          The method builder to add code to
+     * @param presentInVersion Whether the field is present in the current version
+     * @param ifPresent       Consumer that adds code when field is present
+     */
+    public static void addVersionConditional(MethodSpec.Builder method,
+                                              boolean presentInVersion,
+                                              Consumer<MethodSpec.Builder> ifPresent) {
+        if (presentInVersion) {
+            ifPresent.accept(method);
+        } else {
+            method.addComment(VERSION_NOT_PRESENT_COMMENT);
+        }
+    }
+
+    /**
+     * Add a version-conditional statement to a method.
+     * If presentInVersion is true, adds the statement with format and args.
+     * Otherwise, adds a comment indicating the field is not present.
+     *
+     * @param method          The method builder to add code to
+     * @param presentInVersion Whether the field is present in the current version
+     * @param format          The statement format string
+     * @param args            Arguments for the format string
+     */
+    public static void addVersionConditionalStatement(MethodSpec.Builder method,
+                                                       boolean presentInVersion,
+                                                       String format,
+                                                       Object... args) {
+        if (presentInVersion) {
+            method.addStatement(format, args);
+        } else {
+            method.addComment(VERSION_NOT_PRESENT_COMMENT);
+        }
+    }
+
+    /**
+     * Add a version-conditional clear statement to a method.
+     * Common pattern for doClear methods in builders.
+     *
+     * @param method          The method builder to add code to
+     * @param presentInVersion Whether the field is present in the current version
+     * @param versionJavaName The capitalized Java name for this version
+     */
+    public static void addVersionConditionalClear(MethodSpec.Builder method,
+                                                   boolean presentInVersion,
+                                                   String versionJavaName) {
+        addVersionConditionalStatement(method, presentInVersion,
+                "protoBuilder.clear$L()", versionJavaName);
+    }
+
+    // ============== Field-Type Dispatch ==============
+
+    /**
+     * Functional interface for field-type-specific actions during code generation.
+     */
+    @FunctionalInterface
+    public interface FieldTypeAction {
+        void apply(MethodSpec.Builder method, MergedField field,
+                   String versionJavaName, ProcessingContext ctx);
+    }
+
+    /**
+     * Dispatcher for field-type-specific code generation.
+     * Eliminates repeated if(isMessage)/else if(isEnum)/else patterns.
+     */
+    public record FieldTypeDispatcher(
+            FieldTypeAction messageAction,
+            FieldTypeAction enumAction,
+            FieldTypeAction primitiveAction
+    ) {
+        /**
+         * Dispatch to the appropriate action based on field type.
+         */
+        public void dispatch(MethodSpec.Builder method, MergedField field,
+                             String versionJavaName, ProcessingContext ctx) {
+            if (field.isMessage()) {
+                messageAction.apply(method, field, versionJavaName, ctx);
+            } else if (field.isEnum()) {
+                enumAction.apply(method, field, versionJavaName, ctx);
+            } else {
+                primitiveAction.apply(method, field, versionJavaName, ctx);
+            }
+        }
+    }
+
+    /**
+     * Dispatcher for adding a single element to a repeated field.
+     * Uses protoBuilder.add$L(...).
+     */
+    public static final FieldTypeDispatcher ADD_SINGLE_DISPATCHER = new FieldTypeDispatcher(
+            // Message
+            (m, f, n, c) -> {
+                String protoTypeName = getProtoTypeForField(f, c, null);
+                m.addStatement("protoBuilder.add$L(($L) extractProto($L))",
+                        n, protoTypeName, f.getJavaName());
+            },
+            // Enum
+            (m, f, n, c) -> {
+                String protoEnumType = getProtoEnumTypeForField(f, c, null);
+                String enumMethod = getEnumFromIntMethod(c.config());
+                m.addStatement("protoBuilder.add$L($L.$L($L.getValue()))",
+                        n, protoEnumType, enumMethod, f.getJavaName());
+            },
+            // Primitive
+            (m, f, n, c) -> m.addStatement("protoBuilder.add$L($L)", n, f.getJavaName())
+    );
+
+    /**
+     * Dispatcher for adding all elements to a repeated field.
+     * Uses forEach for message/enum or addAll$L for primitives.
+     */
+    public static final FieldTypeDispatcher ADD_ALL_DISPATCHER = new FieldTypeDispatcher(
+            // Message
+            (m, f, n, c) -> {
+                String protoTypeName = getProtoTypeForField(f, c, null);
+                m.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
+                        f.getJavaName(), n, protoTypeName);
+            },
+            // Enum
+            (m, f, n, c) -> {
+                String protoEnumType = getProtoEnumTypeForField(f, c, null);
+                String enumMethod = getEnumFromIntMethod(c.config());
+                m.addStatement("$L.forEach(e -> protoBuilder.add$L($L.$L(e.getValue())))",
+                        f.getJavaName(), n, protoEnumType, enumMethod);
+            },
+            // Primitive
+            (m, f, n, c) -> m.addStatement("protoBuilder.addAll$L($L)", n, f.getJavaName())
+    );
+
+    /**
+     * Generate a proto setter call string for single (non-repeated) fields.
+     * Returns a format string with $L placeholder for the field value.
+     */
+    public static String generateProtoSetterCall(MergedField field, String versionJavaName, ProcessingContext ctx) {
+        if (field.isMessage()) {
+            String protoTypeName = getProtoTypeForField(field, ctx, null);
+            return "protoBuilder.set" + versionJavaName + "((" + protoTypeName + ") extractProto($L))";
+        } else if (field.isEnum()) {
+            String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
+            String enumMethod = getEnumFromIntMethod(ctx.config());
+            return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
+        } else {
+            return "protoBuilder.set" + versionJavaName + "($L)";
+        }
     }
 }

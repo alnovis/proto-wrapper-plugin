@@ -131,11 +131,8 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(singleElementType, field.getJavaName());
 
-        if (presentInVersion) {
-            addDoAddStatement(doAdd, field, conflictType, versionField, versionJavaName, ctx);
-        } else {
-            doAdd.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditional(doAdd, presentInVersion, m ->
+                addDoAddStatement(m, field, conflictType, versionField, versionJavaName, ctx));
         builder.addMethod(doAdd.build());
 
         // doAddAll
@@ -144,11 +141,8 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(listType, field.getJavaName());
 
-        if (presentInVersion) {
-            addDoAddAllStatement(doAddAll, field, conflictType, versionField, versionJavaName, ctx);
-        } else {
-            doAddAll.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditional(doAddAll, presentInVersion, m ->
+                addDoAddAllStatement(m, field, conflictType, versionField, versionJavaName, ctx));
         builder.addMethod(doAddAll.build());
 
         // doSet (replace all)
@@ -157,12 +151,10 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(listType, field.getJavaName());
 
-        if (presentInVersion) {
-            doSet.addStatement("protoBuilder.clear$L()", versionJavaName);
-            addDoAddAllStatement(doSet, field, conflictType, versionField, versionJavaName, ctx);
-        } else {
-            doSet.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditional(doSet, presentInVersion, m -> {
+            m.addStatement("protoBuilder.clear$L()", versionJavaName);
+            addDoAddAllStatement(m, field, conflictType, versionField, versionJavaName, ctx);
+        });
         builder.addMethod(doSet.build());
 
         // doClear
@@ -170,11 +162,7 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED);
 
-        if (presentInVersion) {
-            doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-        } else {
-            doClear.addComment("Field not present in this version - ignored");
-        }
+        addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
         builder.addMethod(doClear.build());
     }
 

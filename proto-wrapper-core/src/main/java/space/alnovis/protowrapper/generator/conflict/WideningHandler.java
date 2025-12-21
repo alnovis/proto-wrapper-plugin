@@ -98,15 +98,13 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(widerTypeName, field.getJavaName());
 
-        if (presentInVersion) {
+        addVersionConditional(doSet, presentInVersion, m -> {
             if (needsNarrowing) {
-                addNarrowingSetterBody(doSet, field.getJavaName(), widerType, versionType, versionJavaName, version);
+                addNarrowingSetterBody(m, field.getJavaName(), widerType, versionType, versionJavaName, version);
             } else {
-                doSet.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
             }
-        } else {
-            doSet.addComment("Field not present in this version - ignored");
-        }
+        });
         builder.addMethod(doSet.build());
 
         // doClearXxx()
@@ -115,11 +113,7 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED);
 
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                doClear.addComment("Field not present in this version - ignored");
-            }
+            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
             builder.addMethod(doClear.build());
         }
     }
@@ -127,25 +121,18 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
     private void addNarrowingSetterBody(MethodSpec.Builder doSet, String fieldName,
                                          String widerType, String versionType,
                                          String versionJavaName, String version) {
-        if ("long".equals(widerType) || "Long".equals(widerType)) {
-            // long -> int narrowing with range check
-            doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
-                    fieldName, Integer.class, fieldName, Integer.class);
-            doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
-                    IllegalArgumentException.class, fieldName, version);
-            doSet.endControlFlow();
-            doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, fieldName);
-        } else if ("double".equals(widerType) || "Double".equals(widerType)) {
-            // double -> int narrowing with range check
-            doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
-                    fieldName, Integer.class, fieldName, Integer.class);
-            doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
-                    IllegalArgumentException.class, fieldName, version);
-            doSet.endControlFlow();
-            doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, fieldName);
-        } else {
-            // Unknown narrowing - just cast
-            doSet.addStatement("protoBuilder.set$L(($L) $L)", versionJavaName, versionType, fieldName);
+        switch (widerType) {
+            case "long", "Long", "double", "Double" -> {
+                // Narrowing to int with range check
+                doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                        fieldName, Integer.class, fieldName, Integer.class);
+                doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
+                        IllegalArgumentException.class, fieldName, version);
+                doSet.endControlFlow();
+                doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, fieldName);
+            }
+            default -> // Unknown narrowing - just cast
+                    doSet.addStatement("protoBuilder.set$L(($L) $L)", versionJavaName, versionType, fieldName);
         }
     }
 

@@ -159,16 +159,14 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(ClassName.get(String.class), field.getJavaName());
 
-        if (presentInVersion) {
+        addVersionConditional(doSet, presentInVersion, m -> {
             if (versionIsBytes) {
-                doSet.addStatement("protoBuilder.set$L($T.copyFromUtf8($L))",
+                m.addStatement("protoBuilder.set$L($T.copyFromUtf8($L))",
                         versionJavaName, ClassName.get("com.google.protobuf", "ByteString"), field.getJavaName());
             } else {
-                doSet.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
             }
-        } else {
-            doSet.addComment("Field not present in this version - ignored");
-        }
+        });
         builder.addMethod(doSet.build());
 
         // doClear for optional
@@ -177,11 +175,7 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED);
 
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                doClear.addComment("Field not present in this version - ignored");
-            }
+            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
             builder.addMethod(doClear.build());
         }
     }

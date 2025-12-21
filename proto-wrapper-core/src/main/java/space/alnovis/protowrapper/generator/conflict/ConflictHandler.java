@@ -4,7 +4,7 @@ import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.MergedField;
 
 /**
- * Interface for handling field conflicts during code generation.
+ * Sealed interface for handling field conflicts during code generation.
  *
  * <p>Each implementation handles a specific type of field conflict (INT_ENUM, STRING_BYTES, etc.)
  * and knows how to generate the appropriate code for both abstract classes and implementations.</p>
@@ -12,13 +12,18 @@ import space.alnovis.protowrapper.model.MergedField;
  * <p>This follows the Strategy pattern, allowing the field processing logic to be
  * cleanly separated from the generators.</p>
  *
- * <p>TODO: Make this a sealed interface once all handlers are implemented:
- * permits IntEnumHandler, StringBytesHandler, WideningHandler,
- * PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler</p>
+ * <p>This is a sealed interface, which provides:</p>
+ * <ul>
+ *   <li>Compile-time guarantee of exhaustive handling when pattern matching</li>
+ *   <li>Documentation of the complete set of implementations</li>
+ *   <li>Prevention of accidental external extensions</li>
+ * </ul>
  *
  * @see FieldProcessingChain
  */
-public interface ConflictHandler {
+public sealed interface ConflictHandler permits
+        IntEnumHandler, StringBytesHandler, WideningHandler,
+        PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler {
 
     /**
      * Determines if this handler should process the given field.

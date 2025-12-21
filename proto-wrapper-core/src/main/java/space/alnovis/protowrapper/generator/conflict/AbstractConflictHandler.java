@@ -11,12 +11,17 @@ import space.alnovis.protowrapper.model.MergedField;
 import javax.lang.model.element.Modifier;
 
 /**
- * Base class providing common functionality for conflict handlers.
+ * Sealed base class providing common functionality for conflict handlers.
  *
  * <p>Contains utility methods for generating common method patterns
  * and extracting field information.</p>
+ *
+ * <p>This is a sealed class that permits only the known handler implementations,
+ * ensuring type safety and preventing accidental external extensions.</p>
  */
-public abstract class AbstractConflictHandler {
+public abstract sealed class AbstractConflictHandler permits
+        IntEnumHandler, StringBytesHandler, WideningHandler,
+        PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler {
 
     /**
      * Add an abstract extractHas method for optional fields.
