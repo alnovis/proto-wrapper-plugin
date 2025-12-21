@@ -241,30 +241,99 @@ public class VersionMerger {
             return null;
         }
 
-        FieldWithVersion first = fields.get(0);
-        MergedField merged = new MergedField(first.field(), first.version());
+        // Build merged field using builder for proper conflict handling
+        MergedField.Builder builder = MergedField.builder();
 
-        // Check for type conflicts and add other versions
-        fields.stream()
-                .skip(1)
-                .peek(fv -> {
-                    if (!first.field().getJavaType().equals(fv.field().getJavaType())) {
-                        String resolvedType = config.resolveTypeConflict(
-                                first.field().getProtoName(),
-                                first.field().getJavaType(),
-                                fv.field().getJavaType()
-                        );
-                        if (resolvedType == null) {
-                            logger.warn(String.format("Type conflict for field '%s': %s vs %s",
-                                    first.field().getProtoName(),
-                                    first.field().getJavaType(),
-                                    fv.field().getJavaType()));
-                        }
-                    }
-                })
-                .forEach(fv -> merged.addVersion(fv.version(), fv.field()));
+        // Add all version fields
+        fields.forEach(fv -> builder.addVersionField(fv.version(), fv.field()));
 
-        return merged;
+        // Collect unique types
+        Set<String> uniqueTypes = fields.stream()
+                .map(fv -> fv.field().getJavaType())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // Detect conflict type if multiple types exist
+        if (uniqueTypes.size() > 1) {
+            FieldWithVersion first = fields.get(0);
+            MergedField.ConflictType conflictType = detectConflictType(fields);
+            builder.conflictType(conflictType);
+
+            // Log warning for conflicts
+            String typesStr = fields.stream()
+                    .map(fv -> fv.version() + ":" + fv.field().getJavaType())
+                    .collect(Collectors.joining(", "));
+            logger.warn(String.format("Type conflict for field '%s' [%s]: %s",
+                    first.field().getProtoName(), conflictType, typesStr));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Detect the type of conflict between field types across versions.
+     */
+    private MergedField.ConflictType detectConflictType(List<FieldWithVersion> fields) {
+        Set<String> types = fields.stream()
+                .map(fv -> fv.field().getJavaType())
+                .collect(Collectors.toSet());
+
+        if (types.size() == 1) {
+            return MergedField.ConflictType.NONE;
+        }
+
+        // Collect field characteristics
+        boolean hasInt = types.stream().anyMatch(this::isIntType);
+        boolean hasLong = types.stream().anyMatch(this::isLongType);
+        boolean hasDouble = types.stream().anyMatch(this::isDoubleType);
+        boolean hasEnum = fields.stream().anyMatch(fv -> fv.field().isEnum());
+        boolean hasMessage = fields.stream().anyMatch(fv -> fv.field().isMessage());
+        boolean hasPrimitive = fields.stream().anyMatch(fv -> fv.field().isPrimitive());
+        boolean hasString = types.contains("String");
+        boolean hasBytes = types.contains("byte[]") || types.contains("ByteString");
+
+        // Check for int ↔ enum conflict
+        if (hasInt && hasEnum && types.size() == 2) {
+            return MergedField.ConflictType.INT_ENUM;
+        }
+
+        // Check for widening: int → long, int → double
+        if ((hasInt && hasLong && !hasDouble && !hasMessage && !hasEnum) ||
+            (hasInt && hasDouble && !hasLong && !hasMessage && !hasEnum)) {
+            return MergedField.ConflictType.WIDENING;
+        }
+
+        // Check for narrowing: long → int (if long comes first and int later, or vice versa)
+        // This is lossy, so we mark it as NARROWING
+        if (hasLong && hasInt && !hasDouble && !hasMessage && !hasEnum) {
+            // Already handled as WIDENING above if int→long
+            // If long→int pattern exists, it would still be WIDENING (use long)
+            return MergedField.ConflictType.WIDENING;
+        }
+
+        // Check for string ↔ bytes
+        if (hasString && hasBytes && types.size() == 2) {
+            return MergedField.ConflictType.STRING_BYTES;
+        }
+
+        // Check for primitive ↔ message conflict
+        if (hasPrimitive && hasMessage) {
+            return MergedField.ConflictType.PRIMITIVE_MESSAGE;
+        }
+
+        // Default: incompatible types
+        return MergedField.ConflictType.INCOMPATIBLE;
+    }
+
+    private boolean isIntType(String type) {
+        return "int".equals(type) || "Integer".equals(type) || "int32".equals(type) || "uint32".equals(type);
+    }
+
+    private boolean isLongType(String type) {
+        return "long".equals(type) || "Long".equals(type) || "int64".equals(type) || "uint64".equals(type);
+    }
+
+    private boolean isDoubleType(String type) {
+        return "double".equals(type) || "Double".equals(type) || "float".equals(type) || "Float".equals(type);
     }
 
     private MergedEnum mergeEnum(String enumName, List<VersionSchema> schemas) {

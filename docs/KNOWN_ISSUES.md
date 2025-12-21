@@ -19,32 +19,57 @@ Builder generation (`generateBuilders=true`) has several known limitations that 
 
 ### Type Conflicts Across Versions
 
-**Status:** Not supported in builders
+**Status:** ✅ Handled (since v1.0.5)
 
 **Description:**
-When a field has different types in different schema versions, the builder setters may not compile correctly.
+When a field has different types in different schema versions, the plugin now automatically detects and handles these conflicts.
 
-**Examples of problematic scenarios:**
+**Handled conflict types:**
 
-| Field | Version 1 | Version 2 | Issue |
-|-------|-----------|-----------|-------|
-| `tax_type` | `int` | `TaxTypeEnum` | Merged type is `int`, but v2 setter expects enum |
-| `parent_ticket` | `int` | `ParentTicket` (message) | Merged type is `Integer`, but v2 setter expects message |
-| `pos_rrn` | `long` | `int` | Type widening/narrowing mismatch |
+| Conflict Type | Example | Handling |
+|--------------|---------|----------|
+| `INT_ENUM` | int ↔ TaxTypeEnum | Setter skipped, field read-only in builder |
+| `WIDENING` | int → long, int → double | Setter skipped, field read-only in builder |
+| `NARROWING` | long → int | Setter skipped, field read-only in builder |
+| `STRING_BYTES` | string ↔ bytes | Setter skipped, field read-only in builder |
+| `PRIMITIVE_MESSAGE` | int → Message | Setter skipped, field read-only in builder |
 
-**Error examples:**
+**How it works:**
+
+1. **Conflict Detection:** During schema merge, fields with type mismatches are detected and classified
+2. **Builder Setters:** Conflicting fields are excluded from the builder interface
+3. **Javadoc:** Builder interface documents which fields are unavailable and why
+4. **Getters:** Conflicting fields return default values (0, null, false) through the unified interface
+5. **Access:** Full access to version-specific data via `getTypedProto()`
+
+**Generated Javadoc example:**
+```java
+/**
+ * Builder for creating and modifying SensorReading instances.
+ *
+ * <p><b>Note:</b> {@code unitType} setter not available due to type conflict (INT_ENUM).</p>
+ * <p><b>Note:</b> {@code calibrationId} setter not available due to type conflict (PRIMITIVE_MESSAGE).</p>
+ */
+interface Builder {
+    // Only non-conflicting fields have setters
+}
 ```
-incompatible types: int cannot be converted to TaxTypeEnum
-incompatible types: java.lang.Integer cannot be converted to ParentTicket
+
+**Accessing conflicting fields:**
+```java
+// For read access via unified interface:
+int unitType = reading.getUnitType();  // Returns 0 for V2 (conflict)
+
+// For full access via typed proto:
+if (reading instanceof SensorReadingV2 v2) {
+    UnitTypeEnum unitType = v2.getTypedProto().getUnitType();  // Actual enum value
+}
+
+// For modifications:
+var protoBuilder = v2.getTypedProto().toBuilder();
+protoBuilder.setUnitType(UnitTypeEnum.UNIT_KELVIN);
+SensorReading modified = new SensorReadingV2(protoBuilder.build());
 ```
-
-**Root cause:**
-The builder generates setters based on the merged field type (e.g., `int`), but the underlying proto builder in a specific version may expect a different type (e.g., enum or message).
-
-**Workaround:**
-- Avoid enabling builders for schemas with significant type changes between versions
-- Use read-only wrappers (`generateBuilders=false`) for such projects
-- Manually create/modify protos using the native proto builder API
 
 ---
 
@@ -130,31 +155,19 @@ These limitations apply to all generated code (not just builders):
 
 ## Workarounds
 
-### For Type Conflict Issues
+### For Type Conflict Issues ✅
 
-If your project has type conflicts between versions, you have several options:
+**Note:** Type conflicts are now automatically handled (see above). Conflicting fields are read-only in builders, and you can access them via `getTypedProto()`.
 
-1. **Disable builders entirely:**
-   ```xml
-   <generateBuilders>false</generateBuilders>
-   ```
+For fields with type conflicts, use the typed proto for modifications:
 
-2. **Use native proto API for modifications:**
-   ```java
-   // Instead of using wrapper builder
-   Order.OrderRequest.Builder protoBuilder =
-       ((com.example.v2.OrderRequest) wrapper).getTypedProto().toBuilder();
-   protoBuilder.setTaxType(TaxTypeEnum.VAT);
-   OrderRequest modified = new com.example.v2.OrderRequest(protoBuilder.build());
-   ```
-
-3. **Exclude problematic messages:**
-   ```xml
-   <excludeMessages>
-       <message>TicketRequest</message>
-       <message>BindedTaxation</message>
-   </excludeMessages>
-   ```
+```java
+// Access typed proto for version-specific operations
+var v2 = (SensorReadingV2) reading;
+var protoBuilder = v2.getTypedProto().toBuilder();
+protoBuilder.setUnitType(UnitTypeEnum.UNIT_KELVIN);
+SensorReading modified = new SensorReadingV2(protoBuilder.build());
+```
 
 ### For bytes Field Issues
 

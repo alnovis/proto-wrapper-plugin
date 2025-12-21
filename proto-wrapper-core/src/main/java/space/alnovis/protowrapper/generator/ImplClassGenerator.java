@@ -224,7 +224,11 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         for (MergedField field : nested.getFieldsSorted()) {
             if (field.getPresentInVersions().contains(version)) {
-                addExtractImplementation(classBuilder, field, protoType, nested, ctx);
+                if (hasIncompatibleTypeConflict(field, version)) {
+                    addMissingFieldImplementation(classBuilder, field, protoType, nested, ctx);
+                } else {
+                    addExtractImplementation(classBuilder, field, protoType, nested, ctx);
+                }
             } else {
                 addMissingFieldImplementation(classBuilder, field, protoType, nested, ctx);
             }
@@ -332,6 +336,11 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         classBuilder.addMethod(extract.build());
     }
 
+    /**
+     * Check if a field has a type conflict that makes it incompatible for this version.
+     * For the hybrid approach, significant type mismatches are considered incompatible.
+     * Fields with type conflicts are treated as "not present" for that version.
+     */
     private boolean hasIncompatibleTypeConflict(MergedField field, String version) {
         FieldInfo versionField = field.getVersionFields().get(version);
         if (versionField == null) {
@@ -341,24 +350,85 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         String mergedType = field.getGetterType();
         String versionType = versionField.getJavaType();
 
+        // Exact match - no conflict
         if (mergedType.equals(versionType)) {
             return false;
         }
 
+        // Treat primitive/wrapper as equivalent
+        if (areEquivalentTypes(mergedType, versionType)) {
+            return false;
+        }
+
+        // Check for message type mismatch (different message types)
         boolean mergedIsMessage = field.isMessage();
         boolean versionIsMessage = versionField.isMessage();
         if (mergedIsMessage != versionIsMessage) {
-            return true;
+            return true; // One is message, other is not
         }
 
-        if (mergedIsMessage && versionIsMessage) {
-            String mergedTypeName = extractSimpleTypeName(mergedType);
-            String versionTypeName = extractSimpleTypeName(versionType);
-            if (!mergedTypeName.equals(versionTypeName)) {
-                return true;
+        // Check for enum vs non-enum
+        boolean mergedIsEnum = field.isEnum();
+        boolean versionIsEnum = versionField.isEnum();
+        if (mergedIsEnum != versionIsEnum) {
+            return true; // One is enum, other is not
+        }
+
+        // Same category (both primitives/wrappers) - check if widening is safe
+        if (!mergedIsMessage && !mergedIsEnum) {
+            // Safe widening cases: int→long, int→double (read), float→double
+            if (isWideningConversion(mergedType, versionType)) {
+                return false;
             }
         }
 
+        // All other mismatches are incompatible
+        return true;
+    }
+
+    /**
+     * Check if two types are equivalent (primitive vs wrapper of same type).
+     */
+    private boolean areEquivalentTypes(String type1, String type2) {
+        return normalizeType(type1).equals(normalizeType(type2));
+    }
+
+    /**
+     * Normalize a type to its primitive form for comparison.
+     */
+    private String normalizeType(String type) {
+        return switch (type) {
+            case "Integer" -> "int";
+            case "Long" -> "long";
+            case "Double" -> "double";
+            case "Float" -> "float";
+            case "Boolean" -> "boolean";
+            case "Short" -> "short";
+            case "Byte" -> "byte";
+            case "Character" -> "char";
+            default -> type;
+        };
+    }
+
+    /**
+     * Check if reading versionType and returning mergedType is a safe widening conversion.
+     */
+    private boolean isWideningConversion(String mergedType, String versionType) {
+        String normalizedMerged = normalizeType(mergedType);
+        String normalizedVersion = normalizeType(versionType);
+
+        // int can be safely widened to long or double
+        if ("int".equals(normalizedVersion) && ("long".equals(normalizedMerged) || "double".equals(normalizedMerged))) {
+            return true;
+        }
+        // float can be safely widened to double
+        if ("float".equals(normalizedVersion) && "double".equals(normalizedMerged)) {
+            return true;
+        }
+        // long can be safely widened to double (with potential precision loss, but still compiles)
+        if ("long".equals(normalizedVersion) && "double".equals(normalizedMerged)) {
+            return true;
+        }
         return false;
     }
 
@@ -505,6 +575,11 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         for (MergedField field : nested.getFieldsSorted()) {
+            // Skip fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, nested);
             boolean presentInVersion = field.getPresentInVersions().contains(version);
 
@@ -606,6 +681,11 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Implement doSet/doClear/doAdd methods for each field
         for (MergedField field : message.getFieldsSorted()) {
+            // Skip fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, message);
             boolean presentInVersion = field.getPresentInVersions().contains(version);
 

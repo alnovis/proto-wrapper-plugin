@@ -196,6 +196,11 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
         for (MergedField field : nested.getFieldsSorted()) {
+            // Skip builder methods for fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, nested);
 
             if (field.isRepeated()) {
@@ -255,6 +260,14 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
         // Add setter methods for each field
         for (MergedField field : message.getFieldsSorted()) {
+            // Skip builder methods for fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                // Add Javadoc note about skipped field
+                builder.addJavadoc("\n<p><b>Note:</b> {@code $L} setter not available due to type conflict ($L).</p>\n",
+                        field.getJavaName(), field.getConflictType());
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, message);
 
             if (field.isRepeated()) {

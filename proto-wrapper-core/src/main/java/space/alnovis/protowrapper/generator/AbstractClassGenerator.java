@@ -244,6 +244,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract doSet/doClear methods
         for (MergedField field : nested.getFieldsSorted()) {
+            // Skip fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, nested);
 
             if (field.isRepeated()) {
@@ -289,6 +294,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add concrete implementations
         for (MergedField field : nested.getFieldsSorted()) {
+            // Skip fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, nested);
 
             if (field.isRepeated()) {
@@ -517,6 +527,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add abstract doSet/doClear/doAdd/doBuild methods
         for (MergedField field : message.getFieldsSorted()) {
+            // Skip fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, message);
 
             if (field.isRepeated()) {
@@ -569,6 +584,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add concrete implementations that delegate to abstract methods
         for (MergedField field : message.getFieldsSorted()) {
+            // Skip fields with non-convertible type conflicts
+            if (field.shouldSkipBuilderSetter()) {
+                continue;
+            }
+
             TypeName fieldType = resolver.parseFieldType(field, message);
 
             if (field.isRepeated()) {

@@ -23,6 +23,44 @@ import java.util.*;
  */
 public class MergedField {
 
+    /**
+     * Type of conflict between field types across versions.
+     */
+    public enum ConflictType {
+        /** No type conflict - same type in all versions */
+        NONE,
+        /** int ↔ enum conflict (convertible via getValue/forNumber) */
+        INT_ENUM,
+        /** Type widening: int → long, int → double (safe conversion) */
+        WIDENING,
+        /** Type narrowing: long → int, double → int (lossy conversion) */
+        NARROWING,
+        /** string ↔ bytes conflict (convertible via getBytes/new String) */
+        STRING_BYTES,
+        /** Primitive to message: int → SomeMessage (not convertible) */
+        PRIMITIVE_MESSAGE,
+        /** Other incompatible types: string ↔ int, etc. (not convertible) */
+        INCOMPATIBLE;
+
+        /**
+         * Check if this conflict type can be safely converted.
+         * @return true if conversion is possible without data loss
+         */
+        public boolean isConvertible() {
+            return this == NONE || this == INT_ENUM || this == WIDENING || this == STRING_BYTES;
+        }
+
+        /**
+         * Check if builder setters should be skipped for this conflict type.
+         * For the hybrid approach, ALL type conflicts result in skipped builder setters
+         * because the unified type cannot be directly passed to version-specific proto builders.
+         * @return true if setters should not be generated
+         */
+        public boolean shouldSkipBuilderSetter() {
+            return this != NONE;
+        }
+    }
+
     private final String name;
     private final String javaName;
     private final int number;
@@ -35,6 +73,8 @@ public class MergedField {
     private final boolean isEnum;
     private final Set<String> presentInVersions;
     private final Map<String, FieldInfo> versionFields; // Version -> original field
+    private final ConflictType conflictType;
+    private final Map<String, String> typesPerVersion; // Version -> javaType
 
     /**
      * Create a new MergedField from a FieldInfo.
@@ -60,6 +100,9 @@ public class MergedField {
         this.presentInVersions.add(version);
         this.versionFields = new LinkedHashMap<>();
         this.versionFields.put(version, field);
+        this.conflictType = ConflictType.NONE;
+        this.typesPerVersion = new LinkedHashMap<>();
+        this.typesPerVersion.put(version, field.getJavaType());
     }
 
     /**
@@ -79,6 +122,8 @@ public class MergedField {
         this.isEnum = firstField.isEnum();
         this.presentInVersions = Collections.unmodifiableSet(new LinkedHashSet<>(builder.versionFields.keySet()));
         this.versionFields = Collections.unmodifiableMap(new LinkedHashMap<>(builder.versionFields));
+        this.conflictType = builder.conflictType != null ? builder.conflictType : ConflictType.NONE;
+        this.typesPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.typesPerVersion));
     }
 
     /**
@@ -108,8 +153,10 @@ public class MergedField {
      */
     public static class Builder {
         private final Map<String, FieldInfo> versionFields = new LinkedHashMap<>();
+        private final Map<String, String> typesPerVersion = new LinkedHashMap<>();
         private String resolvedJavaType;
         private String resolvedGetterType;
+        private ConflictType conflictType;
 
         /**
          * Add a version field.
@@ -120,6 +167,7 @@ public class MergedField {
          */
         public Builder addVersionField(String version, FieldInfo field) {
             versionFields.put(version, field);
+            typesPerVersion.put(version, field.getJavaType());
             return this;
         }
 
@@ -142,6 +190,17 @@ public class MergedField {
          */
         public Builder resolvedGetterType(String getterType) {
             this.resolvedGetterType = getterType;
+            return this;
+        }
+
+        /**
+         * Set the conflict type for this field.
+         *
+         * @param conflictType Type of conflict between versions
+         * @return This builder
+         */
+        public Builder conflictType(ConflictType conflictType) {
+            this.conflictType = conflictType;
             return this;
         }
 
@@ -205,6 +264,55 @@ public class MergedField {
 
     public Map<String, FieldInfo> getVersionFields() {
         return Collections.unmodifiableMap(versionFields);
+    }
+
+    /**
+     * Get the conflict type for this field.
+     * @return The type of conflict, or NONE if no conflict
+     */
+    public ConflictType getConflictType() {
+        return conflictType;
+    }
+
+    /**
+     * Check if this field has a type conflict between versions.
+     * @return true if field types differ across versions
+     */
+    public boolean hasTypeConflict() {
+        return conflictType != ConflictType.NONE;
+    }
+
+    /**
+     * Check if builder setters should be skipped for this field.
+     * @return true if the conflict type requires skipping builder setters
+     */
+    public boolean shouldSkipBuilderSetter() {
+        return conflictType.shouldSkipBuilderSetter();
+    }
+
+    /**
+     * Get the Java type for a specific version.
+     * @param version Version identifier
+     * @return Java type for that version, or null if not present
+     */
+    public String getTypeForVersion(String version) {
+        return typesPerVersion.get(version);
+    }
+
+    /**
+     * Get all unique types across all versions.
+     * @return Set of unique Java type names
+     */
+    public Set<String> getAllTypes() {
+        return new LinkedHashSet<>(typesPerVersion.values());
+    }
+
+    /**
+     * Get types per version map.
+     * @return Unmodifiable map of version to Java type
+     */
+    public Map<String, String> getTypesPerVersion() {
+        return Collections.unmodifiableMap(typesPerVersion);
     }
 
     /**
@@ -272,7 +380,10 @@ public class MergedField {
 
     @Override
     public String toString() {
-        return String.format("MergedField[%s:%s #%d, versions=%s]",
-            name, javaType, number, presentInVersions);
+        String conflictInfo = conflictType != ConflictType.NONE
+                ? ", conflict=" + conflictType
+                : "";
+        return String.format("MergedField[%s:%s #%d, versions=%s%s]",
+            name, javaType, number, presentInVersions, conflictInfo);
     }
 }
