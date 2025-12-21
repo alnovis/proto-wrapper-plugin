@@ -260,6 +260,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
+            // Handle WIDENING conflicts with wider type
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                addWideningAbstractMethods(builder, field, resolver);
+                continue;
+            }
+
             // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
@@ -318,6 +324,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                     addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
                     continue;
                 }
+            }
+
+            // Handle WIDENING conflicts with wider type
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                addWideningConcreteMethods(builder, field, resolver, builderInterfaceType);
+                continue;
             }
 
             // Skip fields with other non-convertible type conflicts
@@ -603,6 +615,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
+            // Handle WIDENING conflicts with wider type
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                addWideningAbstractMethods(builder, field, resolver);
+                continue;
+            }
+
             // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
@@ -668,6 +686,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                     addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
                     continue;
                 }
+            }
+
+            // Handle WIDENING conflicts with wider type
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                addWideningConcreteMethods(builder, field, resolver, builderInterfaceType);
+                continue;
             }
 
             // Skip fields with other non-convertible type conflicts
@@ -816,6 +840,70 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("doClear$L()", capName)
                 .addStatement("return this")
                 .build());
+    }
+
+    /**
+     * Add abstract methods for WIDENING conflict field.
+     * Uses the wider type (e.g., long for int/long, double for int/double).
+     */
+    private void addWideningAbstractMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
+        String capName = resolver.capitalize(field.getJavaName());
+        TypeName widerType = getWiderPrimitiveType(field.getJavaType());
+
+        // doSetXxx(widerType)
+        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .addParameter(widerType, field.getJavaName())
+                .build());
+
+        // doClearXxx()
+        if (field.isOptional()) {
+            builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
+                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                    .build());
+        }
+    }
+
+    /**
+     * Add concrete implementations for WIDENING conflict field.
+     */
+    private void addWideningConcreteMethods(TypeSpec.Builder builder, MergedField field,
+                                             TypeResolver resolver, ClassName builderInterfaceType) {
+        String capName = resolver.capitalize(field.getJavaName());
+        TypeName widerType = getWiderPrimitiveType(field.getJavaType());
+
+        // setXxx(widerType)
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(widerType, field.getJavaName())
+                .returns(builderInterfaceType)
+                .addStatement("doSet$L($L)", capName, field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // clearXxx()
+        if (field.isOptional()) {
+            builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                    .returns(builderInterfaceType)
+                    .addStatement("doClear$L()", capName)
+                    .addStatement("return this")
+                    .build());
+        }
+    }
+
+    /**
+     * Get the primitive TypeName for a wider type string.
+     */
+    private TypeName getWiderPrimitiveType(String javaType) {
+        return switch (javaType) {
+            case "long", "Long" -> TypeName.LONG;
+            case "double", "Double" -> TypeName.DOUBLE;
+            case "int", "Integer" -> TypeName.INT;
+            default -> TypeName.LONG; // Default to long for numeric widening
+        };
     }
 
     /**

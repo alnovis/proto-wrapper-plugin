@@ -343,12 +343,13 @@ interface TicketRequest {
 
 | Фаза | Улучшение | Сложность | Ценность | Статус |
 |------|-----------|-----------|----------|--------|
-| 3A | WIDENING builders | Medium | High | 🔴 TODO |
+| 3A | WIDENING builders | Medium | High | ✅ DONE |
 | 3B | STRING_BYTES unified | Medium | Medium | 🟡 TODO |
 | 3C | PRIMITIVE_MESSAGE API | Low | Medium | 🟡 TODO |
 | 3D | Conflict Summary | Low | Low | 🟢 TODO |
-| QW | Javadoc improvements | Low | Medium | 🟢 TODO |
-| QW | Conflict logging | Low | Low | 🟢 TODO |
+| QW | Javadoc improvements | Low | Medium | ✅ DONE |
+| QW | Conflict logging | Low | Low | ✅ DONE |
+| QW | supportsXxx() methods | Low | Medium | ✅ DONE |
 
 ---
 
@@ -367,11 +368,11 @@ interface TicketRequest {
 
 ## Критерии успеха Phase 3
 
-### Phase 3A (WIDENING builders)
-- [ ] Builder setter генерируется для WIDENING полей
-- [ ] Проверка диапазона при narrowing
-- [ ] IllegalArgumentException при выходе за диапазон
-- [ ] Тесты для граничных значений
+### Phase 3A (WIDENING builders) ✅
+- [x] Builder setter генерируется для WIDENING полей
+- [x] Проверка диапазона при narrowing
+- [x] IllegalArgumentException при выходе за диапазон
+- [x] Unified getter использует широкий тип (long/double)
 
 ### Phase 3B (STRING_BYTES)
 - [ ] Dual getters: `getXxx()` и `getXxxBytes()`

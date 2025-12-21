@@ -1,0 +1,79 @@
+// Common types for v2 - Enhanced version
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "Common";
+
+// Enhanced date with optional time component
+message Date {
+    required int32 year = 1;
+    required int32 month = 2;
+    required int32 day = 3;
+    // NEW in v2: optional time component
+    optional int32 hour = 4;
+    optional int32 minute = 5;
+    optional int32 second = 6;
+}
+
+// Money with enhanced precision
+message Money {
+    required int64 amount = 1;
+    required string currency = 2;
+    // NEW in v2: exchange rate info
+    optional double exchange_rate = 3;
+    optional string original_currency = 4;
+}
+
+// Address with enhanced structure
+message Address {
+    required string street = 1;
+    optional string building = 2;
+    optional string apartment = 3;
+    required string city = 4;
+    required string country = 5;
+    optional string postal_code = 6;
+
+    enum AddressType {
+        HOME = 0;
+        WORK = 1;
+        SHIPPING = 2;
+        BILLING = 3;
+        // NEW in v2
+        WAREHOUSE = 4;
+        PICKUP_POINT = 5;
+    }
+
+    optional AddressType type = 7 [default = HOME];
+
+    // NEW in v2: geo coordinates
+    message GeoLocation {
+        required double latitude = 1;
+        required double longitude = 2;
+        optional double accuracy = 3;
+    }
+
+    optional GeoLocation location = 8;
+    // NEW in v2: delivery instructions
+    optional string delivery_instructions = 9;
+}
+
+// Enhanced status enum
+enum Status {
+    UNKNOWN = 0;
+    ACTIVE = 1;
+    INACTIVE = 2;
+    DELETED = 3;
+    // NEW in v2
+    SUSPENDED = 4;
+    PENDING_VERIFICATION = 5;
+}
+
+// NEW in v2: Priority enum
+enum Priority {
+    PRIORITY_LOW = 0;
+    PRIORITY_NORMAL = 1;
+    PRIORITY_HIGH = 2;
+    PRIORITY_URGENT = 3;
+}

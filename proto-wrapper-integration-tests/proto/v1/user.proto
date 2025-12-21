@@ -1,0 +1,88 @@
+// User messages for v1
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v1;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_outer_classname = "User";
+
+import "v1/common.proto";
+
+// User role enum
+enum UserRole {
+    ROLE_GUEST = 0;
+    ROLE_USER = 1;
+    ROLE_ADMIN = 2;
+    ROLE_SUPER_ADMIN = 3;
+}
+
+// User profile with deeply nested structures
+message UserProfile {
+    required string user_id = 1;
+    required string username = 2;
+    required string email = 3;
+    optional string phone = 4;
+    required UserRole role = 5;
+    required Status status = 6;
+
+    // Preferences with nested settings
+    message Preferences {
+        optional string language = 1 [default = "en"];
+        optional string timezone = 2 [default = "UTC"];
+        optional bool email_notifications = 3 [default = true];
+
+        // Nested display settings
+        message DisplaySettings {
+            enum Theme {
+                THEME_LIGHT = 0;
+                THEME_DARK = 1;
+                THEME_AUTO = 2;
+            }
+
+            optional Theme theme = 1 [default = THEME_LIGHT];
+            optional int32 items_per_page = 2 [default = 20];
+            optional bool compact_view = 3 [default = false];
+        }
+
+        optional DisplaySettings display = 4;
+    }
+
+    optional Preferences preferences = 7;
+    optional Address address = 8;
+    optional Date registration_date = 9;
+    optional Date last_login = 10;
+
+    // Activity log entry
+    message ActivityLog {
+        required Date date = 1;
+        required string action = 2;
+        optional string details = 3;
+        optional string ip_address = 4;
+    }
+
+    repeated ActivityLog recent_activity = 11;
+}
+
+// Authentication request
+message AuthRequest {
+    required string username = 1;
+    required string password = 2;
+    optional string device_id = 3;
+}
+
+// Authentication response
+message AuthResponse {
+    required bool success = 1;
+    optional string token = 2;
+    optional UserProfile user = 3;
+    optional string error_message = 4;
+
+    // Session info
+    message SessionInfo {
+        required string session_id = 1;
+        required int64 expires_at = 2;
+        optional string refresh_token = 3;
+    }
+
+    optional SessionInfo session = 5;
+}

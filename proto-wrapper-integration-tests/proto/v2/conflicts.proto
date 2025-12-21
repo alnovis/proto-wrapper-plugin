@@ -1,0 +1,291 @@
+// Comprehensive type conflict test cases for v2
+// This file covers supported conflict types for testing
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "Conflicts";
+
+import "v2/common.proto";
+
+// =============================================================================
+// ENUMS FOR INT_ENUM CONFLICTS
+// =============================================================================
+
+enum ConflictStatusEnum {
+    CONFLICT_STATUS_UNKNOWN = 0;
+    CONFLICT_STATUS_PENDING = 1;
+    CONFLICT_STATUS_ACTIVE = 2;
+    CONFLICT_STATUS_COMPLETED = 3;
+    CONFLICT_STATUS_CANCELLED = 4;
+    CONFLICT_STATUS_FAILED = 5;
+}
+
+enum ConflictPriorityEnum {
+    CONFLICT_PRIORITY_LOW = 0;
+    CONFLICT_PRIORITY_NORMAL = 1;
+    CONFLICT_PRIORITY_HIGH = 2;
+    CONFLICT_PRIORITY_URGENT = 3;
+    CONFLICT_PRIORITY_CRITICAL = 4;
+}
+
+enum CategoryEnum {
+    CATEGORY_GENERAL = 0;
+    CATEGORY_TECHNICAL = 1;
+    CATEGORY_BUSINESS = 2;
+    CATEGORY_PERSONAL = 3;
+}
+
+enum TypeEnum {
+    TYPE_UNDEFINED = 0;
+    TYPE_PRIMARY = 1;
+    TYPE_SECONDARY = 2;
+    TYPE_AUXILIARY = 3;
+}
+
+enum CodeEnum {
+    CODE_NONE = 0;
+    CODE_SUCCESS = 1;
+    CODE_WARNING = 2;
+    CODE_ERROR = 3;
+}
+
+// =============================================================================
+// MESSAGES FOR PRIMITIVE_MESSAGE CONFLICTS
+// =============================================================================
+
+message RefInfo {
+    required int32 ref_id = 1;
+    optional string ref_type = 2;
+    optional Date created_at = 3;
+}
+
+message TextInfo {
+    required string content = 1;
+    optional string encoding = 2;
+    optional int32 length = 3;
+}
+
+message TimestampInfo {
+    required int64 seconds = 1;
+    optional int32 nanos = 2;
+    optional string timezone = 3;
+}
+
+message ReferenceInfo {
+    required int32 ref_number = 1;
+    optional string ref_name = 2;
+}
+
+// =============================================================================
+// INT_ENUM CONFLICTS (int32 in v1 -> enum in v2)
+// =============================================================================
+
+message IntEnumConflicts {
+    // Case 1: Simple int to enum
+    required ConflictStatusEnum status = 1;      // was int32 in v1
+
+    // Case 2: Optional int to enum
+    optional ConflictPriorityEnum priority = 2;  // was int32 in v1
+
+    // Case 3: Repeated int to enum
+    repeated CategoryEnum categories = 3;        // was repeated int32 in v1
+
+    // Non-conflicting fields
+    required string name = 10;
+    optional int32 version = 11;
+
+    // V2-only fields
+    optional string description = 12;
+    optional Date updated_at = 13;
+}
+
+// =============================================================================
+// WIDENING CONFLICTS (smaller type -> larger type)
+// =============================================================================
+
+message WideningConflicts {
+    // Case 1: int32 -> int64
+    required int64 small_counter = 1;    // was int32 in v1
+
+    // Case 2: int32 -> double
+    required double integer_value = 2;   // was int32 in v1
+
+    // Case 3: float -> double
+    required double single_precision = 3; // was float in v1
+
+    // Case 4: sint32 -> sint64
+    optional sint64 signed_small = 4;    // was sint32 in v1
+
+    // Case 5: uint32 -> uint64
+    optional uint64 unsigned_small = 5;  // was uint32 in v1
+
+    // Non-conflicting
+    required string identifier = 10;
+    optional string description = 11;
+
+    // V2-only
+    optional int64 extra_counter = 12;
+}
+
+// =============================================================================
+// STRING_BYTES CONFLICTS
+// =============================================================================
+
+message StringBytesConflicts {
+    // Case 1: string in v1 -> bytes in v2
+    required bytes text_data = 1;        // was string in v1
+
+    // Case 2: Optional string -> bytes
+    optional bytes optional_text = 2;    // was string in v1
+
+    // Case 3: Repeated string -> bytes
+    repeated bytes text_list = 3;        // was repeated string in v1
+
+    // Non-conflicting
+    required string identifier = 10;
+    optional string label = 11;
+
+    // V2-only
+    optional string encoding = 12;
+}
+
+// =============================================================================
+// PRIMITIVE_MESSAGE CONFLICTS (primitive -> message)
+// =============================================================================
+
+message PrimitiveMessageConflicts {
+    // Case 1: int32 in v1 -> message in v2
+    required RefInfo simple_ref = 1;     // was int32 in v1
+
+    // Case 2: string in v1 -> message in v2
+    required TextInfo text_ref = 2;      // was string in v1
+
+    // Case 3: int64 in v1 -> message in v2
+    optional TimestampInfo timestamp_value = 3;  // was int64 in v1
+
+    // Non-conflicting
+    required string name = 10;
+    optional string code = 11;
+
+    // V2-only
+    optional Date created_at = 12;
+}
+
+// =============================================================================
+// MULTIPLE CONFLICTS IN SAME MESSAGE
+// =============================================================================
+
+message MultipleConflicts {
+    // INT_ENUM conflicts
+    required ConflictStatusEnum status = 1;      // was int32 in v1
+    required ConflictPriorityEnum priority = 2;  // was int32 in v1
+
+    // WIDENING conflicts
+    required int64 count = 3;            // was int32 in v1
+    required double ratio = 4;           // was float in v1
+
+    // STRING_BYTES conflict
+    required bytes payload = 5;          // was string in v1
+
+    // PRIMITIVE_MESSAGE conflict
+    optional ReferenceInfo reference = 6; // was int32 in v1
+
+    // Non-conflicting
+    required string id = 10;
+    optional string name = 11;
+
+    // V2-only fields
+    optional string category = 12;
+    optional Date modified_at = 13;
+}
+
+// =============================================================================
+// REPEATED FIELD CONFLICTS
+// =============================================================================
+
+message RepeatedConflicts {
+    // Repeated int32 -> repeated int64 (WIDENING)
+    repeated int64 numbers = 1;          // was repeated int32 in v1
+
+    // Repeated int32 -> repeated enum (INT_ENUM)
+    repeated CodeEnum codes = 2;         // was repeated int32 in v1
+
+    // Repeated string -> repeated bytes (STRING_BYTES)
+    repeated bytes texts = 3;            // was repeated string in v1
+
+    // Repeated float -> repeated double (WIDENING)
+    repeated double values = 4;          // was repeated float in v1
+
+    required string batch_id = 10;
+
+    // V2-only
+    optional int32 item_count = 11;
+}
+
+// =============================================================================
+// VERSION-SPECIFIC FIELDS
+// =============================================================================
+
+message VersionSpecificFields {
+    // Common fields
+    required string id = 1;
+    required string name = 2;
+
+    // V1-only fields are REMOVED in v2 (fields 3, 4 don't exist)
+
+    // Fields that exist in both but with conflicts
+    required ConflictStatusEnum status = 5;      // was int32 in v1
+
+    optional string description = 10;
+
+    // V2-only fields (NEW)
+    optional string new_format = 11;
+    optional Date created_at = 12;
+    optional string category = 13;
+}
+
+// =============================================================================
+// ENUM VALUE CONFLICTS (same enum name, different values)
+// =============================================================================
+
+enum SharedEnumV2 {
+    SHARED_UNKNOWN = 0;
+    SHARED_VALUE_A = 1;
+    SHARED_VALUE_B = 2;
+    SHARED_VALUE_C = 3;  // NEW in v2
+    SHARED_VALUE_D = 4;  // NEW in v2
+}
+
+message EnumValueConflicts {
+    required SharedEnumV2 shared_type = 1;  // Same field, enum has more values
+    required string data = 2;
+
+    // V2-only
+    optional string extra = 3;
+}
+
+// =============================================================================
+// SIMPLE NESTED CONFLICTS (without builder complexity)
+// =============================================================================
+
+message SimpleNestedConflicts {
+    required string id = 1;
+
+    // Nested message with type changes from v1
+    message InnerData {
+        required int64 value = 1;        // was int32 in v1 (WIDENING)
+        required TypeEnum type_code = 2; // was int32 in v1 (INT_ENUM)
+        optional bytes data = 3;         // was string in v1 (STRING_BYTES)
+
+        // V2-only nested field
+        optional string metadata = 4;
+    }
+
+    required InnerData data = 2;
+    optional string description = 10;
+
+    // V2-only
+    optional Date last_updated = 11;
+}

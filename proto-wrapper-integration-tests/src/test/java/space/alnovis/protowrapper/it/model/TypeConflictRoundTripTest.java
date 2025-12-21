@@ -1,10 +1,10 @@
-package com.example.model;
+package space.alnovis.protowrapper.it.model;
 
-import com.example.model.api.*;
-import com.example.proto.v1.Telemetry;
-import com.example.proto.v2.Telemetry.UnitTypeEnum;
-import com.example.proto.v2.Telemetry.AlertSeverity;
-import com.example.proto.v2.Telemetry.SyncStatus;
+import space.alnovis.protowrapper.it.model.api.*;
+import space.alnovis.protowrapper.it.proto.v1.Telemetry;
+import space.alnovis.protowrapper.it.proto.v2.Telemetry.UnitTypeEnum;
+import space.alnovis.protowrapper.it.proto.v2.Telemetry.AlertSeverity;
+import space.alnovis.protowrapper.it.proto.v2.Telemetry.SyncStatus;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.junit.jupiter.api.DisplayName;
@@ -49,14 +49,14 @@ class TypeConflictRoundTripTest {
                     .build();
 
             // Wrap in API
-            SensorReading reading = new com.example.model.v1.SensorReading(original);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(original);
 
             // Serialize to bytes
             byte[] bytes = reading.toBytes();
 
             // Parse back
             Telemetry.SensorReading parsed = Telemetry.SensorReading.parseFrom(bytes);
-            SensorReading restored = new com.example.model.v1.SensorReading(parsed);
+            SensorReading restored = new space.alnovis.protowrapper.it.model.v1.SensorReading(parsed);
 
             // Verify all fields (including conflicting ones work in V1)
             assertThat(restored.getSensorId()).isEqualTo("SENSOR-V1-001");
@@ -83,7 +83,7 @@ class TypeConflictRoundTripTest {
                     .setReadingDate(createV1Date(2024, 1, 1))
                     .build();
 
-            SensorReading reading = new com.example.model.v1.SensorReading(initial);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(initial);
 
             // Use builder to modify non-conflicting fields
             SensorReading modified = reading.toBuilder()
@@ -114,11 +114,11 @@ class TypeConflictRoundTripTest {
                     .setFormatVersion("1.0")
                     .build();
 
-            TelemetryReport report = new com.example.model.v1.TelemetryReport(original);
+            TelemetryReport report = new space.alnovis.protowrapper.it.model.v1.TelemetryReport(original);
             byte[] bytes = report.toBytes();
 
             Telemetry.TelemetryReport parsed = Telemetry.TelemetryReport.parseFrom(bytes);
-            TelemetryReport restored = new com.example.model.v1.TelemetryReport(parsed);
+            TelemetryReport restored = new space.alnovis.protowrapper.it.model.v1.TelemetryReport(parsed);
 
             assertThat(restored.getReportNumber()).isEqualTo("RPT-V1-001");
             assertThat(restored.hasChecksum()).isTrue();
@@ -156,11 +156,11 @@ class TypeConflictRoundTripTest {
                     .setCollectionDate(createV1Date(2024, 5, 15))
                     .build();
 
-            BatchTelemetry batch = new com.example.model.v1.BatchTelemetry(original);
+            BatchTelemetry batch = new space.alnovis.protowrapper.it.model.v1.BatchTelemetry(original);
             byte[] bytes = batch.toBytes();
 
             Telemetry.BatchTelemetry parsed = Telemetry.BatchTelemetry.parseFrom(bytes);
-            BatchTelemetry restored = new com.example.model.v1.BatchTelemetry(parsed);
+            BatchTelemetry restored = new space.alnovis.protowrapper.it.model.v1.BatchTelemetry(parsed);
 
             assertThat(restored.getBatchId()).isEqualTo("BATCH-V1-001");
             assertThat(restored.getTotalCount()).isEqualTo(2);
@@ -180,13 +180,13 @@ class TypeConflictRoundTripTest {
         @Test
         @DisplayName("V2 SensorReading with enum types survives round-trip via typed proto")
         void v2RoundTripWithEnums() throws InvalidProtocolBufferException {
-            com.example.proto.v2.Telemetry.SensorReading original =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading original =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-V2-001")
                     .setDeviceName("Advanced Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_KELVIN)
                     .setPrecisionLevel(3.14159)
-                    .setCalibrationInfo(com.example.proto.v2.Telemetry.CalibrationInfo.newBuilder()
+                    .setCalibrationInfo(space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo.newBuilder()
                             .setCalibrationId("CAL-2024")
                             .setTechnicianId("TECH-001")
                             .setAccuracyRating(98)
@@ -198,8 +198,8 @@ class TypeConflictRoundTripTest {
                     .setNetworkId("NET-WIFI-01")
                     .build();
 
-            com.example.model.v2.SensorReading reading =
-                    new com.example.model.v2.SensorReading(original);
+            space.alnovis.protowrapper.it.model.v2.SensorReading reading =
+                    new space.alnovis.protowrapper.it.model.v2.SensorReading(original);
 
             // Non-conflicting fields work via unified interface
             assertThat(reading.getSensorId()).isEqualTo("SENSOR-V2-001");
@@ -210,10 +210,10 @@ class TypeConflictRoundTripTest {
 
             // Serialize and restore
             byte[] bytes = reading.toBytes();
-            com.example.proto.v2.Telemetry.SensorReading parsed =
-                    com.example.proto.v2.Telemetry.SensorReading.parseFrom(bytes);
-            com.example.model.v2.SensorReading restored =
-                    new com.example.model.v2.SensorReading(parsed);
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading parsed =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.parseFrom(bytes);
+            space.alnovis.protowrapper.it.model.v2.SensorReading restored =
+                    new space.alnovis.protowrapper.it.model.v2.SensorReading(parsed);
 
             // Verify via typed proto
             assertThat(restored.getTypedProto().getUnitType()).isEqualTo(UnitTypeEnum.UNIT_KELVIN);
@@ -226,8 +226,8 @@ class TypeConflictRoundTripTest {
         @Test
         @DisplayName("V2 SensorReading builder works for non-conflicting fields")
         void v2BuilderForNonConflictingFields() {
-            com.example.proto.v2.Telemetry.SensorReading initial =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading initial =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-INIT")
                     .setDeviceName("Initial")
                     .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
@@ -236,7 +236,7 @@ class TypeConflictRoundTripTest {
                     .setReadingDate(createV2Date(2024, 1, 1))
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(initial);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(initial);
 
             // Modify non-conflicting fields
             SensorReading modified = reading.toBuilder()
@@ -257,16 +257,16 @@ class TypeConflictRoundTripTest {
         @Test
         @DisplayName("V2 SensorReading with nested metadata survives round-trip")
         void v2WithNestedMetadataRoundTrip() throws InvalidProtocolBufferException {
-            com.example.proto.v2.Telemetry.SensorReading.SensorMetadata metadata =
-                    com.example.proto.v2.Telemetry.SensorReading.SensorMetadata.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.SensorMetadata metadata =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.SensorMetadata.newBuilder()
                     .setManufacturer("Acme Sensors")
                     .setModel("AT-2000")
                     .setSerialNumber("SN-123456789")
                     .setInstallYear(2023)
                     .build();
 
-            com.example.proto.v2.Telemetry.SensorReading original =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading original =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-META")
                     .setDeviceName("Sensor with Metadata")
                     .setUnitType(UnitTypeEnum.UNIT_PERCENT)
@@ -276,7 +276,7 @@ class TypeConflictRoundTripTest {
                     .setMetadata(metadata)
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(original);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(original);
 
             // Check metadata via unified interface
             assertThat(reading.hasMetadata()).isTrue();
@@ -286,9 +286,9 @@ class TypeConflictRoundTripTest {
 
             // Round-trip
             byte[] bytes = reading.toBytes();
-            com.example.proto.v2.Telemetry.SensorReading parsed =
-                    com.example.proto.v2.Telemetry.SensorReading.parseFrom(bytes);
-            SensorReading restored = new com.example.model.v2.SensorReading(parsed);
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading parsed =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.parseFrom(bytes);
+            SensorReading restored = new space.alnovis.protowrapper.it.model.v2.SensorReading(parsed);
 
             assertThat(restored.getMetadata().getSerialNumber()).isEqualTo("SN-123456789");
             assertThat(restored.getMetadata().getInstallYear()).isEqualTo(2023);
@@ -307,8 +307,8 @@ class TypeConflictRoundTripTest {
                     0x01, 0x02, 0x03, 0x04
             };
 
-            com.example.proto.v2.Telemetry.TelemetryReport original =
-                    com.example.proto.v2.Telemetry.TelemetryReport.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport original =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
                     .setReportNumber("RPT-V2-001")
                     .setReading(createFullV2SensorReading())
                     .setChecksum(ByteString.copyFrom(checksumData))
@@ -318,8 +318,8 @@ class TypeConflictRoundTripTest {
                     .setCompressed(true)
                     .build();
 
-            com.example.model.v2.TelemetryReport report =
-                    new com.example.model.v2.TelemetryReport(original);
+            space.alnovis.protowrapper.it.model.v2.TelemetryReport report =
+                    new space.alnovis.protowrapper.it.model.v2.TelemetryReport(original);
 
             // Non-conflicting fields via unified interface
             assertThat(report.getReportNumber()).isEqualTo("RPT-V2-001");
@@ -333,10 +333,10 @@ class TypeConflictRoundTripTest {
 
             // Round-trip
             byte[] bytes = report.toBytes();
-            com.example.proto.v2.Telemetry.TelemetryReport parsed =
-                    com.example.proto.v2.Telemetry.TelemetryReport.parseFrom(bytes);
-            com.example.model.v2.TelemetryReport restored =
-                    new com.example.model.v2.TelemetryReport(parsed);
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport parsed =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.parseFrom(bytes);
+            space.alnovis.protowrapper.it.model.v2.TelemetryReport restored =
+                    new space.alnovis.protowrapper.it.model.v2.TelemetryReport(parsed);
 
             // Verify via typed proto
             assertThat(restored.getTypedProto().getChecksum().toByteArray())
@@ -348,14 +348,14 @@ class TypeConflictRoundTripTest {
         @Test
         @DisplayName("V2 TelemetryReport builder modifies non-conflicting fields")
         void v2ReportBuilderRoundTrip() {
-            com.example.proto.v2.Telemetry.TelemetryReport initial =
-                    com.example.proto.v2.Telemetry.TelemetryReport.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport initial =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
                     .setReportNumber("RPT-INIT")
                     .setReading(createFullV2SensorReading())
                     .setGeneratedAt(createV2Date(2024, 1, 1))
                     .build();
 
-            TelemetryReport report = new com.example.model.v2.TelemetryReport(initial);
+            TelemetryReport report = new space.alnovis.protowrapper.it.model.v2.TelemetryReport(initial);
 
             // Modify via builder
             TelemetryReport modified = report.toBuilder()
@@ -379,15 +379,15 @@ class TypeConflictRoundTripTest {
         @Test
         @DisplayName("V2 BatchTelemetry with enum status and statistics survives round-trip")
         void v2BatchWithStatisticsRoundTrip() throws InvalidProtocolBufferException {
-            com.example.proto.v2.Telemetry.BatchTelemetry.BatchStatistics stats =
-                    com.example.proto.v2.Telemetry.BatchTelemetry.BatchStatistics.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry.BatchStatistics stats =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry.BatchStatistics.newBuilder()
                     .setMinValue(100)
                     .setMaxValue(500)
                     .setAverageValue(275.5)
                     .build();
 
-            com.example.proto.v2.Telemetry.BatchTelemetry original =
-                    com.example.proto.v2.Telemetry.BatchTelemetry.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry original =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry.newBuilder()
                     .setBatchId("BATCH-V2-001")
                     .addReadings(createFullV2SensorReading())
                     .setTotalCount(1)
@@ -399,8 +399,8 @@ class TypeConflictRoundTripTest {
                     .setStatistics(stats)
                     .build();
 
-            com.example.model.v2.BatchTelemetry batch =
-                    new com.example.model.v2.BatchTelemetry(original);
+            space.alnovis.protowrapper.it.model.v2.BatchTelemetry batch =
+                    new space.alnovis.protowrapper.it.model.v2.BatchTelemetry(original);
 
             // Non-conflicting fields
             assertThat(batch.getBatchId()).isEqualTo("BATCH-V2-001");
@@ -419,10 +419,10 @@ class TypeConflictRoundTripTest {
 
             // Round-trip
             byte[] bytes = batch.toBytes();
-            com.example.proto.v2.Telemetry.BatchTelemetry parsed =
-                    com.example.proto.v2.Telemetry.BatchTelemetry.parseFrom(bytes);
-            com.example.model.v2.BatchTelemetry restored =
-                    new com.example.model.v2.BatchTelemetry(parsed);
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry parsed =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry.parseFrom(bytes);
+            space.alnovis.protowrapper.it.model.v2.BatchTelemetry restored =
+                    new space.alnovis.protowrapper.it.model.v2.BatchTelemetry(parsed);
 
             // Verify enum via typed proto
             assertThat(restored.getTypedProto().getSyncStatus())
@@ -449,11 +449,11 @@ class TypeConflictRoundTripTest {
                     .setRawValue(12345)
                     .setReadingDate(createV1Date(2024, 6, 1))
                     .build();
-            SensorReading v1Reading = new com.example.model.v1.SensorReading(v1Proto);
+            SensorReading v1Reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(v1Proto);
 
             // Create V2 reading
-            com.example.proto.v2.Telemetry.SensorReading v2Proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading v2Proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-V2")
                     .setDeviceName("V2 Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_BAR)
@@ -461,7 +461,7 @@ class TypeConflictRoundTripTest {
                     .setRawValue(67890L)
                     .setReadingDate(createV2Date(2024, 6, 1))
                     .build();
-            SensorReading v2Reading = new com.example.model.v2.SensorReading(v2Proto);
+            SensorReading v2Reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(v2Proto);
 
             // Process uniformly via interface
             SensorReading[] readings = {v1Reading, v2Reading};
@@ -475,13 +475,13 @@ class TypeConflictRoundTripTest {
 
                 // Can distinguish versions
                 if (reading.getWrapperVersion() == 1) {
-                    // V1 can access conflicting fields
+                    // V1 can access conflicting fields (widened to long)
                     assertThat(reading.getUnitType()).isEqualTo(3);
-                    assertThat(reading.getRawValue()).isEqualTo(12345);
+                    assertThat(reading.getRawValue()).isEqualTo(12345L);
                 } else {
-                    // V2: unitType (INT_ENUM) returns actual int, rawValue (WIDENING) returns default
+                    // V2: both INT_ENUM and WIDENING now work correctly
                     assertThat(reading.getUnitType()).isEqualTo(4);  // UNIT_BAR = 4
-                    assertThat(reading.getRawValue()).isEqualTo(0);  // WIDENING still returns default
+                    assertThat(reading.getRawValue()).isEqualTo(67890L);  // WIDENING returns actual value
                 }
             }
         }
@@ -498,11 +498,11 @@ class TypeConflictRoundTripTest {
                     .setRawValue(0)
                     .setReadingDate(createV1Date(2024, 1, 1))
                     .build();
-            SensorReading v1 = new com.example.model.v1.SensorReading(v1Proto);
+            SensorReading v1 = new space.alnovis.protowrapper.it.model.v1.SensorReading(v1Proto);
 
             // V2 reading
-            com.example.proto.v2.Telemetry.SensorReading v2Proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading v2Proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("V2")
                     .setDeviceName("V2 Device")
                     .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
@@ -510,7 +510,7 @@ class TypeConflictRoundTripTest {
                     .setRawValue(0L)
                     .setReadingDate(createV2Date(2024, 1, 1))
                     .build();
-            SensorReading v2 = new com.example.model.v2.SensorReading(v2Proto);
+            SensorReading v2 = new space.alnovis.protowrapper.it.model.v2.SensorReading(v2Proto);
 
             // Modify both via unified builder interface
             SensorReading[] readings = {v1, v2};
@@ -531,16 +531,16 @@ class TypeConflictRoundTripTest {
 
     // ==================== Helper Methods ====================
 
-    private com.example.proto.v1.Common.Date createV1Date(int year, int month, int day) {
-        return com.example.proto.v1.Common.Date.newBuilder()
+    private space.alnovis.protowrapper.it.proto.v1.Common.Date createV1Date(int year, int month, int day) {
+        return space.alnovis.protowrapper.it.proto.v1.Common.Date.newBuilder()
                 .setYear(year)
                 .setMonth(month)
                 .setDay(day)
                 .build();
     }
 
-    private com.example.proto.v2.Common.Date createV2Date(int year, int month, int day) {
-        return com.example.proto.v2.Common.Date.newBuilder()
+    private space.alnovis.protowrapper.it.proto.v2.Common.Date createV2Date(int year, int month, int day) {
+        return space.alnovis.protowrapper.it.proto.v2.Common.Date.newBuilder()
                 .setYear(year)
                 .setMonth(month)
                 .setDay(day)
@@ -560,8 +560,8 @@ class TypeConflictRoundTripTest {
                 .build();
     }
 
-    private com.example.proto.v2.Telemetry.SensorReading createFullV2SensorReading() {
-        return com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+    private space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading createFullV2SensorReading() {
+        return space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                 .setSensorId("SENSOR-FULL-V2")
                 .setDeviceName("Full V2 Sensor")
                 .setUnitType(UnitTypeEnum.UNIT_FAHRENHEIT)

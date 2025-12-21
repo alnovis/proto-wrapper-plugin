@@ -391,6 +391,15 @@ public class VersionMerger {
             MergedField.ConflictType conflictType = detectConflictType(fields);
             builder.conflictType(conflictType);
 
+            // For WIDENING conflicts, set the resolved type to the wider type
+            if (conflictType == MergedField.ConflictType.WIDENING) {
+                String widerType = determineWiderType(uniqueTypes);
+                if (widerType != null) {
+                    builder.resolvedJavaType(widerType);
+                    builder.resolvedGetterType(widerType);
+                }
+            }
+
             // Log warning for conflicts
             String typesStr = fields.stream()
                     .map(fv -> fv.version() + ":" + fv.field().getJavaType())
@@ -467,6 +476,32 @@ public class VersionMerger {
 
     private boolean isDoubleType(String type) {
         return "double".equals(type) || "Double".equals(type) || "float".equals(type) || "Float".equals(type);
+    }
+
+    /**
+     * Determine the wider type for WIDENING conflicts.
+     * Priority: double > long > int
+     */
+    private String determineWiderType(Set<String> types) {
+        // Check for double/float (widest)
+        for (String type : types) {
+            if (isDoubleType(type)) {
+                return "double";
+            }
+        }
+        // Check for long (wider than int)
+        for (String type : types) {
+            if (isLongType(type)) {
+                return "long";
+            }
+        }
+        // Default to int (narrowest)
+        for (String type : types) {
+            if (isIntType(type)) {
+                return "int";
+            }
+        }
+        return null;
     }
 
     private MergedEnum mergeEnum(String enumName, List<VersionSchema> schemas) {

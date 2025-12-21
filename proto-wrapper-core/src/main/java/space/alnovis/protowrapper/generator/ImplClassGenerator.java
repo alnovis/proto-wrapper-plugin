@@ -665,6 +665,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
+            // Handle WIDENING conflicts with range checking
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                boolean presentInVersion = field.getPresentInVersions().contains(version);
+                addWideningBuilderMethods(builder, field, presentInVersion, nested, ctx);
+                continue;
+            }
+
             // Skip fields with other non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
@@ -780,6 +787,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                     addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, message, ctx);
                     continue;
                 }
+            }
+
+            // Handle WIDENING conflicts with range checking
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                boolean presentInVersion = field.getPresentInVersions().contains(version);
+                addWideningBuilderMethods(builder, field, presentInVersion, message, ctx);
+                continue;
             }
 
             // Skip fields with other non-convertible type conflicts
@@ -901,6 +915,92 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             doClear.addComment("Field not present in this version - ignored");
         }
         builder.addMethod(doClear.build());
+    }
+
+    /**
+     * Add builder methods for WIDENING conflict field.
+     * Generates doSetXxx(widerType) with range checking for versions with narrower types.
+     */
+    private void addWideningBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                            boolean presentInVersion, MergedMessage message,
+                                            GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        String capitalizedName = resolver.capitalize(field.getJavaName());
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        // Determine the wider type (unified type) and the version's actual type
+        String widerType = field.getJavaType(); // Already resolved to wider type
+        TypeName widerTypeName = getWiderPrimitiveType(widerType);
+
+        // Get the version-specific type
+        FieldInfo versionField = field.getVersionFields().get(version);
+        String versionType = versionField != null ? versionField.getJavaType() : widerType;
+        boolean needsNarrowing = !versionType.equals(widerType) && !versionType.equals("Long") && !versionType.equals("Double");
+
+        // doSetXxx(widerType value)
+        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(widerTypeName, field.getJavaName());
+
+        if (presentInVersion) {
+            if (needsNarrowing) {
+                // Need to check range and narrow
+                if ("long".equals(widerType) || "Long".equals(widerType)) {
+                    // long -> int narrowing
+                    doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                            field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+                    doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
+                            IllegalArgumentException.class, field.getJavaName(), version);
+                    doSet.endControlFlow();
+                    doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, field.getJavaName());
+                } else if ("double".equals(widerType) || "Double".equals(widerType)) {
+                    // double -> int narrowing (with range check)
+                    doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                            field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+                    doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
+                            IllegalArgumentException.class, field.getJavaName(), version);
+                    doSet.endControlFlow();
+                    doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, field.getJavaName());
+                } else {
+                    // Unknown narrowing - just cast
+                    doSet.addStatement("protoBuilder.set$L(($L) $L)", versionJavaName, versionType, field.getJavaName());
+                }
+            } else {
+                // No narrowing needed - use directly
+                doSet.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+            }
+        } else {
+            doSet.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSet.build());
+
+        // doClearXxx() for optional fields
+        if (field.isOptional()) {
+            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED);
+
+            if (presentInVersion) {
+                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
+            } else {
+                doClear.addComment("Field not present in this version - ignored");
+            }
+            builder.addMethod(doClear.build());
+        }
+    }
+
+    /**
+     * Get the primitive TypeName for a wider type string.
+     */
+    private TypeName getWiderPrimitiveType(String javaType) {
+        return switch (javaType) {
+            case "long", "Long" -> TypeName.LONG;
+            case "double", "Double" -> TypeName.DOUBLE;
+            case "int", "Integer" -> TypeName.INT;
+            default -> TypeName.LONG; // Default to long for numeric widening
+        };
     }
 
     private void addSingleFieldBuilderMethods(TypeSpec.Builder builder, MergedField field,

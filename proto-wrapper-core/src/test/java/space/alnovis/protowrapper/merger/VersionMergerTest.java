@@ -218,8 +218,9 @@ class VersionMergerTest {
 
         MergedMessage data = merged.getMessage("Data").orElseThrow();
         assertThat(data.getFields()).hasSize(1);
-        // First version type is used
-        assertThat(data.getFields().get(0).getJavaType()).isEqualTo("int");
+        // For WIDENING conflicts, the wider type (long) is used
+        assertThat(data.getFields().get(0).getJavaType()).isEqualTo("long");
+        assertThat(data.getFields().get(0).getConflictType()).isEqualTo(MergedField.ConflictType.WIDENING);
     }
 
     @Test

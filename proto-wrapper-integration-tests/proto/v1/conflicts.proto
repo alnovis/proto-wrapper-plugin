@@ -1,0 +1,189 @@
+// Comprehensive type conflict test cases for v1
+// This file covers supported conflict types for testing
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v1;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_outer_classname = "Conflicts";
+
+import "v1/common.proto";
+
+// =============================================================================
+// INT_ENUM CONFLICTS (int32 in v1 -> enum in v2)
+// =============================================================================
+
+message IntEnumConflicts {
+    // Case 1: Simple int to enum
+    required int32 status = 1;           // -> ConflictStatusEnum in v2
+
+    // Case 2: Optional int to enum
+    optional int32 priority = 2;         // -> ConflictPriorityEnum in v2
+
+    // Case 3: Repeated int to enum
+    repeated int32 categories = 3;       // -> repeated CategoryEnum in v2
+
+    // Non-conflicting fields
+    required string name = 10;
+    optional int32 version = 11;
+}
+
+// =============================================================================
+// WIDENING CONFLICTS (smaller type -> larger type)
+// =============================================================================
+
+message WideningConflicts {
+    // Case 1: int32 -> int64
+    required int32 small_counter = 1;    // -> int64 in v2
+
+    // Case 2: int32 -> double
+    required int32 integer_value = 2;    // -> double in v2
+
+    // Case 3: float -> double
+    required float single_precision = 3; // -> double in v2
+
+    // Case 4: sint32 -> sint64
+    optional sint32 signed_small = 4;    // -> sint64 in v2
+
+    // Case 5: uint32 -> uint64
+    optional uint32 unsigned_small = 5;  // -> uint64 in v2
+
+    // Non-conflicting
+    required string identifier = 10;
+    optional string description = 11;
+}
+
+// =============================================================================
+// STRING_BYTES CONFLICTS
+// =============================================================================
+
+message StringBytesConflicts {
+    // Case 1: string in v1 -> bytes in v2
+    required string text_data = 1;       // -> bytes in v2
+
+    // Case 2: Optional string -> bytes
+    optional string optional_text = 2;   // -> bytes in v2
+
+    // Case 3: Repeated string -> bytes
+    repeated string text_list = 3;       // -> repeated bytes in v2
+
+    // Non-conflicting
+    required string identifier = 10;
+    optional string label = 11;
+}
+
+// =============================================================================
+// PRIMITIVE_MESSAGE CONFLICTS (primitive -> message)
+// =============================================================================
+
+message PrimitiveMessageConflicts {
+    // Case 1: int32 in v1 -> message in v2
+    required int32 simple_ref = 1;       // -> RefInfo message in v2
+
+    // Case 2: string in v1 -> message in v2
+    required string text_ref = 2;        // -> TextInfo message in v2
+
+    // Case 3: int64 in v1 -> message in v2
+    optional int64 timestamp_value = 3;  // -> TimestampInfo message in v2
+
+    // Non-conflicting
+    required string name = 10;
+    optional string code = 11;
+}
+
+// =============================================================================
+// MULTIPLE CONFLICTS IN SAME MESSAGE
+// =============================================================================
+
+message MultipleConflicts {
+    // INT_ENUM conflicts
+    required int32 status = 1;           // -> ConflictStatusEnum in v2
+    required int32 priority = 2;         // -> ConflictPriorityEnum in v2
+
+    // WIDENING conflicts
+    required int32 count = 3;            // -> int64 in v2
+    required float ratio = 4;            // -> double in v2
+
+    // STRING_BYTES conflict
+    required string payload = 5;         // -> bytes in v2
+
+    // PRIMITIVE_MESSAGE conflict
+    optional int32 reference = 6;        // -> ReferenceInfo in v2
+
+    // Non-conflicting
+    required string id = 10;
+    optional string name = 11;
+}
+
+// =============================================================================
+// REPEATED FIELD CONFLICTS
+// =============================================================================
+
+message RepeatedConflicts {
+    // Repeated int32 -> repeated int64 (WIDENING)
+    repeated int32 numbers = 1;          // -> repeated int64 in v2
+
+    // Repeated int32 -> repeated enum (INT_ENUM)
+    repeated int32 codes = 2;            // -> repeated CodeEnum in v2
+
+    // Repeated string -> repeated bytes (STRING_BYTES)
+    repeated string texts = 3;           // -> repeated bytes in v2
+
+    // Repeated float -> repeated double (WIDENING)
+    repeated float values = 4;           // -> repeated double in v2
+
+    required string batch_id = 10;
+}
+
+// =============================================================================
+// VERSION-SPECIFIC FIELDS
+// =============================================================================
+
+message VersionSpecificFields {
+    // Common fields
+    required string id = 1;
+    required string name = 2;
+
+    // V1-only fields (removed in v2)
+    optional string legacy_code = 3;
+    optional int32 old_format = 4;
+
+    // Fields that exist in both but with conflicts
+    required int32 status = 5;           // -> ConflictStatusEnum in v2
+
+    optional string description = 10;
+}
+
+// =============================================================================
+// ENUM VALUE CONFLICTS (same enum name, different values)
+// =============================================================================
+
+enum SharedEnumV1 {
+    SHARED_UNKNOWN = 0;
+    SHARED_VALUE_A = 1;
+    SHARED_VALUE_B = 2;
+    // VALUE_C and VALUE_D don't exist in v1
+}
+
+message EnumValueConflicts {
+    required SharedEnumV1 shared_type = 1;  // Same enum name, different values
+    required string data = 2;
+}
+
+// =============================================================================
+// SIMPLE NESTED CONFLICTS (without builder complexity)
+// =============================================================================
+
+message SimpleNestedConflicts {
+    required string id = 1;
+
+    // Nested message that will have type changes in v2
+    message InnerData {
+        required int32 value = 1;        // -> int64 in v2 (WIDENING)
+        required int32 type_code = 2;    // -> TypeEnum in v2 (INT_ENUM)
+        optional string data = 3;        // -> bytes in v2 (STRING_BYTES)
+    }
+
+    required InnerData data = 2;
+    optional string description = 10;
+}

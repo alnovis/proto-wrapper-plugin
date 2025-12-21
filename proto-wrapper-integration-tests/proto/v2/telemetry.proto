@@ -1,0 +1,141 @@
+// Sensor telemetry messages for v2 - Enhanced version with type changes
+// This file demonstrates type conflicts between versions
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "Telemetry";
+
+import "v2/common.proto";
+
+// NEW in v2: Unit type enum (was int32 in v1)
+enum UnitTypeEnum {
+    UNIT_CELSIUS = 0;
+    UNIT_FAHRENHEIT = 1;
+    UNIT_KELVIN = 2;
+    UNIT_PASCAL = 3;
+    UNIT_BAR = 4;
+    UNIT_PERCENT = 5;
+}
+
+// NEW in v2: Alert severity enum (was int32 in v1)
+enum AlertSeverity {
+    SEVERITY_INFO = 0;
+    SEVERITY_WARNING = 1;
+    SEVERITY_ERROR = 2;
+    SEVERITY_CRITICAL = 3;
+    SEVERITY_EMERGENCY = 4;
+}
+
+// NEW in v2: Sync status enum (was int32 in v1)
+enum SyncStatus {
+    SYNC_PENDING = 0;
+    SYNC_IN_PROGRESS = 1;
+    SYNC_COMPLETED = 2;
+    SYNC_FAILED = 3;
+    SYNC_PARTIAL = 4;
+}
+
+// NEW in v2: Calibration info message (was int32 in v1)
+message CalibrationInfo {
+    required string calibration_id = 1;
+    optional string technician_id = 2;
+    optional Date calibration_date = 3;
+    optional int32 accuracy_rating = 4;
+}
+
+// Sensor reading with type changes
+message SensorReading {
+    required string sensor_id = 1;
+    required string device_name = 2;
+
+    // UNIT TYPE CONFLICT: was int32 in v1, now UnitTypeEnum
+    required UnitTypeEnum unit_type = 3;
+
+    // PRECISION CONFLICT: was int32 in v1, now double for precision
+    required double precision_level = 4;  // e.g., 3.5 for enhanced precision
+
+    // CALIBRATION CONFLICT: was int32 in v1, now CalibrationInfo message
+    optional CalibrationInfo calibration_info = 5;
+
+    // VALUE CONFLICT: was int32 in v1, now int64 for large values
+    required int64 raw_value = 6;
+
+    required Date reading_date = 7;
+    optional string location = 8;
+
+    // NEW in v2: Additional fields
+    optional string firmware_version = 9;
+    optional string network_id = 10;
+
+    // NEW in v2: Sensor metadata
+    message SensorMetadata {
+        optional string manufacturer = 1;
+        optional string model = 2;
+        optional string serial_number = 3;
+        optional int32 install_year = 4;
+    }
+
+    optional SensorMetadata metadata = 11;
+}
+
+// Alert notification with type changes
+message AlertNotification {
+    required string alert_id = 1;
+    required string sensor_id = 2;
+    required int32 threshold_value = 3;
+
+    // SEVERITY CONFLICT: was int32 code in v1, now AlertSeverity enum
+    required AlertSeverity severity = 4;
+
+    optional string message = 5;
+
+    // NEW in v2
+    optional string assigned_to = 6;
+    optional bool acknowledged = 7;
+}
+
+// Telemetry report with type changes
+message TelemetryReport {
+    required string report_number = 1;
+    required SensorReading reading = 2;
+
+    // CHECKSUM CONFLICT: was string in v1, now bytes
+    optional bytes checksum = 3;
+
+    // TIMESTAMP CONFLICT: was int64 (unix millis) in v1, now Date message
+    required Date generated_at = 4;
+
+    optional string format_version = 5;
+
+    // NEW in v2
+    optional string export_format = 6;
+    optional bool compressed = 7;
+}
+
+// Batch telemetry with type changes
+message BatchTelemetry {
+    required string batch_id = 1;
+    repeated SensorReading readings = 2;
+    required int32 total_count = 3;
+
+    // SYNC STATUS CONFLICT: was int32 in v1, now SyncStatus enum
+    required SyncStatus sync_status = 4;
+
+    required Date collection_date = 5;
+
+    // NEW in v2
+    optional string collector_id = 6;
+    optional int32 success_count = 7;
+    optional int32 error_count = 8;
+
+    // NEW in v2: Batch statistics
+    message BatchStatistics {
+        required int32 min_value = 1;
+        required int32 max_value = 2;
+        optional double average_value = 3;
+    }
+
+    optional BatchStatistics statistics = 9;
+}

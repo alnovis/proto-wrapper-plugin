@@ -1,0 +1,168 @@
+// User messages for v2 - Enhanced version
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "User";
+
+import "v2/common.proto";
+
+// Enhanced user roles
+enum UserRole {
+    ROLE_GUEST = 0;
+    ROLE_USER = 1;
+    ROLE_ADMIN = 2;
+    ROLE_SUPER_ADMIN = 3;
+    // NEW in v2
+    ROLE_MODERATOR = 4;
+    ROLE_SUPPORT = 5;
+    ROLE_DEVELOPER = 6;
+}
+
+// NEW in v2: Authentication method
+enum AuthMethod {
+    AUTH_PASSWORD = 0;
+    AUTH_OAUTH = 1;
+    AUTH_SSO = 2;
+    AUTH_TWO_FACTOR = 3;
+    AUTH_BIOMETRIC = 4;
+}
+
+// Enhanced user profile
+message UserProfile {
+    required string user_id = 1;
+    required string username = 2;
+    required string email = 3;
+    optional string phone = 4;
+    required UserRole role = 5;
+    required Status status = 6;
+
+    message Preferences {
+        optional string language = 1 [default = "en"];
+        optional string timezone = 2 [default = "UTC"];
+        optional bool email_notifications = 3 [default = true];
+
+        message DisplaySettings {
+            enum Theme {
+                THEME_LIGHT = 0;
+                THEME_DARK = 1;
+                THEME_AUTO = 2;
+                // NEW in v2
+                THEME_HIGH_CONTRAST = 3;
+            }
+
+            optional Theme theme = 1 [default = THEME_LIGHT];
+            optional int32 items_per_page = 2 [default = 20];
+            optional bool compact_view = 3 [default = false];
+            // NEW in v2
+            optional string font_size = 4 [default = "medium"];
+        }
+
+        optional DisplaySettings display = 4;
+
+        // NEW in v2: notification preferences
+        message NotificationSettings {
+            optional bool push_enabled = 1 [default = true];
+            optional bool sms_enabled = 2 [default = false];
+
+            enum Frequency {
+                IMMEDIATE = 0;
+                HOURLY = 1;
+                DAILY = 2;
+                WEEKLY = 3;
+            }
+
+            optional Frequency digest_frequency = 3 [default = IMMEDIATE];
+        }
+
+        optional NotificationSettings notifications = 5;
+    }
+
+    optional Preferences preferences = 7;
+    optional Address address = 8;
+    optional Date registration_date = 9;
+    optional Date last_login = 10;
+
+    message ActivityLog {
+        required Date date = 1;
+        required string action = 2;
+        optional string details = 3;
+        optional string ip_address = 4;
+        // NEW in v2
+        optional string user_agent = 5;
+        optional string device_type = 6;
+    }
+
+    repeated ActivityLog recent_activity = 11;
+
+    // NEW in v2: security settings
+    message SecuritySettings {
+        optional bool two_factor_enabled = 1 [default = false];
+        optional AuthMethod preferred_auth = 2;
+        repeated string trusted_devices = 3;
+        optional Date password_changed_at = 4;
+
+        // Backup codes
+        message BackupCode {
+            required string code = 1;
+            required bool used = 2;
+            optional Date used_at = 3;
+        }
+
+        repeated BackupCode backup_codes = 5;
+    }
+
+    optional SecuritySettings security = 12;
+
+    // NEW in v2: avatar
+    optional string avatar_url = 13;
+    optional string bio = 14;
+}
+
+// Enhanced auth request
+message AuthRequest {
+    required string username = 1;
+    required string password = 2;
+    optional string device_id = 3;
+    // NEW in v2
+    optional AuthMethod method = 4;
+    optional string otp_code = 5;
+    optional bool remember_me = 6;
+}
+
+// Enhanced auth response
+message AuthResponse {
+    required bool success = 1;
+    optional string token = 2;
+    optional UserProfile user = 3;
+    optional string error_message = 4;
+
+    message SessionInfo {
+        required string session_id = 1;
+        required int64 expires_at = 2;
+        optional string refresh_token = 3;
+        // NEW in v2
+        optional string device_name = 4;
+        optional Date created_at = 5;
+    }
+
+    optional SessionInfo session = 5;
+
+    // NEW in v2: security challenge
+    message SecurityChallenge {
+        enum ChallengeType {
+            NONE = 0;
+            EMAIL_VERIFICATION = 1;
+            SMS_VERIFICATION = 2;
+            CAPTCHA = 3;
+            SECURITY_QUESTION = 4;
+        }
+
+        required ChallengeType type = 1;
+        optional string challenge_id = 2;
+        optional string hint = 3;
+    }
+
+    optional SecurityChallenge challenge = 6;
+}

@@ -55,7 +55,9 @@
     <modules>
         <module>proto-wrapper-core</module>
         <module>proto-wrapper-maven-plugin</module>
-        <!-- Example project with integration tests -->
+        <!-- Integration tests with comprehensive conflict coverage -->
+        <module>proto-wrapper-integration-tests</module>
+        <!-- Simple example/demo project -->
         <module>examples/maven-example</module>
     </modules>
 

@@ -1,0 +1,69 @@
+// Sensor telemetry messages for v1
+// This file demonstrates type conflicts between versions
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v1;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_outer_classname = "Telemetry";
+
+import "v1/common.proto";
+
+// Sensor reading
+message SensorReading {
+    required string sensor_id = 1;
+    required string device_name = 2;
+
+    // UNIT TYPE CONFLICT: int32 in v1, UnitTypeEnum in v2
+    required int32 unit_type = 3;
+
+    // PRECISION CONFLICT: int32 in v1, double in v2
+    required int32 precision_level = 4;  // e.g., 3 for 3 decimal places
+
+    // CALIBRATION CONFLICT: int32 in v1, CalibrationInfo message in v2
+    optional int32 calibration_id = 5;
+
+    // VALUE CONFLICT: int32 in v1, int64 in v2 (type widening)
+    required int32 raw_value = 6;
+
+    required Date reading_date = 7;
+    optional string location = 8;
+}
+
+// Alert notification
+message AlertNotification {
+    required string alert_id = 1;
+    required string sensor_id = 2;
+    required int32 threshold_value = 3;
+
+    // SEVERITY CONFLICT: int32 code in v1, AlertSeverity enum in v2
+    required int32 severity_code = 4;
+
+    optional string message = 5;
+}
+
+// Telemetry report
+message TelemetryReport {
+    required string report_number = 1;
+    required SensorReading reading = 2;
+
+    // CHECKSUM CONFLICT: string in v1, bytes in v2
+    optional string checksum = 3;
+
+    // TIMESTAMP CONFLICT: int64 (unix millis) in v1, Date message in v2
+    required int64 generated_at = 4;
+
+    optional string format_version = 5;
+}
+
+// Batch telemetry
+message BatchTelemetry {
+    required string batch_id = 1;
+    repeated SensorReading readings = 2;
+    required int32 total_count = 3;
+
+    // SYNC STATUS CONFLICT: int32 in v1, SyncStatus enum in v2
+    required int32 sync_status = 4;
+
+    required Date collection_date = 5;
+}

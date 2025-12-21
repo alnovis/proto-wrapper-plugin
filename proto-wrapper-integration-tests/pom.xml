@@ -8,32 +8,25 @@
         <groupId>space.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
         <version>1.0.4</version>
-        <relativePath>../../pom.xml</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.example</groupId>
-    <artifactId>proto-wrapper-example</artifactId>
-    <version>1.0.0</version>
+    <artifactId>proto-wrapper-integration-tests</artifactId>
     <packaging>jar</packaging>
 
-    <name>Proto Wrapper Example</name>
+    <name>Proto Wrapper Integration Tests</name>
     <description>
-        Simple demo project demonstrating proto-wrapper-maven-plugin features:
-        - Multi-version proto schema support
-        - Top-level and nested enums
-        - Deeply nested messages
-        - Repeated fields with Builders
-        - VersionContext for runtime version selection
-
-        For comprehensive integration tests with all conflict types,
-        see the proto-wrapper-integration-tests module.
+        Comprehensive integration tests for proto-wrapper-maven-plugin covering:
+        - Simple proto schemas without conflicts
+        - Type conflicts: INT_ENUM, WIDENING, STRING_BYTES, PRIMITIVE_MESSAGE
+        - Nested messages with conflicts
+        - Repeated fields with conflicts
+        - Version-specific fields
+        - Builder round-trip verification
     </description>
 
     <properties>
-        <!-- Use parent versions where possible -->
-        <proto-wrapper.version>${project.parent.version}</proto-wrapper.version>
-
-        <!-- Skip publishing - this is an example project, not a library -->
+        <!-- Skip publishing - this is a test module -->
         <maven.deploy.skip>true</maven.deploy.skip>
         <maven.install.skip>true</maven.install.skip>
         <gpg.skip>true</gpg.skip>
@@ -41,13 +34,13 @@
     </properties>
 
     <dependencies>
-        <!-- Protobuf runtime (version from parent) -->
+        <!-- Protobuf runtime -->
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
         </dependency>
 
-        <!-- Testing (versions from parent) -->
+        <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -62,12 +55,7 @@
 
     <build>
         <extensions>
-            <!--
-                OS detection for protoc artifact.
-                NOTE: ${os.detected.classifier} is resolved at runtime by this extension.
-                IDEs may show "Cannot resolve symbol" error - this is normal, build works correctly.
-                Run 'mvn validate' or 'mvn compile' from command line to verify.
-            -->
+            <!-- OS detection for protoc artifact -->
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
@@ -82,16 +70,10 @@
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
                 <configuration>
-                    <!--
-                        os.detected.classifier is provided by os-maven-plugin extension above.
-                        Example values: linux-x86_64, osx-x86_64, windows-x86_64
-                        If IDE shows error, ignore it - Maven build works correctly.
-                    -->
-                    <protocArtifact>com.google.protobuf:protoc:3.24.0:exe:${os.detected.classifier}</protocArtifact>
+                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
                     <protoSourceRoot>${basedir}/proto</protoSourceRoot>
                 </configuration>
                 <executions>
-                    <!-- Compile v1 protos -->
                     <execution>
                         <id>compile-v1</id>
                         <goals>
@@ -104,7 +86,6 @@
                             <outputDirectory>${project.build.directory}/generated-sources/protobuf-v1</outputDirectory>
                         </configuration>
                     </execution>
-                    <!-- Compile v2 protos -->
                     <execution>
                         <id>compile-v2</id>
                         <goals>
@@ -124,54 +105,21 @@
             <plugin>
                 <groupId>space.alnovis</groupId>
                 <artifactId>proto-wrapper-maven-plugin</artifactId>
-                <version>${proto-wrapper.version}</version>
+                <version>${project.version}</version>
                 <configuration>
-                    <!-- Base package for all generated code -->
-                    <basePackage>com.example.model</basePackage>
-
-                    <!-- Pattern for proto package (used to resolve proto class names) -->
-                    <protoPackagePattern>com.example.proto.{version}</protoPackagePattern>
-
-                    <!-- Root directory containing version subdirectories -->
+                    <basePackage>space.alnovis.protowrapper.it.model</basePackage>
+                    <protoPackagePattern>space.alnovis.protowrapper.it.proto.{version}</protoPackagePattern>
                     <protoRoot>${basedir}/proto</protoRoot>
-
-                    <!-- Whether to add version suffix to implementation class names -->
-                    <!-- true: MoneyV1, MoneyV2 -->
-                    <!-- false: Money, Money (differentiated by package) -->
                     <includeVersionSuffix>false</includeVersionSuffix>
-
-                    <!-- Generate Builder interfaces for modifying wrapper objects -->
                     <generateBuilders>true</generateBuilders>
-
-                    <!-- Version configurations -->
                     <versions>
                         <version>
                             <protoDir>v1</protoDir>
-                            <!-- Optional: custom name for logging -->
-                            <!-- <name>Version 1.0</name> -->
-                            <!-- Optional: exclude patterns -->
-                            <!-- <excludePatterns>*_internal.proto</excludePatterns> -->
                         </version>
                         <version>
                             <protoDir>v2</protoDir>
                         </version>
                     </versions>
-
-                    <!-- Optional: API package (default: basePackage + ".api") -->
-                    <!-- <apiPackage>com.example.model.api</apiPackage> -->
-
-                    <!-- Optional: Implementation package pattern -->
-                    <!-- <implPackagePattern>com.example.model.{version}</implPackagePattern> -->
-
-                    <!-- Optional: Generation flags (all true by default) -->
-                    <!-- <generateInterfaces>true</generateInterfaces> -->
-                    <!-- <generateAbstractClasses>true</generateAbstractClasses> -->
-                    <!-- <generateImplClasses>true</generateImplClasses> -->
-                    <!-- <generateVersionContext>true</generateVersionContext> -->
-
-                    <!-- Optional: Include/exclude specific messages -->
-                    <!-- <includeMessages>Order,Customer</includeMessages> -->
-                    <!-- <excludeMessages>InternalMessage</excludeMessages> -->
                 </configuration>
                 <executions>
                     <execution>
@@ -182,25 +130,7 @@
                 </executions>
             </plugin>
 
-            <!-- Compiler plugin -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
-                <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
-                </configuration>
-            </plugin>
-
-            <!-- Surefire for tests -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.2</version>
-            </plugin>
-
-            <!-- Skip GPG signing for example project -->
+            <!-- Skip publishing plugins -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
@@ -208,8 +138,6 @@
                     <skip>true</skip>
                 </configuration>
             </plugin>
-
-            <!-- Disable Central publishing for example project -->
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
@@ -224,8 +152,6 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <!-- Skip deploy for example project -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>

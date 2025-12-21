@@ -13,6 +13,7 @@ import space.alnovis.protowrapper.analyzer.ProtocExecutor;
 import space.alnovis.protowrapper.generator.*;
 import space.alnovis.protowrapper.merger.VersionMerger;
 import space.alnovis.protowrapper.model.MergedEnum;
+import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
@@ -237,6 +238,9 @@ public class GenerateMojo extends AbstractMojo {
             getLog().info("Merged schema: " + mergedSchema.getMessages().size() + " messages, " +
                     mergedSchema.getEnums().size() + " enums");
 
+            // Log conflict statistics
+            logConflictStatistics(mergedSchema);
+
             // Configure generators
             GeneratorConfig generatorConfig = buildGeneratorConfig();
 
@@ -441,6 +445,61 @@ public class GenerateMojo extends AbstractMojo {
         } else {
             // Fallback for messages without source file info (multiple files mode)
             return protoPackage + "." + message.getName();
+        }
+    }
+
+    /**
+     * Log statistics about type conflicts in the merged schema.
+     */
+    private void logConflictStatistics(MergedSchema schema) {
+        Map<MergedField.ConflictType, Integer> conflictCounts = new EnumMap<>(MergedField.ConflictType.class);
+        Map<MergedField.ConflictType, List<String>> conflictExamples = new EnumMap<>(MergedField.ConflictType.class);
+
+        // Count conflicts across all messages (including nested)
+        for (MergedMessage message : schema.getMessages()) {
+            collectConflicts(message, conflictCounts, conflictExamples);
+        }
+
+        // Remove NONE type if present
+        conflictCounts.remove(MergedField.ConflictType.NONE);
+        conflictExamples.remove(MergedField.ConflictType.NONE);
+
+        if (conflictCounts.isEmpty()) {
+            getLog().info("No type conflicts detected");
+            return;
+        }
+
+        // Log summary
+        StringBuilder summary = new StringBuilder("Type conflicts: ");
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<MergedField.ConflictType, Integer> entry : conflictCounts.entrySet()) {
+            MergedField.ConflictType type = entry.getKey();
+            int count = entry.getValue();
+            List<String> examples = conflictExamples.get(type);
+            String exampleStr = examples.size() <= 2
+                    ? String.join(", ", examples)
+                    : examples.get(0) + ", " + examples.get(1) + ", ...";
+            parts.add(count + " " + type.name() + " (" + exampleStr + ")");
+        }
+        summary.append(String.join("; ", parts));
+        getLog().info(summary.toString());
+    }
+
+    private void collectConflicts(MergedMessage message,
+                                   Map<MergedField.ConflictType, Integer> counts,
+                                   Map<MergedField.ConflictType, List<String>> examples) {
+        for (MergedField field : message.getFieldsSorted()) {
+            MergedField.ConflictType conflictType = field.getConflictType();
+            if (conflictType != null && conflictType != MergedField.ConflictType.NONE) {
+                counts.merge(conflictType, 1, Integer::sum);
+                examples.computeIfAbsent(conflictType, k -> new ArrayList<>())
+                        .add(message.getName() + "." + field.getName());
+            }
+        }
+
+        // Recurse into nested messages
+        for (MergedMessage nested : message.getNestedMessages()) {
+            collectConflicts(nested, counts, examples);
         }
     }
 }

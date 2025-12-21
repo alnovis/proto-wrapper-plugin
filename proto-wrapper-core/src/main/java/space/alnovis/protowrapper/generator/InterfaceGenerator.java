@@ -2,13 +2,17 @@ package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
+import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedEnum;
 import space.alnovis.protowrapper.model.MergedEnumValue;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
@@ -70,6 +74,12 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
             if (field.isOptional() && !field.isRepeated()) {
                 interfaceBuilder.addMethod(generateHasMethod(field, resolver));
+            }
+
+            // Add supportsXxx() for version-specific fields or fields with conflicts
+            if (!field.isUniversal(message.getPresentInVersions()) ||
+                (field.getConflictType() != null && field.getConflictType() != MergedField.ConflictType.NONE)) {
+                interfaceBuilder.addMethod(generateSupportsMethod(field, message, resolver));
             }
 
             // Add enum getter for INT_ENUM conflict fields
@@ -140,7 +150,32 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .returns(returnType);
 
-        if (!field.isUniversal(message.getPresentInVersions())) {
+        // Add conflict information to Javadoc if applicable
+        MergedField.ConflictType conflictType = field.getConflictType();
+        if (conflictType != null && conflictType != MergedField.ConflictType.NONE) {
+            builder.addJavadoc("Get $L value.\n", field.getJavaName());
+            builder.addJavadoc("<p><b>Type conflict [$L]:</b> ", conflictType.name());
+
+            // Add version-specific type info
+            Map<String, FieldInfo> versionFields = field.getVersionFields();
+            List<String> typeInfo = new java.util.ArrayList<>();
+            for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
+                typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
+            }
+            builder.addJavadoc(String.join(", ", typeInfo) + "</p>\n");
+
+            // Add behavior note based on conflict type
+            switch (conflictType) {
+                case INT_ENUM -> builder.addJavadoc("<p>Use {@code get$LEnum()} for type-safe enum access.</p>\n",
+                        resolver.capitalize(field.getJavaName()));
+                case WIDENING -> builder.addJavadoc("<p>Value is automatically widened to the larger type.</p>\n");
+                case NARROWING -> builder.addJavadoc("<p>Returns default value (0) for versions with wider type.</p>\n");
+                case STRING_BYTES -> builder.addJavadoc("<p>Returns null for versions with incompatible type.</p>\n");
+                case PRIMITIVE_MESSAGE -> builder.addJavadoc("<p>Returns null/default for versions with message type.</p>\n");
+                default -> {}
+            }
+            builder.addJavadoc("@return $L value\n", field.getJavaName());
+        } else if (!field.isUniversal(message.getPresentInVersions())) {
             builder.addJavadoc("@return $L value, or null if not present in this version\n",
                     field.getJavaName());
             builder.addJavadoc("@apiNote Present in versions: $L\n", field.getPresentInVersions());
@@ -158,6 +193,95 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addJavadoc("Check if $L is present.\n", field.getJavaName())
                 .addJavadoc("@return true if the field has a value\n")
                 .build();
+    }
+
+    /**
+     * Generate supportsXxx() default method for version-specific or conflicting fields.
+     */
+    private MethodSpec generateSupportsMethod(MergedField field, MergedMessage message, TypeResolver resolver) {
+        String methodName = "supports" + resolver.capitalize(field.getJavaName());
+
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .returns(TypeName.BOOLEAN);
+
+        MergedField.ConflictType conflictType = field.getConflictType();
+        Set<String> presentVersions = field.getPresentInVersions();
+        Set<String> allVersions = message.getPresentInVersions();
+
+        // Build version check condition
+        if (conflictType != null && conflictType != MergedField.ConflictType.NONE) {
+            // For conflict fields, explain the conflict and check version
+            builder.addJavadoc("Check if $L is fully supported in the current version.\n", field.getJavaName());
+            builder.addJavadoc("<p>This field has a type conflict [$L] across versions.</p>\n", conflictType.name());
+
+            if (conflictType == MergedField.ConflictType.INT_ENUM || conflictType == MergedField.ConflictType.WIDENING) {
+                // These conflicts are resolved - return true for all versions where field exists
+                builder.addJavadoc("<p>The conflict is automatically handled; this method returns true for versions: $L</p>\n",
+                        presentVersions);
+                builder.addJavadoc("@return true if this version has the field\n");
+                builder.addStatement("return $L", buildVersionCheck(presentVersions));
+            } else if (conflictType == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+                // For PRIMITIVE_MESSAGE, the getter returns the primitive type
+                // Only return true for versions where the field IS primitive
+                Set<String> primitiveVersions = new java.util.HashSet<>();
+                for (Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+                    if (entry.getValue().isPrimitive()) {
+                        primitiveVersions.add(entry.getKey());
+                    }
+                }
+                if (primitiveVersions.isEmpty()) {
+                    builder.addJavadoc("<p>This field is a message type in all versions.</p>\n");
+                    builder.addJavadoc("@return false (primitive getter not available)\n");
+                    builder.addStatement("return false");
+                } else {
+                    builder.addJavadoc("<p>Returns true only for versions with primitive type: $L</p>\n", primitiveVersions);
+                    builder.addJavadoc("@return true if this version has primitive type for this field\n");
+                    builder.addStatement("return $L", buildVersionCheck(primitiveVersions));
+                }
+            } else {
+                // NARROWING, STRING_BYTES - only some versions work properly
+                builder.addJavadoc("<p>Returns false for versions where the field type is incompatible.</p>\n");
+                builder.addJavadoc("@return true if this version has compatible type for this field\n");
+                builder.addStatement("return $L", buildVersionCheck(presentVersions));
+            }
+        } else {
+            // Version-specific field (not present in all versions)
+            builder.addJavadoc("Check if $L is available in the current version.\n", field.getJavaName());
+            builder.addJavadoc("<p>This field is only present in versions: $L</p>\n", presentVersions);
+            builder.addJavadoc("@return true if this version supports this field\n");
+            builder.addStatement("return $L", buildVersionCheck(presentVersions));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Build a version check expression for the given set of versions.
+     */
+    private String buildVersionCheck(Set<String> versions) {
+        if (versions.size() == 1) {
+            String version = versions.iterator().next();
+            // Extract numeric part if version is like "v1", "v202", etc.
+            String numericPart = version.replaceAll("[^0-9]", "");
+            if (!numericPart.isEmpty()) {
+                return "getWrapperVersion() == " + numericPart;
+            }
+            return "true"; // Fallback
+        } else {
+            // Multiple versions - build OR condition
+            List<String> checks = new java.util.ArrayList<>();
+            for (String version : versions) {
+                String numericPart = version.replaceAll("[^0-9]", "");
+                if (!numericPart.isEmpty()) {
+                    checks.add("getWrapperVersion() == " + numericPart);
+                }
+            }
+            if (checks.isEmpty()) {
+                return "true";
+            }
+            return String.join(" || ", checks);
+        }
     }
 
     /**
@@ -184,18 +308,12 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addJavadoc("Nested interface for $L.\n", nested.getName());
 
         for (MergedField field : nested.getFieldsSorted()) {
-            TypeName returnType = resolver.parseFieldType(field, nested);
-            MethodSpec getter = MethodSpec.methodBuilder(field.getGetterName())
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .returns(returnType)
-                    .build();
+            // Use shared generateGetter for consistent Javadoc including conflict info
+            MethodSpec getter = generateGetter(field, nested, resolver);
             builder.addMethod(getter);
 
             if (field.isOptional() && !field.isRepeated()) {
-                builder.addMethod(MethodSpec.methodBuilder("has" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                        .returns(TypeName.BOOLEAN)
-                        .build());
+                builder.addMethod(generateHasMethod(field, resolver));
             }
 
             // Add enum getter for INT_ENUM conflict fields in nested messages
@@ -227,18 +345,34 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                     .returns(ClassName.get("", "Builder"))
                     .build());
 
-            TypeSpec nestedBuilder = generateNestedBuilderInterface(nested, resolver);
+            TypeSpec nestedBuilder = generateNestedBuilderInterface(nested, resolver, ctx);
             builder.addType(nestedBuilder);
         }
 
         return builder.build();
     }
 
-    private TypeSpec generateNestedBuilderInterface(MergedMessage nested, TypeResolver resolver) {
+    private TypeSpec generateNestedBuilderInterface(MergedMessage nested, TypeResolver resolver, GenerationContext ctx) {
         TypeSpec.Builder builder = TypeSpec.interfaceBuilder("Builder")
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
         for (MergedField field : nested.getFieldsSorted()) {
+            // Handle INT_ENUM conflicts with overloaded setters
+            if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
+                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                        .getConflictEnum(nested.getName(), field.getName());
+                if (enumInfoOpt.isPresent()) {
+                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), resolver);
+                    continue;
+                }
+            }
+
+            // Handle WIDENING conflicts with setter using wider type
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                addWideningBuilderMethods(builder, field, resolver);
+                continue;
+            }
+
             // Skip builder methods for fields with non-convertible type conflicts
             if (field.shouldSkipBuilderSetter()) {
                 continue;
@@ -311,6 +445,12 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                     addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), resolver);
                     continue;
                 }
+            }
+
+            // Handle WIDENING conflicts with setter using wider type
+            if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
+                addWideningBuilderMethods(builder, field, resolver);
+                continue;
             }
 
             // Skip builder methods for fields with other non-convertible type conflicts
@@ -424,6 +564,60 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .returns(builderType)
                 .addJavadoc("Clear $L value.\n", field.getJavaName())
                 .build());
+    }
+
+    /**
+     * Add builder methods for WIDENING conflict field.
+     * Uses the wider type (e.g., long for int/long, double for int/double).
+     */
+    private void addWideningBuilderMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
+        String methodName = "set" + resolver.capitalize(field.getJavaName());
+        ClassName builderType = ClassName.get("", "Builder");
+
+        // Get the wider type from the field (already resolved in VersionMerger)
+        TypeName widerType = getWiderPrimitiveType(field.getJavaType());
+
+        // Build version info for javadoc
+        Map<String, FieldInfo> versionFields = field.getVersionFields();
+        List<String> typeInfo = new java.util.ArrayList<>();
+        for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
+            typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
+        }
+        String versionsStr = String.join(", ", typeInfo);
+
+        // setter with wider type
+        builder.addMethod(MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(widerType, field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Set $L value.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [WIDENING]:</b> $L</p>\n", versionsStr)
+                .addJavadoc("<p>For versions with narrower type, value is validated at runtime.</p>\n")
+                .addJavadoc("@param $L The value to set\n", field.getJavaName())
+                .addJavadoc("@return This builder\n")
+                .addJavadoc("@throws IllegalArgumentException if value exceeds target type range\n")
+                .build());
+
+        // clear method
+        if (field.isOptional()) {
+            builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(builderType)
+                    .addJavadoc("Clear $L value.\n", field.getJavaName())
+                    .build());
+        }
+    }
+
+    /**
+     * Get the primitive TypeName for a wider type string.
+     */
+    private TypeName getWiderPrimitiveType(String javaType) {
+        return switch (javaType) {
+            case "long", "Long" -> TypeName.LONG;
+            case "double", "Double" -> TypeName.DOUBLE;
+            case "int", "Integer" -> TypeName.INT;
+            default -> TypeName.LONG; // Default to long for numeric widening
+        };
     }
 
     /**

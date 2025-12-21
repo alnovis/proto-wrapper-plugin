@@ -1,10 +1,10 @@
-package com.example.model;
+package space.alnovis.protowrapper.it.model;
 
-import com.example.model.api.*;
-import com.example.proto.v1.Telemetry;
-import com.example.proto.v2.Telemetry.UnitTypeEnum;
-import com.example.proto.v2.Telemetry.AlertSeverity;
-import com.example.proto.v2.Telemetry.SyncStatus;
+import space.alnovis.protowrapper.it.model.api.*;
+import space.alnovis.protowrapper.it.proto.v1.Telemetry;
+import space.alnovis.protowrapper.it.proto.v2.Telemetry.UnitTypeEnum;
+import space.alnovis.protowrapper.it.proto.v2.Telemetry.AlertSeverity;
+import space.alnovis.protowrapper.it.proto.v2.Telemetry.SyncStatus;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,7 +44,7 @@ class TypeConflictTest {
                     .setReadingDate(createV1Date(2024, 1, 15))
                     .build();
 
-            SensorReading reading = new com.example.model.v1.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(proto);
 
             assertThat(reading.getUnitType()).isEqualTo(2);
             assertThat(reading.getWrapperVersion()).isEqualTo(1);
@@ -53,8 +53,8 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 reads unitType as enum, unified interface returns int value")
         void v2ReturnsDefaultForConflictingField() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Pressure Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_PASCAL)  // enum value 3
@@ -63,7 +63,7 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 1, 15))
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             // Phase 2: Conflicting field now returns actual int value from enum
             assertThat(reading.getUnitType()).isEqualTo(3);  // UNIT_PASCAL = 3
@@ -73,8 +73,8 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 can access actual enum value via typed proto")
         void v2CanAccessActualEnumViaTypedProto() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Pressure Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_BAR)
@@ -83,8 +83,8 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 1, 15))
                     .build();
 
-            com.example.model.v2.SensorReading reading =
-                    new com.example.model.v2.SensorReading(proto);
+            space.alnovis.protowrapper.it.model.v2.SensorReading reading =
+                    new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             // Access actual enum via typed proto
             assertThat(reading.getTypedProto().getUnitType()).isEqualTo(UnitTypeEnum.UNIT_BAR);
@@ -103,7 +103,7 @@ class TypeConflictTest {
                     .setReadingDate(createV1Date(2024, 1, 15))
                     .build();
 
-            SensorReading reading = new com.example.model.v1.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(proto);
 
             // Unified enum getter
             assertThat(reading.getUnitTypeEnum()).isEqualTo(UnitType.UNIT_PASCAL);
@@ -113,8 +113,8 @@ class TypeConflictTest {
         @Test
         @DisplayName("Phase 2: getUnitTypeEnum returns unified enum for V2")
         void v2ReturnsUnifiedEnum() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Pressure Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_BAR)
@@ -123,7 +123,7 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 1, 15))
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             // Unified enum getter
             assertThat(reading.getUnitTypeEnum()).isEqualTo(UnitType.UNIT_BAR);
@@ -134,7 +134,7 @@ class TypeConflictTest {
         @DisplayName("Phase 2: Builder accepts unified enum type")
         void builderAcceptsUnifiedEnum() {
             // V1 builder with unified enum
-            SensorReading v1Reading = new com.example.model.v1.SensorReading(
+            SensorReading v1Reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(
                     Telemetry.SensorReading.newBuilder()
                             .setSensorId("SENSOR-001")
                             .setDeviceName("Test")
@@ -164,7 +164,7 @@ class TypeConflictTest {
                     .setReadingDate(createV1Date(2024, 1, 1))
                     .build();
 
-            SensorReading base = new com.example.model.v1.SensorReading(baseProto);
+            SensorReading base = new space.alnovis.protowrapper.it.model.v1.SensorReading(baseProto);
 
             // Set via int
             SensorReading viaInt = base.toBuilder()
@@ -197,7 +197,7 @@ class TypeConflictTest {
                     .setSeverityCode(3)  // CRITICAL in v2
                     .build();
 
-            AlertNotification alert = new com.example.model.v1.AlertNotification(proto);
+            AlertNotification alert = new space.alnovis.protowrapper.it.model.v1.AlertNotification(proto);
 
             assertThat(alert.getSeverityCode()).isEqualTo(3);
         }
@@ -205,15 +205,15 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 severity returns int value from enum")
         void v2ReturnsDefaultForSeverity() {
-            com.example.proto.v2.Telemetry.AlertNotification proto =
-                    com.example.proto.v2.Telemetry.AlertNotification.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.AlertNotification proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.AlertNotification.newBuilder()
                     .setAlertId("ALERT-002")
                     .setSensorId("SENSOR-002")
                     .setThresholdValue(200)
                     .setSeverity(AlertSeverity.SEVERITY_EMERGENCY)
                     .build();
 
-            AlertNotification alert = new com.example.model.v2.AlertNotification(proto);
+            AlertNotification alert = new space.alnovis.protowrapper.it.model.v2.AlertNotification(proto);
 
             // Phase 2: Conflicting field now returns actual int value from enum
             assertThat(alert.getSeverityCode()).isEqualTo(4);  // SEVERITY_EMERGENCY = 4
@@ -234,7 +234,7 @@ class TypeConflictTest {
                     .setCollectionDate(createV1Date(2024, 1, 15))
                     .build();
 
-            BatchTelemetry batch = new com.example.model.v1.BatchTelemetry(proto);
+            BatchTelemetry batch = new space.alnovis.protowrapper.it.model.v1.BatchTelemetry(proto);
 
             assertThat(batch.getSyncStatus()).isEqualTo(2);
         }
@@ -242,15 +242,15 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 syncStatus returns int value from enum")
         void v2ReturnsDefaultForSyncStatus() {
-            com.example.proto.v2.Telemetry.BatchTelemetry proto =
-                    com.example.proto.v2.Telemetry.BatchTelemetry.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.BatchTelemetry.newBuilder()
                     .setBatchId("BATCH-002")
                     .setTotalCount(20)
                     .setSyncStatus(SyncStatus.SYNC_COMPLETED)
                     .setCollectionDate(createV2Date(2024, 1, 15))
                     .build();
 
-            BatchTelemetry batch = new com.example.model.v2.BatchTelemetry(proto);
+            BatchTelemetry batch = new space.alnovis.protowrapper.it.model.v2.BatchTelemetry(proto);
 
             // Phase 2: Conflicting field now returns actual int value from enum
             assertThat(batch.getSyncStatus()).isEqualTo(2);  // SYNC_COMPLETED = 2
@@ -275,16 +275,16 @@ class TypeConflictTest {
                     .setReadingDate(createV1Date(2024, 2, 20))
                     .build();
 
-            SensorReading reading = new com.example.model.v1.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(proto);
 
             assertThat(reading.getPrecisionLevel()).isEqualTo(4);
         }
 
         @Test
-        @DisplayName("V2 precisionLevel (double) returns default through unified interface")
-        void v2ReturnsDefaultForPrecision() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+        @DisplayName("V2 precisionLevel (double) is accessible through unified interface")
+        void v2ReturnsPrecisionThroughUnifiedInterface() {
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Precision Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_PERCENT)
@@ -293,17 +293,17 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 2, 20))
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
-            // Conflicting field returns default (0)
-            assertThat(reading.getPrecisionLevel()).isEqualTo(0);
+            // WIDENING: unified interface uses double (wider type)
+            assertThat(reading.getPrecisionLevel()).isEqualTo(3.14159);
         }
 
         @Test
         @DisplayName("V2 can access actual double precision via typed proto")
         void v2CanAccessActualDoubleViaTypedProto() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Precision Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_PERCENT)
@@ -312,8 +312,8 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 2, 20))
                     .build();
 
-            com.example.model.v2.SensorReading reading =
-                    new com.example.model.v2.SensorReading(proto);
+            space.alnovis.protowrapper.it.model.v2.SensorReading reading =
+                    new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             assertThat(reading.getTypedProto().getPrecisionLevel()).isEqualTo(3.14159);
         }
@@ -335,16 +335,16 @@ class TypeConflictTest {
                     .setReadingDate(createV1Date(2024, 3, 10))
                     .build();
 
-            SensorReading reading = new com.example.model.v1.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(proto);
 
             assertThat(reading.getRawValue()).isEqualTo(2147483647);
         }
 
         @Test
-        @DisplayName("V2 rawValue (int64) returns default through unified interface")
-        void v2ReturnsDefaultForRawValue() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+        @DisplayName("V2 rawValue (int64) is accessible through unified interface")
+        void v2ReturnsRawValueThroughUnifiedInterface() {
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Big Counter")
                     .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
@@ -353,17 +353,17 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 3, 10))
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
-            // Conflicting field returns default (0)
-            assertThat(reading.getRawValue()).isEqualTo(0);
+            // WIDENING: unified interface uses long (wider type)
+            assertThat(reading.getRawValue()).isEqualTo(9_999_999_999L);
         }
 
         @Test
         @DisplayName("V2 can access actual long value via typed proto")
         void v2CanAccessActualLongViaTypedProto() {
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("Big Counter")
                     .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
@@ -372,8 +372,8 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 3, 10))
                     .build();
 
-            com.example.model.v2.SensorReading reading =
-                    new com.example.model.v2.SensorReading(proto);
+            space.alnovis.protowrapper.it.model.v2.SensorReading reading =
+                    new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             assertThat(reading.getTypedProto().getRawValue()).isEqualTo(9_999_999_999L);
         }
@@ -398,7 +398,7 @@ class TypeConflictTest {
                     .setReadingDate(createV1Date(2024, 4, 5))
                     .build();
 
-            SensorReading reading = new com.example.model.v1.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v1.SensorReading(proto);
 
             assertThat(reading.hasCalibrationId()).isTrue();
             assertThat(reading.getCalibrationId()).isEqualTo(12345);
@@ -407,16 +407,16 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 calibrationInfo (message) returns null through unified interface")
         void v2ReturnsNullForCalibrationId() {
-            com.example.proto.v2.Telemetry.CalibrationInfo calibInfo =
-                    com.example.proto.v2.Telemetry.CalibrationInfo.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo calibInfo =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo.newBuilder()
                     .setCalibrationId("CAL-2024-001")
                     .setTechnicianId("TECH-42")
                     .setCalibrationDate(createV2Date(2024, 4, 1))
                     .setAccuracyRating(99)
                     .build();
 
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("V2 Calibrated Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
@@ -426,7 +426,7 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 4, 5))
                     .build();
 
-            SensorReading reading = new com.example.model.v2.SensorReading(proto);
+            SensorReading reading = new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             // Conflicting field returns false/null
             assertThat(reading.hasCalibrationId()).isFalse();
@@ -436,15 +436,15 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 can access CalibrationInfo message via typed proto")
         void v2CanAccessCalibrationInfoViaTypedProto() {
-            com.example.proto.v2.Telemetry.CalibrationInfo calibInfo =
-                    com.example.proto.v2.Telemetry.CalibrationInfo.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo calibInfo =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.CalibrationInfo.newBuilder()
                     .setCalibrationId("CAL-2024-001")
                     .setTechnicianId("TECH-42")
                     .setAccuracyRating(99)
                     .build();
 
-            com.example.proto.v2.Telemetry.SensorReading proto =
-                    com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                     .setSensorId("SENSOR-002")
                     .setDeviceName("V2 Calibrated Sensor")
                     .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
@@ -454,8 +454,8 @@ class TypeConflictTest {
                     .setReadingDate(createV2Date(2024, 4, 5))
                     .build();
 
-            com.example.model.v2.SensorReading reading =
-                    new com.example.model.v2.SensorReading(proto);
+            space.alnovis.protowrapper.it.model.v2.SensorReading reading =
+                    new space.alnovis.protowrapper.it.model.v2.SensorReading(proto);
 
             assertThat(reading.getTypedProto().hasCalibrationInfo()).isTrue();
             assertThat(reading.getTypedProto().getCalibrationInfo().getCalibrationId())
@@ -478,7 +478,7 @@ class TypeConflictTest {
                     .setGeneratedAt(1704067200000L)  // 2024-01-01 00:00:00 UTC
                     .build();
 
-            TelemetryReport report = new com.example.model.v1.TelemetryReport(proto);
+            TelemetryReport report = new space.alnovis.protowrapper.it.model.v1.TelemetryReport(proto);
 
             assertThat(report.getGeneratedAt()).isEqualTo(1704067200000L);
         }
@@ -486,14 +486,14 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 generatedAt (Date) returns default through unified interface")
         void v2ReturnsDefaultForGeneratedAt() {
-            com.example.proto.v2.Telemetry.TelemetryReport proto =
-                    com.example.proto.v2.Telemetry.TelemetryReport.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
                     .setReportNumber("RPT-002")
                     .setReading(createMinimalV2SensorReading())
                     .setGeneratedAt(createV2Date(2024, 6, 15))
                     .build();
 
-            TelemetryReport report = new com.example.model.v2.TelemetryReport(proto);
+            TelemetryReport report = new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto);
 
             // Conflicting field returns default (0L)
             assertThat(report.getGeneratedAt()).isEqualTo(0L);
@@ -502,15 +502,15 @@ class TypeConflictTest {
         @Test
         @DisplayName("V2 can access Date message via typed proto")
         void v2CanAccessDateViaTypedProto() {
-            com.example.proto.v2.Telemetry.TelemetryReport proto =
-                    com.example.proto.v2.Telemetry.TelemetryReport.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
                     .setReportNumber("RPT-002")
                     .setReading(createMinimalV2SensorReading())
                     .setGeneratedAt(createV2Date(2024, 6, 15))
                     .build();
 
-            com.example.model.v2.TelemetryReport report =
-                    new com.example.model.v2.TelemetryReport(proto);
+            space.alnovis.protowrapper.it.model.v2.TelemetryReport report =
+                    new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto);
 
             assertThat(report.getTypedProto().getGeneratedAt().getYear()).isEqualTo(2024);
             assertThat(report.getTypedProto().getGeneratedAt().getMonth()).isEqualTo(6);
@@ -534,7 +534,7 @@ class TypeConflictTest {
                     .setGeneratedAt(1704067200000L)
                     .build();
 
-            TelemetryReport report = new com.example.model.v1.TelemetryReport(proto);
+            TelemetryReport report = new space.alnovis.protowrapper.it.model.v1.TelemetryReport(proto);
 
             assertThat(report.hasChecksum()).isTrue();
             assertThat(report.getChecksum()).isEqualTo("abc123def456");
@@ -545,15 +545,15 @@ class TypeConflictTest {
         void v2ReturnsNullForChecksum() {
             byte[] checksumBytes = new byte[]{0x01, 0x02, 0x03, 0x04, 0x05};
 
-            com.example.proto.v2.Telemetry.TelemetryReport proto =
-                    com.example.proto.v2.Telemetry.TelemetryReport.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
                     .setReportNumber("RPT-002")
                     .setReading(createMinimalV2SensorReading())
                     .setChecksum(ByteString.copyFrom(checksumBytes))
                     .setGeneratedAt(createV2Date(2024, 7, 20))
                     .build();
 
-            TelemetryReport report = new com.example.model.v2.TelemetryReport(proto);
+            TelemetryReport report = new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto);
 
             // Conflicting field returns false/null
             assertThat(report.hasChecksum()).isFalse();
@@ -565,16 +565,16 @@ class TypeConflictTest {
         void v2CanAccessBytesViaTypedProto() {
             byte[] checksumBytes = new byte[]{0x01, 0x02, 0x03, 0x04, 0x05};
 
-            com.example.proto.v2.Telemetry.TelemetryReport proto =
-                    com.example.proto.v2.Telemetry.TelemetryReport.newBuilder()
+            space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport proto =
+                    space.alnovis.protowrapper.it.proto.v2.Telemetry.TelemetryReport.newBuilder()
                     .setReportNumber("RPT-002")
                     .setReading(createMinimalV2SensorReading())
                     .setChecksum(ByteString.copyFrom(checksumBytes))
                     .setGeneratedAt(createV2Date(2024, 7, 20))
                     .build();
 
-            com.example.model.v2.TelemetryReport report =
-                    new com.example.model.v2.TelemetryReport(proto);
+            space.alnovis.protowrapper.it.model.v2.TelemetryReport report =
+                    new space.alnovis.protowrapper.it.model.v2.TelemetryReport(proto);
 
             assertThat(report.getTypedProto().hasChecksum()).isTrue();
             assertThat(report.getTypedProto().getChecksum().toByteArray())
@@ -584,16 +584,16 @@ class TypeConflictTest {
 
     // ==================== Helper Methods ====================
 
-    private com.example.proto.v1.Common.Date createV1Date(int year, int month, int day) {
-        return com.example.proto.v1.Common.Date.newBuilder()
+    private space.alnovis.protowrapper.it.proto.v1.Common.Date createV1Date(int year, int month, int day) {
+        return space.alnovis.protowrapper.it.proto.v1.Common.Date.newBuilder()
                 .setYear(year)
                 .setMonth(month)
                 .setDay(day)
                 .build();
     }
 
-    private com.example.proto.v2.Common.Date createV2Date(int year, int month, int day) {
-        return com.example.proto.v2.Common.Date.newBuilder()
+    private space.alnovis.protowrapper.it.proto.v2.Common.Date createV2Date(int year, int month, int day) {
+        return space.alnovis.protowrapper.it.proto.v2.Common.Date.newBuilder()
                 .setYear(year)
                 .setMonth(month)
                 .setDay(day)
@@ -611,8 +611,8 @@ class TypeConflictTest {
                 .build();
     }
 
-    private com.example.proto.v2.Telemetry.SensorReading createMinimalV2SensorReading() {
-        return com.example.proto.v2.Telemetry.SensorReading.newBuilder()
+    private space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading createMinimalV2SensorReading() {
+        return space.alnovis.protowrapper.it.proto.v2.Telemetry.SensorReading.newBuilder()
                 .setSensorId("SENSOR-MIN")
                 .setDeviceName("Minimal")
                 .setUnitType(UnitTypeEnum.UNIT_CELSIUS)
