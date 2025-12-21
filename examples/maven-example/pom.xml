@@ -61,7 +61,12 @@
 
     <build>
         <extensions>
-            <!-- OS detection for protoc artifact -->
+            <!--
+                OS detection for protoc artifact.
+                NOTE: ${os.detected.classifier} is resolved at runtime by this extension.
+                IDEs may show "Cannot resolve symbol" error - this is normal, build works correctly.
+                Run 'mvn validate' or 'mvn compile' from command line to verify.
+            -->
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
@@ -76,6 +81,11 @@
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
                 <configuration>
+                    <!--
+                        os.detected.classifier is provided by os-maven-plugin extension above.
+                        Example values: linux-x86_64, osx-x86_64, windows-x86_64
+                        If IDE shows error, ignore it - Maven build works correctly.
+                    -->
                     <protocArtifact>com.google.protobuf:protoc:3.24.0:exe:${os.detected.classifier}</protocArtifact>
                     <protoSourceRoot>${basedir}/proto</protoSourceRoot>
                 </configuration>
@@ -128,6 +138,9 @@
                     <!-- true: MoneyV1, MoneyV2 -->
                     <!-- false: Money, Money (differentiated by package) -->
                     <includeVersionSuffix>false</includeVersionSuffix>
+
+                    <!-- Generate Builder interfaces for modifying wrapper objects -->
+                    <generateBuilders>true</generateBuilders>
 
                     <!-- Version configurations -->
                     <versions>

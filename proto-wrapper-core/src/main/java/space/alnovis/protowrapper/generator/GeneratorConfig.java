@@ -19,6 +19,8 @@ public class GeneratorConfig {
     private boolean generateImplClasses = true;
     private boolean generateVersionContext = true;
     private boolean includeVersionSuffix = true;
+    private boolean generateBuilders = false;
+    private int protobufMajorVersion = 3; // 2 for protobuf 2.x, 3 for protobuf 3.x
 
     private Set<String> includedMessages = new HashSet<>();
     private Set<String> excludedMessages = new HashSet<>();
@@ -49,6 +51,10 @@ public class GeneratorConfig {
     public boolean isGenerateImplClasses() { return generateImplClasses; }
     public boolean isGenerateVersionContext() { return generateVersionContext; }
     public boolean isIncludeVersionSuffix() { return includeVersionSuffix; }
+    public boolean isGenerateBuilders() { return generateBuilders; }
+    public int getProtobufMajorVersion() { return protobufMajorVersion; }
+    public boolean isProtobuf2() { return protobufMajorVersion == 2; }
+    public boolean isProtobuf3() { return protobufMajorVersion >= 3; }
 
     /**
      * Get the implementation class name for a message in a specific version.
@@ -123,6 +129,19 @@ public class GeneratorConfig {
 
         public Builder includeVersionSuffix(boolean value) {
             config.includeVersionSuffix = value;
+            return this;
+        }
+
+        public Builder generateBuilders(boolean value) {
+            config.generateBuilders = value;
+            return this;
+        }
+
+        public Builder protobufMajorVersion(int version) {
+            if (version < 2 || version > 3) {
+                throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);
+            }
+            config.protobufMajorVersion = version;
             return this;
         }
 

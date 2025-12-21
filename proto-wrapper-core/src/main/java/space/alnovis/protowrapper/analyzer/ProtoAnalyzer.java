@@ -117,7 +117,7 @@ public class ProtoAnalyzer {
 
             // Process top-level enums
             for (EnumDescriptorProto enumProto : fileProto.getEnumTypeList()) {
-                schema.addEnum(new EnumInfo(enumProto));
+                schema.addEnum(new EnumInfo(enumProto, sourceFileName));
             }
         }
 

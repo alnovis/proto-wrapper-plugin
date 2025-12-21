@@ -15,18 +15,29 @@ public class EnumInfo {
 
     private final String name;
     private final List<EnumValue> values;
+    private final String sourceFileName;
 
     public EnumInfo(EnumDescriptorProto proto) {
+        this(proto, null);
+    }
+
+    public EnumInfo(EnumDescriptorProto proto, String sourceFileName) {
         this.name = proto.getName();
         this.values = proto.getValueList().stream()
                 .map(EnumValue::new)
                 .collect(Collectors.toList());
+        this.sourceFileName = sourceFileName;
     }
 
     // Constructor for merged enums
     public EnumInfo(String name, List<EnumValue> values) {
         this.name = name;
         this.values = new ArrayList<>(values);
+        this.sourceFileName = null;
+    }
+
+    public String getSourceFileName() {
+        return sourceFileName;
     }
 
     public String getName() {

@@ -85,6 +85,19 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
         // Add common utility methods
         addCommonMethods(interfaceBuilder, message);
 
+        // Add Builder interface if enabled
+        if (config.isGenerateBuilders()) {
+            interfaceBuilder.addMethod(MethodSpec.methodBuilder("toBuilder")
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(ClassName.get("", "Builder"))
+                    .addJavadoc("Create a builder initialized with this instance's values.\n")
+                    .addJavadoc("@return Builder for creating modified copies\n")
+                    .build());
+
+            TypeSpec builderInterface = generateBuilderInterface(message, resolver);
+            interfaceBuilder.addType(builderInterface);
+        }
+
         TypeSpec interfaceSpec = interfaceBuilder.build();
 
         return JavaFile.builder(ctx.getApiPackage(), interfaceSpec)
@@ -164,7 +177,163 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             builder.addType(deeplyNestedInterface);
         }
 
+        // Add Builder interface for nested message if enabled
+        if (config.isGenerateBuilders()) {
+            builder.addMethod(MethodSpec.methodBuilder("toBuilder")
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(ClassName.get("", "Builder"))
+                    .build());
+
+            TypeSpec nestedBuilder = generateNestedBuilderInterface(nested, resolver);
+            builder.addType(nestedBuilder);
+        }
+
         return builder.build();
+    }
+
+    private TypeSpec generateNestedBuilderInterface(MergedMessage nested, TypeResolver resolver) {
+        TypeSpec.Builder builder = TypeSpec.interfaceBuilder("Builder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+        for (MergedField field : nested.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, nested);
+
+            if (field.isRepeated()) {
+                TypeName singleElementType = extractListElementType(fieldType);
+
+                builder.addMethod(MethodSpec.methodBuilder("add" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(singleElementType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("addAll" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .returns(ClassName.get("", "Builder"))
+                        .build());
+            } else {
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .build());
+
+                if (field.isOptional()) {
+                    builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                            .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                            .returns(ClassName.get("", "Builder"))
+                            .build());
+                }
+            }
+        }
+
+        // Return type is the nested interface itself
+        builder.addMethod(MethodSpec.methodBuilder("build")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(ClassName.get("", nested.getInterfaceName()))
+                .build());
+
+        return builder.build();
+    }
+
+    private TypeSpec generateBuilderInterface(MergedMessage message, TypeResolver resolver) {
+        TypeSpec.Builder builder = TypeSpec.interfaceBuilder("Builder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addJavadoc("Builder for creating and modifying $L instances.\n", message.getInterfaceName());
+
+        // Add setter methods for each field
+        for (MergedField field : message.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, message);
+
+            if (field.isRepeated()) {
+                // For repeated fields: add, addAll, set (replace all), clear
+                TypeName singleElementType = extractListElementType(fieldType);
+
+                // add single element
+                builder.addMethod(MethodSpec.methodBuilder("add" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(singleElementType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .addJavadoc("Add a single $L element.\n", field.getJavaName())
+                        .build());
+
+                // addAll
+                builder.addMethod(MethodSpec.methodBuilder("addAll" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .addJavadoc("Add all $L elements.\n", field.getJavaName())
+                        .build());
+
+                // set (replace all)
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .addJavadoc("Replace all $L elements.\n", field.getJavaName())
+                        .build());
+
+                // clear
+                builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .returns(ClassName.get("", "Builder"))
+                        .addJavadoc("Clear all $L elements.\n", field.getJavaName())
+                        .build());
+            } else {
+                // Regular setter
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(ClassName.get("", "Builder"))
+                        .addJavadoc("Set $L value.\n", field.getJavaName())
+                        .build());
+
+                // Clear method for optional fields
+                if (field.isOptional()) {
+                    builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                            .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                            .returns(ClassName.get("", "Builder"))
+                            .addJavadoc("Clear $L value.\n", field.getJavaName())
+                            .build());
+                }
+            }
+        }
+
+        // Add build method
+        builder.addMethod(MethodSpec.methodBuilder("build")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(ClassName.get(config.getApiPackage(), message.getInterfaceName()))
+                .addJavadoc("Build the $L instance.\n", message.getInterfaceName())
+                .addJavadoc("@return New immutable instance\n")
+                .build());
+
+        return builder.build();
+    }
+
+    /**
+     * Extract element type from List<T> type.
+     */
+    private TypeName extractListElementType(TypeName listType) {
+        if (listType instanceof ParameterizedTypeName) {
+            ParameterizedTypeName parameterized = (ParameterizedTypeName) listType;
+            if (!parameterized.typeArguments.isEmpty()) {
+                return parameterized.typeArguments.get(0);
+            }
+        }
+        // Fallback to Object
+        return ClassName.get(Object.class);
     }
 
     private TypeSpec generateNestedEnum(MergedEnum enumInfo) {

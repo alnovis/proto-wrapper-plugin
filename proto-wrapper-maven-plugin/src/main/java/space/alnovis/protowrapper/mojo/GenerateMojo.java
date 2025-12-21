@@ -147,6 +147,23 @@ public class GenerateMojo extends AbstractMojo {
     private boolean includeVersionSuffix;
 
     /**
+     * Whether to generate Builder interfaces and implementations.
+     * If true: generates toBuilder() method and Builder nested interface
+     * If false (default): generates read-only wrappers only
+     */
+    @Parameter(defaultValue = "false")
+    private boolean generateBuilders;
+
+    /**
+     * Major version of protobuf library used in the project.
+     * Set to 2 for protobuf 2.x projects (uses valueOf() for enum conversion).
+     * Set to 3 for protobuf 3.x projects (uses forNumber() for enum conversion).
+     * Default is 3.
+     */
+    @Parameter(defaultValue = "3")
+    private int protobufMajorVersion;
+
+    /**
      * Messages to include (empty = all).
      */
     @Parameter
@@ -383,7 +400,9 @@ public class GenerateMojo extends AbstractMojo {
                 .generateAbstractClasses(generateAbstractClasses)
                 .generateImplClasses(generateImplClasses)
                 .generateVersionContext(generateVersionContext)
-                .includeVersionSuffix(includeVersionSuffix);
+                .includeVersionSuffix(includeVersionSuffix)
+                .generateBuilders(generateBuilders)
+                .protobufMajorVersion(protobufMajorVersion);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {

@@ -101,6 +101,30 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
             }
 
             interfaceBuilder.addMethod(methodBuilder.build());
+
+            // Add newXxxBuilder() method if builders are enabled
+            if (config.isGenerateBuilders()) {
+                ClassName builderType = returnType.nestedClass("Builder");
+
+                MethodSpec.Builder newBuilderMethod = MethodSpec.methodBuilder("new" + message.getName() + "Builder")
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(builderType)
+                        .addJavadoc("Create a new builder for $L.\n", message.getName())
+                        .addJavadoc("@return Empty builder for $L\n", message.getName());
+
+                if (existsInAllVersions) {
+                    newBuilderMethod.addModifiers(Modifier.ABSTRACT);
+                } else {
+                    newBuilderMethod.addModifiers(Modifier.DEFAULT);
+                    newBuilderMethod.addJavadoc("@apiNote Present only in versions: $L\n", message.getPresentInVersions());
+                    newBuilderMethod.addStatement("throw new $T($S + $S)",
+                            UnsupportedOperationException.class,
+                            message.getName() + " is not available in this version. Present in: ",
+                            message.getPresentInVersions().toString());
+                }
+
+                interfaceBuilder.addMethod(newBuilderMethod.build());
+            }
         }
 
         TypeSpec interfaceSpec = interfaceBuilder.build();
@@ -183,6 +207,18 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                     .addStatement("return new $T(($T) proto)", implType, protoType);
 
             classBuilder.addMethod(wrapMethod.build());
+
+            // Add newXxxBuilder() implementation if builders are enabled
+            if (config.isGenerateBuilders()) {
+                ClassName builderType = returnType.nestedClass("Builder");
+
+                classBuilder.addMethod(MethodSpec.methodBuilder("new" + message.getName() + "Builder")
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(builderType)
+                        .addStatement("return $T.newBuilder()", implType)
+                        .build());
+            }
         }
 
         TypeSpec classSpec = classBuilder.build();

@@ -132,6 +132,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         // Add common methods
         addCommonMethods(classBuilder, message, protoType);
 
+        // Add Builder support if enabled
+        if (config.isGenerateBuilders()) {
+            addBuilderSupport(classBuilder, message, protoType, interfaceType, resolver);
+        }
+
         // Add nested abstract classes for nested messages
         for (MergedMessage nested : message.getNestedMessages()) {
             TypeSpec nestedClass = generateNestedAbstractClass(nested, message, resolver);
@@ -197,7 +202,163 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
             classBuilder.addType(deeplyNestedClass);
         }
 
+        // Add Builder support for nested message if enabled
+        if (config.isGenerateBuilders()) {
+            addNestedBuilderSupport(classBuilder, nested, interfaceType, resolver);
+        }
+
         return classBuilder.build();
+    }
+
+    private void addNestedBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage nested,
+                                         ClassName interfaceType, TypeResolver resolver) {
+        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+
+        // Abstract method to create builder
+        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // toBuilder() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("toBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createBuilder()")
+                .build());
+
+        // Generate nested AbstractBuilder
+        TypeSpec abstractBuilder = generateNestedAbstractBuilder(nested, interfaceType, resolver);
+        classBuilder.addType(abstractBuilder);
+    }
+
+    private TypeSpec generateNestedAbstractBuilder(MergedMessage nested, ClassName interfaceType, TypeResolver resolver) {
+        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+        TypeVariableName protoType = TypeVariableName.get("PROTO", MESSAGE_CLASS);
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder("AbstractBuilder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.ABSTRACT)
+                .addTypeVariable(protoType)
+                .addSuperinterface(builderInterfaceType);
+
+        // Add abstract doSet/doClear methods
+        for (MergedField field : nested.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, nested);
+
+            if (field.isRepeated()) {
+                TypeName singleElementType = extractListElementType(fieldType);
+
+                builder.addMethod(MethodSpec.methodBuilder("doAdd" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(singleElementType, field.getJavaName())
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("doAddAll" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .build());
+            } else {
+                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .build());
+
+                if (field.isOptional()) {
+                    builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
+                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                            .build());
+                }
+            }
+        }
+
+        // Abstract doBuild
+        builder.addMethod(MethodSpec.methodBuilder("doBuild")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(interfaceType)
+                .build());
+
+        // Add concrete implementations
+        for (MergedField field : nested.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, nested);
+
+            if (field.isRepeated()) {
+                TypeName singleElementType = extractListElementType(fieldType);
+
+                builder.addMethod(MethodSpec.methodBuilder("add" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(singleElementType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doAdd$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("addAll" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doAddAll$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .returns(builderInterfaceType)
+                        .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
+                        .addStatement("return this")
+                        .build());
+            } else {
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                if (field.isOptional()) {
+                    builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                            .addAnnotation(Override.class)
+                            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                            .returns(builderInterfaceType)
+                            .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
+                            .addStatement("return this")
+                            .build());
+                }
+            }
+        }
+
+        // build()
+        builder.addMethod(MethodSpec.methodBuilder("build")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(interfaceType)
+                .addStatement("return doBuild()")
+                .build());
+
+        return builder.build();
     }
 
     private void addExtractMethods(TypeSpec.Builder classBuilder, MergedField field,
@@ -317,6 +478,186 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion())",
                         String.class, "%s[version=%d]")
                 .build());
+    }
+
+    private void addBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage message,
+                                   TypeVariableName protoType, ClassName interfaceType, TypeResolver resolver) {
+        // Builder interface type from the interface
+        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+
+        // Abstract method to create builder
+        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // toBuilder() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("toBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createBuilder()")
+                .build());
+
+        // Generate AbstractBuilder nested class
+        TypeSpec abstractBuilder = generateAbstractBuilder(message, interfaceType, resolver);
+        classBuilder.addType(abstractBuilder);
+    }
+
+    private TypeSpec generateAbstractBuilder(MergedMessage message, ClassName interfaceType, TypeResolver resolver) {
+        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+        TypeVariableName protoType = TypeVariableName.get("PROTO", MESSAGE_CLASS);
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder("AbstractBuilder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.ABSTRACT)
+                .addTypeVariable(protoType)
+                .addSuperinterface(builderInterfaceType)
+                .addJavadoc("Abstract builder base class.\n")
+                .addJavadoc("@param <PROTO> Protocol-specific message type\n");
+
+        // Add abstract doSet/doClear/doAdd/doBuild methods
+        for (MergedField field : message.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, message);
+
+            if (field.isRepeated()) {
+                // For repeated fields
+                TypeName singleElementType = extractListElementType(fieldType);
+
+                // doAdd
+                builder.addMethod(MethodSpec.methodBuilder("doAdd" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(singleElementType, field.getJavaName())
+                        .build());
+
+                // doAddAll
+                builder.addMethod(MethodSpec.methodBuilder("doAddAll" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .build());
+
+                // doSet (replace all)
+                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .build());
+
+                // doClear
+                builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .build());
+            } else {
+                // doSet
+                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
+                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                        .addParameter(fieldType, field.getJavaName())
+                        .build());
+
+                // doClear for optional fields
+                if (field.isOptional()) {
+                    builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
+                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                            .build());
+                }
+            }
+        }
+
+        // Abstract doBuild method
+        builder.addMethod(MethodSpec.methodBuilder("doBuild")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(interfaceType)
+                .build());
+
+        // Add concrete implementations that delegate to abstract methods
+        for (MergedField field : message.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, message);
+
+            if (field.isRepeated()) {
+                TypeName singleElementType = extractListElementType(fieldType);
+
+                // add single
+                builder.addMethod(MethodSpec.methodBuilder("add" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(singleElementType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doAdd$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                // addAll
+                builder.addMethod(MethodSpec.methodBuilder("addAll" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doAddAll$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                // set (replace all)
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                // clear
+                builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .returns(builderInterfaceType)
+                        .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
+                        .addStatement("return this")
+                        .build());
+            } else {
+                // set
+                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .addParameter(fieldType, field.getJavaName())
+                        .returns(builderInterfaceType)
+                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
+                        .addStatement("return this")
+                        .build());
+
+                // clear for optional
+                if (field.isOptional()) {
+                    builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
+                            .addAnnotation(Override.class)
+                            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                            .returns(builderInterfaceType)
+                            .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
+                            .addStatement("return this")
+                            .build());
+                }
+            }
+        }
+
+        // build() implementation
+        builder.addMethod(MethodSpec.methodBuilder("build")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(interfaceType)
+                .addStatement("return doBuild()")
+                .build());
+
+        return builder.build();
+    }
+
+    /**
+     * Extract element type from List<T> type.
+     */
+    private TypeName extractListElementType(TypeName listType) {
+        if (listType instanceof ParameterizedTypeName) {
+            ParameterizedTypeName parameterized = (ParameterizedTypeName) listType;
+            if (!parameterized.typeArguments.isEmpty()) {
+                return parameterized.typeArguments.get(0);
+            }
+        }
+        return ClassName.get(Object.class);
     }
 
     /**

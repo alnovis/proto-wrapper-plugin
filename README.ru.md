@@ -274,6 +274,8 @@ Order order = ctx.wrapOrder(orderProto);
 | `generateImplClasses` | `true` | Генерировать версионно-специфичные реализации |
 | `generateVersionContext` | `true` | Генерировать VersionContext фабрику |
 | `includeVersionSuffix` | `true` | Включать суффикс версии в имена impl классов (MoneyV1 vs Money) |
+| `generateBuilders` | `false` | Генерировать паттерн Builder для изменения wrapper-объектов |
+| `protobufMajorVersion` | `3` | Версия библиотеки protobuf (2 или 3). Влияет на API конвертации enum |
 | `includeMessages` | - | Список имён сообщений для включения (пусто = все) |
 | `excludeMessages` | - | Список имён сообщений для исключения |
 
@@ -395,11 +397,58 @@ enum TaxTypeEnum { VAT = 100; }
 | `BaseGenerator` | Абстрактный базовый класс для всех генераторов |
 | `PluginLogger` | Callback-based абстракция логирования |
 
+## Поддержка Builder
+
+При `generateBuilders=true` плагин генерирует паттерн Builder для изменения wrapper-объектов:
+
+```xml
+<configuration>
+    <generateBuilders>true</generateBuilders>
+    <protobufMajorVersion>3</protobufMajorVersion> <!-- Используйте 2 для protobuf 2.x -->
+</configuration>
+```
+
+### Использование
+
+```java
+// Изменение существующего wrapper через builder
+OrderItem modified = wrapper.toBuilder()
+        .setQuantity(10)
+        .setUnitPrice(newPrice)
+        .build();
+
+// Создание нового wrapper с нуля
+OrderItem newItem = OrderItem.newBuilder()
+        .setProductId("SKU-123")
+        .setQuantity(5)
+        .build();
+```
+
+### Совместимость версий Protobuf
+
+| protobufMajorVersion | Библиотека Protobuf | Метод конвертации Enum |
+|---------------------|---------------------|----------------------|
+| `2` | protobuf 2.x | `EnumType.valueOf(int)` |
+| `3` (по умолчанию) | protobuf 3.x | `EnumType.forNumber(int)` |
+
+### Ограничения Builder
+
+Подробная информация об известных проблемах: [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)
+
+**Текущие ограничения:**
+
+1. **Конфликты типов между версиями**: Когда поле имеет разные типы в разных версиях схемы (например, `int` в v1 vs `EnumType` в v2), builder-сеттеры могут не работать корректно.
+
+2. **Поля bytes**: Поля типа `bytes` требуют ручной конвертации в `ByteString` в builder-сеттерах.
+
+3. **Изменение типов между версиями**: Поля, которые меняют тип с примитива на message между версиями, не полностью поддерживаются в builders.
+
 ## Ограничения
 
 - Поля `oneof` не поддерживаются
 - Поля `map` имеют базовую поддержку
 - Сложные иерархии вложенных сообщений могут потребовать ручной настройки
+- Генерация Builder имеет дополнительные ограничения (см. выше)
 
 ## Разработка
 

@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2025-12-21
+
+### Added
+
+#### Builder Pattern Support
+- **`generateBuilders` parameter** — Generate Builder pattern for modifying wrapper objects
+  - `toBuilder()` method on all wrapper classes
+  - `newBuilder()` static factory method
+  - Fluent API: `setXxx()`, `clearXxx()`, `addXxx()`, `addAllXxx()`
+  - Support for all field types: primitives, messages, enums, repeated fields
+
+#### Protobuf Version Compatibility
+- **`protobufMajorVersion` parameter** — Support for protobuf 2.x and 3.x APIs
+  - `2`: Uses `EnumType.valueOf(int)` for enum conversion
+  - `3` (default): Uses `EnumType.forNumber(int)` for enum conversion
+
+#### Documentation
+- **KNOWN_ISSUES.md** — Detailed documentation of builder limitations
+- Updated README with builder usage examples
+- Updated README.ru.md with Russian translation
+
+### Known Builder Limitations
+- Type conflicts across versions (int→enum, primitive→message) not fully supported
+- bytes fields require manual ByteString conversion
+- See [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for details
+
+---
+
 ## [1.0.3] - 2025-12-21
 
 ### Added

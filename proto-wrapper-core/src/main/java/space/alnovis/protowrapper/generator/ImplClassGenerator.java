@@ -111,6 +111,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         // Add common implementation methods
         addCommonImplMethods(classBuilder, className, protoType, implPackage, ctx);
 
+        // Add Builder support if enabled
+        if (config.isGenerateBuilders()) {
+            currentProtoClassName.set(protoClassName);
+            try {
+                addBuilderImpl(classBuilder, message, protoType, className, implPackage, ctx);
+            } finally {
+                currentProtoClassName.remove();
+            }
+        }
+
         // Add nested impl classes for nested messages
         for (MergedMessage nested : message.getNestedMessages()) {
             if (!nested.getPresentInVersions().contains(version)) {
@@ -226,6 +236,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addParameter(protoType, "proto")
                 .addStatement("return new $L(proto)", className)
                 .build());
+
+        // Add builder support for nested impl class if enabled
+        if (config.isGenerateBuilders()) {
+            currentProtoClassName.set(protoClassName);
+            try {
+                addNestedBuilderImpl(classBuilder, nested, protoType, className, ctx);
+            } finally {
+                currentProtoClassName.remove();
+            }
+        }
 
         for (MergedMessage deeplyNested : nested.getNestedMessages()) {
             if (!deeplyNested.getPresentInVersions().contains(version)) {
@@ -423,6 +443,509 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         } else {
             return implPackage + "." + ctx.getImplClassName(fullTypePath);
         }
+    }
+
+    private void addNestedBuilderImpl(TypeSpec.Builder classBuilder, MergedMessage nested,
+                                        ClassName protoType, String className, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.getTypeResolver();
+
+        // Get the nested interface type
+        ClassName nestedInterfaceType = resolver.buildNestedClassName(nested.getQualifiedInterfaceName());
+        ClassName builderInterfaceType = nestedInterfaceType.nestedClass("Builder");
+
+        // Get the parent abstract class and find nested abstract class
+        ClassName topLevelAbstract = ClassName.get(ctx.getApiPackage() + IMPL_PACKAGE_SUFFIX,
+                nested.getTopLevelParent().getAbstractClassName());
+        ClassName abstractClass = buildNestedAbstractClassName(nested, topLevelAbstract);
+        ClassName abstractBuilderType = abstractClass.nestedClass("AbstractBuilder");
+
+        // Proto builder type
+        ClassName protoBuilderType = protoType.nestedClass("Builder");
+
+        // createBuilder() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // Static newBuilder() factory method
+        classBuilder.addMethod(MethodSpec.methodBuilder("newBuilder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
+                .build());
+
+        // Generate BuilderImpl class
+        TypeSpec builderImpl = generateNestedBuilderImplClass(nested, protoType, protoBuilderType,
+                abstractBuilderType, nestedInterfaceType, className, ctx);
+        classBuilder.addType(builderImpl);
+    }
+
+    private TypeSpec generateNestedBuilderImplClass(MergedMessage nested, ClassName protoType,
+                                                     ClassName protoBuilderType, ClassName abstractBuilderType,
+                                                     ClassName interfaceType, String implClassName,
+                                                     GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.getTypeResolver();
+
+        ParameterizedTypeName superType = ParameterizedTypeName.get(abstractBuilderType, protoType);
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder("BuilderImpl")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .superclass(superType);
+
+        builder.addField(protoBuilderType, "protoBuilder", Modifier.PRIVATE, Modifier.FINAL);
+
+        builder.addMethod(MethodSpec.constructorBuilder()
+                .addParameter(protoBuilderType, "protoBuilder")
+                .addStatement("this.protoBuilder = protoBuilder")
+                .build());
+
+        for (MergedField field : nested.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, nested);
+            boolean presentInVersion = field.getPresentInVersions().contains(version);
+
+            if (field.isRepeated()) {
+                TypeName singleElementType = extractListElementType(fieldType);
+                addRepeatedFieldBuilderMethods(builder, field, singleElementType, fieldType,
+                        presentInVersion, nested, ctx);
+            } else {
+                addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, nested, ctx);
+            }
+        }
+
+        builder.addMethod(MethodSpec.methodBuilder("doBuild")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(interfaceType)
+                .addStatement("return new $L(protoBuilder.build())", implClassName)
+                .build());
+
+        // Helper method
+        builder.addMethod(MethodSpec.methodBuilder("extractProto")
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter(Object.class, "wrapper")
+                .returns(MESSAGE_CLASS)
+                .beginControlFlow("if (wrapper == null)")
+                .addStatement("return null")
+                .endControlFlow()
+                .beginControlFlow("try")
+                .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
+                .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
+                .nextControlFlow("catch ($T e)", Exception.class)
+                .addStatement("throw new $T($S + wrapper.getClass(), e)",
+                        RuntimeException.class, "Cannot extract proto from ")
+                .endControlFlow()
+                .build());
+
+        return builder.build();
+    }
+
+    private void addBuilderImpl(TypeSpec.Builder classBuilder, MergedMessage message,
+                                 ClassName protoType, String className, String implPackage, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.getTypeResolver();
+
+        // Interface builder type
+        ClassName interfaceType = ClassName.get(ctx.getApiPackage(), message.getInterfaceName());
+        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+
+        // Abstract builder from abstract class
+        ClassName abstractClass = ClassName.get(ctx.getApiPackage() + IMPL_PACKAGE_SUFFIX, message.getAbstractClassName());
+        ClassName abstractBuilderType = abstractClass.nestedClass("AbstractBuilder");
+
+        // Proto builder type
+        ClassName protoBuilderType = protoType.nestedClass("Builder");
+
+        // createBuilder() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // Static newBuilder() factory method
+        classBuilder.addMethod(MethodSpec.methodBuilder("newBuilder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
+                .build());
+
+        // Generate BuilderImpl class
+        TypeSpec builderImpl = generateBuilderImplClass(message, protoType, protoBuilderType,
+                abstractBuilderType, interfaceType, className, implPackage, ctx);
+        classBuilder.addType(builderImpl);
+    }
+
+    private TypeSpec generateBuilderImplClass(MergedMessage message, ClassName protoType,
+                                               ClassName protoBuilderType, ClassName abstractBuilderType,
+                                               ClassName interfaceType, String implClassName,
+                                               String implPackage, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.getTypeResolver();
+
+        // BuilderImpl extends AbstractBuilder<ProtoType>
+        ParameterizedTypeName superType = ParameterizedTypeName.get(abstractBuilderType, protoType);
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder("BuilderImpl")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .superclass(superType);
+
+        // Field: proto builder
+        builder.addField(protoBuilderType, "protoBuilder", Modifier.PRIVATE, Modifier.FINAL);
+
+        // Constructor
+        builder.addMethod(MethodSpec.constructorBuilder()
+                .addParameter(protoBuilderType, "protoBuilder")
+                .addStatement("this.protoBuilder = protoBuilder")
+                .build());
+
+        // Implement doSet/doClear/doAdd methods for each field
+        for (MergedField field : message.getFieldsSorted()) {
+            TypeName fieldType = resolver.parseFieldType(field, message);
+            boolean presentInVersion = field.getPresentInVersions().contains(version);
+
+            if (field.isRepeated()) {
+                TypeName singleElementType = extractListElementType(fieldType);
+                addRepeatedFieldBuilderMethods(builder, field, singleElementType, fieldType,
+                        presentInVersion, message, ctx);
+            } else {
+                addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, message, ctx);
+            }
+        }
+
+        // doBuild() implementation
+        builder.addMethod(MethodSpec.methodBuilder("doBuild")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(interfaceType)
+                .addStatement("return new $L(protoBuilder.build())", implClassName)
+                .build());
+
+        // Helper method to extract proto from wrapper
+        builder.addMethod(MethodSpec.methodBuilder("extractProto")
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter(Object.class, "wrapper")
+                .returns(MESSAGE_CLASS)
+                .beginControlFlow("if (wrapper == null)")
+                .addStatement("return null")
+                .endControlFlow()
+                .addComment("Use reflection to call getTypedProto() on wrapper")
+                .beginControlFlow("try")
+                .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
+                .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
+                .nextControlFlow("catch ($T e)", Exception.class)
+                .addStatement("throw new $T($S + wrapper.getClass(), e)",
+                        RuntimeException.class, "Cannot extract proto from ")
+                .endControlFlow()
+                .build());
+
+        return builder.build();
+    }
+
+    private void addSingleFieldBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                               TypeName fieldType, boolean presentInVersion,
+                                               MergedMessage message, GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        String capitalizedName = resolver.capitalize(field.getJavaName());
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        // doSet
+        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(fieldType, field.getJavaName());
+
+        if (presentInVersion) {
+            String setterCall = generateProtoSetterCall(field, message, ctx);
+            doSet.addStatement(setterCall, field.getJavaName());
+        } else {
+            doSet.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSet.build());
+
+        // doClear for optional
+        if (field.isOptional()) {
+            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED);
+
+            if (presentInVersion) {
+                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
+            } else {
+                doClear.addComment("Field not present in this version - ignored");
+            }
+            builder.addMethod(doClear.build());
+        }
+    }
+
+    private void addRepeatedFieldBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                                 TypeName singleElementType, TypeName listType,
+                                                 boolean presentInVersion, MergedMessage message,
+                                                 GenerationContext ctx) {
+        TypeResolver resolver = ctx.getTypeResolver();
+        String version = ctx.requireVersion();
+        String capitalizedName = resolver.capitalize(field.getJavaName());
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        // doAdd
+        MethodSpec.Builder doAdd = MethodSpec.methodBuilder("doAdd" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(singleElementType, field.getJavaName());
+
+        if (presentInVersion) {
+            if (field.isMessage()) {
+                String protoTypeName = getProtoTypeForField(field, message, ctx);
+                doAdd.addStatement("protoBuilder.add$L(($L) extractProto($L))", versionJavaName, protoTypeName, field.getJavaName());
+            } else if (field.isEnum()) {
+                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+                String enumMethod = getEnumFromIntMethod();
+                doAdd.addStatement("protoBuilder.add$L($L." + enumMethod + "($L.getValue()))", versionJavaName, protoEnumType, field.getJavaName());
+            } else {
+                doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
+            }
+        } else {
+            doAdd.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doAdd.build());
+
+        // doAddAll
+        MethodSpec.Builder doAddAll = MethodSpec.methodBuilder("doAddAll" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(listType, field.getJavaName());
+
+        if (presentInVersion) {
+            if (field.isMessage()) {
+                String protoTypeName = getProtoTypeForField(field, message, ctx);
+                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
+                        field.getJavaName(), versionJavaName, protoTypeName);
+            } else if (field.isEnum()) {
+                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+                String enumMethod = getEnumFromIntMethod();
+                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
+                        field.getJavaName(), versionJavaName, protoEnumType);
+            } else {
+                doAddAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
+            }
+        } else {
+            doAddAll.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doAddAll.build());
+
+        // doSet (replace all)
+        MethodSpec.Builder doSetAll = MethodSpec.methodBuilder("doSet" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .addParameter(listType, field.getJavaName());
+
+        if (presentInVersion) {
+            doSetAll.addStatement("protoBuilder.clear$L()", versionJavaName);
+            if (field.isMessage()) {
+                String protoTypeName = getProtoTypeForField(field, message, ctx);
+                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
+                        field.getJavaName(), versionJavaName, protoTypeName);
+            } else if (field.isEnum()) {
+                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+                String enumMethod = getEnumFromIntMethod();
+                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
+                        field.getJavaName(), versionJavaName, protoEnumType);
+            } else {
+                doSetAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
+            }
+        } else {
+            doSetAll.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doSetAll.build());
+
+        // doClear
+        MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED);
+
+        if (presentInVersion) {
+            doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
+        } else {
+            doClear.addComment("Field not present in this version - ignored");
+        }
+        builder.addMethod(doClear.build());
+    }
+
+    private String generateProtoSetterCall(MergedField field, MergedMessage message, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.getTypeResolver();
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+
+        if (field.isMessage()) {
+            // Get proto type for casting
+            String protoTypeName = getProtoTypeForField(field, message, ctx);
+            return "protoBuilder.set" + versionJavaName + "((" + protoTypeName + ") extractProto($L))";
+        } else if (field.isEnum()) {
+            // Get proto enum type and use version-specific method to convert
+            String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+            String enumMethod = getEnumFromIntMethod();
+            return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
+        } else {
+            return "protoBuilder.set" + versionJavaName + "($L)";
+        }
+    }
+
+    // Store current proto class name for type resolution during builder generation
+    private ThreadLocal<String> currentProtoClassName = new ThreadLocal<>();
+
+    private String getProtoTypeForField(MergedField field, MergedMessage message, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        if (versionField == null) {
+            return "com.google.protobuf.Message";
+        }
+
+        String typeName = versionField.getTypeName();
+        if (typeName.startsWith(".")) {
+            typeName = typeName.substring(1);
+        }
+
+        String javaProtoPackage = config.getProtoPackage(version);
+        TypeResolver resolver = ctx.getTypeResolver();
+        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+
+        // Extract message path (e.g., "OrderRequest.GiftOptions" or "Money")
+        String messagePath = versionField.extractNestedTypePath(protoPackage);
+
+        // Look up the message in MergedSchema to find its outer class
+        MergedSchema schema = ctx.getSchema();
+        String outerClassName = findOuterClassForType(messagePath, schema, version);
+
+        if (outerClassName != null) {
+            // Build full Java proto class: package.OuterClass.MessagePath
+            return javaProtoPackage + "." + outerClassName + "." + messagePath;
+        }
+
+        // Fallback: try using current message's outer class for nested types
+        String currentProto = currentProtoClassName.get();
+        if (currentProto != null && currentProto.startsWith(javaProtoPackage + ".")) {
+            String afterPackage = currentProto.substring(javaProtoPackage.length() + 1);
+            int dotIdx = afterPackage.indexOf('.');
+            if (dotIdx > 0) {
+                String currentOuterClass = afterPackage.substring(0, dotIdx);
+                return javaProtoPackage + "." + currentOuterClass + "." + messagePath;
+            }
+        }
+
+        // Last fallback
+        return javaProtoPackage + "." + messagePath;
+    }
+
+    /**
+     * Find the outer class name for a message type by looking it up in the schema.
+     */
+    private String findOuterClassForType(String messagePath, MergedSchema schema, String version) {
+        if (schema == null || messagePath == null) {
+            return null;
+        }
+
+        // messagePath could be "Money" or "OrderRequest.GiftOptions"
+        String topLevelName = messagePath.contains(".")
+                ? messagePath.substring(0, messagePath.indexOf('.'))
+                : messagePath;
+
+        // Look up the top-level message in the schema
+        return schema.getMessage(topLevelName)
+                .map(msg -> msg.getOuterClassName(version))
+                .orElse(null);
+    }
+
+    private String getProtoEnumTypeForField(MergedField field, MergedMessage message, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        if (versionField == null) {
+            return "Object";
+        }
+
+        String typeName = versionField.getTypeName();
+        if (typeName.startsWith(".")) {
+            typeName = typeName.substring(1);
+        }
+
+        String javaProtoPackage = config.getProtoPackage(version);
+        TypeResolver resolver = ctx.getTypeResolver();
+        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+
+        // Extract enum path (e.g., "Priority" or "OrderItem.Discount.DiscountType")
+        String enumPath = versionField.extractNestedTypePath(protoPackage);
+
+        // Look up the enum in MergedSchema to find its outer class
+        MergedSchema schema = ctx.getSchema();
+        String outerClassName = findOuterClassForEnum(enumPath, schema, version);
+
+        if (outerClassName != null) {
+            // Build full Java proto class: package.OuterClass.EnumPath
+            return javaProtoPackage + "." + outerClassName + "." + enumPath;
+        }
+
+        // Fallback: try using current message's outer class for nested enums
+        String currentProto = currentProtoClassName.get();
+        if (currentProto != null && currentProto.startsWith(javaProtoPackage + ".")) {
+            String afterPackage = currentProto.substring(javaProtoPackage.length() + 1);
+            int dotIdx = afterPackage.indexOf('.');
+            if (dotIdx > 0) {
+                String currentOuterClass = afterPackage.substring(0, dotIdx);
+                return javaProtoPackage + "." + currentOuterClass + "." + enumPath;
+            }
+        }
+
+        // Last fallback
+        return javaProtoPackage + "." + enumPath;
+    }
+
+    /**
+     * Find the outer class name for an enum type by looking it up in the schema.
+     */
+    private String findOuterClassForEnum(String enumPath, MergedSchema schema, String version) {
+        if (schema == null || enumPath == null) {
+            return null;
+        }
+
+        // enumPath could be "Priority" (top-level) or "OrderItem.Discount.DiscountType" (nested)
+        if (!enumPath.contains(".")) {
+            // Top-level enum - look it up directly in the schema
+            return schema.getEnum(enumPath)
+                    .map(e -> e.getOuterClassName(version))
+                    .orElse(null);
+        } else {
+            // Nested enum - get the top-level message and find its outer class
+            String topLevelName = enumPath.substring(0, enumPath.indexOf('.'));
+            return schema.getMessage(topLevelName)
+                    .map(msg -> msg.getOuterClassName(version))
+                    .orElse(null);
+        }
+    }
+
+    /**
+     * Get the enum conversion method name based on protobuf version.
+     * Protobuf 2.x uses valueOf(int), protobuf 3.x uses forNumber(int).
+     */
+    private String getEnumFromIntMethod() {
+        return config.isProtobuf2() ? "valueOf" : "forNumber";
+    }
+
+    /**
+     * Extract element type from List<T> type.
+     */
+    private TypeName extractListElementType(TypeName listType) {
+        if (listType instanceof ParameterizedTypeName) {
+            ParameterizedTypeName parameterized = (ParameterizedTypeName) listType;
+            if (!parameterized.typeArguments.isEmpty()) {
+                return parameterized.typeArguments.get(0);
+            }
+        }
+        return ClassName.get(Object.class);
     }
 
     private String getEnumTypeForFromProtoValue(MergedField field, MergedMessage context, GenerationContext ctx) {

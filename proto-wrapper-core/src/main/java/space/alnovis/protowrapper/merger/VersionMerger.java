@@ -273,7 +273,12 @@ public class VersionMerger {
         // Collect values and add versions using streams
         Map<Integer, List<EnumValueWithVersion>> valuesByNumber = schemas.stream()
                 .flatMap(schema -> schema.getEnum(enumName).stream()
-                        .peek(e -> merged.addVersion(schema.getVersion()))
+                        .peek(e -> {
+                            merged.addVersion(schema.getVersion());
+                            if (e.getSourceFileName() != null) {
+                                merged.addSourceFile(schema.getVersion(), e.getSourceFileName());
+                            }
+                        })
                         .flatMap(enumInfo -> enumInfo.getValues().stream()
                                 .map(value -> new EnumValueWithVersion(value, schema.getVersion()))))
                 .collect(Collectors.groupingBy(

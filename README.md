@@ -274,6 +274,8 @@ Order order = ctx.wrapOrder(orderProto);
 | `generateImplClasses` | `true` | Generate version-specific implementations |
 | `generateVersionContext` | `true` | Generate VersionContext factory |
 | `includeVersionSuffix` | `true` | Include version suffix in impl class names (MoneyV1 vs Money) |
+| `generateBuilders` | `false` | Generate Builder pattern for modifying wrapper objects |
+| `protobufMajorVersion` | `3` | Protobuf library version (2 or 3). Affects enum conversion API |
 | `includeMessages` | - | List of message names to include (empty = all) |
 | `excludeMessages` | - | List of message names to exclude |
 
@@ -395,11 +397,58 @@ The plugin automatically:
 | `BaseGenerator` | Abstract base class for all generators |
 | `PluginLogger` | Callback-based logging abstraction |
 
+## Builder Support
+
+When `generateBuilders=true`, the plugin generates Builder pattern for modifying wrapper objects:
+
+```xml
+<configuration>
+    <generateBuilders>true</generateBuilders>
+    <protobufMajorVersion>3</protobufMajorVersion> <!-- Use 2 for protobuf 2.x -->
+</configuration>
+```
+
+### Usage
+
+```java
+// Modify an existing wrapper using builder
+OrderItem modified = wrapper.toBuilder()
+        .setQuantity(10)
+        .setUnitPrice(newPrice)
+        .build();
+
+// Create new wrapper from scratch
+OrderItem newItem = OrderItem.newBuilder()
+        .setProductId("SKU-123")
+        .setQuantity(5)
+        .build();
+```
+
+### Protobuf Version Compatibility
+
+| protobufMajorVersion | Protobuf Library | Enum Conversion Method |
+|---------------------|------------------|----------------------|
+| `2` | protobuf 2.x | `EnumType.valueOf(int)` |
+| `3` (default) | protobuf 3.x | `EnumType.forNumber(int)` |
+
+### Builder Limitations
+
+See [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for detailed information about known issues.
+
+**Current limitations:**
+
+1. **Type conflicts across versions**: When a field has different types in different schema versions (e.g., `int` in v1 vs `EnumType` in v2), builder setters may not work correctly.
+
+2. **bytes fields**: Fields of type `bytes` require manual conversion to `ByteString` in builder setters.
+
+3. **Cross-version type changes**: Fields that change from primitive to message type across versions are not fully supported in builders.
+
 ## Limitations
 
 - `oneof` fields are not supported
 - `map` fields have basic support
 - Complex nested message hierarchies may require manual configuration
+- Builder generation has additional limitations (see above)
 
 ## Development
 
