@@ -9,6 +9,7 @@ import space.alnovis.protowrapper.model.MergedSchema;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
+import space.alnovis.protowrapper.generator.conflict.BuilderImplContext;
 import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
 import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
 
@@ -278,21 +279,17 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     private void addNestedBuilderImpl(TypeSpec.Builder classBuilder, MergedMessage nested,
                                         ClassName protoType, String className, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.getTypeResolver();
-
-        // Get the nested interface type
-        ClassName nestedInterfaceType = resolver.buildNestedClassName(nested.getQualifiedInterfaceName());
-        ClassName builderInterfaceType = nestedInterfaceType.nestedClass("Builder");
-
-        // Get the parent abstract class and find nested abstract class
+        // Get the parent abstract class and find nested abstract class for context creation
         ClassName topLevelAbstract = ClassName.get(ctx.getApiPackage() + IMPL_PACKAGE_SUFFIX,
                 nested.getTopLevelParent().getAbstractClassName());
         ClassName abstractClass = buildNestedAbstractClassName(nested, topLevelAbstract);
         ClassName abstractBuilderType = abstractClass.nestedClass("AbstractBuilder");
 
-        // Proto builder type
-        ClassName protoBuilderType = protoType.nestedClass("Builder");
+        // Create unified context for builder generation
+        BuilderImplContext builderCtx = BuilderImplContext.forNested(
+                nested, protoType, abstractBuilderType, className, ctx, config);
+
+        ClassName builderInterfaceType = builderCtx.builderInterfaceType();
 
         // createBuilder() implementation
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
@@ -309,150 +306,25 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
                 .build());
 
-        // Generate BuilderImpl class
-        TypeSpec builderImpl = generateNestedBuilderImplClass(nested, protoType, protoBuilderType,
-                abstractBuilderType, nestedInterfaceType, className, ctx);
+        // Generate BuilderImpl class using unified method
+        TypeSpec builderImpl = generateBuilderImplClass(builderCtx);
         classBuilder.addType(builderImpl);
     }
 
-    private TypeSpec generateNestedBuilderImplClass(MergedMessage nested, ClassName protoType,
-                                                     ClassName protoBuilderType, ClassName abstractBuilderType,
-                                                     ClassName interfaceType, String implClassName,
-                                                     GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.getTypeResolver();
-
-        ParameterizedTypeName superType = ParameterizedTypeName.get(abstractBuilderType, protoType);
-
-        TypeSpec.Builder builder = TypeSpec.classBuilder("BuilderImpl")
-                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
-                .superclass(superType);
-
-        builder.addField(protoBuilderType, "protoBuilder", Modifier.PRIVATE, Modifier.FINAL);
-
-        builder.addMethod(MethodSpec.constructorBuilder()
-                .addParameter(protoBuilderType, "protoBuilder")
-                .addStatement("this.protoBuilder = protoBuilder")
-                .build());
-
-        for (MergedField field : nested.getFieldsSorted()) {
-            // Skip repeated fields with type conflicts (not supported in builder yet)
-            if (field.isRepeated() && field.hasTypeConflict()) {
-                continue;
-            }
-
-            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
-                        .getConflictEnum(nested.getName(), field.getName());
-                if (enumInfoOpt.isPresent()) {
-                    boolean presentInVersion = field.getPresentInVersions().contains(version);
-                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, nested, ctx);
-                    continue;
-                }
-            }
-
-            // Handle WIDENING conflicts with range checking (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
-                boolean presentInVersion = field.getPresentInVersions().contains(version);
-                addWideningBuilderMethods(builder, field, presentInVersion, nested, ctx);
-                continue;
-            }
-
-            // Handle STRING_BYTES conflicts with UTF-8 conversion (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-                boolean presentInVersion = field.getPresentInVersions().contains(version);
-                addStringBytesBuilderMethods(builder, field, presentInVersion, nested, ctx);
-                continue;
-            }
-
-            // Skip fields with other non-convertible type conflicts
-            if (field.shouldSkipBuilderSetter()) {
-                continue;
-            }
-
-            TypeName fieldType = resolver.parseFieldType(field, nested);
-            boolean presentInVersion = field.getPresentInVersions().contains(version);
-
-            if (field.isRepeated()) {
-                TypeName singleElementType = extractListElementType(fieldType);
-                addRepeatedFieldBuilderMethods(builder, field, singleElementType, fieldType,
-                        presentInVersion, nested, ctx);
-            } else {
-                addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, nested, ctx);
-            }
-        }
-
-        builder.addMethod(MethodSpec.methodBuilder("doBuild")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(interfaceType)
-                .addStatement("return new $L(protoBuilder.build())", implClassName)
-                .build());
-
-        // Helper method
-        builder.addMethod(MethodSpec.methodBuilder("extractProto")
-                .addModifiers(Modifier.PRIVATE)
-                .addParameter(Object.class, "wrapper")
-                .returns(MESSAGE_CLASS)
-                .beginControlFlow("if (wrapper == null)")
-                .addStatement("return null")
-                .endControlFlow()
-                .beginControlFlow("try")
-                .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
-                .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
-                .nextControlFlow("catch ($T e)", Exception.class)
-                .addStatement("throw new $T($S + wrapper.getClass(), e)",
-                        RuntimeException.class, "Cannot extract proto from ")
-                .endControlFlow()
-                .build());
-
-        return builder.build();
-    }
-
-    private void addBuilderImpl(TypeSpec.Builder classBuilder, MergedMessage message,
-                                 ClassName protoType, String className, String implPackage, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.getTypeResolver();
-
-        // Interface builder type
-        ClassName interfaceType = ClassName.get(ctx.getApiPackage(), message.getInterfaceName());
-        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
-
-        // Abstract builder from abstract class
-        ClassName abstractClass = ClassName.get(ctx.getApiPackage() + IMPL_PACKAGE_SUFFIX, message.getAbstractClassName());
-        ClassName abstractBuilderType = abstractClass.nestedClass("AbstractBuilder");
-
-        // Proto builder type
-        ClassName protoBuilderType = protoType.nestedClass("Builder");
-
-        // createBuilder() implementation
-        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(builderInterfaceType)
-                .addStatement("return new BuilderImpl(proto.toBuilder())")
-                .build());
-
-        // Static newBuilder() factory method
-        classBuilder.addMethod(MethodSpec.methodBuilder("newBuilder")
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .returns(builderInterfaceType)
-                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
-                .build());
-
-        // Generate BuilderImpl class
-        TypeSpec builderImpl = generateBuilderImplClass(message, protoType, protoBuilderType,
-                abstractBuilderType, interfaceType, className, implPackage, ctx);
-        classBuilder.addType(builderImpl);
-    }
-
-    private TypeSpec generateBuilderImplClass(MergedMessage message, ClassName protoType,
-                                               ClassName protoBuilderType, ClassName abstractBuilderType,
-                                               ClassName interfaceType, String implClassName,
-                                               String implPackage, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.getTypeResolver();
+    /**
+     * Generate BuilderImpl class using unified context.
+     * This method is used by both top-level and nested builder generation.
+     */
+    private TypeSpec generateBuilderImplClass(BuilderImplContext ctx) {
+        MergedMessage message = ctx.message();
+        ClassName protoType = ctx.protoType();
+        ClassName protoBuilderType = ctx.protoBuilderType();
+        ClassName abstractBuilderType = ctx.abstractBuilderType();
+        ClassName interfaceType = ctx.interfaceType();
+        String implClassName = ctx.implClassName();
+        String version = ctx.version();
+        TypeResolver resolver = ctx.resolver();
+        GenerationContext genCtx = ctx.genCtx();
 
         // BuilderImpl extends AbstractBuilder<ProtoType>
         ParameterizedTypeName superType = ParameterizedTypeName.get(abstractBuilderType, protoType);
@@ -479,11 +351,11 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
             // Handle INT_ENUM conflicts with overloaded methods (scalar only)
             if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                Optional<ConflictEnumInfo> enumInfoOpt = genCtx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
                     boolean presentInVersion = field.getPresentInVersions().contains(version);
-                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, message, ctx);
+                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, message, genCtx);
                     continue;
                 }
             }
@@ -491,14 +363,14 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             // Handle WIDENING conflicts with range checking (scalar only)
             if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
                 boolean presentInVersion = field.getPresentInVersions().contains(version);
-                addWideningBuilderMethods(builder, field, presentInVersion, message, ctx);
+                addWideningBuilderMethods(builder, field, presentInVersion, message, genCtx);
                 continue;
             }
 
             // Handle STRING_BYTES conflicts with UTF-8 conversion (scalar only)
             if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
                 boolean presentInVersion = field.getPresentInVersions().contains(version);
-                addStringBytesBuilderMethods(builder, field, presentInVersion, message, ctx);
+                addStringBytesBuilderMethods(builder, field, presentInVersion, message, genCtx);
                 continue;
             }
 
@@ -513,9 +385,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             if (field.isRepeated()) {
                 TypeName singleElementType = extractListElementType(fieldType);
                 addRepeatedFieldBuilderMethods(builder, field, singleElementType, fieldType,
-                        presentInVersion, message, ctx);
+                        presentInVersion, message, genCtx);
             } else {
-                addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, message, ctx);
+                addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, message, genCtx);
             }
         }
 
@@ -535,7 +407,6 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .beginControlFlow("if (wrapper == null)")
                 .addStatement("return null")
                 .endControlFlow()
-                .addComment("Use reflection to call getTypedProto() on wrapper")
                 .beginControlFlow("try")
                 .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
                 .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
@@ -546,6 +417,34 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         return builder.build();
+    }
+
+    private void addBuilderImpl(TypeSpec.Builder classBuilder, MergedMessage message,
+                                 ClassName protoType, String className, String implPackage, GenerationContext ctx) {
+        // Create unified context for builder generation
+        BuilderImplContext builderCtx = BuilderImplContext.forTopLevel(
+                message, protoType, className, ctx, config);
+
+        ClassName builderInterfaceType = builderCtx.builderInterfaceType();
+
+        // createBuilder() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // Static newBuilder() factory method
+        classBuilder.addMethod(MethodSpec.methodBuilder("newBuilder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
+                .build());
+
+        // Generate BuilderImpl class using unified method
+        TypeSpec builderImpl = generateBuilderImplClass(builderCtx);
+        classBuilder.addType(builderImpl);
     }
 
     /**

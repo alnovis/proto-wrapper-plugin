@@ -8,6 +8,7 @@ import space.alnovis.protowrapper.model.MergedSchema;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
+import space.alnovis.protowrapper.generator.conflict.AbstractBuilderContext;
 import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
 import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
 
@@ -226,14 +227,23 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return createBuilder()")
                 .build());
 
-        // Generate nested AbstractBuilder
-        TypeSpec abstractBuilder = generateNestedAbstractBuilder(nested, interfaceType, resolver, ctx);
+        // Generate nested AbstractBuilder using unified method
+        AbstractBuilderContext builderCtx = AbstractBuilderContext.forNested(
+                nested, interfaceType, resolver, ctx, config);
+        TypeSpec abstractBuilder = generateAbstractBuilder(builderCtx);
         classBuilder.addType(abstractBuilder);
     }
 
-    private TypeSpec generateNestedAbstractBuilder(MergedMessage nested, ClassName interfaceType,
-                                                     TypeResolver resolver, GenerationContext ctx) {
-        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+    /**
+     * Generate AbstractBuilder class using unified context.
+     * This method is used by both top-level and nested abstract builder generation.
+     */
+    private TypeSpec generateAbstractBuilder(AbstractBuilderContext ctx) {
+        MergedMessage message = ctx.message();
+        ClassName interfaceType = ctx.interfaceType();
+        TypeResolver resolver = ctx.resolver();
+        GenerationContext genCtx = ctx.genCtx();
+        ClassName builderInterfaceType = ctx.builderInterfaceType();
         TypeVariableName protoType = TypeVariableName.get("PROTO", MESSAGE_CLASS);
 
         TypeSpec.Builder builder = TypeSpec.classBuilder("AbstractBuilder")
@@ -241,292 +251,11 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addTypeVariable(protoType)
                 .addSuperinterface(builderInterfaceType);
 
-        // Add abstract doSet/doClear methods
-        for (MergedField field : nested.getFieldsSorted()) {
-            // Skip repeated fields with type conflicts (not supported in builder yet)
-            if (field.isRepeated() && field.hasTypeConflict()) {
-                continue;
-            }
-
-            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
-                        .getConflictEnum(nested.getName(), field.getName());
-                if (enumInfoOpt.isPresent()) {
-                    addIntEnumAbstractMethods(builder, field, enumInfoOpt.get(), resolver);
-                    continue;
-                }
-            }
-
-            // Handle WIDENING conflicts with wider type (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
-                addWideningAbstractMethods(builder, field, resolver);
-                continue;
-            }
-
-            // Handle STRING_BYTES conflicts with dual setters (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-                addStringBytesAbstractMethods(builder, field, resolver);
-                continue;
-            }
-
-            // Skip fields with other non-convertible type conflicts
-            if (field.shouldSkipBuilderSetter()) {
-                continue;
-            }
-
-            TypeName fieldType = resolver.parseFieldType(field, nested);
-
-            if (field.isRepeated()) {
-                TypeName singleElementType = extractListElementType(fieldType);
-
-                builder.addMethod(MethodSpec.methodBuilder("doAdd" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(singleElementType, field.getJavaName())
-                        .build());
-
-                builder.addMethod(MethodSpec.methodBuilder("doAddAll" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(fieldType, field.getJavaName())
-                        .build());
-
-                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(fieldType, field.getJavaName())
-                        .build());
-
-                builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .build());
-            } else {
-                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(fieldType, field.getJavaName())
-                        .build());
-
-                if (field.isOptional()) {
-                    builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
-                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                            .build());
-                }
-            }
+        // Add Javadoc for top-level builders only
+        if (ctx.isTopLevel()) {
+            builder.addJavadoc("Abstract builder base class.\n")
+                    .addJavadoc("@param <PROTO> Protocol-specific message type\n");
         }
-
-        // Abstract doBuild
-        builder.addMethod(MethodSpec.methodBuilder("doBuild")
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(interfaceType)
-                .build());
-
-        // Add concrete implementations
-        for (MergedField field : nested.getFieldsSorted()) {
-            // Skip repeated fields with type conflicts (not supported in builder yet)
-            if (field.isRepeated() && field.hasTypeConflict()) {
-                continue;
-            }
-
-            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
-                        .getConflictEnum(nested.getName(), field.getName());
-                if (enumInfoOpt.isPresent()) {
-                    addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
-                    continue;
-                }
-            }
-
-            // Handle WIDENING conflicts with wider type (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
-                addWideningConcreteMethods(builder, field, resolver, builderInterfaceType);
-                continue;
-            }
-
-            // Handle STRING_BYTES conflicts with dual setters (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-                addStringBytesConcreteMethods(builder, field, resolver, builderInterfaceType);
-                continue;
-            }
-
-            // Skip fields with other non-convertible type conflicts
-            if (field.shouldSkipBuilderSetter()) {
-                continue;
-            }
-
-            TypeName fieldType = resolver.parseFieldType(field, nested);
-
-            if (field.isRepeated()) {
-                TypeName singleElementType = extractListElementType(fieldType);
-
-                builder.addMethod(MethodSpec.methodBuilder("add" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(singleElementType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doAdd$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                builder.addMethod(MethodSpec.methodBuilder("addAll" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(fieldType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doAddAll$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(fieldType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .returns(builderInterfaceType)
-                        .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
-                        .addStatement("return this")
-                        .build());
-            } else {
-                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(fieldType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                if (field.isOptional()) {
-                    builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
-                            .addAnnotation(Override.class)
-                            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                            .returns(builderInterfaceType)
-                            .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
-                            .addStatement("return this")
-                            .build());
-                }
-            }
-        }
-
-        // build()
-        builder.addMethod(MethodSpec.methodBuilder("build")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(interfaceType)
-                .addStatement("return doBuild()")
-                .build());
-
-        return builder.build();
-    }
-
-    private void addCommonMethods(TypeSpec.Builder classBuilder, MergedMessage message,
-                                  TypeVariableName protoType) {
-        // Abstract method for serialization
-        classBuilder.addMethod(MethodSpec.methodBuilder("serializeToBytes")
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(ArrayTypeName.of(TypeName.BYTE))
-                .addParameter(protoType, "proto")
-                .build());
-
-        // toBytes() implementation
-        classBuilder.addMethod(MethodSpec.methodBuilder("toBytes")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(ArrayTypeName.of(TypeName.BYTE))
-                .addStatement("return serializeToBytes(proto)")
-                .build());
-
-        // Abstract getWrapperVersion - renamed to avoid conflict with protocol_version field
-        classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersion")
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(TypeName.INT)
-                .addParameter(protoType, "proto")
-                .build());
-
-        // getWrapperVersion() implementation
-        classBuilder.addMethod(MethodSpec.methodBuilder("getWrapperVersion")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(TypeName.INT)
-                .addStatement("return extractWrapperVersion(proto)")
-                .build());
-
-        // asVersion() implementation using converter
-        String interfaceName = message.getInterfaceName();
-        TypeVariableName typeVar = TypeVariableName.get("T",
-                ClassName.get(config.getApiPackage(), interfaceName));
-
-        classBuilder.addMethod(MethodSpec.methodBuilder("asVersion")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC)
-                .addTypeVariable(typeVar)
-                .returns(typeVar)
-                .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
-                .addStatement("return convertToVersion(versionClass)")
-                .build());
-
-        // Protected helper method for conversion
-        classBuilder.addMethod(MethodSpec.methodBuilder("convertToVersion")
-                .addModifiers(Modifier.PROTECTED)
-                .addTypeVariable(typeVar)
-                .returns(typeVar)
-                .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
-                .addJavadoc("Override in subclass to implement version conversion.\n")
-                .addStatement("throw new $T($S + versionClass)",
-                        UnsupportedOperationException.class, "Version conversion not implemented for ")
-                .build());
-
-        // toString()
-        classBuilder.addMethod(MethodSpec.methodBuilder("toString")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC)
-                .returns(String.class)
-                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion())",
-                        String.class, "%s[version=%d]")
-                .build());
-    }
-
-    private void addBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage message,
-                                   TypeVariableName protoType, ClassName interfaceType,
-                                   TypeResolver resolver, GenerationContext ctx) {
-        // Builder interface type from the interface
-        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
-
-        // Abstract method to create builder
-        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(builderInterfaceType)
-                .build());
-
-        // toBuilder() implementation
-        classBuilder.addMethod(MethodSpec.methodBuilder("toBuilder")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(builderInterfaceType)
-                .addStatement("return createBuilder()")
-                .build());
-
-        // Generate AbstractBuilder nested class
-        TypeSpec abstractBuilder = generateAbstractBuilder(message, interfaceType, resolver, ctx);
-        classBuilder.addType(abstractBuilder);
-    }
-
-    private TypeSpec generateAbstractBuilder(MergedMessage message, ClassName interfaceType,
-                                              TypeResolver resolver, GenerationContext ctx) {
-        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
-        TypeVariableName protoType = TypeVariableName.get("PROTO", MESSAGE_CLASS);
-
-        TypeSpec.Builder builder = TypeSpec.classBuilder("AbstractBuilder")
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.ABSTRACT)
-                .addTypeVariable(protoType)
-                .addSuperinterface(builderInterfaceType)
-                .addJavadoc("Abstract builder base class.\n")
-                .addJavadoc("@param <PROTO> Protocol-specific message type\n");
 
         // Add abstract doSet/doClear/doAdd/doBuild methods
         for (MergedField field : message.getFieldsSorted()) {
@@ -537,7 +266,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
             // Handle INT_ENUM conflicts with overloaded methods (scalar only)
             if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                Optional<ConflictEnumInfo> enumInfoOpt = genCtx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
                     addIntEnumAbstractMethods(builder, field, enumInfoOpt.get(), resolver);
@@ -621,7 +350,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
             // Handle INT_ENUM conflicts with overloaded methods (scalar only)
             if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = ctx.getSchema()
+                Optional<ConflictEnumInfo> enumInfoOpt = genCtx.getSchema()
                         .getConflictEnum(message.getName(), field.getName());
                 if (enumInfoOpt.isPresent()) {
                     addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
@@ -722,6 +451,100 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         return builder.build();
+    }
+
+    private void addCommonMethods(TypeSpec.Builder classBuilder, MergedMessage message,
+                                  TypeVariableName protoType) {
+        // Abstract method for serialization
+        classBuilder.addMethod(MethodSpec.methodBuilder("serializeToBytes")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(ArrayTypeName.of(TypeName.BYTE))
+                .addParameter(protoType, "proto")
+                .build());
+
+        // toBytes() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("toBytes")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(ArrayTypeName.of(TypeName.BYTE))
+                .addStatement("return serializeToBytes(proto)")
+                .build());
+
+        // Abstract getWrapperVersion - renamed to avoid conflict with protocol_version field
+        classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersion")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(TypeName.INT)
+                .addParameter(protoType, "proto")
+                .build());
+
+        // getWrapperVersion() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("getWrapperVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(TypeName.INT)
+                .addStatement("return extractWrapperVersion(proto)")
+                .build());
+
+        // asVersion() implementation using converter
+        String interfaceName = message.getInterfaceName();
+        TypeVariableName typeVar = TypeVariableName.get("T",
+                ClassName.get(config.getApiPackage(), interfaceName));
+
+        classBuilder.addMethod(MethodSpec.methodBuilder("asVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addTypeVariable(typeVar)
+                .returns(typeVar)
+                .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
+                .addStatement("return convertToVersion(versionClass)")
+                .build());
+
+        // Protected helper method for conversion
+        classBuilder.addMethod(MethodSpec.methodBuilder("convertToVersion")
+                .addModifiers(Modifier.PROTECTED)
+                .addTypeVariable(typeVar)
+                .returns(typeVar)
+                .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
+                .addJavadoc("Override in subclass to implement version conversion.\n")
+                .addStatement("throw new $T($S + versionClass)",
+                        UnsupportedOperationException.class, "Version conversion not implemented for ")
+                .build());
+
+        // toString()
+        classBuilder.addMethod(MethodSpec.methodBuilder("toString")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(String.class)
+                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion())",
+                        String.class, "%s[version=%d]")
+                .build());
+    }
+
+    private void addBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage message,
+                                   TypeVariableName protoType, ClassName interfaceType,
+                                   TypeResolver resolver, GenerationContext ctx) {
+        // Builder interface type from the interface
+        ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
+
+        // Abstract method to create builder
+        classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // toBuilder() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("toBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createBuilder()")
+                .build());
+
+        // Generate AbstractBuilder nested class using unified method
+        AbstractBuilderContext builderCtx = AbstractBuilderContext.forTopLevel(
+                message, interfaceType, resolver, ctx, config);
+        TypeSpec abstractBuilder = generateAbstractBuilder(builderCtx);
+        classBuilder.addType(abstractBuilder);
     }
 
     /**

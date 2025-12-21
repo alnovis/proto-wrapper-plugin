@@ -2,671 +2,486 @@
 
 ## Overview
 
-This document outlines a comprehensive refactoring plan for the proto-wrapper-maven-plugin codebase, focusing on:
-- Eliminating code duplication
+This document outlines the refactoring plan for the proto-wrapper-maven-plugin codebase, focusing on:
 - Adopting functional programming patterns (Java 17+)
+- Eliminating remaining code duplication
 - Improving maintainability and extensibility
 - Modernizing the codebase with current Java best practices
 
-## Table of Contents
-
-1. [Executive Summary](#1-executive-summary)
-2. [Critical Duplications](#2-critical-duplications)
-3. [Functional Programming Opportunities](#3-functional-programming-opportunities)
-4. [Java 17+ Modernization](#4-java-17-modernization)
-5. [Architectural Improvements](#5-architectural-improvements)
-6. [Implementation Phases](#6-implementation-phases)
-7. [Risk Assessment](#7-risk-assessment)
-
 ---
 
-## 1. Executive Summary
-
-### Current State
-- **Total LOC**: ~9,000 lines in proto-wrapper-core
-- **Largest files**: ImplClassGenerator (1803), AbstractClassGenerator (1131), InterfaceGenerator (931)
-- **Duplication ratio**: Estimated 25-30% of code is duplicated or near-duplicated
-
-### Target State
-- Reduce duplication by 40-50%
-- Improve code maintainability score
-- Full Java 17+ compatibility with modern idioms
-- Better separation of concerns
-
----
-
-## 2. Critical Duplications
-
-### 2.1 Field Processing Loop (HIGH PRIORITY)
-
-**Location**: Multiple generators
-
-The same field iteration pattern with conflict type checking appears 6+ times:
-
-```java
-// Current pattern (repeated in 6 places)
-for (MergedField field : message.getFieldsSorted()) {
-    if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-        // handle INT_ENUM
-    } else if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-        // handle STRING_BYTES
-    } else if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
-        // handle PRIMITIVE_MESSAGE
-    } else if (field.isRepeated() && field.hasTypeConflict()) {
-        // handle repeated conflicts
-    } else if (hasIncompatibleTypeConflict(field, version)) {
-        // handle incompatible
-    } else {
-        // normal handling
-    }
-}
-```
-
-**Files affected**:
-- `ImplClassGenerator.java`: lines 102-121, 238-257, 1012-1057, 1148-1193
-- `AbstractClassGenerator.java`: lines 128-135, 196-203, 254-321, 331-422
-- `InterfaceGenerator.java`: lines 71-111
-
-**Proposed Solution**: Strategy Pattern with Field Processors
-
-```java
-// New FieldProcessor interface
-@FunctionalInterface
-public interface FieldProcessor {
-    void process(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-}
-
-// Conflict-specific processors
-public sealed interface ConflictHandler permits
-    IntEnumHandler, StringBytesHandler, WideningHandler,
-    PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler {
-
-    boolean handles(MergedField field);
-    void processExtract(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-    void processBuilder(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-}
-
-// Unified processing
-public class FieldProcessingChain {
-    private final List<ConflictHandler> handlers;
-
-    public void processFields(TypeSpec.Builder builder,
-                              List<MergedField> fields,
-                              ProcessingContext ctx) {
-        fields.forEach(field ->
-            handlers.stream()
-                .filter(h -> h.handles(field))
-                .findFirst()
-                .ifPresent(h -> h.processExtract(builder, field, ctx)));
-    }
-}
-```
-
-**Estimated reduction**: ~400 lines
-
----
-
-### 2.2 Builder Generation Duplication (HIGH PRIORITY)
-
-**Location**: `ImplClassGenerator.java`
-
-Two nearly identical methods for top-level and nested builders:
-
-| Method | Lines | Purpose |
-|--------|-------|---------|
-| `generateBuilderImplClass()` | 1124-1223 | Top-level builder |
-| `generateNestedBuilderImplClass()` | 992-1085 | Nested builder |
-
-**Similarity**: 90%+ identical code
-
-**Proposed Solution**: Unified Builder Generator
-
-```java
-// Extract common builder generation
-private TypeSpec generateBuilderImpl(BuilderContext ctx) {
-    return TypeSpec.classBuilder("BuilderImpl")
-        .addModifiers(ctx.getModifiers())
-        .superclass(ctx.getSuperType())
-        .addField(ctx.getProtoBuilderType(), "protoBuilder", Modifier.PRIVATE, Modifier.FINAL)
-        .addMethod(generateConstructor(ctx))
-        .addMethods(generateFieldMethods(ctx))
-        .addMethod(generateDoBuild(ctx))
-        .addMethod(generateExtractProto())
-        .build();
-}
-
-// Context carries the differences
-record BuilderContext(
-    MergedMessage message,
-    ClassName protoType,
-    ClassName interfaceType,
-    String implClassName,
-    GenerationContext genCtx,
-    boolean isNested
-) {
-    Modifier[] getModifiers() {
-        return isNested
-            ? new Modifier[]{Modifier.PRIVATE, Modifier.STATIC}
-            : new Modifier[]{Modifier.PRIVATE, Modifier.STATIC};
-    }
-}
-```
-
-**Estimated reduction**: ~100 lines
-
----
-
-### 2.3 AbstractBuilder Generation (MEDIUM PRIORITY)
-
-**Location**: `AbstractClassGenerator.java`
-
-Similar duplication between:
-- `generateAbstractBuilder()` (lines 500-600)
-- `generateNestedAbstractBuilder()` (lines 243-434)
-
-**Proposed Solution**: Same as 2.2 - unified with context object
-
----
-
-### 2.4 Type Normalization (MEDIUM PRIORITY)
-
-**Location**: Multiple files
-
-Type normalization logic duplicated:
-
-```java
-// ImplClassGenerator.java
-private String normalizeType(String type) {
-    return switch (type) {
-        case "Integer" -> "int";
-        case "Long" -> "long";
-        case "Double" -> "double";
-        case "Float" -> "float";
-        // ...
-    };
-}
-
-// Similar in VersionMerger, TypeResolver
-```
-
-**Proposed Solution**: Centralize in `JavaTypeMapping` or new `TypeNormalizer`
-
-```java
-public final class TypeNormalizer {
-    private static final Map<String, String> WRAPPER_TO_PRIMITIVE = Map.of(
-        "Integer", "int",
-        "Long", "long",
-        "Double", "double",
-        "Float", "float",
-        "Boolean", "boolean"
-    );
-
-    public static String toPrimitive(String type) {
-        return WRAPPER_TO_PRIMITIVE.getOrDefault(type, type);
-    }
-
-    public static String toWrapper(String type) {
-        return PRIMITIVE_TO_WRAPPER.getOrDefault(type, type);
-    }
-
-    public static boolean isWidening(String from, String to) {
-        return WIDENING_CONVERSIONS.contains(from + "->" + to);
-    }
-}
-```
-
-**Estimated reduction**: ~60 lines
-
----
-
-### 2.5 Method Name Generation (LOW PRIORITY)
-
-**Location**: Throughout generators
-
-Repeated patterns:
-
-```java
-"extract" + resolver.capitalize(field.getJavaName())
-"extract" + resolver.capitalize(field.getJavaName()) + "Enum"
-"extract" + resolver.capitalize(field.getJavaName()) + "Bytes"
-"extract" + resolver.capitalize(field.getJavaName()) + "Message"
-"doSet" + resolver.capitalize(field.getJavaName())
-"doClear" + resolver.capitalize(field.getJavaName())
-```
-
-**Proposed Solution**: Centralize in `MergedField`
-
-```java
-public class MergedField {
-    // Add method name generators
-    public String getExtractMethodName() {
-        return "extract" + capitalize(javaName);
-    }
-    public String getExtractEnumMethodName() {
-        return getExtractMethodName() + "Enum";
-    }
-    public String getExtractBytesMethodName() {
-        return getExtractMethodName() + "Bytes";
-    }
-    public String getDoSetMethodName() {
-        return "doSet" + capitalize(javaName);
-    }
-    public String getDoClearMethodName() {
-        return "doClear" + capitalize(javaName);
-    }
-}
-```
-
----
-
-## 3. Functional Programming Opportunities
-
-### 3.1 Replace For-Loops with Streams
-
-**Current**:
-```java
-for (MergedField field : message.getFieldsSorted()) {
-    MethodSpec getter = generateGetter(field, message, resolver);
-    interfaceBuilder.addMethod(getter);
-
-    if (field.isOptional() && !field.isRepeated()) {
-        interfaceBuilder.addMethod(generateHasMethod(field, resolver));
-    }
-}
-```
-
-**Refactored**:
-```java
-message.getFieldsSorted().stream()
-    .flatMap(field -> Stream.concat(
-        Stream.of(generateGetter(field, message, resolver)),
-        field.isOptional() && !field.isRepeated()
-            ? Stream.of(generateHasMethod(field, resolver))
-            : Stream.empty()
-    ))
-    .forEach(interfaceBuilder::addMethod);
-```
-
-**Or with helper method**:
-```java
-message.getFieldsSorted().stream()
-    .flatMap(field -> generateFieldMethods(field, message, resolver))
-    .forEach(interfaceBuilder::addMethod);
-
-private Stream<MethodSpec> generateFieldMethods(MergedField field,
-                                                 MergedMessage message,
-                                                 TypeResolver resolver) {
-    var methods = new ArrayList<MethodSpec>();
-    methods.add(generateGetter(field, message, resolver));
-    if (field.isOptional() && !field.isRepeated()) {
-        methods.add(generateHasMethod(field, resolver));
-    }
-    // ... more methods based on conflict type
-    return methods.stream();
-}
-```
-
-### 3.2 Optional Chains
-
-**Current**:
-```java
-FieldInfo versionField = field.getVersionFields().get(version);
-if (versionField != null && versionField.isEnum()) {
-    // handle enum case
-}
-```
-
-**Refactored**:
-```java
-field.getVersionField(version)
-    .filter(FieldInfo::isEnum)
-    .ifPresent(vf -> {
-        // handle enum case
-    });
-```
-
-### 3.3 Pattern Matching for Conflict Types
-
-**Current**:
-```java
-if (field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-    addIntEnumExtract(...);
-} else if (field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-    addStringBytesExtract(...);
-} else if (field.getConflictType() == MergedField.ConflictType.WIDENING) {
-    addWideningExtract(...);
-} // ... more cases
-```
-
-**Refactored (Java 21+ preview, or Java 17 switch)**:
-```java
-switch (field.getConflictType()) {
-    case INT_ENUM -> addIntEnumExtract(builder, field, ctx);
-    case STRING_BYTES -> addStringBytesExtract(builder, field, ctx);
-    case WIDENING -> addWideningExtract(builder, field, ctx);
-    case PRIMITIVE_MESSAGE -> addPrimitiveMessageExtract(builder, field, ctx);
-    case NONE, NARROWING, INCOMPATIBLE -> addDefaultExtract(builder, field, ctx);
-}
-```
-
-### 3.4 Collector Patterns
-
-**Current**:
-```java
-List<String> typeInfo = new java.util.ArrayList<>();
-for (Map.Entry<String, FieldInfo> entry : versionFields.entrySet()) {
-    typeInfo.add(entry.getKey() + "=" + entry.getValue().getJavaType());
-}
-String result = String.join(", ", typeInfo);
-```
-
-**Refactored**:
-```java
-String result = versionFields.entrySet().stream()
-    .map(e -> e.getKey() + "=" + e.getValue().getJavaType())
-    .collect(Collectors.joining(", "));
-```
-
----
-
-## 4. Java 17+ Modernization
-
-### 4.1 Records
-
-**Candidates for conversion to records**:
-
-```java
-// Current (in VersionMerger)
-private static class FieldWithVersion {
-    private final FieldInfo field;
-    private final String version;
-    // constructor, getters...
-}
-
-// As record
-private record FieldWithVersion(FieldInfo field, String version) {}
-```
-
-**Additional record candidates**:
-- `GenerationContext` (partially - it has mutable state)
-- `BuilderContext` (new)
-- `ProcessingContext` (new)
-- `ConflictInfo` (new utility class)
-
-### 4.2 Sealed Classes
-
-**For type hierarchies**:
-
-```java
-// Conflict handlers as sealed hierarchy
-public sealed interface ConflictHandler
-    permits IntEnumHandler, StringBytesHandler, WideningHandler,
-            PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler {
-    boolean handles(MergedField field);
-    void process(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-}
-
-public final class IntEnumHandler implements ConflictHandler { ... }
-public final class StringBytesHandler implements ConflictHandler { ... }
-// etc.
-```
-
-### 4.3 Text Blocks
-
-**For Javadoc templates**:
-
-```java
-// Current
-builder.addJavadoc("Abstract base class for $L implementations.\n\n", interfaceName)
-       .addJavadoc("<p>Uses template method pattern - subclasses implement extract* methods.</p>\n")
-       .addJavadoc("@param <PROTO> Protocol-specific message type\n");
-
-// With text block
-builder.addJavadoc("""
-    Abstract base class for $L implementations.
-
-    <p>Uses template method pattern - subclasses implement extract* methods.</p>
-    @param <PROTO> Protocol-specific message type
-    """, interfaceName);
-```
-
-### 4.4 Stream.toList()
-
-**Replace everywhere**:
-
-```java
-// Current
-.collect(Collectors.toList())
-
-// Java 16+
-.toList()
-```
-
-**Note**: `toList()` returns unmodifiable list. Use `collect(Collectors.toCollection(ArrayList::new))` if mutability needed.
-
-### 4.5 Pattern Matching for instanceof
-
-**Current**:
-```java
-if (returnType instanceof ParameterizedTypeName) {
-    ParameterizedTypeName paramType = (ParameterizedTypeName) returnType;
-    return paramType.typeArguments.get(0);
-}
-```
-
-**Refactored**:
-```java
-if (returnType instanceof ParameterizedTypeName paramType) {
-    return paramType.typeArguments.get(0);
-}
-```
-
----
-
-## 5. Architectural Improvements
-
-### 5.1 Strategy Pattern for Field Processing
-
-Extract conflict handling into pluggable strategies:
-
-```
-┌─────────────────┐
-│ FieldProcessor  │<──────────────────────────┐
-│   (interface)   │                           │
-└────────┬────────┘                           │
-         │                                    │
-         ▼                                    │
-┌─────────────────┐  ┌─────────────────┐      │
-│ IntEnumProcessor│  │ WideningProcessor│      │
-└─────────────────┘  └─────────────────┘      │
-                                              │
-┌─────────────────┐  ┌─────────────────┐      │
-│StringBytesProc. │  │RepeatedConflict │──────┘
-└─────────────────┘  └─────────────────┘
-```
-
-### 5.2 Visitor Pattern for Message Traversal
-
-```java
-public interface MessageVisitor {
-    void visitMessage(MergedMessage message);
-    void visitNestedMessage(MergedMessage parent, MergedMessage nested);
-    void visitField(MergedMessage message, MergedField field);
-    void visitNestedEnum(MergedMessage message, MergedEnum nestedEnum);
-}
-
-public class MessageTraverser {
-    public void traverse(MergedMessage message, MessageVisitor visitor) {
-        visitor.visitMessage(message);
-        message.getFieldsSorted().forEach(f -> visitor.visitField(message, f));
-        message.getNestedEnums().forEach(e -> visitor.visitNestedEnum(message, e));
-        message.getNestedMessages().forEach(nested -> {
-            visitor.visitNestedMessage(message, nested);
-            traverse(nested, visitor);
-        });
-    }
-}
-```
-
-### 5.3 Builder Fluent API Enhancement
-
-```java
-// Enhanced method generation
-MethodBuilder.create("extractXxx")
-    .withAnnotation(Override.class)
-    .withModifiers(PROTECTED)
-    .returning(returnType)
-    .withParameter(protoType, "proto")
-    .withStatement("return proto.get$L()", fieldName)
-    .addTo(classBuilder);
-```
-
-### 5.4 Configuration as Immutable
-
-Convert `GeneratorConfig` to immutable with builder:
-
-```java
-public record GeneratorConfig(
-    Path outputDirectory,
-    String apiPackage,
-    String protoPackagePattern,
-    boolean generateBuilders,
-    int protobufMajorVersion
-) {
-    public static Builder builder() { return new Builder(); }
-
-    public String getImplPackage(String version) {
-        return apiPackage + "." + version.toLowerCase();
-    }
-}
-```
-
----
-
-## 6. Implementation Phases
-
-### Phase 1: Foundation (LOW RISK)
-**Duration**: 1-2 days
-
-1. Extract `TypeNormalizer` utility class
-2. Add method name generators to `MergedField`
-3. Replace `Collectors.toList()` with `toList()` where applicable
-4. Convert `FieldWithVersion` to record
-5. Apply pattern matching for instanceof
-
-**Files changed**: 5-7
-**Tests**: Run existing, no new needed
-
-### Phase 2: Stream Conversion (LOW RISK)
-**Duration**: 1-2 days
-
-1. Convert simple for-loops to streams in all generators
-2. Replace null checks with Optional chains
-3. Use Collectors.joining() for string building
-4. Apply text blocks for Javadoc
-
-**Files changed**: 4-5
-**Tests**: Run existing
-
-### Phase 3: Strategy Pattern (MEDIUM RISK)
-**Duration**: 2-3 days
-
-1. Create `ConflictHandler` sealed interface
-2. Implement handlers: IntEnumHandler, StringBytesHandler, WideningHandler, etc.
-3. Create `FieldProcessingChain`
-4. Refactor generators to use chain
-5. Update tests
-
-**Files changed**: 8-10
-**New files**: 6-8 (handlers + chain)
-**Tests**: New unit tests for handlers
-
-### Phase 4: Builder Unification (MEDIUM RISK)
-**Duration**: 2 days
-
-1. Create `BuilderContext` record
-2. Unify `generateBuilderImplClass` and `generateNestedBuilderImplClass`
-3. Unify abstract builder generation
-4. Apply same pattern to AbstractClassGenerator
-
-**Files changed**: 2
-**Tests**: Run existing integration tests
-
-### Phase 5: Visitor Pattern (LOW PRIORITY)
-**Duration**: 1-2 days
-
-1. Create `MessageVisitor` interface
-2. Create `MessageTraverser`
-3. Optionally convert generators to use visitor
-
-**Files changed**: 3-4
-**New files**: 2
-
----
-
-## 7. Risk Assessment
-
-### Low Risk
-- Type normalizer extraction
-- Stream conversions
-- Record conversions
-- Pattern matching updates
-
-### Medium Risk
-- Strategy pattern introduction
-- Builder unification
-
-### High Risk
-- None identified (all changes preserve behavior)
-
-### Mitigation Strategies
-
-1. **Comprehensive test coverage**: Run all 70+ existing tests after each phase
-2. **Incremental changes**: Small commits, easy rollback
-3. **Generate & compare**: Generate code before/after, diff to verify identical output
-4. **Feature flags**: Optional - could add config to use old vs new code path
-
----
-
-## Appendix A: File Impact Summary
-
-| File | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
-|------|---------|---------|---------|---------|
-| ImplClassGenerator.java | ✓ | ✓ | ✓ | ✓ |
-| AbstractClassGenerator.java | ✓ | ✓ | ✓ | ✓ |
-| InterfaceGenerator.java | ✓ | ✓ | ✓ | |
-| VersionMerger.java | ✓ | ✓ | | |
-| TypeResolver.java | ✓ | | | |
-| MergedField.java | ✓ | | | |
-| JavaTypeMapping.java | ✓ | | | |
-
-## Appendix B: New Files (Proposed)
+## Completed Phases
+
+The following phases have been successfully completed:
+
+| Phase | Description | Status | Lines Reduced |
+|-------|-------------|--------|---------------|
+| Phase 1 | Foundation - TypeNormalizer, method name generators, records | ✅ Complete | ~100 |
+| Phase 2 | Stream Conversions - for-loops to streams, Collectors.joining() | ✅ Complete | ~80 |
+| Phase 3 | Strategy Pattern - ConflictHandler hierarchy, FieldProcessingChain | ✅ Complete | ~400 |
+| Phase 4 | Builder Unification - BuilderImplContext, AbstractBuilderContext | ✅ Complete | ~310 |
+| Phase 5 | Visitor Pattern - MessageVisitor, MessageTraverser, utilities | ✅ Complete | New utilities |
+
+### Files Created During Refactoring
 
 ```
 generator/
 ├── conflict/
-│   ├── ConflictHandler.java          (sealed interface)
+│   ├── ConflictHandler.java          (interface)
+│   ├── AbstractConflictHandler.java  (base class)
 │   ├── IntEnumHandler.java
 │   ├── StringBytesHandler.java
 │   ├── WideningHandler.java
 │   ├── PrimitiveMessageHandler.java
 │   ├── RepeatedConflictHandler.java
 │   ├── DefaultHandler.java
-│   └── FieldProcessingChain.java
-├── context/
-│   ├── BuilderContext.java           (record)
-│   └── ProcessingContext.java        (record)
-└── util/
-    └── TypeNormalizer.java
+│   ├── FieldProcessingChain.java
+│   ├── CodeGenerationHelper.java
+│   ├── ProcessingContext.java        (record)
+│   ├── BuilderImplContext.java       (record)
+│   └── AbstractBuilderContext.java   (record)
+├── visitor/
+│   ├── MessageVisitor.java           (interface)
+│   ├── MessageTraverser.java
+│   ├── SchemaStats.java
+│   ├── FieldCollector.java
+│   └── ConflictReporter.java
+└── TypeNormalizer.java
 ```
 
-## Appendix C: Metrics (Expected)
+---
 
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Total LOC | ~9,000 | ~6,500 | -28% |
-| ImplClassGenerator | 1,803 | ~1,200 | -33% |
-| AbstractClassGenerator | 1,131 | ~800 | -29% |
-| InterfaceGenerator | 931 | ~700 | -25% |
-| Cyclomatic Complexity | High | Medium | Improved |
-| Duplication | 25-30% | <10% | Significant |
+## Remaining Refactoring Opportunities
+
+### Phase 6: Optional Chain Optimization (LOW RISK)
+
+Replace remaining null checks with idiomatic Optional patterns.
+
+#### 6.1 ImplClassGenerator.java - getVersionSpecificJavaName()
+
+**Location**: Lines 271-276
+
+**Current**:
+```java
+Map<String, FieldInfo> versionFields = field.getVersionFields();
+FieldInfo versionField = versionFields.get(version);
+if (versionField != null) {
+    return resolver.capitalize(versionField.getJavaName());
+}
+return resolver.capitalize(field.getJavaName());
+```
+
+**Improvement**:
+```java
+return Optional.ofNullable(field.getVersionFields().get(version))
+    .map(vf -> resolver.capitalize(vf.getJavaName()))
+    .orElseGet(() -> resolver.capitalize(field.getJavaName()));
+```
+
+#### 6.2 ImplClassGenerator.java - getProtoTypeForField()
+
+**Location**: Lines 839-846
+
+**Current**:
+```java
+FieldInfo versionField = field.getVersionFields().get(version);
+if (versionField == null) {
+    return "com.google.protobuf.Message";
+}
+String typeName = versionField.getTypeName();
+```
+
+**Improvement**:
+```java
+String typeName = Optional.ofNullable(field.getVersionFields().get(version))
+    .map(FieldInfo::getTypeName)
+    .orElse(null);
+if (typeName == null) {
+    return "com.google.protobuf.Message";
+}
+```
+
+#### 6.3 TypeResolver.java - resolveNestedTypePath()
+
+**Location**: Lines 147-154
+
+**Current**:
+```java
+if (schema != null) {
+    Optional<MergedMessage> crossMessage = schema.findMessageByPath(typePath);
+    if (crossMessage.isPresent()) {
+        return buildNestedClassName(typePath);
+    }
+    Optional<MergedEnum> crossEnum = schema.findEnumByPath(typePath);
+    if (crossEnum.isPresent()) {
+        return buildNestedClassName(typePath);
+    }
+}
+```
+
+**Improvement**:
+```java
+if (schema != null &&
+    (schema.findMessageByPath(typePath).isPresent() ||
+     schema.findEnumByPath(typePath).isPresent())) {
+    return buildNestedClassName(typePath);
+}
+```
+
+#### 6.4 TypeResolver.java - resolveSimpleTypePath()
+
+**Location**: Lines 164-207
+
+**Current**: Multiple sequential Optional checks with `if (opt.isPresent())` pattern
+
+**Improvement**: Use `Optional.or()` chaining:
+```java
+return context.findNestedMessageRecursive(typePath)
+    .map(m -> buildNestedClassName(m.getQualifiedInterfaceName()))
+    .or(() -> context.findNestedEnumRecursive(typePath)
+        .map(e -> buildNestedClassName(e.getQualifiedName())))
+    .or(() -> schema != null
+        ? schema.findMessageByPath(typePath)
+            .map(m -> buildNestedClassName(m.getQualifiedInterfaceName()))
+        : Optional.empty())
+    .orElseGet(() -> ClassName.get(config.getApiPackage(), typePath));
+```
+
+**Files affected**: 2
+**Estimated effort**: 1-2 hours
+
+---
+
+### Phase 7: Switch Expression Conversion (LOW RISK)
+
+Convert remaining nested if-else chains to Java 17+ switch expressions.
+
+#### 7.1 ImplClassGenerator.java - addWideningBuilderMethods()
+
+**Location**: Lines 555-574
+
+**Current**:
+```java
+if (needsNarrowing) {
+    if ("long".equals(widerType) || "Long".equals(widerType)) {
+        // long -> int narrowing with range check
+        doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+        // ...
+    } else if ("double".equals(widerType) || "Double".equals(widerType)) {
+        // double -> float/int narrowing
+        // ...
+    } else {
+        // Unknown narrowing - just cast
+        doSet.addStatement("protoBuilder.set$L(($L) $L)",
+                versionJavaName, versionType, field.getJavaName());
+    }
+}
+```
+
+**Improvement**:
+```java
+if (needsNarrowing) {
+    switch (widerType) {
+        case "long", "Long" -> {
+            doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                    field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+            // ...
+        }
+        case "double", "Double" -> {
+            // double -> float/int narrowing
+            // ...
+        }
+        default -> doSet.addStatement("protoBuilder.set$L(($L) $L)",
+                versionJavaName, versionType, field.getJavaName());
+    }
+}
+```
+
+#### 7.2 Similar Patterns in Other Files
+
+**Locations**:
+- `InterfaceGenerator.java`: Lines 709-745 (type-based dispatch)
+- `WideningHandler.java`: Lines 127-150 (narrowing logic)
+
+**Files affected**: 3
+**Estimated effort**: 1-2 hours
+
+---
+
+### Phase 8: Conditional Statement Helper (MEDIUM PRIORITY)
+
+Extract duplicated conditional version-check pattern into helper method.
+
+#### 8.1 DefaultHandler.java - Repeated Pattern
+
+**Pattern**: Appears 15+ times across handler files
+
+**Current**:
+```java
+if (presentInVersion) {
+    doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
+} else {
+    doAdd.addComment("Field not present in this version - ignored");
+}
+```
+
+**Proposed Helper**:
+```java
+// In CodeGenerationHelper.java
+public static void addConditionalStatement(MethodSpec.Builder method,
+                                            boolean condition,
+                                            Consumer<MethodSpec.Builder> ifPresent,
+                                            String absentComment) {
+    if (condition) {
+        ifPresent.accept(method);
+    } else {
+        method.addComment(absentComment);
+    }
+}
+
+// Alternative with varargs for statement
+public static void addVersionConditionalStatement(MethodSpec.Builder method,
+                                                   boolean presentInVersion,
+                                                   String format,
+                                                   Object... args) {
+    if (presentInVersion) {
+        method.addStatement(format, args);
+    } else {
+        method.addComment("Field not present in this version - ignored");
+    }
+}
+```
+
+**Usage**:
+```java
+addVersionConditionalStatement(doAdd, presentInVersion,
+    "protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
+```
+
+**Files affected**: DefaultHandler.java, WideningHandler.java, IntEnumHandler.java, StringBytesHandler.java
+**Estimated effort**: 2-3 hours
+**Reduction**: ~50 lines of duplicated conditionals
+
+---
+
+### Phase 9: Field-Type Dispatch Extraction (MEDIUM PRIORITY)
+
+Extract repeated field-type dispatch logic into reusable component.
+
+#### 9.1 DefaultHandler.java - Repeated Type Dispatch
+
+**Pattern**: The "if isMessage/if isEnum/else" pattern repeats 3-4 times
+
+**Current** (Lines 221-232, 244-256, 268-281):
+```java
+if (field.isMessage()) {
+    String protoTypeName = getProtoTypeForField(field, ctx, null);
+    doAdd.addStatement("protoBuilder.add$L(($L) extractProto($L))",
+            versionJavaName, protoTypeName, field.getJavaName());
+} else if (field.isEnum()) {
+    String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
+    String enumMethod = getEnumFromIntMethod(ctx.config());
+    doAdd.addStatement("protoBuilder.add$L($L.$L($L.getProtoValue()))",
+            versionJavaName, protoEnumType, enumMethod, field.getJavaName());
+} else {
+    doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
+}
+```
+
+**Proposed Solution**:
+```java
+// In CodeGenerationHelper.java
+@FunctionalInterface
+public interface FieldTypeAction {
+    void apply(MethodSpec.Builder method, MergedField field,
+               String versionJavaName, ProcessingContext ctx);
+}
+
+public record FieldTypeDispatcher(
+    FieldTypeAction messageAction,
+    FieldTypeAction enumAction,
+    FieldTypeAction primitiveAction
+) {
+    public void dispatch(MethodSpec.Builder method, MergedField field,
+                         String versionJavaName, ProcessingContext ctx) {
+        if (field.isMessage()) {
+            messageAction.apply(method, field, versionJavaName, ctx);
+        } else if (field.isEnum()) {
+            enumAction.apply(method, field, versionJavaName, ctx);
+        } else {
+            primitiveAction.apply(method, field, versionJavaName, ctx);
+        }
+    }
+}
+
+// Pre-defined dispatchers
+public static final FieldTypeDispatcher ADD_DISPATCHER = new FieldTypeDispatcher(
+    (m, f, n, c) -> m.addStatement("protoBuilder.add$L(($L) extractProto($L))",
+            n, getProtoTypeForField(f, c, null), f.getJavaName()),
+    (m, f, n, c) -> m.addStatement("protoBuilder.add$L($L.$L($L.getProtoValue()))",
+            n, getProtoEnumTypeForField(f, c, null),
+            getEnumFromIntMethod(c.config()), f.getJavaName()),
+    (m, f, n, c) -> m.addStatement("protoBuilder.add$L($L)", n, f.getJavaName())
+);
+```
+
+**Files affected**: DefaultHandler.java, RepeatedConflictHandler.java
+**Estimated effort**: 3-4 hours
+**Reduction**: ~60 lines
+
+---
+
+### Phase 10: Sealed Interface for ConflictHandler (LOW PRIORITY)
+
+Make ConflictHandler a sealed interface for better type safety.
+
+#### 10.1 ConflictHandler.java
+
+**Current**:
+```java
+public interface ConflictHandler {
+    boolean handles(MergedField field, ProcessingContext ctx);
+    // ...
+}
+```
+
+**Improvement**:
+```java
+public sealed interface ConflictHandler permits
+        IntEnumHandler, StringBytesHandler, WideningHandler,
+        PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler {
+
+    boolean handles(MergedField field, ProcessingContext ctx);
+    // ...
+}
+
+public final class IntEnumHandler extends AbstractConflictHandler
+        implements ConflictHandler { ... }
+// etc.
+```
+
+**Benefits**:
+- Compiler guarantees exhaustive switch (when pattern matching in future)
+- Documents the complete set of implementations
+- Prevents accidental external extensions
+
+**Files affected**: 7 handler files
+**Estimated effort**: 30 minutes
+
+---
+
+### Phase 11: Stream Optimization - Parent Hierarchy (LOW PRIORITY)
+
+Optimize parent hierarchy collection using functional approach.
+
+#### 11.1 ImplClassGenerator.java - buildNestedAbstractClassName()
+
+**Location**: Lines 256-261
+
+**Current**:
+```java
+List<String> path = new java.util.ArrayList<>();
+for (MergedMessage current = nested; current.getParent() != null; current = current.getParent()) {
+    path.add(current.getName());
+}
+java.util.Collections.reverse(path);
+```
+
+**Improvement Option 1** - Stream.iterate():
+```java
+List<String> path = Stream.iterate(nested, m -> m.getParent() != null, MergedMessage::getParent)
+    .map(MergedMessage::getName)
+    .collect(Collectors.collectingAndThen(
+        Collectors.toList(),
+        list -> { Collections.reverse(list); return list; }
+    ));
+```
+
+**Improvement Option 2** - LinkedList for natural order:
+```java
+Deque<String> path = Stream.iterate(nested, m -> m.getParent() != null, MergedMessage::getParent)
+    .map(MergedMessage::getName)
+    .collect(Collectors.toCollection(ArrayDeque::new));
+// Use path.descendingIterator() or convert as needed
+```
+
+**Files affected**: 1
+**Estimated effort**: 30 minutes
+
+---
+
+## Implementation Priority
+
+### High Priority (Do First)
+| Phase | Description | Effort | Impact |
+|-------|-------------|--------|--------|
+| 8 | Conditional Statement Helper | 2-3 hours | Medium - reduces 50+ lines |
+| 6 | Optional Chain Optimization | 1-2 hours | Medium - idiomatic Java |
+
+### Medium Priority (Do When Time Permits)
+| Phase | Description | Effort | Impact |
+|-------|-------------|--------|--------|
+| 9 | Field-Type Dispatch Extraction | 3-4 hours | Medium - reduces 60+ lines |
+| 7 | Switch Expression Conversion | 1-2 hours | Low - readability |
+
+### Low Priority (Optional)
+| Phase | Description | Effort | Impact |
+|-------|-------------|--------|--------|
+| 10 | Sealed Interface | 30 minutes | Low - type safety |
+| 11 | Stream Parent Hierarchy | 30 minutes | Low - functional style |
+
+---
+
+## Metrics
+
+### Current State (After Phases 1-5)
+
+| File | Original LOC | Current LOC | Reduction |
+|------|-------------|-------------|-----------|
+| ImplClassGenerator.java | 1,803 | ~1,200 | -33% |
+| AbstractClassGenerator.java | 1,131 | ~750 | -34% |
+| InterfaceGenerator.java | 931 | ~850 | -9% |
+| **Total proto-wrapper-core** | ~9,000 | ~7,200 | -20% |
+
+### Expected After Remaining Phases
+
+| Metric | Current | After Phase 8-9 | Final |
+|--------|---------|-----------------|-------|
+| Duplication | ~15% | ~8% | <8% |
+| Null Checks | ~30 | ~10 | <10 |
+| If-Else Chains | ~15 | ~5 | <5 |
+
+---
+
+## Testing Strategy
+
+All refactoring should:
+1. Run existing 106 tests after each phase
+2. Verify generated code is identical (diff test)
+3. No new tests required for style changes
+
+---
+
+## Appendix: Java 17+ Features Used
+
+| Feature | Usage | Files |
+|---------|-------|-------|
+| Records | ProcessingContext, BuilderImplContext, etc. | 5+ |
+| Switch Expressions | Conflict type handling | Handlers |
+| Pattern Matching instanceof | Type checks | AbstractConflictHandler |
+| Stream.toList() | Throughout | All generators |
+| Text Blocks | Javadoc (partial) | Some files |
+| Sealed Classes | Proposed for Phase 10 | ConflictHandler |
+
+---
+
+## Appendix: Code Quality Checklist
+
+Before marking any phase complete:
+
+- [ ] All 106 tests pass
+- [ ] No new warnings introduced
+- [ ] Code follows existing style conventions
+- [ ] Javadoc updated if public API changed
+- [ ] Git commit with descriptive message
