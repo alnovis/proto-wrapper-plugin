@@ -914,6 +914,52 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addJavadoc("of the same protocol version.</p>\n")
                 .addJavadoc("@return VersionContext for this version\n")
                 .build());
+
+        // Add getFieldsInaccessibleInVersion() method for version compatibility checking
+        TypeName listOfString = ParameterizedTypeName.get(
+                ClassName.get(java.util.List.class),
+                ClassName.get(String.class)
+        );
+        builder.addMethod(MethodSpec.methodBuilder("getFieldsInaccessibleInVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(listOfString)
+                .addParameter(TypeName.INT, "targetVersion")
+                .addJavadoc("Get fields that have values but will be inaccessible in the target version.\n")
+                .addJavadoc("<p>These fields exist in the current version but not in the target version.\n")
+                .addJavadoc("The data is NOT lost (protobuf preserves unknown fields), but it cannot be\n")
+                .addJavadoc("accessed through the target version's API.</p>\n")
+                .addJavadoc("@param targetVersion Target protocol version to check\n")
+                .addJavadoc("@return List of field names that will become inaccessible\n")
+                .build());
+
+        // Add canConvertLosslesslyTo() convenience method
+        builder.addMethod(MethodSpec.methodBuilder("canConvertLosslesslyTo")
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(TypeName.INT, "targetVersion")
+                .addJavadoc("Check if conversion to target version will keep all data accessible.\n")
+                .addJavadoc("<p>Returns true if no populated fields will become inaccessible.</p>\n")
+                .addJavadoc("@param targetVersion Target protocol version to check\n")
+                .addJavadoc("@return true if all populated fields will remain accessible\n")
+                .addStatement("return getFieldsInaccessibleInVersion(targetVersion).isEmpty()")
+                .build());
+
+        // Add asVersionStrict() method - throws if data would become inaccessible
+        TypeVariableName typeVarStrict = TypeVariableName.get("T", ClassName.get(config.getApiPackage(), message.getInterfaceName()));
+        builder.addMethod(MethodSpec.methodBuilder("asVersionStrict")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addTypeVariable(typeVarStrict)
+                .returns(typeVarStrict)
+                .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVarStrict), "versionClass")
+                .addJavadoc("Convert to a specific version with strict data accessibility check.\n")
+                .addJavadoc("<p>Unlike {@link #asVersion(Class)}, this method throws an exception if any\n")
+                .addJavadoc("populated fields would become inaccessible in the target version.</p>\n")
+                .addJavadoc("<p><b>Note:</b> Data is NOT physically lost (protobuf preserves unknown fields),\n")
+                .addJavadoc("but it cannot be accessed through the target version's API.</p>\n")
+                .addJavadoc("@param versionClass Target version class\n")
+                .addJavadoc("@return Instance of the specified version\n")
+                .addJavadoc("@throws IllegalStateException if any populated fields would become inaccessible\n")
+                .build());
     }
 
     /**

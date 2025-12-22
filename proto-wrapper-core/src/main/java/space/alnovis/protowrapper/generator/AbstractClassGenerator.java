@@ -136,7 +136,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, message, procCtx);
 
         // Add common methods
-        addCommonMethods(classBuilder, message, protoType);
+        addCommonMethods(classBuilder, message, protoType, resolver);
 
         // Add Builder support if enabled
         if (config.isGenerateBuilders()) {
@@ -482,7 +482,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     private void addCommonMethods(TypeSpec.Builder classBuilder, MergedMessage message,
-                                  TypeVariableName protoType) {
+                                  TypeVariableName protoType, TypeResolver resolver) {
         // Abstract method for serialization
         classBuilder.addMethod(MethodSpec.methodBuilder("serializeToBytes")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
@@ -527,6 +527,29 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return convertToVersion(versionClass)")
                 .build());
 
+        // asVersionStrict() implementation - throws if data would become inaccessible
+        classBuilder.addMethod(MethodSpec.methodBuilder("asVersionStrict")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addTypeVariable(typeVar)
+                .returns(typeVar)
+                .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
+                .beginControlFlow("if (versionClass.isInstance(this))")
+                .addStatement("return versionClass.cast(this)")
+                .endControlFlow()
+                .addStatement("int targetVersion = extractVersionFromPackage(versionClass.getPackage().getName())")
+                .addStatement("$T<$T> inaccessibleFields = getFieldsInaccessibleInVersion(targetVersion)",
+                        java.util.List.class, String.class)
+                .beginControlFlow("if (!inaccessibleFields.isEmpty())")
+                .addStatement("throw new $T($T.format($S, getWrapperVersion(), targetVersion, inaccessibleFields))",
+                        IllegalStateException.class, String.class,
+                        "Cannot convert from version %d to version %d: the following fields have values " +
+                        "but will become inaccessible in the target version: %s. " +
+                        "Use asVersion() if you want to proceed anyway (data is preserved via protobuf unknown fields).")
+                .endControlFlow()
+                .addStatement("return convertToVersion(versionClass)")
+                .build());
+
         // Protected helper method for conversion via serialization
         ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
         String parseMethodName = "parse" + message.getName() + "FromBytes";
@@ -544,16 +567,23 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return versionClass.cast(this)")
                 .endControlFlow()
                 // Extract version from package and convert
-                .beginControlFlow("try")
                 .addStatement("int targetVersion = extractVersionFromPackage(versionClass.getPackage().getName())")
+                .beginControlFlow("try")
                 .addStatement("$T targetContext = $T.forVersion(targetVersion)", versionContextType, versionContextType)
                 .addStatement("byte[] bytes = this.toBytes()")
                 .addStatement("$T parseMethod = targetContext.getClass().getMethod($S, byte[].class)",
                         Method.class, parseMethodName)
                 .addStatement("return versionClass.cast(parseMethod.invoke(targetContext, bytes))")
+                .nextControlFlow("catch ($T e)", java.lang.reflect.InvocationTargetException.class)
+                // Get the real cause from InvocationTargetException
+                .addStatement("$T cause = e.getCause() != null ? e.getCause() : e", Throwable.class)
+                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), getWrapperVersion(), targetVersion, cause.getClass().getSimpleName(), cause.getMessage()), cause)",
+                        RuntimeException.class, String.class,
+                        "Failed to convert %s from version %d to version %d: %s - %s")
                 .nextControlFlow("catch ($T e)", Exception.class)
-                .addStatement("throw new $T($S + versionClass + $S + e.getMessage(), e)",
-                        RuntimeException.class, "Failed to convert to ", ": ")
+                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), getWrapperVersion(), targetVersion, e.getMessage()), e)",
+                        RuntimeException.class, String.class,
+                        "Failed to convert %s from version %d to version %d: %s")
                 .endControlFlow()
                 .build());
 
@@ -632,6 +662,77 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .returns(versionContextType)
                 .addStatement("return getVersionContext()")
                 .build());
+
+        // getFieldsInaccessibleInVersion() implementation
+        addGetFieldsInaccessibleInVersionMethod(classBuilder, message, resolver);
+    }
+
+    /**
+     * Generate getFieldsInaccessibleInVersion() method that checks which fields
+     * will become inaccessible when converting to a target version.
+     */
+    private void addGetFieldsInaccessibleInVersionMethod(TypeSpec.Builder classBuilder,
+                                                          MergedMessage message,
+                                                          TypeResolver resolver) {
+        TypeName listOfString = ParameterizedTypeName.get(
+                ClassName.get(java.util.List.class),
+                ClassName.get(String.class)
+        );
+        ClassName arrayList = ClassName.get(java.util.ArrayList.class);
+
+        MethodSpec.Builder method = MethodSpec.methodBuilder("getFieldsInaccessibleInVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(listOfString)
+                .addParameter(TypeName.INT, "targetVersion")
+                .addStatement("$T<$T> inaccessible = new $T<>()", java.util.List.class, String.class, arrayList);
+
+        // Get all versions this message supports
+        Set<String> allVersions = message.getPresentInVersions();
+
+        // For each field, check if it's version-specific
+        for (MergedField field : message.getFieldsSorted()) {
+            Set<String> fieldVersions = field.getPresentInVersions();
+
+            // Skip if field exists in all versions
+            if (fieldVersions.containsAll(allVersions)) {
+                continue;
+            }
+
+            // Generate version check for this field
+            // Extract version numbers from version strings (e.g., "v1" -> 1, "v202" -> 202)
+            String versionCheck = fieldVersions.stream()
+                    .map(v -> v.replaceAll("[^0-9]", ""))
+                    .filter(s -> !s.isEmpty())
+                    .map(v -> "targetVersion == " + v)
+                    .collect(java.util.stream.Collectors.joining(" || "));
+
+            if (versionCheck.isEmpty()) {
+                continue;
+            }
+
+            String fieldName = field.getJavaName();
+            String hasMethod = "has" + resolver.capitalize(fieldName) + "()";
+
+            // For optional fields, check hasXxx()
+            // For required fields, always consider them as "having value"
+            if (field.isOptional() && !field.isRepeated()) {
+                method.beginControlFlow("if ($L && !($L))", hasMethod, versionCheck);
+            } else if (field.isRepeated()) {
+                // For repeated fields, check if list is not empty
+                String getMethod = field.getGetterName() + "()";
+                method.beginControlFlow("if (!$L.isEmpty() && !($L))", getMethod, versionCheck);
+            } else {
+                // Required field - always has value, just check version
+                method.beginControlFlow("if (!($L))", versionCheck);
+            }
+
+            method.addStatement("inaccessible.add($S)", fieldName);
+            method.endControlFlow();
+        }
+
+        method.addStatement("return inaccessible");
+        classBuilder.addMethod(method.build());
     }
 
     /**

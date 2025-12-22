@@ -183,9 +183,16 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(fieldType, field.getJavaName());
 
-        addVersionConditional(doSet, presentInVersion, m -> {
-            String setterCall = generateProtoSetterCall(field, versionJavaName, ctx);
-            m.addStatement(setterCall, field.getJavaName());
+        addVersionConditionalOrThrow(doSet, presentInVersion, field, m -> {
+            if (field.isEnum()) {
+                // Use validation for enum fields to provide clear error messages
+                // when enum value doesn't exist in this protocol version
+                CodeGenerationHelper.addEnumSetterWithValidation(m, field, versionJavaName,
+                        field.getJavaName(), ctx);
+            } else {
+                String setterCall = generateProtoSetterCall(field, versionJavaName, ctx);
+                m.addStatement(setterCall, field.getJavaName());
+            }
         });
         builder.addMethod(doSet.build());
 
@@ -211,7 +218,7 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(singleElementType, field.getJavaName());
 
-        addVersionConditional(doAdd, presentInVersion, m ->
+        addVersionConditionalOrThrow(doAdd, presentInVersion, field, m ->
                 ADD_SINGLE_DISPATCHER.dispatch(m, field, versionJavaName, ctx));
         builder.addMethod(doAdd.build());
 
@@ -221,7 +228,7 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(listType, field.getJavaName());
 
-        addVersionConditional(doAddAll, presentInVersion, m ->
+        addVersionConditionalOrThrow(doAddAll, presentInVersion, field, m ->
                 ADD_ALL_DISPATCHER.dispatch(m, field, versionJavaName, ctx));
         builder.addMethod(doAddAll.build());
 
@@ -231,7 +238,7 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(listType, field.getJavaName());
 
-        addVersionConditional(doSetAll, presentInVersion, m -> {
+        addVersionConditionalOrThrow(doSetAll, presentInVersion, field, m -> {
             m.addStatement("protoBuilder.clear$L()", versionJavaName);
             ADD_ALL_DISPATCHER.dispatch(m, field, versionJavaName, ctx);
         });

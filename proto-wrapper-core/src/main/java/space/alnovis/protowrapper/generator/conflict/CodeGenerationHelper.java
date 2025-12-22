@@ -483,6 +483,9 @@ public final class CodeGenerationHelper {
     /**
      * Generate a proto setter call string for single (non-repeated) fields.
      * Returns a format string with $L placeholder for the field value.
+     *
+     * <p>Note: For enum fields, this generates a simple setter without null validation.
+     * Use {@link #addEnumSetterWithValidation} instead for proper error messages.</p>
      */
     public static String generateProtoSetterCall(MergedField field, String versionJavaName, ProcessingContext ctx) {
         if (field.isMessage()) {
@@ -494,6 +497,109 @@ public final class CodeGenerationHelper {
             return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
         } else {
             return "protoBuilder.set" + versionJavaName + "($L)";
+        }
+    }
+
+    /**
+     * Add enum setter statements with null validation to a method builder.
+     *
+     * <p>Generates code like:</p>
+     * <pre>
+     * ProtoEnumType protoEnumValue = ProtoEnumType.valueOf(param.getValue());
+     * if (protoEnumValue == null) {
+     *     throw new IllegalArgumentException(
+     *         "EnumType.VALUE (value=N) is not supported in protocol version V");
+     * }
+     * protoBuilder.setFieldName(protoEnumValue);
+     * </pre>
+     *
+     * @param method The method builder to add statements to
+     * @param field The enum field being set
+     * @param versionJavaName The Java name of the field in this version
+     * @param fieldParamName The parameter name holding the enum value
+     * @param ctx Processing context
+     */
+    public static void addEnumSetterWithValidation(MethodSpec.Builder method, MergedField field,
+                                                    String versionJavaName, String fieldParamName,
+                                                    ProcessingContext ctx) {
+        String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
+        String enumMethod = getEnumFromIntMethod(ctx.config());
+        String localVarName = "protoEnumValue";
+        String enumTypeName = field.getGetterType();
+
+        // ProtoEnumType protoEnumValue = ProtoEnumType.valueOf(param.getValue());
+        method.addStatement("$L $L = $L.$L($L.getValue())",
+                protoEnumType, localVarName, protoEnumType, enumMethod, fieldParamName);
+
+        // if (protoEnumValue == null) { throw ... }
+        method.beginControlFlow("if ($L == null)", localVarName);
+        method.addStatement("throw new $T($S + $L.name() + $S + $L.getValue() + $S + getVersion())",
+                IllegalArgumentException.class,
+                enumTypeName + ".",
+                fieldParamName,
+                " (value=",
+                fieldParamName,
+                ") is not supported in protocol version ");
+        method.endControlFlow();
+
+        // protoBuilder.setFieldName(protoEnumValue);
+        method.addStatement("protoBuilder.set$L($L)", versionJavaName, localVarName);
+    }
+
+    /**
+     * Check if a field is an enum type.
+     */
+    public static boolean isEnumField(MergedField field) {
+        return field.isEnum();
+    }
+
+    // ============== Version-Specific Field Validation ==============
+
+    /**
+     * Add a throw statement for when trying to set a field that doesn't exist in the current version.
+     *
+     * <p>Generates code like:</p>
+     * <pre>
+     * throw new UnsupportedOperationException(
+     *     "Field 'exciseStamp' is not available in protocol version 203. " +
+     *     "This field exists only in versions: [v202]");
+     * </pre>
+     *
+     * @param method The method builder to add the throw statement to
+     * @param field The field being accessed
+     */
+    public static void addFieldNotInVersionError(MethodSpec.Builder method, MergedField field) {
+        String fieldName = field.getJavaName();
+        // getPresentInVersions() returns version strings like "v202", "v203"
+        String versionsStr = String.join(", ", field.getPresentInVersions());
+
+        method.addStatement("throw new $T($S + getVersion() + $S)",
+                UnsupportedOperationException.class,
+                "Field '" + fieldName + "' is not available in protocol version ",
+                ". This field exists only in versions: [" + versionsStr + "]");
+    }
+
+    /**
+     * Add version-conditional code for setter operations.
+     * If presentInVersion is true, executes the ifPresent consumer.
+     * Otherwise, throws UnsupportedOperationException with clear message.
+     *
+     * <p>Use this for setter operations (doSet, doAdd, doAddAll) where silently
+     * ignoring the value would be confusing to the user.</p>
+     *
+     * @param method          The method builder to add code to
+     * @param presentInVersion Whether the field is present in the current version
+     * @param field           The field being set (for error message)
+     * @param ifPresent       Consumer that adds code when field is present
+     */
+    public static void addVersionConditionalOrThrow(MethodSpec.Builder method,
+                                                     boolean presentInVersion,
+                                                     MergedField field,
+                                                     Consumer<MethodSpec.Builder> ifPresent) {
+        if (presentInVersion) {
+            ifPresent.accept(method);
+        } else {
+            addFieldNotInVersionError(method, field);
         }
     }
 }
