@@ -195,7 +195,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         FieldProcessingChain.getInstance().addAbstractExtractMethods(classBuilder, nested, nestedProcCtx);
         FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, nested, nestedProcCtx);
 
-        // Add equals/hashCode for nested classes (compare proto content only)
+        // Add toString/equals/hashCode for nested classes
+        addNestedToString(classBuilder, nested);
         addNestedEqualsHashCode(classBuilder, nested);
 
         // Recursively add deeply nested abstract classes
@@ -528,13 +529,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                         UnsupportedOperationException.class, "Version conversion not implemented for ")
                 .build());
 
-        // toString()
+        // toString() - includes proto content for debugging
         classBuilder.addMethod(MethodSpec.methodBuilder("toString")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
-                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion())",
-                        String.class, "%s[version=%d]")
+                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion(), proto.toString().replace($S, $S).trim())",
+                        String.class, "%s[version=%d] %s", "\n", ", ")
                 .build());
 
         // equals() - compare by version and proto content
@@ -571,6 +572,20 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(versionContextType)
                 .addStatement("return getVersionContext()")
+                .build());
+    }
+
+    /**
+     * Add toString() method for nested classes.
+     * Nested classes don't have getWrapperVersion(), so we only show class name and proto content.
+     */
+    private void addNestedToString(TypeSpec.Builder classBuilder, MergedMessage nested) {
+        classBuilder.addMethod(MethodSpec.methodBuilder("toString")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(String.class)
+                .addStatement("return $T.format($S, getClass().getSimpleName(), proto.toString().replace($S, $S).trim())",
+                        String.class, "%s %s", "\n", ", ")
                 .build());
     }
 
