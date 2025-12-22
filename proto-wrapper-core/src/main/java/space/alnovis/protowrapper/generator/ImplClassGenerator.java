@@ -234,6 +234,15 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return new $L(proto)", className)
                 .build());
 
+        // getTypedProto() for nested types - required for builder extractProto() reflection
+        classBuilder.addMethod(MethodSpec.methodBuilder("getTypedProto")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(protoType)
+                .addStatement("return proto")
+                .addJavadoc("Get the underlying typed proto message.\n")
+                .addJavadoc("@return $T\n", protoType)
+                .build());
+
         // Add builder support for nested impl class if enabled
         if (config.isGenerateBuilders()) {
             currentProtoClassName.set(protoClassName);

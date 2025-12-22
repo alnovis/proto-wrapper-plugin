@@ -6,7 +6,7 @@
 
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-parent</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6</version>
     <packaging>pom</packaging>
 
     <!-- ==================== Project Info ==================== -->
