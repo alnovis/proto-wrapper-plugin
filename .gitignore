@@ -36,3 +36,4 @@ dependency-reduced-pom.xml
 *.ru.md
 docs/ISSUE_PROTOBUF2_BUILDERS.md
 docs/PLAN_IMPROVEMENTS.md
+docs/MIGRATION_PLAN_DOMAIN_SERVER.md

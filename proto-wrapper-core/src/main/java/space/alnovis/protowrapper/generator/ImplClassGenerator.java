@@ -527,7 +527,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 doSetInt.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
             }
         } else {
-            doSetInt.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSetInt, field);
         }
         builder.addMethod(doSetInt.build());
 
@@ -550,7 +550,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                         versionJavaName, field.getJavaName());
             }
         } else {
-            doSetEnum.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSetEnum, field);
         }
         builder.addMethod(doSetEnum.build());
 
@@ -615,7 +615,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 doSet.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
             }
         } else {
-            doSet.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSet, field);
         }
         builder.addMethod(doSet.build());
 
@@ -628,7 +628,8 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             if (presentInVersion) {
                 doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
             } else {
-                doClear.addComment("Field not present in this version - ignored");
+                // Clear is safe to ignore for non-existent fields
+                doClear.addComment("Field not present in this version - clear is no-op");
             }
             builder.addMethod(doClear.build());
         }
@@ -667,7 +668,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 doSetString.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
             }
         } else {
-            doSetString.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSetString, field);
         }
         builder.addMethod(doSetString.build());
 
@@ -688,7 +689,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                         versionJavaName, String.class, field.getJavaName(), StandardCharsets.class);
             }
         } else {
-            doSetBytes.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSetBytes, field);
         }
         builder.addMethod(doSetBytes.build());
 
@@ -701,7 +702,8 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             if (presentInVersion) {
                 doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
             } else {
-                doClear.addComment("Field not present in this version - ignored");
+                // Clear is safe to ignore for non-existent fields
+                doClear.addComment("Field not present in this version - clear is no-op");
             }
             builder.addMethod(doClear.build());
         }
@@ -734,10 +736,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addParameter(fieldType, field.getJavaName());
 
         if (presentInVersion) {
-            String setterCall = generateProtoSetterCall(field, message, ctx);
-            doSet.addStatement(setterCall, field.getJavaName());
+            if (field.isEnum()) {
+                // Use validation for enum fields to provide clear error messages
+                // when enum value doesn't exist in this protocol version
+                addEnumSetterWithValidation(doSet, field, message, ctx);
+            } else {
+                String setterCall = generateProtoSetterCall(field, message, ctx);
+                doSet.addStatement(setterCall, field.getJavaName());
+            }
         } else {
-            doSet.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSet, field);
         }
         builder.addMethod(doSet.build());
 
@@ -750,7 +758,8 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             if (presentInVersion) {
                 doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
             } else {
-                doClear.addComment("Field not present in this version - ignored");
+                // Clear is safe to ignore for non-existent fields
+                doClear.addComment("Field not present in this version - clear is no-op");
             }
             builder.addMethod(doClear.build());
         }
@@ -786,7 +795,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
             }
         } else {
-            doAdd.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doAdd, field);
         }
         builder.addMethod(doAdd.build());
 
@@ -814,7 +823,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 doAddAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
             }
         } else {
-            doAddAll.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doAddAll, field);
         }
         builder.addMethod(doAddAll.build());
 
@@ -843,7 +852,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 doSetAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
             }
         } else {
-            doSetAll.addComment("Field not present in this version - ignored");
+            addFieldNotInVersionError(doSetAll, field);
         }
         builder.addMethod(doSetAll.build());
 
@@ -855,7 +864,8 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         if (presentInVersion) {
             doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
         } else {
-            doClear.addComment("Field not present in this version - ignored");
+            // Clear is safe to ignore for non-existent fields
+            doClear.addComment("Field not present in this version - clear is no-op");
         }
         builder.addMethod(doClear.build());
     }
@@ -880,6 +890,40 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         } else {
             return "protoBuilder.set" + versionJavaName + "($L)";
         }
+    }
+
+    /**
+     * Add enum setter statements with null validation to a method builder.
+     * This provides clear error messages when an enum value doesn't exist in this protocol version.
+     */
+    private void addEnumSetterWithValidation(MethodSpec.Builder method, MergedField field,
+                                              MergedMessage message, GenerationContext ctx) {
+        String version = ctx.requireVersion();
+        TypeResolver resolver = ctx.getTypeResolver();
+        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
+        String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
+        String enumMethod = getEnumFromIntMethod();
+        String localVarName = "protoEnumValue";
+        String enumTypeName = field.getGetterType();
+        String fieldParamName = field.getJavaName();
+
+        // ProtoEnumType protoEnumValue = ProtoEnumType.valueOf(param.getValue());
+        method.addStatement("$L $L = $L.$L($L.getValue())",
+                protoEnumType, localVarName, protoEnumType, enumMethod, fieldParamName);
+
+        // if (protoEnumValue == null) { throw ... }
+        method.beginControlFlow("if ($L == null)", localVarName);
+        method.addStatement("throw new $T($S + $L.name() + $S + $L.getValue() + $S + getVersion())",
+                IllegalArgumentException.class,
+                enumTypeName + ".",
+                fieldParamName,
+                " (value=",
+                fieldParamName,
+                ") is not supported in protocol version ");
+        method.endControlFlow();
+
+        // protoBuilder.setFieldName(protoEnumValue);
+        method.addStatement("protoBuilder.set$L($L)", versionJavaName, localVarName);
     }
 
     /**
@@ -1028,6 +1072,23 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
      */
     private String getEnumFromIntMethod() {
         return config.isProtobuf2() ? "valueOf" : "forNumber";
+    }
+
+    /**
+     * Add a throw statement for when trying to set a field that doesn't exist in the current version.
+     *
+     * @param method The method builder to add the throw statement to
+     * @param field The field being accessed
+     */
+    private void addFieldNotInVersionError(MethodSpec.Builder method, MergedField field) {
+        String fieldName = field.getJavaName();
+        // getPresentInVersions() returns version strings like "v202", "v203"
+        String versionsStr = String.join(", ", field.getPresentInVersions());
+
+        method.addStatement("throw new $T($S + getVersion() + $S)",
+                UnsupportedOperationException.class,
+                "Field '" + fieldName + "' is not available in protocol version ",
+                ". This field exists only in versions: [" + versionsStr + "]");
     }
 
     /**
