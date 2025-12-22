@@ -14,6 +14,7 @@ import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -526,15 +527,66 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return convertToVersion(versionClass)")
                 .build());
 
-        // Protected helper method for conversion
+        // Protected helper method for conversion via serialization
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        String parseMethodName = "parse" + message.getName() + "FromBytes";
+
         classBuilder.addMethod(MethodSpec.methodBuilder("convertToVersion")
                 .addModifiers(Modifier.PROTECTED)
                 .addTypeVariable(typeVar)
                 .returns(typeVar)
                 .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
-                .addJavadoc("Override in subclass to implement version conversion.\n")
-                .addStatement("throw new $T($S + versionClass)",
-                        UnsupportedOperationException.class, "Version conversion not implemented for ")
+                .addJavadoc("Convert to a specific version via serialization.\n")
+                .addJavadoc("@param versionClass Target version class\n")
+                .addJavadoc("@return Instance of the specified version\n")
+                // If already the target type, return this
+                .beginControlFlow("if (versionClass.isInstance(this))")
+                .addStatement("return versionClass.cast(this)")
+                .endControlFlow()
+                // Extract version from package and convert
+                .beginControlFlow("try")
+                .addStatement("int targetVersion = extractVersionFromPackage(versionClass.getPackage().getName())")
+                .addStatement("$T targetContext = $T.forVersion(targetVersion)", versionContextType, versionContextType)
+                .addStatement("byte[] bytes = this.toBytes()")
+                .addStatement("$T parseMethod = targetContext.getClass().getMethod($S, byte[].class)",
+                        Method.class, parseMethodName)
+                .addStatement("return versionClass.cast(parseMethod.invoke(targetContext, bytes))")
+                .nextControlFlow("catch ($T e)", Exception.class)
+                .addStatement("throw new $T($S + versionClass + $S + e.getMessage(), e)",
+                        RuntimeException.class, "Failed to convert to ", ": ")
+                .endControlFlow()
+                .build());
+
+        // Helper method to extract version number from package name
+        classBuilder.addMethod(MethodSpec.methodBuilder("extractVersionFromPackage")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .returns(TypeName.INT)
+                .addParameter(String.class, "packageName")
+                // Find version segment like "v1" or "v202" in package name
+                .addStatement("int lastDot = packageName.lastIndexOf('.')")
+                .beginControlFlow("if (lastDot > 0)")
+                // Check last segment (class package)
+                .addStatement("String lastSegment = packageName.substring(lastDot + 1)")
+                .beginControlFlow("if (lastSegment.startsWith($S) && lastSegment.length() > 1)", "v")
+                .beginControlFlow("try")
+                .addStatement("return $T.parseInt(lastSegment.substring(1))", Integer.class)
+                .nextControlFlow("catch ($T ignored)", NumberFormatException.class)
+                .endControlFlow()
+                .endControlFlow()
+                // Check second-to-last segment (impl.v1.ClassName pattern)
+                .addStatement("int secondLastDot = packageName.lastIndexOf('.', lastDot - 1)")
+                .beginControlFlow("if (secondLastDot > 0)")
+                .addStatement("String secondLastSegment = packageName.substring(secondLastDot + 1, lastDot)")
+                .beginControlFlow("if (secondLastSegment.startsWith($S) && secondLastSegment.length() > 1)", "v")
+                .beginControlFlow("try")
+                .addStatement("return $T.parseInt(secondLastSegment.substring(1))", Integer.class)
+                .nextControlFlow("catch ($T ignored)", NumberFormatException.class)
+                .endControlFlow()
+                .endControlFlow()
+                .endControlFlow()
+                .endControlFlow()
+                .addStatement("throw new $T($S + packageName)",
+                        IllegalArgumentException.class, "Cannot extract version from package: ")
                 .build());
 
         // toString() - includes proto content for debugging
@@ -567,8 +619,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return $T.hash(getWrapperVersion(), proto)", Objects.class)
                 .build());
 
-        // Abstract method for getting VersionContext
-        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        // Abstract method for getting VersionContext (versionContextType already defined above)
         classBuilder.addMethod(MethodSpec.methodBuilder("getVersionContext")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(versionContextType)

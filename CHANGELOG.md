@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-12-22
+
+### Added
+
+#### Version Conversion (Phase 4)
+- **`asVersion(Class<T>)` method** — Convert wrappers between protocol versions via serialization
+  - `Money v2 = v1Money.asVersion(MoneyV2.class)` converts V1 to V2
+  - Returns same instance if already target type (optimization)
+  - Works with all message types
+- **`parseXxxFromBytes(byte[])` methods** — New VersionContext methods for parsing bytes directly
+  - `Money money = ctx.parseMoneyFromBytes(bytes)`
+  - Used internally by `asVersion()` for cross-version conversion
+
+#### Better INT_ENUM Error Messages (Phase 3)
+- **`fromProtoValueOrThrow(int)` method** — Version-aware validation for INT_ENUM conflicts
+  - Throws `IllegalArgumentException` with detailed message for invalid values
+  - Message includes: invalid value, field name, and list of valid enum values
+  - Only validates for versions that use enum type (int versions accept any value)
+- Example: `"Invalid value 999 for TaxType. Valid values: [VAT(100), EXCISE(200), ..."`
+
+#### Improved toString() (Phase 2)
+- **Enhanced `toString()` output** — Better debugging with proto content
+  - Format: `ClassName[version=N] field1: value1, field2: value2`
+  - Shows wrapper class name, protocol version, and proto content
+  - Uses proto's `TextFormat.shortDebugString()` for compact output
+
+#### equals() and hashCode() (Phase 1)
+- **Value-based equality** — Proper `equals()` and `hashCode()` implementations
+  - Based on proto content and wrapper version
+  - Works correctly in collections (List, Set, Map)
+  - Consistent: equal objects have equal hash codes
+
+### Changed
+- **Major version bump** — Changed from 1.0.x to 1.1.0 to reflect completed improvement phases
+
+---
+
 ## [1.0.4] - 2025-12-22
 
 ### Added

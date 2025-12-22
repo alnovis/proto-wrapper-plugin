@@ -861,11 +861,17 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
     }
 
     private void addCommonMethods(TypeSpec.Builder builder, MergedMessage message) {
+        // Build version examples from actual versions
+        String versionExamples = message.getPresentInVersions().stream()
+                .map(v -> v.replaceAll("[^0-9]", ""))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.joining(", "));
+
         builder.addMethod(MethodSpec.methodBuilder("getWrapperVersion")
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .returns(TypeName.INT)
                 .addJavadoc("Get the wrapper protocol version this instance was created from.\n")
-                .addJavadoc("@return Protocol version (e.g., 1, 2)\n")
+                .addJavadoc("@return Protocol version (e.g., $L)\n", versionExamples)
                 .build());
 
         builder.addMethod(MethodSpec.methodBuilder("toBytes")

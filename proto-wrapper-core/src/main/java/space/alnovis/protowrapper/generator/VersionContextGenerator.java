@@ -42,12 +42,17 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .addJavadoc("<p>Provides factory methods for all wrapper types.</p>\n");
 
         // Static factory method
+        String versionExamples = schema.getVersions().stream()
+                .map(this::extractVersionNumber)
+                .map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(", "));
+
         MethodSpec.Builder forVersion = MethodSpec.methodBuilder("forVersion")
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .returns(ClassName.get(config.getApiPackage(), "VersionContext"))
                 .addParameter(TypeName.INT, "version")
                 .addJavadoc("Get VersionContext for a specific protocol version.\n")
-                .addJavadoc("@param version Protocol version (e.g., 1, 2)\n")
+                .addJavadoc("@param version Protocol version (e.g., $L)\n", versionExamples)
                 .addJavadoc("@return VersionContext for the specified version\n")
                 .beginControlFlow("switch (version)");
 
@@ -104,6 +109,31 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
             }
 
             interfaceBuilder.addMethod(methodBuilder.build());
+
+            // Add parseXxxFromBytes() method for version conversion
+            ClassName invalidProtocolBufferException = ClassName.get("com.google.protobuf", "InvalidProtocolBufferException");
+            MethodSpec.Builder parseMethod = MethodSpec.methodBuilder("parse" + message.getName() + "FromBytes")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                    .addException(invalidProtocolBufferException)
+                    .addJavadoc("Parse bytes and wrap as $L.\n", message.getName())
+                    .addJavadoc("@param bytes Protobuf-encoded bytes\n")
+                    .addJavadoc("@return Wrapped $L, or null if bytes is null\n", message.getName())
+                    .addJavadoc("@throws InvalidProtocolBufferException if bytes cannot be parsed\n");
+
+            if (existsInAllVersions) {
+                parseMethod.addModifiers(Modifier.ABSTRACT);
+            } else {
+                parseMethod.addModifiers(Modifier.DEFAULT);
+                parseMethod.addJavadoc("@apiNote Present only in versions: $L\n", message.getPresentInVersions());
+                parseMethod.addStatement("throw new $T($S + $S)",
+                        UnsupportedOperationException.class,
+                        message.getName() + " is not available in this version. Present in: ",
+                        message.getPresentInVersions().toString());
+            }
+
+            interfaceBuilder.addMethod(parseMethod.build());
 
             // Add newXxxBuilder() method if builders are enabled
             if (config.isGenerateBuilders()) {
@@ -354,6 +384,20 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                     .addStatement("return new $T(($T) proto)", implType, protoType);
 
             classBuilder.addMethod(wrapMethod.build());
+
+            // Add parseXxxFromBytes() implementation for version conversion
+            ClassName invalidProtocolBufferException = ClassName.get("com.google.protobuf", "InvalidProtocolBufferException");
+            classBuilder.addMethod(MethodSpec.methodBuilder("parse" + message.getName() + "FromBytes")
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                    .addException(invalidProtocolBufferException)
+                    .beginControlFlow("if (bytes == null)")
+                    .addStatement("return null")
+                    .endControlFlow()
+                    .addStatement("return new $T($T.parseFrom(bytes))", implType, protoType)
+                    .build());
 
             // Add newXxxBuilder() implementation if builders are enabled
             if (config.isGenerateBuilders()) {
