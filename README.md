@@ -44,7 +44,7 @@ mvn install
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.4</version>
+    <version>1.1.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -344,7 +344,7 @@ See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 - `map` fields: basic support
 - Extensions (proto2): not supported
 - Well-known types (google.protobuf.*): treated as regular messages
-- Version conversion (`asVersion`): not implemented
+- Version conversion (`asVersion`): implemented via serialization
 - Repeated fields with conflicts: read-only (no builder setters)
 
 ## Development

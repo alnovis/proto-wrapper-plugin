@@ -223,9 +223,19 @@ public NewFeature getNewFeatureIfAvailable(VersionContext ctx, Message proto) {
 - **Description:** Protobuf extensions (proto2) are not supported
 
 ### 4. Version Conversion (`asVersion`)
-- **Status:** Not implemented
-- **Description:** The `asVersion(Class<T> versionClass)` method throws `UnsupportedOperationException`
-- **Workaround:** Use serialization: `targetVersion.from(TargetProto.parseFrom(source.toBytes()))`
+- **Status:** Implemented
+- **Description:** The `asVersion(Class<T> versionClass)` method converts between version-specific implementations via serialization
+- **Note:** Version-specific fields may be lost during conversion (e.g., v2-only fields lost when converting to v1)
+- **Example:**
+  ```java
+  Money v1 = VersionContext.forVersion(1).newMoneyBuilder()
+          .setAmount(1000L)
+          .setCurrency("USD")
+          .build();
+
+  // Convert to v2
+  space.example.v2.Money v2 = v1.asVersion(space.example.v2.Money.class);
+  ```
 
 ### 5. Complex Nested Hierarchies
 - **Status:** Partial support

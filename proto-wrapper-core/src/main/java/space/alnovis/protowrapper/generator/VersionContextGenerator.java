@@ -9,6 +9,9 @@ import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,12 +42,17 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .addJavadoc("<p>Provides factory methods for all wrapper types.</p>\n");
 
         // Static factory method
+        String versionExamples = schema.getVersions().stream()
+                .map(this::extractVersionNumber)
+                .map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(", "));
+
         MethodSpec.Builder forVersion = MethodSpec.methodBuilder("forVersion")
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .returns(ClassName.get(config.getApiPackage(), "VersionContext"))
                 .addParameter(TypeName.INT, "version")
                 .addJavadoc("Get VersionContext for a specific protocol version.\n")
-                .addJavadoc("@param version Protocol version (e.g., 1, 2)\n")
+                .addJavadoc("@param version Protocol version (e.g., $L)\n", versionExamples)
                 .addJavadoc("@return VersionContext for the specified version\n")
                 .beginControlFlow("switch (version)");
 
@@ -102,6 +110,31 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
             interfaceBuilder.addMethod(methodBuilder.build());
 
+            // Add parseXxxFromBytes() method for version conversion
+            ClassName invalidProtocolBufferException = ClassName.get("com.google.protobuf", "InvalidProtocolBufferException");
+            MethodSpec.Builder parseMethod = MethodSpec.methodBuilder("parse" + message.getName() + "FromBytes")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                    .addException(invalidProtocolBufferException)
+                    .addJavadoc("Parse bytes and wrap as $L.\n", message.getName())
+                    .addJavadoc("@param bytes Protobuf-encoded bytes\n")
+                    .addJavadoc("@return Wrapped $L, or null if bytes is null\n", message.getName())
+                    .addJavadoc("@throws InvalidProtocolBufferException if bytes cannot be parsed\n");
+
+            if (existsInAllVersions) {
+                parseMethod.addModifiers(Modifier.ABSTRACT);
+            } else {
+                parseMethod.addModifiers(Modifier.DEFAULT);
+                parseMethod.addJavadoc("@apiNote Present only in versions: $L\n", message.getPresentInVersions());
+                parseMethod.addStatement("throw new $T($S + $S)",
+                        UnsupportedOperationException.class,
+                        message.getName() + " is not available in this version. Present in: ",
+                        message.getPresentInVersions().toString());
+            }
+
+            interfaceBuilder.addMethod(parseMethod.build());
+
             // Add newXxxBuilder() method if builders are enabled
             if (config.isGenerateBuilders()) {
                 ClassName builderType = returnType.nestedClass("Builder");
@@ -125,6 +158,49 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
                 interfaceBuilder.addMethod(newBuilderMethod.build());
             }
+
+            // Add nested type builder methods
+            if (config.isGenerateBuilders()) {
+                addNestedBuilderMethods(interfaceBuilder, message, new java.util.HashSet<>(schema.getVersions()));
+            }
+        }
+
+        // Add convenience methods for Money if it exists with bills/coins fields
+        if (config.isGenerateBuilders()) {
+            schema.getMessages().stream()
+                    .filter(m -> m.getName().equals("Money"))
+                    .findFirst()
+                    .ifPresent(money -> {
+                        // Only generate convenience methods if Money has bills and coins fields
+                        boolean hasBills = money.getFields().stream().anyMatch(f -> f.getName().equals("bills"));
+                        boolean hasCoins = money.getFields().stream().anyMatch(f -> f.getName().equals("coins"));
+
+                        if (hasBills && hasCoins) {
+                            ClassName moneyType = ClassName.get(config.getApiPackage(), "Money");
+
+                            // zeroMoney()
+                            interfaceBuilder.addMethod(MethodSpec.methodBuilder("zeroMoney")
+                                    .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                                    .returns(moneyType)
+                                    .addJavadoc("Create a Money with zero value.\n")
+                                    .addJavadoc("@return Money with bills=0 and coins=0\n")
+                                    .addStatement("return newMoneyBuilder().setBills(0L).setCoins(0).build()")
+                                    .build());
+
+                            // createMoney(long bills, int coins)
+                            interfaceBuilder.addMethod(MethodSpec.methodBuilder("createMoney")
+                                    .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                                    .returns(moneyType)
+                                    .addParameter(TypeName.LONG, "bills")
+                                    .addParameter(TypeName.INT, "coins")
+                                    .addJavadoc("Create a Money with specified values.\n")
+                                    .addJavadoc("@param bills Number of bills\n")
+                                    .addJavadoc("@param coins Number of coins\n")
+                                    .addJavadoc("@return Money instance\n")
+                                    .addStatement("return newMoneyBuilder().setBills(bills).setCoins(coins).build()")
+                                    .build());
+                        }
+                    });
         }
 
         TypeSpec interfaceSpec = interfaceBuilder.build();
@@ -133,6 +209,107 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .addFileComment(GENERATED_FILE_COMMENT)
                 .indent("    ")
                 .build();
+    }
+
+    /**
+     * Build fully qualified ClassName for a nested message interface.
+     * E.g., for TicketRequest.Item.Commodity returns ClassName representing
+     * "api.package.TicketRequest.Item.Commodity"
+     */
+    private ClassName buildNestedInterfaceType(MergedMessage nested) {
+        // Collect path from nested to root
+        List<String> path = new ArrayList<>();
+        MergedMessage current = nested;
+        while (current != null) {
+            path.add(current.getInterfaceName());
+            current = current.getParent();
+        }
+        Collections.reverse(path);
+
+        // First element is the top-level type
+        ClassName result = ClassName.get(config.getApiPackage(), path.get(0));
+
+        // Add nested classes
+        for (int i = 1; i < path.size(); i++) {
+            result = result.nestedClass(path.get(i));
+        }
+
+        return result;
+    }
+
+    /**
+     * Build flattened method name for nested builder.
+     * E.g., for TicketRequest.Item.Commodity returns "newTicketRequestItemCommodityBuilder"
+     */
+    private String buildNestedBuilderMethodName(MergedMessage nested) {
+        StringBuilder sb = new StringBuilder("new");
+        MergedMessage current = nested;
+        List<String> names = new ArrayList<>();
+        while (current != null) {
+            names.add(current.getName());
+            current = current.getParent();
+        }
+        Collections.reverse(names);
+        for (String name : names) {
+            sb.append(name);
+        }
+        sb.append("Builder");
+        return sb.toString();
+    }
+
+    /**
+     * Build qualified display name for nested message (for javadoc).
+     * E.g., "TicketRequest.Item.Commodity"
+     */
+    private String buildNestedQualifiedName(MergedMessage nested) {
+        List<String> names = new ArrayList<>();
+        MergedMessage current = nested;
+        while (current != null) {
+            names.add(current.getName());
+            current = current.getParent();
+        }
+        Collections.reverse(names);
+        return String.join(".", names);
+    }
+
+    /**
+     * Add builder methods for nested types recursively.
+     */
+    private void addNestedBuilderMethods(TypeSpec.Builder interfaceBuilder, MergedMessage parent,
+                                          java.util.Set<String> allVersions) {
+        for (MergedMessage nested : parent.getNestedMessages()) {
+            // Build the fully qualified nested interface type
+            ClassName nestedType = buildNestedInterfaceType(nested);
+            ClassName builderType = nestedType.nestedClass("Builder");
+
+            // Method name: newParentNestedBuilder (e.g., newTicketRequestItemCommodityBuilder)
+            String methodName = buildNestedBuilderMethodName(nested);
+            String qualifiedName = buildNestedQualifiedName(nested);
+
+            boolean existsInAllVersions = nested.getPresentInVersions().containsAll(allVersions);
+
+            MethodSpec.Builder newBuilderMethod = MethodSpec.methodBuilder(methodName)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(builderType)
+                    .addJavadoc("Create a new builder for $L.\n", qualifiedName)
+                    .addJavadoc("@return Empty builder for $L\n", qualifiedName);
+
+            if (existsInAllVersions) {
+                newBuilderMethod.addModifiers(Modifier.ABSTRACT);
+            } else {
+                newBuilderMethod.addModifiers(Modifier.DEFAULT);
+                newBuilderMethod.addJavadoc("@apiNote Present only in versions: $L\n", nested.getPresentInVersions());
+                newBuilderMethod.addStatement("throw new $T($S + $S)",
+                        UnsupportedOperationException.class,
+                        qualifiedName + " is not available in this version. Present in: ",
+                        nested.getPresentInVersions().toString());
+            }
+
+            interfaceBuilder.addMethod(newBuilderMethod.build());
+
+            // Recursively add deeply nested types
+            addNestedBuilderMethods(interfaceBuilder, nested, allVersions);
+        }
     }
 
     /**
@@ -208,6 +385,20 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
             classBuilder.addMethod(wrapMethod.build());
 
+            // Add parseXxxFromBytes() implementation for version conversion
+            ClassName invalidProtocolBufferException = ClassName.get("com.google.protobuf", "InvalidProtocolBufferException");
+            classBuilder.addMethod(MethodSpec.methodBuilder("parse" + message.getName() + "FromBytes")
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                    .addException(invalidProtocolBufferException)
+                    .beginControlFlow("if (bytes == null)")
+                    .addStatement("return null")
+                    .endControlFlow()
+                    .addStatement("return new $T($T.parseFrom(bytes))", implType, protoType)
+                    .build());
+
             // Add newXxxBuilder() implementation if builders are enabled
             if (config.isGenerateBuilders()) {
                 ClassName builderType = returnType.nestedClass("Builder");
@@ -218,6 +409,12 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                         .returns(builderType)
                         .addStatement("return $T.newBuilder()", implType)
                         .build());
+
+                // Add nested type builder implementations
+                String topLevelImplClassName = config.getImplClassName(message.getName(), version);
+                for (MergedMessage nested : message.getNestedMessages()) {
+                    addNestedBuilderImplMethods(classBuilder, nested, version, implPackage, topLevelImplClassName);
+                }
             }
         }
 
@@ -227,6 +424,66 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .addFileComment(GENERATED_FILE_COMMENT)
                 .indent("    ")
                 .build();
+    }
+
+    /**
+     * Build fully qualified ClassName for a nested message impl class.
+     * E.g., for TicketRequest.Item.Commodity in v202 returns ClassName representing
+     * "impl.package.v202.TicketRequest.Item.Commodity"
+     */
+    private ClassName buildNestedImplType(MergedMessage nested, String implPackage, String topLevelImplClassName) {
+        // Collect path from nested to root (excluding root since we start from topLevelImplClassName)
+        List<String> path = new ArrayList<>();
+        MergedMessage current = nested;
+        while (current != null && current.getParent() != null) {
+            path.add(current.getName());
+            current = current.getParent();
+        }
+        Collections.reverse(path);
+
+        // Start with top-level impl class
+        ClassName result = ClassName.get(implPackage, topLevelImplClassName);
+
+        // Add nested classes
+        for (String name : path) {
+            result = result.nestedClass(name);
+        }
+
+        return result;
+    }
+
+    /**
+     * Add nested type builder implementations recursively.
+     */
+    private void addNestedBuilderImplMethods(TypeSpec.Builder classBuilder, MergedMessage nested,
+                                              String version, String implPackage,
+                                              String topLevelImplClassName) {
+        // Skip if nested message is not present in this version
+        if (!nested.getPresentInVersions().contains(version)) {
+            return;
+        }
+
+        // Build fully qualified interface type for return
+        ClassName nestedInterfaceType = buildNestedInterfaceType(nested);
+        ClassName builderType = nestedInterfaceType.nestedClass("Builder");
+
+        // Build fully qualified impl type for newBuilder() call
+        ClassName nestedImplType = buildNestedImplType(nested, implPackage, topLevelImplClassName);
+
+        // Method name with full path (e.g., newTicketRequestItemCommodityBuilder)
+        String methodName = buildNestedBuilderMethodName(nested);
+
+        classBuilder.addMethod(MethodSpec.methodBuilder(methodName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(builderType)
+                .addStatement("return $T.newBuilder()", nestedImplType)
+                .build());
+
+        // Recursively add deeply nested types
+        for (MergedMessage deeplyNested : nested.getNestedMessages()) {
+            addNestedBuilderImplMethods(classBuilder, deeplyNested, version, implPackage, topLevelImplClassName);
+        }
     }
 
     private int extractVersionNumber(String version) {

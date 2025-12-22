@@ -14,8 +14,12 @@ import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Generates abstract base classes using template method pattern.
@@ -194,6 +198,10 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         FieldProcessingChain.getInstance().addAbstractExtractMethods(classBuilder, nested, nestedProcCtx);
         FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, nested, nestedProcCtx);
 
+        // Add toString/equals/hashCode for nested classes
+        addNestedToString(classBuilder, nested);
+        addNestedEqualsHashCode(classBuilder, nested);
+
         // Recursively add deeply nested abstract classes
         for (MergedMessage deeplyNested : nested.getNestedMessages()) {
             TypeSpec deeplyNestedClass = generateNestedAbstractClass(deeplyNested, nested, resolver, ctx);
@@ -213,7 +221,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                                          GenerationContext ctx) {
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
 
-        // Abstract method to create builder
+        // Abstract method to create builder (copies values from current instance)
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(builderInterfaceType)
@@ -225,6 +233,20 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(builderInterfaceType)
                 .addStatement("return createBuilder()")
+                .build());
+
+        // Abstract method to create empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // emptyBuilder() implementation - creates empty builder of same version
+        classBuilder.addMethod(MethodSpec.methodBuilder("emptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createEmptyBuilder()")
                 .build());
 
         // Generate nested AbstractBuilder using unified method
@@ -339,6 +361,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         builder.addMethod(MethodSpec.methodBuilder("doBuild")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(interfaceType)
+                .build());
+
+        // Abstract getVersion method - used for version-aware validation
+        builder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(TypeName.INT)
                 .build());
 
         // Add concrete implementations that delegate to abstract methods
@@ -499,24 +527,152 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return convertToVersion(versionClass)")
                 .build());
 
-        // Protected helper method for conversion
+        // Protected helper method for conversion via serialization
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        String parseMethodName = "parse" + message.getName() + "FromBytes";
+
         classBuilder.addMethod(MethodSpec.methodBuilder("convertToVersion")
                 .addModifiers(Modifier.PROTECTED)
                 .addTypeVariable(typeVar)
                 .returns(typeVar)
                 .addParameter(ParameterizedTypeName.get(ClassName.get(Class.class), typeVar), "versionClass")
-                .addJavadoc("Override in subclass to implement version conversion.\n")
-                .addStatement("throw new $T($S + versionClass)",
-                        UnsupportedOperationException.class, "Version conversion not implemented for ")
+                .addJavadoc("Convert to a specific version via serialization.\n")
+                .addJavadoc("@param versionClass Target version class\n")
+                .addJavadoc("@return Instance of the specified version\n")
+                // If already the target type, return this
+                .beginControlFlow("if (versionClass.isInstance(this))")
+                .addStatement("return versionClass.cast(this)")
+                .endControlFlow()
+                // Extract version from package and convert
+                .beginControlFlow("try")
+                .addStatement("int targetVersion = extractVersionFromPackage(versionClass.getPackage().getName())")
+                .addStatement("$T targetContext = $T.forVersion(targetVersion)", versionContextType, versionContextType)
+                .addStatement("byte[] bytes = this.toBytes()")
+                .addStatement("$T parseMethod = targetContext.getClass().getMethod($S, byte[].class)",
+                        Method.class, parseMethodName)
+                .addStatement("return versionClass.cast(parseMethod.invoke(targetContext, bytes))")
+                .nextControlFlow("catch ($T e)", Exception.class)
+                .addStatement("throw new $T($S + versionClass + $S + e.getMessage(), e)",
+                        RuntimeException.class, "Failed to convert to ", ": ")
+                .endControlFlow()
                 .build());
 
-        // toString()
+        // Helper method to extract version number from package name
+        classBuilder.addMethod(MethodSpec.methodBuilder("extractVersionFromPackage")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .returns(TypeName.INT)
+                .addParameter(String.class, "packageName")
+                // Find version segment like "v1" or "v202" in package name
+                .addStatement("int lastDot = packageName.lastIndexOf('.')")
+                .beginControlFlow("if (lastDot > 0)")
+                // Check last segment (class package)
+                .addStatement("String lastSegment = packageName.substring(lastDot + 1)")
+                .beginControlFlow("if (lastSegment.startsWith($S) && lastSegment.length() > 1)", "v")
+                .beginControlFlow("try")
+                .addStatement("return $T.parseInt(lastSegment.substring(1))", Integer.class)
+                .nextControlFlow("catch ($T ignored)", NumberFormatException.class)
+                .endControlFlow()
+                .endControlFlow()
+                // Check second-to-last segment (impl.v1.ClassName pattern)
+                .addStatement("int secondLastDot = packageName.lastIndexOf('.', lastDot - 1)")
+                .beginControlFlow("if (secondLastDot > 0)")
+                .addStatement("String secondLastSegment = packageName.substring(secondLastDot + 1, lastDot)")
+                .beginControlFlow("if (secondLastSegment.startsWith($S) && secondLastSegment.length() > 1)", "v")
+                .beginControlFlow("try")
+                .addStatement("return $T.parseInt(secondLastSegment.substring(1))", Integer.class)
+                .nextControlFlow("catch ($T ignored)", NumberFormatException.class)
+                .endControlFlow()
+                .endControlFlow()
+                .endControlFlow()
+                .endControlFlow()
+                .addStatement("throw new $T($S + packageName)",
+                        IllegalArgumentException.class, "Cannot extract version from package: ")
+                .build());
+
+        // toString() - includes proto content for debugging
         classBuilder.addMethod(MethodSpec.methodBuilder("toString")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
-                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion())",
-                        String.class, "%s[version=%d]")
+                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion(), proto.toString().replace($S, $S).trim())",
+                        String.class, "%s[version=%d] %s", "\n", ", ")
+                .build());
+
+        // equals() - compare by version and proto content
+        classBuilder.addMethod(MethodSpec.methodBuilder("equals")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(Object.class, "obj")
+                .addStatement("if (this == obj) return true")
+                .addStatement("if (obj == null || getClass() != obj.getClass()) return false")
+                .addStatement("$L<?> other = ($L<?>) obj", message.getAbstractClassName(), message.getAbstractClassName())
+                .addStatement("return this.getWrapperVersion() == other.getWrapperVersion() && $T.equals(this.proto, other.proto)",
+                        Objects.class)
+                .build());
+
+        // hashCode() - based on version and proto content
+        classBuilder.addMethod(MethodSpec.methodBuilder("hashCode")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.INT)
+                .addStatement("return $T.hash(getWrapperVersion(), proto)", Objects.class)
+                .build());
+
+        // Abstract method for getting VersionContext (versionContextType already defined above)
+        classBuilder.addMethod(MethodSpec.methodBuilder("getVersionContext")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(versionContextType)
+                .build());
+
+        // getContext() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("getContext")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(versionContextType)
+                .addStatement("return getVersionContext()")
+                .build());
+    }
+
+    /**
+     * Add toString() method for nested classes.
+     * Nested classes don't have getWrapperVersion(), so we only show class name and proto content.
+     */
+    private void addNestedToString(TypeSpec.Builder classBuilder, MergedMessage nested) {
+        classBuilder.addMethod(MethodSpec.methodBuilder("toString")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(String.class)
+                .addStatement("return $T.format($S, getClass().getSimpleName(), proto.toString().replace($S, $S).trim())",
+                        String.class, "%s %s", "\n", ", ")
+                .build());
+    }
+
+    /**
+     * Add equals() and hashCode() methods for nested classes.
+     * Nested classes don't have getWrapperVersion(), so we only compare proto content.
+     */
+    private void addNestedEqualsHashCode(TypeSpec.Builder classBuilder, MergedMessage nested) {
+        String abstractClassName = nested.getName();
+
+        // equals() - compare proto content only (nested classes don't have version)
+        classBuilder.addMethod(MethodSpec.methodBuilder("equals")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(Object.class, "obj")
+                .addStatement("if (this == obj) return true")
+                .addStatement("if (obj == null || getClass() != obj.getClass()) return false")
+                .addStatement("$L<?> other = ($L<?>) obj", abstractClassName, abstractClassName)
+                .addStatement("return $T.equals(this.proto, other.proto)", Objects.class)
+                .build());
+
+        // hashCode() - based on proto content only
+        classBuilder.addMethod(MethodSpec.methodBuilder("hashCode")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.INT)
+                .addStatement("return $T.hash(proto)", Objects.class)
                 .build());
     }
 
@@ -526,7 +682,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         // Builder interface type from the interface
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
 
-        // Abstract method to create builder
+        // Abstract method to create builder (copies values from current instance)
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(builderInterfaceType)
@@ -538,6 +694,20 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(builderInterfaceType)
                 .addStatement("return createBuilder()")
+                .build());
+
+        // Abstract method to create empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // emptyBuilder() implementation - creates empty builder of same version
+        classBuilder.addMethod(MethodSpec.methodBuilder("emptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createEmptyBuilder()")
                 .build());
 
         // Generate AbstractBuilder nested class using unified method
@@ -582,15 +752,37 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         String capName = resolver.capitalize(field.getJavaName());
         ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
 
-        // setXxx(int)
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+        // Build version check condition for enum versions only
+        // Validation should only happen for versions that use enum type (not int)
+        Set<String> enumVersions = enumInfo.getEnumVersions();
+        List<Integer> enumVersionNumbers = enumVersions.stream()
+                .map(resolver::extractVersionNumber)
+                .sorted()
+                .toList();
+
+        // Build setXxx(int) method with version-aware validation
+        MethodSpec.Builder setIntMethod = MethodSpec.methodBuilder("set" + capName)
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addParameter(TypeName.INT, field.getJavaName())
-                .returns(builderInterfaceType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
+                .returns(builderInterfaceType);
+
+        // Add version-aware validation: only validate for versions that use enum type
+        if (!enumVersionNumbers.isEmpty()) {
+            String versionCondition = enumVersionNumbers.stream()
+                    .map(v -> "getVersion() == " + v)
+                    .reduce((a, b) -> a + " || " + b)
+                    .orElse("false");
+
+            setIntMethod.beginControlFlow("if ($L)", versionCondition)
+                    .addStatement("$T.fromProtoValueOrThrow($L)", enumType, field.getJavaName())
+                    .endControlFlow();
+        }
+
+        setIntMethod.addStatement("doSet$L($L)", capName, field.getJavaName())
+                .addStatement("return this");
+
+        builder.addMethod(setIntMethod.build());
 
         // setXxx(EnumType)
         builder.addMethod(MethodSpec.methodBuilder("set" + capName)

@@ -141,7 +141,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     /**
-     * Add common implementation methods (serialization, version, factory, typed proto).
+     * Add common implementation methods (serialization, version, factory, typed proto, context).
      */
     private void addCommonImplMethods(TypeSpec.Builder classBuilder, String className,
                                        ClassName protoType, String implPackage, GenerationContext ctx) {
@@ -178,6 +178,18 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return proto")
                 .addJavadoc("Get the underlying typed proto message.\n")
                 .addJavadoc("@return $T\n", protoType)
+                .build());
+
+        // getVersionContext() implementation - returns VersionContext for this version
+        String version = ctx.requireVersion();
+        String versionContextClassName = "VersionContext" + version.toUpperCase();
+        ClassName versionContextType = ClassName.get(ctx.getApiPackage(), "VersionContext");
+        ClassName versionContextImplType = ClassName.get(implPackage, versionContextClassName);
+        classBuilder.addMethod(MethodSpec.methodBuilder("getVersionContext")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(versionContextType)
+                .addStatement("return $T.INSTANCE", versionContextImplType)
                 .build());
     }
 
@@ -232,6 +244,15 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .returns(ClassName.get("", className))
                 .addParameter(protoType, "proto")
                 .addStatement("return new $L(proto)", className)
+                .build());
+
+        // getTypedProto() for nested types - required for builder extractProto() reflection
+        classBuilder.addMethod(MethodSpec.methodBuilder("getTypedProto")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(protoType)
+                .addStatement("return proto")
+                .addJavadoc("Get the underlying typed proto message.\n")
+                .addJavadoc("@return $T\n", protoType)
                 .build());
 
         // Add builder support for nested impl class if enabled
@@ -290,12 +311,20 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         ClassName builderInterfaceType = builderCtx.builderInterfaceType();
 
-        // createBuilder() implementation
+        // createBuilder() implementation - copies values from current instance
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(builderInterfaceType)
                 .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // createEmptyBuilder() implementation - creates empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
                 .build());
 
         // Static newBuilder() factory method
@@ -339,6 +368,15 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         builder.addMethod(MethodSpec.constructorBuilder()
                 .addParameter(protoBuilderType, "protoBuilder")
                 .addStatement("this.protoBuilder = protoBuilder")
+                .build());
+
+        // getVersion() - returns the version number for this builder
+        int versionNumber = genCtx.getVersionNumber();
+        builder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(TypeName.INT)
+                .addStatement("return $L", versionNumber)
                 .build());
 
         // Implement doSet/doClear/doAdd methods for each field
@@ -426,12 +464,20 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         ClassName builderInterfaceType = builderCtx.builderInterfaceType();
 
-        // createBuilder() implementation
+        // createBuilder() implementation - copies values from current instance
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(builderInterfaceType)
                 .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // createEmptyBuilder() implementation - creates empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
                 .build());
 
         // Static newBuilder() factory method
@@ -733,6 +779,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
                 String enumMethod = getEnumFromIntMethod();
                 doAdd.addStatement("protoBuilder.add$L($L." + enumMethod + "($L.getValue()))", versionJavaName, protoEnumType, field.getJavaName());
+            } else if (isBytesType(field)) {
+                // Convert byte[] to ByteString for protobuf
+                doAdd.addStatement("protoBuilder.add$L($T.copyFrom($L))", versionJavaName, BYTE_STRING_CLASS, field.getJavaName());
             } else {
                 doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
             }
@@ -757,6 +806,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 String enumMethod = getEnumFromIntMethod();
                 doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
                         field.getJavaName(), versionJavaName, protoEnumType);
+            } else if (isBytesType(field)) {
+                // Convert each byte[] to ByteString for protobuf
+                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
+                        field.getJavaName(), versionJavaName, BYTE_STRING_CLASS);
             } else {
                 doAddAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
             }
@@ -782,6 +835,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 String enumMethod = getEnumFromIntMethod();
                 doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
                         field.getJavaName(), versionJavaName, protoEnumType);
+            } else if (isBytesType(field)) {
+                // Convert each byte[] to ByteString for protobuf
+                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
+                        field.getJavaName(), versionJavaName, BYTE_STRING_CLASS);
             } else {
                 doSetAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
             }
@@ -817,9 +874,21 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
             String enumMethod = getEnumFromIntMethod();
             return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
+        } else if (isBytesType(field)) {
+            // Convert byte[] to ByteString for protobuf
+            return "protoBuilder.set" + versionJavaName + "(com.google.protobuf.ByteString.copyFrom($L))";
         } else {
             return "protoBuilder.set" + versionJavaName + "($L)";
         }
+    }
+
+    /**
+     * Check if field is a bytes type (proto bytes -> Java byte[]).
+     * Handles both scalar "byte[]" and repeated "List<byte[]>".
+     */
+    private boolean isBytesType(MergedField field) {
+        String getterType = field.getGetterType();
+        return "byte[]".equals(getterType) || getterType.contains("byte[]");
     }
 
     // Store current proto class name for type resolution during builder generation

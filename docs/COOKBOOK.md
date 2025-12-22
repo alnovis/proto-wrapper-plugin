@@ -21,7 +21,7 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.0.4</version>
+    <version>1.1.0</version>
     <configuration>
         <basePackage>com.mycompany.model</basePackage>
         <protoPackagePattern>com.mycompany.proto.{version}</protoPackagePattern>
