@@ -15,6 +15,7 @@ import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -193,6 +194,9 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         ProcessingContext nestedProcCtx = ProcessingContext.forAbstract(nested, protoType, ctx, config);
         FieldProcessingChain.getInstance().addAbstractExtractMethods(classBuilder, nested, nestedProcCtx);
         FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, nested, nestedProcCtx);
+
+        // Add equals/hashCode for nested classes (compare proto content only)
+        addNestedEqualsHashCode(classBuilder, nested);
 
         // Recursively add deeply nested abstract classes
         for (MergedMessage deeplyNested : nested.getNestedMessages()) {
@@ -533,6 +537,27 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                         String.class, "%s[version=%d]")
                 .build());
 
+        // equals() - compare by version and proto content
+        classBuilder.addMethod(MethodSpec.methodBuilder("equals")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(Object.class, "obj")
+                .addStatement("if (this == obj) return true")
+                .addStatement("if (obj == null || getClass() != obj.getClass()) return false")
+                .addStatement("$L<?> other = ($L<?>) obj", message.getAbstractClassName(), message.getAbstractClassName())
+                .addStatement("return this.getWrapperVersion() == other.getWrapperVersion() && $T.equals(this.proto, other.proto)",
+                        Objects.class)
+                .build());
+
+        // hashCode() - based on version and proto content
+        classBuilder.addMethod(MethodSpec.methodBuilder("hashCode")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.INT)
+                .addStatement("return $T.hash(getWrapperVersion(), proto)", Objects.class)
+                .build());
+
         // Abstract method for getting VersionContext
         ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
         classBuilder.addMethod(MethodSpec.methodBuilder("getVersionContext")
@@ -546,6 +571,34 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(versionContextType)
                 .addStatement("return getVersionContext()")
+                .build());
+    }
+
+    /**
+     * Add equals() and hashCode() methods for nested classes.
+     * Nested classes don't have getWrapperVersion(), so we only compare proto content.
+     */
+    private void addNestedEqualsHashCode(TypeSpec.Builder classBuilder, MergedMessage nested) {
+        String abstractClassName = nested.getName();
+
+        // equals() - compare proto content only (nested classes don't have version)
+        classBuilder.addMethod(MethodSpec.methodBuilder("equals")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(Object.class, "obj")
+                .addStatement("if (this == obj) return true")
+                .addStatement("if (obj == null || getClass() != obj.getClass()) return false")
+                .addStatement("$L<?> other = ($L<?>) obj", abstractClassName, abstractClassName)
+                .addStatement("return $T.equals(this.proto, other.proto)", Objects.class)
+                .build());
+
+        // hashCode() - based on proto content only
+        classBuilder.addMethod(MethodSpec.methodBuilder("hashCode")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.INT)
+                .addStatement("return $T.hash(proto)", Objects.class)
                 .build());
     }
 
