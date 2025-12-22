@@ -113,6 +113,26 @@ public class ConflictEnumGenerator extends BaseGenerator<ConflictEnumInfo> {
                 .addJavadoc("@return Matching enum constant or defaultValue\n")
                 .build());
 
+        // Add static fromProtoValueOrThrow method with informative error message
+        enumBuilder.addMethod(MethodSpec.methodBuilder("fromProtoValueOrThrow")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(enumClassName)
+                .addParameter(TypeName.INT, "value")
+                .addStatement("$T result = fromProtoValue(value)", enumClassName)
+                .beginControlFlow("if (result == null)")
+                .addStatement("throw new $T($S + value + $S + $T.toString(values()))",
+                        IllegalArgumentException.class,
+                        "Invalid value ",
+                        " for " + enumInfo.getEnumName() + ". Valid values: ",
+                        java.util.Arrays.class)
+                .endControlFlow()
+                .addStatement("return result")
+                .addJavadoc("Convert proto enum numeric value to this enum, throwing if not found.\n")
+                .addJavadoc("@param value Proto enum ordinal\n")
+                .addJavadoc("@return Matching enum constant\n")
+                .addJavadoc("@throws IllegalArgumentException if value is not valid for this enum\n")
+                .build());
+
         TypeSpec enumSpec = enumBuilder.build();
 
         return JavaFile.builder(config.getApiPackage(), enumSpec)

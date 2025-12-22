@@ -15,8 +15,10 @@ import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Generates abstract base classes using template method pattern.
@@ -360,6 +362,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .returns(interfaceType)
                 .build());
 
+        // Abstract getVersion method - used for version-aware validation
+        builder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(TypeName.INT)
+                .build());
+
         // Add concrete implementations that delegate to abstract methods
         for (MergedField field : message.getFieldsSorted()) {
             // Skip repeated fields with type conflicts (not supported in builder yet)
@@ -693,15 +701,37 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         String capName = resolver.capitalize(field.getJavaName());
         ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
 
-        // setXxx(int)
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+        // Build version check condition for enum versions only
+        // Validation should only happen for versions that use enum type (not int)
+        Set<String> enumVersions = enumInfo.getEnumVersions();
+        List<Integer> enumVersionNumbers = enumVersions.stream()
+                .map(resolver::extractVersionNumber)
+                .sorted()
+                .toList();
+
+        // Build setXxx(int) method with version-aware validation
+        MethodSpec.Builder setIntMethod = MethodSpec.methodBuilder("set" + capName)
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addParameter(TypeName.INT, field.getJavaName())
-                .returns(builderInterfaceType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
+                .returns(builderInterfaceType);
+
+        // Add version-aware validation: only validate for versions that use enum type
+        if (!enumVersionNumbers.isEmpty()) {
+            String versionCondition = enumVersionNumbers.stream()
+                    .map(v -> "getVersion() == " + v)
+                    .reduce((a, b) -> a + " || " + b)
+                    .orElse("false");
+
+            setIntMethod.beginControlFlow("if ($L)", versionCondition)
+                    .addStatement("$T.fromProtoValueOrThrow($L)", enumType, field.getJavaName())
+                    .endControlFlow();
+        }
+
+        setIntMethod.addStatement("doSet$L($L)", capName, field.getJavaName())
+                .addStatement("return this");
+
+        builder.addMethod(setIntMethod.build());
 
         // setXxx(EnumType)
         builder.addMethod(MethodSpec.methodBuilder("set" + capName)

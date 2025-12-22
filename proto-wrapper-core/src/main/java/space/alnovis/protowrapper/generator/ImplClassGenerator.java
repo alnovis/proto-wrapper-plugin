@@ -370,6 +370,15 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("this.protoBuilder = protoBuilder")
                 .build());
 
+        // getVersion() - returns the version number for this builder
+        int versionNumber = genCtx.getVersionNumber();
+        builder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(TypeName.INT)
+                .addStatement("return $L", versionNumber)
+                .build());
+
         // Implement doSet/doClear/doAdd methods for each field
         for (MergedField field : message.getFieldsSorted()) {
             // Skip repeated fields with type conflicts (not supported in builder yet)
