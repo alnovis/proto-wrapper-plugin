@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.4] - 2025-12-21
+## [1.0.4] - 2025-12-22
 
 ### Added
 
@@ -21,9 +21,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `2`: Uses `EnumType.valueOf(int)` for enum conversion
   - `3` (default): Uses `EnumType.forNumber(int)` for enum conversion
 
+#### Integration Tests
+- **NestedPrimitiveMessageConflictTest** — Tests for nested message types in PRIMITIVE_MESSAGE conflicts
+- Separate `proto-wrapper-integration-tests` module with comprehensive conflict type coverage
+
 #### Documentation
 - **KNOWN_ISSUES.md** — Detailed documentation of builder limitations
+- **COOKBOOK.md** — Practical guide with conflict resolution examples
+- **VERSION_AGNOSTIC_API.md** — Comprehensive API documentation
 - Updated README with builder usage examples
+
+### Fixed
+
+#### Nested Types in PRIMITIVE_MESSAGE Conflicts
+- **Fixed `getMessageTypeForField`** — Properly qualifies nested message types (e.g., `TicketRequest.ParentTicket` instead of `ParentTicket`)
+- Uses `extractNestedTypePath()` and `ClassName.get()` with nested parts for correct type resolution
+
+#### Java 11 Compatibility
+- **Replaced `Stream.toList()`** — Changed to `collect(Collectors.toList())` for Java 11 support
+- Affected files: `CodeGenerationHelper.java`, `RepeatedConflictHandler.java`
 
 ### Known Builder Limitations
 - Type conflicts across versions (int→enum, primitive→message) not fully supported

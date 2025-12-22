@@ -131,13 +131,11 @@ jobs:
 
           FILES=(
             "README.md"
-            "README.ru.md"
+            "CHANGELOG.md"
+            "RELEASE_NOTES.md"
             "docs/COOKBOOK.md"
-            "docs/COOKBOOK.ru.md"
             "docs/VERSION_AGNOSTIC_API.md"
-            "docs/VERSION_AGNOSTIC_API.ru.md"
             "docs/KNOWN_ISSUES.md"
-            "docs/KNOWN_ISSUES.ru.md"
           )
 
           MISSING=0
