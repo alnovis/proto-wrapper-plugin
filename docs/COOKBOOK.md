@@ -1,7 +1,5 @@
 # Proto Wrapper Plugin Cookbook
 
-[Russian version](COOKBOOK.ru.md)
-
 A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 
 ## Table of Contents

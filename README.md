@@ -1,7 +1,5 @@
 # Proto Wrapper Maven Plugin
 
-[Russian version](README.ru.md)
-
 Maven plugin for generating version-agnostic Java wrapper classes from multiple protobuf schema versions.
 
 ## Features

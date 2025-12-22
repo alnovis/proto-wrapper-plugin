@@ -172,8 +172,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 ## Links
 
 - [GitHub Repository](https://github.com/alnovis/proto-wrapper-plugin)
-- [Documentation (EN)](README.md)
-- [Documentation (RU)](README.ru.md)
+- [Documentation](README.md)
 - [Changelog](CHANGELOG.md)
 - [Example Project](examples/maven-example/)
 

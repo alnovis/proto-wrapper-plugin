@@ -33,5 +33,4 @@ dependency-reduced-pom.xml
 *.log
 
 # Service md documents
-REFACTORING.md
-FUNCTIONAL_REFACTORING.md
+*.ru.md

@@ -1,7 +1,5 @@
 # Known Issues and Limitations
 
-[Russian version](KNOWN_ISSUES.ru.md)
-
 This document describes known issues and limitations of the proto-wrapper-maven-plugin.
 
 ## Table of Contents

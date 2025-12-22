@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Documentation
 - **KNOWN_ISSUES.md** — Detailed documentation of builder limitations
 - Updated README with builder usage examples
-- Updated README.ru.md with Russian translation
 
 ### Known Builder Limitations
 - Type conflicts across versions (int→enum, primitive→message) not fully supported
