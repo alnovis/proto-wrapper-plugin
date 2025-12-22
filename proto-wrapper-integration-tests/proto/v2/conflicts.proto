@@ -316,3 +316,37 @@ message NestedPrimitiveMessageConflicts {
     // V2-only field
     optional Date created_at = 11;
 }
+
+// =============================================================================
+// PURE BYTES FIELDS (no conflict - bytes in both versions)
+// Tests that bytes fields work correctly in builders.
+// This is the scenario that was broken: byte[] -> ByteString conversion missing.
+// =============================================================================
+
+message BytesFieldsTest {
+    required string id = 1;
+
+    // Case 1: Required bytes field
+    required bytes binary_data = 2;
+
+    // Case 2: Optional bytes field
+    optional bytes optional_binary = 3;
+
+    // Case 3: Repeated bytes field
+    repeated bytes binary_list = 4;
+
+    // Case 4: Bytes field in nested message
+    message BinaryPayload {
+        required bytes content = 1;
+        optional bytes signature = 2;
+        optional string content_type = 3;
+    }
+
+    optional BinaryPayload payload = 5;
+
+    // Non-conflicting fields
+    optional string description = 10;
+
+    // V2-only field
+    optional string metadata = 11;
+}

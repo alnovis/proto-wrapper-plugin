@@ -34,3 +34,4 @@ dependency-reduced-pom.xml
 
 # Service md documents
 *.ru.md
+docs/ISSUE_PROTOBUF2_BUILDERS.md

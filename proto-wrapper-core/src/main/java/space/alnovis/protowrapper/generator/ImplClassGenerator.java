@@ -733,6 +733,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
                 String enumMethod = getEnumFromIntMethod();
                 doAdd.addStatement("protoBuilder.add$L($L." + enumMethod + "($L.getValue()))", versionJavaName, protoEnumType, field.getJavaName());
+            } else if (isBytesType(field)) {
+                // Convert byte[] to ByteString for protobuf
+                doAdd.addStatement("protoBuilder.add$L($T.copyFrom($L))", versionJavaName, BYTE_STRING_CLASS, field.getJavaName());
             } else {
                 doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
             }
@@ -757,6 +760,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 String enumMethod = getEnumFromIntMethod();
                 doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
                         field.getJavaName(), versionJavaName, protoEnumType);
+            } else if (isBytesType(field)) {
+                // Convert each byte[] to ByteString for protobuf
+                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
+                        field.getJavaName(), versionJavaName, BYTE_STRING_CLASS);
             } else {
                 doAddAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
             }
@@ -782,6 +789,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 String enumMethod = getEnumFromIntMethod();
                 doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
                         field.getJavaName(), versionJavaName, protoEnumType);
+            } else if (isBytesType(field)) {
+                // Convert each byte[] to ByteString for protobuf
+                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
+                        field.getJavaName(), versionJavaName, BYTE_STRING_CLASS);
             } else {
                 doSetAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
             }
@@ -817,9 +828,21 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
             String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
             String enumMethod = getEnumFromIntMethod();
             return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
+        } else if (isBytesType(field)) {
+            // Convert byte[] to ByteString for protobuf
+            return "protoBuilder.set" + versionJavaName + "(com.google.protobuf.ByteString.copyFrom($L))";
         } else {
             return "protoBuilder.set" + versionJavaName + "($L)";
         }
+    }
+
+    /**
+     * Check if field is a bytes type (proto bytes -> Java byte[]).
+     * Handles both scalar "byte[]" and repeated "List<byte[]>".
+     */
+    private boolean isBytesType(MergedField field) {
+        String getterType = field.getGetterType();
+        return "byte[]".equals(getterType) || getterType.contains("byte[]");
     }
 
     // Store current proto class name for type resolution during builder generation

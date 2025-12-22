@@ -120,6 +120,10 @@ public final class CodeGenerationHelper {
                 String wrapperClass = getWrapperClassName(field, ctx);
                 return String.format("proto.get%sList().stream().map(%s::new).collect(java.util.stream.Collectors.toList())",
                         javaName, wrapperClass);
+            } else if (field.getGetterType().contains("byte[]")) {
+                // Convert List<ByteString> to List<byte[]>
+                return String.format("proto.get%sList().stream().map(com.google.protobuf.ByteString::toByteArray).collect(java.util.stream.Collectors.toList())",
+                        javaName);
             }
             return String.format("proto.get%sList()", javaName);
         } else if (field.isEnum()) {
