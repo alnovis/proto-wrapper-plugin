@@ -453,6 +453,12 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                     .returns(ClassName.get("", "Builder"))
                     .build());
 
+            builder.addMethod(MethodSpec.methodBuilder("emptyBuilder")
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(ClassName.get("", "Builder"))
+                    .addJavadoc("Create a new empty builder of the same version as this instance.\n")
+                    .build());
+
             TypeSpec nestedBuilder = generateNestedBuilderInterface(nested, resolver, ctx);
             builder.addType(nestedBuilder);
         }
@@ -878,6 +884,29 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addJavadoc("Convert to a specific version implementation.\n")
                 .addJavadoc("@param versionClass Target version class\n")
                 .addJavadoc("@return Instance of the specified version\n")
+                .build());
+
+        // Add emptyBuilder() method - creates empty builder of same version
+        if (config.isGenerateBuilders()) {
+            builder.addMethod(MethodSpec.methodBuilder("emptyBuilder")
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(ClassName.get("", "Builder"))
+                    .addJavadoc("Create a new empty builder of the same version as this instance.\n")
+                    .addJavadoc("<p>Unlike {@link #toBuilder()}, this creates an empty builder without\n")
+                    .addJavadoc("copying any values from this instance.</p>\n")
+                    .addJavadoc("@return Empty builder for creating new instances\n")
+                    .build());
+        }
+
+        // Add getContext() method - returns VersionContext for this version
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        builder.addMethod(MethodSpec.methodBuilder("getContext")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(versionContextType)
+                .addJavadoc("Get the VersionContext for this wrapper's version.\n")
+                .addJavadoc("<p>The context provides factory methods for creating other wrapper types\n")
+                .addJavadoc("of the same protocol version.</p>\n")
+                .addJavadoc("@return VersionContext for this version\n")
                 .build());
     }
 

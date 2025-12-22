@@ -141,7 +141,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     /**
-     * Add common implementation methods (serialization, version, factory, typed proto).
+     * Add common implementation methods (serialization, version, factory, typed proto, context).
      */
     private void addCommonImplMethods(TypeSpec.Builder classBuilder, String className,
                                        ClassName protoType, String implPackage, GenerationContext ctx) {
@@ -178,6 +178,18 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return proto")
                 .addJavadoc("Get the underlying typed proto message.\n")
                 .addJavadoc("@return $T\n", protoType)
+                .build());
+
+        // getVersionContext() implementation - returns VersionContext for this version
+        String version = ctx.requireVersion();
+        String versionContextClassName = "VersionContext" + version.toUpperCase();
+        ClassName versionContextType = ClassName.get(ctx.getApiPackage(), "VersionContext");
+        ClassName versionContextImplType = ClassName.get(implPackage, versionContextClassName);
+        classBuilder.addMethod(MethodSpec.methodBuilder("getVersionContext")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(versionContextType)
+                .addStatement("return $T.INSTANCE", versionContextImplType)
                 .build());
     }
 
@@ -299,12 +311,20 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         ClassName builderInterfaceType = builderCtx.builderInterfaceType();
 
-        // createBuilder() implementation
+        // createBuilder() implementation - copies values from current instance
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(builderInterfaceType)
                 .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // createEmptyBuilder() implementation - creates empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
                 .build());
 
         // Static newBuilder() factory method
@@ -435,12 +455,20 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         ClassName builderInterfaceType = builderCtx.builderInterfaceType();
 
-        // createBuilder() implementation
+        // createBuilder() implementation - copies values from current instance
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(builderInterfaceType)
                 .addStatement("return new BuilderImpl(proto.toBuilder())")
+                .build());
+
+        // createEmptyBuilder() implementation - creates empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(builderInterfaceType)
+                .addStatement("return new BuilderImpl($T.newBuilder())", protoType)
                 .build());
 
         // Static newBuilder() factory method

@@ -213,7 +213,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                                          GenerationContext ctx) {
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
 
-        // Abstract method to create builder
+        // Abstract method to create builder (copies values from current instance)
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(builderInterfaceType)
@@ -225,6 +225,20 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(builderInterfaceType)
                 .addStatement("return createBuilder()")
+                .build());
+
+        // Abstract method to create empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // emptyBuilder() implementation - creates empty builder of same version
+        classBuilder.addMethod(MethodSpec.methodBuilder("emptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createEmptyBuilder()")
                 .build());
 
         // Generate nested AbstractBuilder using unified method
@@ -518,6 +532,21 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion())",
                         String.class, "%s[version=%d]")
                 .build());
+
+        // Abstract method for getting VersionContext
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        classBuilder.addMethod(MethodSpec.methodBuilder("getVersionContext")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(versionContextType)
+                .build());
+
+        // getContext() implementation
+        classBuilder.addMethod(MethodSpec.methodBuilder("getContext")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(versionContextType)
+                .addStatement("return getVersionContext()")
+                .build());
     }
 
     private void addBuilderSupport(TypeSpec.Builder classBuilder, MergedMessage message,
@@ -526,7 +555,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         // Builder interface type from the interface
         ClassName builderInterfaceType = interfaceType.nestedClass("Builder");
 
-        // Abstract method to create builder
+        // Abstract method to create builder (copies values from current instance)
         classBuilder.addMethod(MethodSpec.methodBuilder("createBuilder")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(builderInterfaceType)
@@ -538,6 +567,20 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(builderInterfaceType)
                 .addStatement("return createBuilder()")
+                .build());
+
+        // Abstract method to create empty builder (doesn't copy values)
+        classBuilder.addMethod(MethodSpec.methodBuilder("createEmptyBuilder")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(builderInterfaceType)
+                .build());
+
+        // emptyBuilder() implementation - creates empty builder of same version
+        classBuilder.addMethod(MethodSpec.methodBuilder("emptyBuilder")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(builderInterfaceType)
+                .addStatement("return createEmptyBuilder()")
                 .build());
 
         // Generate AbstractBuilder nested class using unified method
