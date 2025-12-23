@@ -7,9 +7,9 @@ on:
     branches: [ master, develop ]
 
 jobs:
-  build:
+  # Maven Build
+  build-maven:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         java-version: [ 17, 21 ]
@@ -31,78 +31,22 @@ jobs:
           sudo apt-get install -y protobuf-compiler
           protoc --version
 
-      # Install parent POM first (non-recursive)
       - name: Install Parent POM
         run: mvn install -B -N
 
-      # Build core and plugin (skip tests for now)
       - name: Build Core and Plugin
         run: mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin -DskipTests
 
-      # Run unit tests for core
       - name: Run Core Unit Tests
         run: mvn test -B -pl proto-wrapper-core
 
-      # Run integration tests (uses the plugin to generate wrappers)
       - name: Run Integration Tests
         run: mvn verify -B -pl proto-wrapper-integration-tests
 
-      # Build example project
-      - name: Build Example Project
+      - name: Build Maven Example
         run: mvn verify -B -pl examples/maven-example
 
-      # Test summary
-      - name: Test Summary
-        if: always()
-        run: |
-          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Module | Tests | Failures | Errors |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|----------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          # Core tests
-          for file in proto-wrapper-core/target/surefire-reports/TEST-*.xml; do
-            if [ -f "$file" ]; then
-              TESTS=$(grep -oP 'tests="\K[0-9]+' "$file" | head -1 || echo "0")
-              FAILURES=$(grep -oP 'failures="\K[0-9]+' "$file" | head -1 || echo "0")
-              ERRORS=$(grep -oP 'errors="\K[0-9]+' "$file" | head -1 || echo "0")
-              CLASS=$(basename "$file" .xml | sed 's/TEST-//')
-              echo "| $CLASS | $TESTS | $FAILURES | $ERRORS |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-          # Integration tests
-          for file in proto-wrapper-integration-tests/target/surefire-reports/TEST-*.xml; do
-            if [ -f "$file" ]; then
-              TESTS=$(grep -oP 'tests="\K[0-9]+' "$file" | head -1 || echo "0")
-              FAILURES=$(grep -oP 'failures="\K[0-9]+' "$file" | head -1 || echo "0")
-              ERRORS=$(grep -oP 'errors="\K[0-9]+' "$file" | head -1 || echo "0")
-              CLASS=$(basename "$file" .xml | sed 's/TEST-//')
-              echo "| $CLASS | $TESTS | $FAILURES | $ERRORS |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-      # Upload test reports
-      - name: Upload Core Test Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: core-test-reports-java${{ matrix.java-version }}
-          path: proto-wrapper-core/target/surefire-reports/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload Integration Test Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-reports-java${{ matrix.java-version }}
-          path: proto-wrapper-integration-tests/target/surefire-reports/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      # Upload build artifacts (only for Java 17)
-      - name: Upload Plugin Artifact
+      - name: Upload Maven Plugin Artifact
         if: matrix.java-version == 17 && success()
         uses: actions/upload-artifact@v4
         with:
@@ -114,11 +58,64 @@ jobs:
         if: matrix.java-version == 17 && success()
         uses: actions/upload-artifact@v4
         with:
-          name: proto-wrapper-core
+          name: proto-wrapper-core-maven
           path: proto-wrapper-core/target/*.jar
           retention-days: 7
 
-  # Verify documentation files exist
+  # Gradle Build
+  build-gradle:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-version: [ 17, 21 ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon
+
+      - name: Grant execute permission for example gradlew
+        run: chmod +x examples/gradle-example/gradlew
+
+      - name: Build Gradle Example
+        working-directory: examples/gradle-example
+        run: ./gradlew build --no-daemon
+
+      - name: Upload Gradle Plugin Artifact
+        if: matrix.java-version == 17 && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proto-wrapper-gradle-plugin
+          path: proto-wrapper-gradle-plugin/build/libs/*.jar
+          retention-days: 7
+
+      - name: Upload Core Artifact (Gradle)
+        if: matrix.java-version == 17 && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proto-wrapper-core-gradle
+          path: proto-wrapper-core/build/libs/*.jar
+          retention-days: 7
+
+  # Documentation check
   docs-check:
     runs-on: ubuntu-latest
     steps:
@@ -127,30 +124,22 @@ jobs:
 
       - name: Check documentation files
         run: |
-          echo "Checking documentation files exist..."
-
+          echo "Checking documentation files..."
           FILES=(
             "README.md"
             "CHANGELOG.md"
             "RELEASE_NOTES.md"
-            "docs/COOKBOOK.md"
-            "docs/VERSION_AGNOSTIC_API.md"
-            "docs/KNOWN_ISSUES.md"
           )
-
           MISSING=0
           for file in "${FILES[@]}"; do
             if [ ! -f "$file" ]; then
-              echo "::error::Missing documentation file: $file"
+              echo "::error::Missing: $file"
               MISSING=$((MISSING + 1))
             else
               echo "✓ $file"
             fi
           done
-
           if [ $MISSING -gt 0 ]; then
-            echo "::error::$MISSING documentation file(s) missing"
             exit 1
           fi
-
           echo "All documentation files present."

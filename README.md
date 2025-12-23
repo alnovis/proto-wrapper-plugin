@@ -1,6 +1,8 @@
-# Proto Wrapper Maven Plugin
+# Proto Wrapper Plugin
 
-Maven plugin for generating version-agnostic Java wrapper classes from multiple protobuf schema versions.
+Build plugins for generating version-agnostic Java wrapper classes from multiple protobuf schema versions.
+
+Supports both **Maven** and **Gradle** build systems.
 
 ## Features
 
@@ -26,19 +28,31 @@ Maven plugin for generating version-agnostic Java wrapper classes from multiple 
 | Document | Description |
 |----------|-------------|
 | [COOKBOOK.md](docs/COOKBOOK.md) | Practical guide with examples |
+| [API_REFERENCE.md](docs/API_REFERENCE.md) | Generated code API reference |
 | [VERSION_AGNOSTIC_API.md](docs/VERSION_AGNOSTIC_API.md) | Detailed API documentation |
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Known limitations and workarounds |
 
 ## Installation
+
+### Maven
 
 ```bash
 cd proto-wrapper-plugin
 mvn install
 ```
 
+### Gradle
+
+```bash
+cd proto-wrapper-plugin
+./gradlew publishToMavenLocal
+```
+
 ## Quick Start
 
-### 1. Add the plugin to pom.xml
+### Maven
+
+#### 1. Add the plugin to pom.xml
 
 ```xml
 <plugin>
@@ -61,7 +75,7 @@ mvn install
 </plugin>
 ```
 
-### 2. Organize proto files
+#### 2. Organize proto files
 
 ```
 src/main/proto/
@@ -73,10 +87,47 @@ src/main/proto/
     └── order.proto
 ```
 
-### 3. Generate code
+#### 3. Generate code
 
 ```bash
 mvn generate-sources
+```
+
+### Gradle
+
+#### 1. Add the plugin to build.gradle.kts
+
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.1.0"
+}
+
+protoWrapper {
+    basePackage.set("com.mycompany.myapp.model")
+    protoRoot.set(file("src/main/proto"))
+    versions {
+        version("v1")
+        version("v2")
+    }
+}
+```
+
+#### 2. Organize proto files
+
+```
+src/main/proto/
+├── v1/
+│   ├── common.proto
+│   └── order.proto
+└── v2/
+    ├── common.proto
+    └── order.proto
+```
+
+#### 3. Generate code
+
+```bash
+./gradlew generateProtoWrapper
 ```
 
 ### 4. Use the API
@@ -101,8 +152,11 @@ byte[] outputBytes = order.toBytes();
 
 With `basePackage=com.mycompany.myapp.model`:
 
+**Maven:** `target/generated-sources/proto-wrapper/`
+**Gradle:** `build/generated/sources/proto-wrapper/main/java/`
+
 ```
-target/generated-sources/proto-wrapper/
+{output-dir}/
 ├── com/mycompany/myapp/model/api/
 │   ├── Money.java                    # Interface
 │   ├── Order.java                    # Interface with nested interfaces
@@ -123,14 +177,14 @@ target/generated-sources/proto-wrapper/
 
 ## Configuration
 
-### Main Parameters
+### Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `basePackage` | (required) | Base package for all generated classes |
 | `protoRoot` | (required) | Root directory with proto files |
 | `versions` | (required) | List of version configurations |
-| `outputDirectory` | `target/generated-sources/proto-wrapper` | Output directory |
+| `outputDirectory` | `target/generated-sources/proto-wrapper` (Maven) or `build/generated/sources/proto-wrapper/main/java` (Gradle) | Output directory |
 | `protoPackagePattern` | `{basePackage}.proto.{version}` | Package pattern for proto classes |
 | `generateBuilders` | `false` | Generate Builder pattern for modifications |
 | `protobufMajorVersion` | `3` | Protobuf version (2 or 3) |
@@ -146,7 +200,7 @@ target/generated-sources/proto-wrapper/
 | `name` | Version name (defaults to uppercase: `v1` → `V1`) |
 | `excludeProtos` | List of proto files to exclude |
 
-### Extended Configuration
+### Extended Configuration (Maven)
 
 ```xml
 <configuration>
@@ -177,6 +231,29 @@ target/generated-sources/proto-wrapper/
 </configuration>
 ```
 
+### Extended Configuration (Gradle)
+
+```kotlin
+protoWrapper {
+    basePackage.set("com.mycompany.myapp.model")
+    protoRoot.set(file("proto"))
+    protoPackagePattern.set("com.mycompany.myapp.proto.{version}")
+    outputDirectory.set(layout.buildDirectory.dir("generated/sources/proto-wrapper/main/java"))
+    generateBuilders.set(true)
+    protobufMajorVersion.set(3)
+
+    versions {
+        version("v1") {
+            name.set("V1")
+            excludeProtos.set(listOf("internal.proto"))
+        }
+        version("v2")
+    }
+
+    includeMessages.set(listOf("Order", "Customer"))
+}
+```
+
 ## Type Conflict Handling
 
 The plugin automatically handles situations when field types differ between versions:
@@ -197,10 +274,18 @@ See [COOKBOOK.md](docs/COOKBOOK.md) for detailed examples of each conflict type.
 
 Enable builder generation for creating and modifying messages:
 
+**Maven:**
 ```xml
 <configuration>
     <generateBuilders>true</generateBuilders>
 </configuration>
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    generateBuilders.set(true)
+}
 ```
 
 ### Usage
@@ -349,21 +434,41 @@ See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 
 ## Development
 
+### Maven
+
 ```bash
 # Build
 mvn clean install
 
-# Run tests (106 tests)
+# Run tests
 mvn test
 
 # Build without tests
 mvn install -DskipTests
 ```
 
+### Gradle
+
+```bash
+# Build
+./gradlew build
+
+# Run tests
+./gradlew test
+
+# Build without tests
+./gradlew build -x test
+
+# Publish to local Maven repository
+./gradlew publishToMavenLocal
+```
+
 ## See Also
 
 - [COOKBOOK.md](docs/COOKBOOK.md) - Practical usage guide
+- [API_REFERENCE.md](docs/API_REFERENCE.md) - Generated code API reference
 - [VERSION_AGNOSTIC_API.md](docs/VERSION_AGNOSTIC_API.md) - Detailed API documentation
 - [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) - Known limitations and workarounds
-- [examples/maven-example](examples/maven-example) - Working example project
+- [examples/maven-example](examples/maven-example) - Maven example project
+- [examples/gradle-example](examples/gradle-example) - Gradle example project
 
