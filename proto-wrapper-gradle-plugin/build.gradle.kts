@@ -5,12 +5,20 @@ plugins {
     id("com.gradle.plugin-publish") version "1.2.1"
 }
 
-dependencies {
-    // For local development, use project dependency:
-    implementation(project(":proto-wrapper-core"))
+// Property to switch between local project and Maven Central dependency
+// Usage:
+//   Local development: ./gradlew build (default)
+//   Publishing:        ./gradlew publishPlugins -PuseMavenCentral=true
+val useMavenCentral = project.findProperty("useMavenCentral")?.toString()?.toBoolean() ?: false
 
-    // For publishing, use Maven Central dependency (uncomment when publishing):
-    // implementation("space.alnovis:proto-wrapper-core:${project.version}")
+dependencies {
+    if (useMavenCentral) {
+        // For publishing: use Maven Central dependency
+        implementation("space.alnovis:proto-wrapper-core:${project.version}")
+    } else {
+        // For local development: use project dependency
+        implementation(project(":proto-wrapper-core"))
+    }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
@@ -72,7 +80,8 @@ publishing {
                 developers {
                     developer {
                         id.set("alnovis")
-                        name.set("Alnovis")
+                        name.set("Alexander Novikov")
+                        email.set("dev@alnovis.space")
                     }
                 }
 
@@ -90,15 +99,6 @@ publishing {
             name = "local"
             url = uri(layout.buildDirectory.dir("repo"))
         }
-        // Uncomment for Maven Central publishing:
-        // maven {
-        //     name = "OSSRH"
-        //     url = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
-        //     credentials {
-        //         username = findProperty("ossrhUsername") as String? ?: System.getenv("OSSRH_USERNAME")
-        //         password = findProperty("ossrhPassword") as String? ?: System.getenv("OSSRH_PASSWORD")
-        //     }
-        // }
     }
 }
 
@@ -106,14 +106,8 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Task to switch between local and published dependency
-tasks.register("useLocalCore") {
-    doLast {
-        println("""
-            To use local proto-wrapper-core during development:
-            1. Comment out: implementation("space.alnovis:proto-wrapper-core:...")
-            2. Uncomment: implementation(project(":proto-wrapper-core"))
-            3. Run: ./gradlew build
-        """.trimIndent())
-    }
+// Print dependency mode on configuration
+gradle.taskGraph.whenReady {
+    val mode = if (useMavenCentral) "Maven Central" else "local project"
+    logger.lifecycle("proto-wrapper-core dependency mode: $mode")
 }

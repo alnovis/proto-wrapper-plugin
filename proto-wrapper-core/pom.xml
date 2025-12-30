@@ -10,7 +10,9 @@
         <version>1.2.0</version>
     </parent>
 
+    <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
+    <version>1.1.1</version>
     <packaging>jar</packaging>
 
     <name>Proto Wrapper Core</name>
@@ -18,6 +20,7 @@
         Core library for Proto Wrapper - analyzes protobuf schemas, merges versions,
         and generates version-agnostic Java wrapper classes. Build-tool independent.
     </description>
+    <url>https://github.com/alnovis/proto-wrapper-plugin</url>
 
     <dependencies>
         <!-- Protobuf for parsing descriptors -->
