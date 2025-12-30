@@ -82,6 +82,9 @@ public interface {MessageName} {
     // Version conversion methods
     // Builder access methods
 
+    // Static factory method (v1.1.1+)
+    static Builder newBuilder(VersionContext ctx);
+
     interface Builder { ... }  // Optional, when generateBuilders=true
 }
 ```
@@ -388,6 +391,45 @@ Money payment = ctx.newMoneyBuilder().setAmount(100).build();
 
 Generated when `generateBuilders=true`.
 
+#### newBuilder(VersionContext) — Static Factory
+
+**Signature:** `static Builder newBuilder(VersionContext ctx)`
+
+**Location:** On each interface (top-level and nested)
+
+**Purpose:** Creates an empty builder using the specified version context.
+
+**Parameters:**
+- `ctx` — VersionContext determining the protocol version
+
+**Returns:** Empty builder for creating new instances.
+
+**Equivalence:** `Money.newBuilder(ctx)` is equivalent to `ctx.newMoneyBuilder()`.
+
+**Use case:** More intuitive builder creation that mirrors the native protobuf pattern:
+```java
+// Native protobuf style
+MyProto.MyMessage proto = MyProto.MyMessage.newBuilder()
+        .setField("value")
+        .build();
+
+// Proto wrapper style (matches the pattern)
+MyMessage wrapper = MyMessage.newBuilder(ctx)
+        .setField("value")
+        .build();
+```
+
+**Nested types:**
+```java
+// For nested interface Address.GeoLocation
+Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
+        .setLatitude(40.7128)
+        .setLongitude(-74.0060)
+        .build();
+```
+
+---
+
 #### toBuilder()
 
 **Signature:** `Builder toBuilder()`
@@ -519,6 +561,10 @@ public interface {Parent} {
 
     interface {Nested} {
         // Field accessors
+
+        // Static factory method (v1.1.1+)
+        static Builder newBuilder(VersionContext ctx);
+
         interface Builder { ... }
     }
 
@@ -527,12 +573,30 @@ public interface {Parent} {
 }
 ```
 
+**Creating nested type instances:**
+
+```java
+// Using static newBuilder (recommended, v1.1.1+)
+Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
+        .setLatitude(40.7128)
+        .setLongitude(-74.0060)
+        .build();
+
+// Using VersionContext method (still works)
+Address.GeoLocation location = ctx.newAddressGeoLocationBuilder()
+        .setLatitude(40.7128)
+        .setLongitude(-74.0060)
+        .build();
+```
+
 **VersionContext methods for nested types:**
 ```java
 {Parent}.{Nested}.Builder new{Parent}{Nested}Builder();
 ```
 
-**Deep nesting:** Supported to arbitrary depth with corresponding `new{Parent}{Child}{GrandChild}Builder()` methods.
+**Deep nesting:** Supported to arbitrary depth:
+- Static method: `Parent.Child.GrandChild.newBuilder(ctx)`
+- Context method: `ctx.newParentChildGrandChildBuilder()`
 
 ---
 

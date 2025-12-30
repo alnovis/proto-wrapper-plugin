@@ -58,7 +58,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -99,7 +99,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.1.0"
+    id("space.alnovis.proto-wrapper") version "1.1.1"
 }
 
 protoWrapper {
@@ -297,10 +297,22 @@ Order modified = order.toBuilder()
     .setTotalAmount(10000L)
     .build();
 
-// Create new wrapper
+// Create new wrapper (using VersionContext)
 Order newOrder = ctx.newOrderBuilder()
     .setOrderId("ORD-456")
     .setCustomerId("CUST-789")
+    .build();
+
+// Create new wrapper (using static newBuilder - recommended)
+Order anotherOrder = Order.newBuilder(ctx)
+    .setOrderId("ORD-789")
+    .setCustomerId("CUST-123")
+    .build();
+
+// Works with nested types too
+Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
+    .setLatitude(40.7128)
+    .setLongitude(-74.0060)
     .build();
 ```
 
@@ -326,6 +338,11 @@ public interface Money {
 
     // With generateBuilders=true
     Builder toBuilder();
+
+    // Static factory method (v1.1.1+)
+    static Builder newBuilder(VersionContext ctx) {
+        return ctx.newMoneyBuilder();
+    }
 
     interface Builder {
         Builder setBills(long value);

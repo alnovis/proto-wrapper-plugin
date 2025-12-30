@@ -1,128 +1,162 @@
-# Release Notes — Proto Wrapper Maven Plugin v1.1.0
+# Release Notes - Proto Wrapper Plugin v1.1.1
 
-**Release Date:** December 22, 2025
+**Release Date:** December 30, 2025
 
 ## Overview
 
-This release completes the major improvements plan with version conversion support, better error messages for INT_ENUM conflicts, improved `toString()` output, and proper `equals()`/`hashCode()` implementations.
+This release introduces the static `newBuilder(VersionContext)` method on all generated interfaces, providing a more intuitive and consistent API for creating builder instances that mirrors the native protobuf pattern.
 
 ## What's New
 
-### Version Conversion (asVersion)
+### Static newBuilder(VersionContext) Method
 
-The `asVersion()` method now works for cross-version conversion:
-
-```java
-// Create Money in v1
-Money v1 = VersionContext.forVersion(1).newMoneyBuilder()
-        .setAmount(1000L)
-        .setCurrency("USD")
-        .build();
-
-// Convert to v2
-space.example.v2.Money v2 = v1.asVersion(space.example.v2.Money.class);
-
-// v2 has same data
-assertEquals(1000L, v2.getAmount());
-assertEquals("USD", v2.getCurrency());
-```
-
-**Features:**
-- Serialization-based conversion between versions
-- Returns same instance if already target type (optimization)
-- Works with all message types
-- `parseXxxFromBytes()` methods in VersionContext
-
-### Better INT_ENUM Error Messages (Phase 3)
-
-Version-aware validation for INT_ENUM conflict fields:
+All generated interfaces now include a static `newBuilder(ctx)` method for creating builders:
 
 ```java
-// v202 (int version) - any int value allowed
-builder.setTaxType(200);  // OK
-
-// v203 (enum version) - only valid enum values allowed
-builder.setTaxType(999);  // throws IllegalArgumentException:
-// "Invalid value 999 for TaxType. Valid values: [VAT(100), ...]"
-```
-
-**Features:**
-- `fromProtoValueOrThrow(int)` method on unified enums
-- Validation only for versions that use enum type
-- Informative error messages with invalid value and valid options
-
-### Improved toString() (Phase 2)
-
-Better debugging output with proto content:
-
-```java
+// Before (still works)
 Money money = ctx.newMoneyBuilder()
         .setAmount(1000)
         .setCurrency("USD")
         .build();
 
-System.out.println(money);
-// Money[version=1] amount: 1000, currency: "USD"
+// After (new intuitive approach)
+Money money = Money.newBuilder(ctx)
+        .setAmount(1000)
+        .setCurrency("USD")
+        .build();
 ```
 
-**Features:**
-- Shows wrapper class name
-- Shows protocol version
-- Shows proto content (compact format)
+**Why this matters:**
+- More intuitive - matches the native protobuf pattern `Type.newBuilder()`
+- Better IDE discoverability - type the class name, then `.newBuilder`
+- Cleaner code when building complex object graphs
+- Consistent API across all generated interfaces
 
-### equals() and hashCode() (Phase 1)
+### Nested Interface Support
 
-Proper value-based equality:
+The static `newBuilder(ctx)` method is available on nested interfaces too:
 
 ```java
-Money m1 = ctx.newMoneyBuilder().setAmount(100).setCurrency("USD").build();
-Money m2 = ctx.newMoneyBuilder().setAmount(100).setCurrency("USD").build();
+// Nested GeoLocation inside Address
+Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
+        .setLatitude(40.7128)
+        .setLongitude(-74.0060)
+        .setAccuracy(10.0)
+        .build();
 
-assertEquals(m1, m2);  // true - same content
-assertEquals(m1.hashCode(), m2.hashCode());  // consistent
+// Nested SecurityChallenge inside AuthResponse
+AuthResponse.SecurityChallenge challenge = AuthResponse.SecurityChallenge.newBuilder(ctx)
+        .setType(ChallengeType.SMS_VERIFICATION)
+        .setChallengeId("CHAL-123")
+        .setHint("Enter 6-digit code")
+        .build();
 ```
 
-**Features:**
-- Based on proto content and version
-- Works in collections (List, Set, Map)
-- Consistent hashCode for equals objects
+### Complex Object Graphs
+
+Building complex nested structures is now cleaner:
+
+```java
+VersionContext ctx = VersionContext.forVersion(2);
+
+OrderRequest order = OrderRequest.newBuilder(ctx)
+        .setOrderId("ORD-001")
+        .setCustomer(Customer.newBuilder(ctx)
+                .setId("CUST-001")
+                .setName("John Doe")
+                .setEmail("john@example.com")
+                .setShippingAddress(Address.newBuilder(ctx)
+                        .setStreet("123 Main St")
+                        .setCity("Boston")
+                        .setCountry("USA")
+                        .setLocation(Address.GeoLocation.newBuilder(ctx)
+                                .setLatitude(42.3601)
+                                .setLongitude(-71.0589)
+                                .build())
+                        .build())
+                .build())
+        .addItems(OrderItem.newBuilder(ctx)
+                .setProductId("PROD-001")
+                .setProductName("Widget")
+                .setQuantity(2)
+                .setUnitPrice(Money.newBuilder(ctx)
+                        .setAmount(2500)
+                        .setCurrency("USD")
+                        .build())
+                .build())
+        .setTotalAmount(Money.newBuilder(ctx)
+                .setAmount(5000)
+                .setCurrency("USD")
+                .build())
+        .setPaymentMethod(PaymentMethod.CARD)
+        .setOrderDate(Date.newBuilder(ctx)
+                .setYear(2024)
+                .setMonth(12)
+                .setDay(30)
+                .build())
+        .build();
+```
+
+### Context Propagation
+
+The built objects retain their context, allowing chained creation:
+
+```java
+Money money = Money.newBuilder(ctx)
+        .setAmount(100)
+        .setCurrency("USD")
+        .build();
+
+// Use the context from the built object
+Date date = Date.newBuilder(money.getContext())
+        .setYear(2024)
+        .setMonth(6)
+        .setDay(15)
+        .build();
+```
 
 ## Upgrade Guide
 
 ### 1. Update Plugin Version
 
+**Maven:**
 ```xml
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
 </plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.1.1"
+}
 ```
 
 ### 2. Regenerate Code
 
+**Maven:**
 ```bash
 mvn clean compile
 ```
 
-### 3. Use New Features
+**Gradle:**
+```bash
+./gradlew clean generateProtoWrapper
+```
+
+### 3. Use New Feature (Optional)
+
+Replace `ctx.newTypeBuilder()` calls with `Type.newBuilder(ctx)` for improved readability:
 
 ```java
-// Version conversion
-MyMessageV2 v2 = v1.asVersion(MyMessageV2.class);
+// Old style (still works)
+Money money = ctx.newMoneyBuilder().setAmount(100).build();
 
-// Better debugging
-System.out.println(wrapper);  // MyMessage[version=1] field1: "value", ...
-
-// Value-based equality
-if (message1.equals(message2)) { ... }
-
-// Enum validation (for enum versions only)
-try {
-    builder.setStatus(invalidInt);
-} catch (IllegalArgumentException e) {
-    // Informative error message
-}
+// New style (recommended)
+Money money = Money.newBuilder(ctx).setAmount(100).build();
 ```
 
 ## Breaking Changes
@@ -132,19 +166,48 @@ None. All changes are backward compatible.
 ## API Compatibility
 
 - Generated code is fully compatible with previous versions
-- New methods are additive only
-- Existing code continues to work without changes
+- The new `newBuilder(ctx)` method is additive
+- Existing `ctx.newTypeBuilder()` calls continue to work
 
 ## Test Coverage
 
 | Test Class | Tests | Purpose |
 |------------|-------|---------|
-| `VersionConversionTest` | 9 | Cross-version conversion |
-| `IntEnumErrorMessageTest` | 8 | INT_ENUM validation |
-| `ToStringTest` | 8 | toString() output |
-| `EqualsHashCodeTest` | 14 | equals/hashCode |
+| `StaticNewBuilderTest` | 24 | Static newBuilder method |
+| - TopLevelInterfaceTests | 8 | Money, Date, Address, UserProfile |
+| - NestedInterfaceTests | 4 | GeoLocation, SecurityChallenge |
+| - BuilderChainingTests | 2 | Fluent API, clear methods |
+| - RoundTripTests | 2 | Serialization round-trip |
+| - CrossVersionTests | 2 | V1/V2 conversion |
+| - GetContextTests | 2 | Context propagation |
+| - ComplexGraphTests | 2 | Nested object graphs |
+| - ToBuilderTests | 2 | toBuilder/emptyBuilder |
 
-**Total integration tests:** 135
+**Total integration tests:** 106
+
+## Generated Code Example
+
+```java
+public interface Money {
+    // ... existing methods ...
+
+    /**
+     * Create a new builder for Money using the specified version context.
+     * <p>This is a convenience method equivalent to {@code ctx.newMoneyBuilder()}.</p>
+     * @param ctx Version context to use for builder creation
+     * @return Empty builder for Money
+     */
+    static Builder newBuilder(VersionContext ctx) {
+        return ctx.newMoneyBuilder();
+    }
+
+    interface Builder {
+        Builder setAmount(long amount);
+        Builder setCurrency(String currency);
+        Money build();
+    }
+}
+```
 
 ## Full Changelog
 
@@ -154,7 +217,8 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
 - [GitHub Repository](https://github.com/alnovis/proto-wrapper-plugin)
 - [Documentation](README.md)
-- [Improvement Plan](docs/PLAN_IMPROVEMENTS.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [Cookbook](docs/COOKBOOK.md)
 - [Changelog](CHANGELOG.md)
 
 ## License

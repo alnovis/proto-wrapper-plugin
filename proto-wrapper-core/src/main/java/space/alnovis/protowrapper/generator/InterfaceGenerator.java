@@ -9,6 +9,8 @@ import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -135,6 +137,23 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
             TypeSpec builderInterface = generateBuilderInterface(message, resolver, ctx);
             interfaceBuilder.addType(builderInterface);
+
+            // Add static newBuilder(VersionContext ctx) method
+            ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+            ClassName builderType = ClassName.get(config.getApiPackage(), message.getInterfaceName())
+                    .nestedClass("Builder");
+            String builderMethodName = "new" + message.getName() + "Builder";
+
+            interfaceBuilder.addMethod(MethodSpec.methodBuilder("newBuilder")
+                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                    .addParameter(versionContextType, "ctx")
+                    .returns(builderType)
+                    .addJavadoc("Create a new builder for $L using the specified version context.\n", message.getName())
+                    .addJavadoc("<p>This is a convenience method equivalent to {@code ctx.$L()}.</p>\n", builderMethodName)
+                    .addJavadoc("@param ctx Version context to use for builder creation\n")
+                    .addJavadoc("@return Empty builder for $L\n", message.getName())
+                    .addStatement("return ctx.$L()", builderMethodName)
+                    .build());
         }
 
         TypeSpec interfaceSpec = interfaceBuilder.build();
@@ -461,9 +480,60 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
             TypeSpec nestedBuilder = generateNestedBuilderInterface(nested, resolver, ctx);
             builder.addType(nestedBuilder);
+
+            // Add static newBuilder(VersionContext ctx) method for nested interface
+            ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+            String builderMethodName = buildNestedBuilderMethodName(nested);
+            String qualifiedName = buildNestedQualifiedName(nested);
+
+            builder.addMethod(MethodSpec.methodBuilder("newBuilder")
+                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                    .addParameter(versionContextType, "ctx")
+                    .returns(ClassName.get("", "Builder"))
+                    .addJavadoc("Create a new builder for $L using the specified version context.\n", qualifiedName)
+                    .addJavadoc("<p>This is a convenience method equivalent to {@code ctx.$L()}.</p>\n", builderMethodName)
+                    .addJavadoc("@param ctx Version context to use for builder creation\n")
+                    .addJavadoc("@return Empty builder for $L\n", qualifiedName)
+                    .addStatement("return ctx.$L()", builderMethodName)
+                    .build());
         }
 
         return builder.build();
+    }
+
+    /**
+     * Build the method name for creating a nested builder via VersionContext.
+     * For example, for nested message Order.Item, returns "newOrderItemBuilder".
+     */
+    private String buildNestedBuilderMethodName(MergedMessage nested) {
+        StringBuilder sb = new StringBuilder("new");
+        MergedMessage current = nested;
+        List<String> names = new ArrayList<>();
+        while (current != null) {
+            names.add(current.getName());
+            current = current.getParent();
+        }
+        Collections.reverse(names);
+        for (String name : names) {
+            sb.append(name);
+        }
+        sb.append("Builder");
+        return sb.toString();
+    }
+
+    /**
+     * Build the qualified name for a nested message.
+     * For example, for nested message Order.Item, returns "Order.Item".
+     */
+    private String buildNestedQualifiedName(MergedMessage nested) {
+        List<String> names = new ArrayList<>();
+        MergedMessage current = nested;
+        while (current != null) {
+            names.add(current.getName());
+            current = current.getParent();
+        }
+        Collections.reverse(names);
+        return String.join(".", names);
     }
 
     private TypeSpec generateNestedBuilderInterface(MergedMessage nested, TypeResolver resolver, GenerationContext ctx) {
