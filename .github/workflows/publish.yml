@@ -28,7 +28,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
 
-      - name: Run all Maven tests
+      - name: Build Core and Plugin
+        run: |
+          mvn install -B -N
+          mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
+
+      - name: Run Integration Tests
+        working-directory: proto-wrapper-integration-tests
+        run: mvn verify -B
+
+      - name: Run Maven Example
+        working-directory: examples/maven-example
         run: mvn verify -B
 
       - name: Run Gradle tests
@@ -70,6 +80,9 @@ jobs:
         run: |
           echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
           gpg-connect-agent reloadagent /bye
+
+      - name: Install Parent POM
+        run: mvn install -B -N
 
       - name: Publish proto-wrapper-core to Maven Central
         run: |
