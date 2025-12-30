@@ -5,6 +5,7 @@ import space.alnovis.protowrapper.model.ConflictEnumInfo;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
+import space.alnovis.protowrapper.model.MergedOneof;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
@@ -108,6 +109,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         // Implement extract methods for fields using the handler chain
         ProcessingContext procCtx = ProcessingContext.forImpl(message, protoType, ctx, config);
         FieldProcessingChain.getInstance().addExtractImplementations(classBuilder, message, version, procCtx);
+
+        // Add oneof extract implementations
+        addOneofExtractImplementations(classBuilder, message, protoType, version, ctx);
 
         // Add common implementation methods
         addCommonImplMethods(classBuilder, className, protoType, implPackage, ctx);
@@ -238,6 +242,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         // Implement extract methods for nested class using the handler chain
         ProcessingContext nestedProcCtx = ProcessingContext.forImpl(nested, protoType, ctx, config);
         FieldProcessingChain.getInstance().addExtractImplementations(classBuilder, nested, version, nestedProcCtx);
+
+        // Add oneof extract implementations for nested class
+        addOneofExtractImplementations(classBuilder, nested, protoType, version, ctx);
 
         classBuilder.addMethod(MethodSpec.methodBuilder("from")
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
@@ -427,6 +434,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, message, genCtx);
             }
         }
+
+        // Add oneof builder methods
+        addOneofBuilderMethods(builder, message, version, genCtx);
 
         // doBuild() implementation
         builder.addMethod(MethodSpec.methodBuilder("doBuild")
@@ -1128,5 +1138,98 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         String relativePath = ctx.getImplPackage().replace('.', '/')
                 + "/" + ctx.getImplClassName(message.getName()) + ".java";
         return config.getOutputDirectory().resolve(relativePath);
+    }
+
+    // ==================== Oneof Support Methods ====================
+
+    /**
+     * Add oneof extract implementations to the impl class.
+     * Only generates extractXxxCase() methods for discriminator.
+     * Note: extractHasXxx() and extractXxx() for oneof fields are handled
+     * by the normal field processing chain since oneof fields are regular fields.
+     */
+    private void addOneofExtractImplementations(TypeSpec.Builder classBuilder, MergedMessage message,
+                                                  ClassName protoType, String version, GenerationContext ctx) {
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            boolean oneofPresentInVersion = oneof.getPresentInVersions().contains(version);
+
+            // Generate Case enum type reference from interface
+            ClassName interfaceType = ClassName.get(ctx.getApiPackage(), message.getInterfaceName());
+            ClassName caseEnumType = interfaceType.nestedClass(oneof.getCaseEnumName());
+
+            // extractXxxCase() implementation
+            MethodSpec.Builder extractCase = MethodSpec.methodBuilder(oneof.getExtractCaseMethodName())
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(caseEnumType)
+                    .addParameter(protoType, "proto");
+
+            if (oneofPresentInVersion) {
+                // Get proto's case and map to our enum
+                String protoGetCaseMethod = "get" + oneof.getJavaName() + "Case";
+                extractCase.addStatement("$T protoCase = proto.$L()", Object.class, protoGetCaseMethod);
+
+                // Switch on proto case and return our enum
+                extractCase.beginControlFlow("return switch (protoCase.toString())");
+
+                for (MergedField field : oneof.getFields()) {
+                    if (field.getPresentInVersions().contains(version)) {
+                        String constantName = toScreamingSnakeCase(field.getName());
+                        extractCase.addStatement("case $S -> $T.$L", constantName, caseEnumType, constantName);
+                    }
+                }
+
+                // Default case - not set
+                extractCase.addStatement("default -> $T.$L", caseEnumType, oneof.getNotSetConstantName());
+                extractCase.endControlFlow("");
+            } else {
+                // Oneof not in this version - always return NOT_SET
+                extractCase.addStatement("return $T.$L", caseEnumType, oneof.getNotSetConstantName());
+            }
+
+            classBuilder.addMethod(extractCase.build());
+        }
+    }
+
+    /**
+     * Add oneof clear methods to BuilderImpl.
+     * - doClearXxx() for each oneof group
+     */
+    private void addOneofBuilderMethods(TypeSpec.Builder builderBuilder, MergedMessage message,
+                                          String version, GenerationContext ctx) {
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            boolean oneofPresentInVersion = oneof.getPresentInVersions().contains(version);
+
+            // doClearXxx() implementation
+            MethodSpec.Builder doClear = MethodSpec.methodBuilder(oneof.getDoClearMethodName())
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PROTECTED);
+
+            if (oneofPresentInVersion) {
+                // Clear each field in the oneof that's present in this version
+                // Protobuf builders have clearXxx() for the oneof group
+                doClear.addStatement("protoBuilder.clear$L()", oneof.getJavaName());
+            } else {
+                // Oneof not in this version - no-op
+                doClear.addComment("Oneof not present in this version - clear is no-op");
+            }
+
+            builderBuilder.addMethod(doClear.build());
+        }
+    }
+
+    /**
+     * Convert a name to SCREAMING_SNAKE_CASE.
+     */
+    private static String toScreamingSnakeCase(String name) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isUpperCase(c) && i > 0) {
+                result.append('_');
+            }
+            result.append(Character.toUpperCase(c));
+        }
+        return result.toString();
     }
 }

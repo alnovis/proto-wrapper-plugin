@@ -211,8 +211,19 @@ public NewFeature getNewFeatureIfAvailable(VersionContext ctx, Message proto) {
 ## General Limitations
 
 ### 1. oneof Fields
-- **Status:** Not supported
-- **Description:** Protobuf `oneof` fields are not handled specially; each field in the oneof is treated independently
+- **Status:** Supported (v1.2.0+)
+- **Description:** Full support for protobuf `oneof` fields with conflict detection
+- **Features:**
+  - `XxxCase` enum for discriminator (e.g., `MethodCase.CREDIT_CARD`)
+  - `getXxxCase()` method to check which field is set
+  - `hasXxx()` methods for individual oneof fields
+  - `clearXxx()` builder method to clear entire oneof group
+- **Conflict Detection:**
+  - Partial existence (oneof in some versions only)
+  - Field set differences across versions
+  - Renamed oneofs (detected by matching field numbers)
+  - Field membership changes (field moved in/out of oneof)
+- **Note:** Renamed oneofs use the most common name across versions
 
 ### 2. map Fields
 - **Status:** Basic support

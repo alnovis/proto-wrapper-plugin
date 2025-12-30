@@ -75,6 +75,8 @@ public class MergedField {
     private final Map<String, FieldInfo> versionFields; // Version -> original field
     private final ConflictType conflictType;
     private final Map<String, String> typesPerVersion; // Version -> javaType
+    private final Map<String, String> oneofNamePerVersion; // Version -> oneof name (null if not in oneof)
+    private final boolean isInOneof; // true if in oneof in ANY version
 
     /**
      * Create a new MergedField from a FieldInfo.
@@ -103,6 +105,11 @@ public class MergedField {
         this.conflictType = ConflictType.NONE;
         this.typesPerVersion = new LinkedHashMap<>();
         this.typesPerVersion.put(version, field.getJavaType());
+        this.oneofNamePerVersion = new LinkedHashMap<>();
+        if (field.isInOneof()) {
+            this.oneofNamePerVersion.put(version, field.getOneofName());
+        }
+        this.isInOneof = field.isInOneof();
     }
 
     /**
@@ -124,6 +131,8 @@ public class MergedField {
         this.versionFields = Collections.unmodifiableMap(new LinkedHashMap<>(builder.versionFields));
         this.conflictType = builder.conflictType != null ? builder.conflictType : ConflictType.NONE;
         this.typesPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.typesPerVersion));
+        this.oneofNamePerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.oneofNamePerVersion));
+        this.isInOneof = !builder.oneofNamePerVersion.isEmpty();
     }
 
     /**
@@ -154,6 +163,7 @@ public class MergedField {
     public static class Builder {
         private final Map<String, FieldInfo> versionFields = new LinkedHashMap<>();
         private final Map<String, String> typesPerVersion = new LinkedHashMap<>();
+        private final Map<String, String> oneofNamePerVersion = new LinkedHashMap<>();
         private String resolvedJavaType;
         private String resolvedGetterType;
         private ConflictType conflictType;
@@ -168,6 +178,9 @@ public class MergedField {
         public Builder addVersionField(String version, FieldInfo field) {
             versionFields.put(version, field);
             typesPerVersion.put(version, field.getJavaType());
+            if (field.isInOneof()) {
+                oneofNamePerVersion.put(version, field.getOneofName());
+            }
             return this;
         }
 
@@ -313,6 +326,45 @@ public class MergedField {
      */
     public Map<String, String> getTypesPerVersion() {
         return Collections.unmodifiableMap(typesPerVersion);
+    }
+
+    /**
+     * Check if this field is part of a oneof in any version.
+     * @return true if field is in oneof in at least one version
+     */
+    public boolean isInOneof() {
+        return isInOneof;
+    }
+
+    /**
+     * Get the oneof name for a specific version.
+     * @param version Version identifier
+     * @return Oneof name for that version, or null if not in oneof
+     */
+    public String getOneofNameForVersion(String version) {
+        return oneofNamePerVersion.get(version);
+    }
+
+    /**
+     * Get oneof names per version map.
+     * @return Unmodifiable map of version to oneof name (only versions where field is in oneof)
+     */
+    public Map<String, String> getOneofNamePerVersion() {
+        return Collections.unmodifiableMap(oneofNamePerVersion);
+    }
+
+    /**
+     * Check if this field has inconsistent oneof membership across versions.
+     * (e.g., in oneof in v1 but not in v2, or in different oneofs)
+     * @return true if oneof membership differs across versions
+     */
+    public boolean hasOneofMismatch() {
+        if (oneofNamePerVersion.isEmpty()) {
+            return false; // Not in oneof in any version
+        }
+        // Check if all versions have the same oneof name, or some are missing
+        Set<String> oneofNames = new HashSet<>(oneofNamePerVersion.values());
+        return oneofNames.size() > 1 || oneofNamePerVersion.size() != presentInVersions.size();
     }
 
     /**

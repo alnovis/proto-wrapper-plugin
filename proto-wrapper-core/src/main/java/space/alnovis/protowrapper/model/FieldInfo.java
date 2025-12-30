@@ -20,8 +20,21 @@ public class FieldInfo {
     private final boolean isOptional;
     private final boolean isRepeated;
     private final boolean isMap;
+    private final int oneofIndex;     // -1 if not in oneof
+    private final String oneofName;   // null if not in oneof
 
     public FieldInfo(FieldDescriptorProto proto) {
+        this(proto, -1, null);
+    }
+
+    /**
+     * Creates a FieldInfo with oneof information.
+     *
+     * @param proto the field descriptor
+     * @param oneofIndex the index of the oneof this field belongs to, or -1 if not in oneof
+     * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
+     */
+    public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName) {
         this.protoName = proto.getName();
         this.javaName = toJavaName(proto.getName());
         this.number = proto.getNumber();
@@ -31,11 +44,19 @@ public class FieldInfo {
         this.isOptional = proto.getLabel() == Label.LABEL_OPTIONAL;
         this.isRepeated = proto.getLabel() == Label.LABEL_REPEATED;
         this.isMap = isRepeated && isMapEntry(proto);
+        this.oneofIndex = oneofIndex;
+        this.oneofName = oneofName;
     }
 
     // Constructor for merged fields
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName) {
+        this(protoName, javaName, number, type, label, typeName, -1, null);
+    }
+
+    // Constructor for merged fields with oneof info
+    public FieldInfo(String protoName, String javaName, int number, Type type,
+                     Label label, String typeName, int oneofIndex, String oneofName) {
         this.protoName = protoName;
         this.javaName = javaName;
         this.number = number;
@@ -45,6 +66,8 @@ public class FieldInfo {
         this.isOptional = label == Label.LABEL_OPTIONAL;
         this.isRepeated = label == Label.LABEL_REPEATED;
         this.isMap = false; // Simplified
+        this.oneofIndex = oneofIndex;
+        this.oneofName = oneofName;
     }
 
     private static String toJavaName(String protoName) {
@@ -245,6 +268,9 @@ public class FieldInfo {
     public boolean isOptional() { return isOptional; }
     public boolean isRepeated() { return isRepeated; }
     public boolean isMap() { return isMap; }
+    public int getOneofIndex() { return oneofIndex; }
+    public String getOneofName() { return oneofName; }
+    public boolean isInOneof() { return oneofIndex >= 0; }
 
     @Override
     public boolean equals(Object o) {

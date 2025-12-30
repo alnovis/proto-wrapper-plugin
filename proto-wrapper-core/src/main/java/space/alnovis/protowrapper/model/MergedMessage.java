@@ -16,6 +16,7 @@ public class MergedMessage {
     private final List<MergedField> fields;
     private final List<MergedMessage> nestedMessages;
     private final List<MergedEnum> nestedEnums;
+    private final List<MergedOneof> oneofGroups;
     private final Set<String> presentInVersions;
     private final Map<String, String> versionSourceFiles; // version -> source file name
     private MergedMessage parent; // Parent message for nested types
@@ -25,6 +26,7 @@ public class MergedMessage {
         this.fields = new ArrayList<>();
         this.nestedMessages = new ArrayList<>();
         this.nestedEnums = new ArrayList<>();
+        this.oneofGroups = new ArrayList<>();
         this.presentInVersions = new LinkedHashSet<>();
         this.versionSourceFiles = new LinkedHashMap<>();
         this.parent = null;
@@ -41,6 +43,10 @@ public class MergedMessage {
 
     public void addNestedEnum(MergedEnum nestedEnum) {
         nestedEnums.add(nestedEnum);
+    }
+
+    public void addOneofGroup(MergedOneof oneof) {
+        oneofGroups.add(oneof);
     }
 
     /**
@@ -77,6 +83,8 @@ public class MergedMessage {
     /**
      * Get the outer class name for a specific version.
      * E.g., for source file "common.proto" returns "Common".
+     * If the derived name conflicts with a message name, appends "OuterClass" suffix
+     * (matching protobuf's behavior).
      */
     public String getOuterClassName(String version) {
         String sourceFileName = versionSourceFiles.get(version);
@@ -93,7 +101,13 @@ public class MergedMessage {
             sourceFileName = sourceFileName.substring(0, sourceFileName.length() - 6);
         }
         // Convert snake_case to PascalCase
-        return toPascalCase(sourceFileName);
+        String outerClassName = toPascalCase(sourceFileName);
+
+        // If outer class name conflicts with this message name, protobuf adds "OuterClass" suffix
+        if (outerClassName.equals(name)) {
+            return outerClassName + "OuterClass";
+        }
+        return outerClassName;
     }
 
     private String toPascalCase(String snakeCase) {
@@ -117,6 +131,47 @@ public class MergedMessage {
 
     public List<MergedEnum> getNestedEnums() {
         return Collections.unmodifiableList(nestedEnums);
+    }
+
+    public List<MergedOneof> getOneofGroups() {
+        return Collections.unmodifiableList(oneofGroups);
+    }
+
+    /**
+     * Check if this message has any oneof groups.
+     */
+    public boolean hasOneofGroups() {
+        return !oneofGroups.isEmpty();
+    }
+
+    /**
+     * Find oneof group by name.
+     */
+    public Optional<MergedOneof> findOneofByName(String name) {
+        return oneofGroups.stream()
+                .filter(o -> o.getProtoName().equals(name) || o.getJavaName().equals(name))
+                .findFirst();
+    }
+
+    /**
+     * Find oneof group containing a specific field.
+     */
+    public Optional<MergedOneof> findOneofForField(MergedField field) {
+        return oneofGroups.stream()
+                .filter(o -> o.containsField(field.getNumber()))
+                .findFirst();
+    }
+
+    /**
+     * Get fields that are NOT part of any oneof group.
+     */
+    public List<MergedField> getNonOneofFields() {
+        Set<Integer> oneofFieldNumbers = oneofGroups.stream()
+                .flatMap(o -> o.getAllFieldNumbers().stream())
+                .collect(Collectors.toSet());
+        return fields.stream()
+                .filter(f -> !oneofFieldNumbers.contains(f.getNumber()))
+                .toList();
     }
 
     public Set<String> getPresentInVersions() {

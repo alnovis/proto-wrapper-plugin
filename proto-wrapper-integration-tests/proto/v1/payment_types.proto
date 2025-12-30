@@ -1,0 +1,33 @@
+// Payment types with oneof for v1
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v1;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v1";
+
+// Payment message with oneof for payment method
+message Payment {
+    required string id = 1;
+    required int64 amount = 2;
+    optional string description = 3;
+
+    // Oneof for payment method - only one can be set at a time
+    oneof method {
+        CreditCard credit_card = 10;
+        BankTransfer bank_transfer = 11;
+    }
+}
+
+// Credit card details
+message CreditCard {
+    required string card_number = 1;
+    required string expiry = 2;
+    optional string holder_name = 3;
+}
+
+// Bank transfer details
+message BankTransfer {
+    required string account_number = 1;
+    required string bank_code = 2;
+    optional string bank_name = 3;
+}

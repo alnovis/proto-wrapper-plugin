@@ -367,7 +367,223 @@ public class VersionMerger {
                 .filter(Objects::nonNull)
                 .forEach(merged::addField);
 
+        // Merge oneof groups
+        mergeOneofGroups(merged, messageName, schemas);
+
         return merged.getPresentInVersions().isEmpty() ? null : merged;
+    }
+
+    /**
+     * Merge oneof groups from all versions into the merged message.
+     */
+    private void mergeOneofGroups(MergedMessage merged, String messageName, List<VersionSchema> schemas) {
+        OneofConflictDetector conflictDetector = new OneofConflictDetector();
+        Set<String> allVersions = schemas.stream()
+                .map(VersionSchema::getVersion)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // Collect oneofs by version for renamed detection
+        Map<String, List<OneofInfo>> oneofsByVersion = new LinkedHashMap<>();
+        for (VersionSchema schema : schemas) {
+            schema.getMessage(messageName).ifPresent(msg -> {
+                oneofsByVersion.put(schema.getVersion(), msg.getOneofGroups());
+            });
+        }
+
+        // Detect renamed oneofs (same field numbers, different names)
+        List<OneofConflictDetector.RenamedOneofGroup> renamedGroups =
+                conflictDetector.detectRenamedOneofs(oneofsByVersion, messageName);
+
+        // Build set of field numbers that are part of renamed groups (to avoid duplicate processing)
+        Set<Set<Integer>> renamedFieldSets = renamedGroups.stream()
+                .map(OneofConflictDetector.RenamedOneofGroup::fieldNumbers)
+                .collect(Collectors.toSet());
+
+        // Collect all oneof names across versions
+        Set<String> allOneofNames = schemas.stream()
+                .flatMap(schema -> schema.getMessage(messageName).stream())
+                .flatMap(msg -> msg.getOneofGroups().stream())
+                .map(OneofInfo::getProtoName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (allOneofNames.isEmpty()) {
+            return;
+        }
+
+        // Process renamed oneofs first
+        Set<String> processedOneofNames = new HashSet<>();
+        for (OneofConflictDetector.RenamedOneofGroup renamedGroup : renamedGroups) {
+            String primaryName = renamedGroup.getMostCommonName();
+            MergedOneof.Builder oneofBuilder = MergedOneof.builder(primaryName);
+
+            // Add all version names
+            for (String name : renamedGroup.getAllNames()) {
+                oneofBuilder.addMergedFromName(name);
+                processedOneofNames.add(name);
+            }
+
+            // Collect oneofs from each version (using version-specific names)
+            for (VersionSchema schema : schemas) {
+                String version = schema.getVersion();
+                String versionName = renamedGroup.versionToName().get(version);
+                if (versionName != null) {
+                    schema.getMessage(messageName).ifPresent(msg -> {
+                        msg.findOneofByName(versionName).ifPresent(oneof -> {
+                            oneofBuilder.addVersionOneof(version, oneof);
+                        });
+                    });
+                }
+            }
+
+            // Add renamed conflict
+            oneofBuilder.addConflict(renamedGroup.toConflictInfo());
+            logger.warn(String.format("Oneof RENAMED: '%s.%s' has different names: %s",
+                    messageName, primaryName, renamedGroup.versionToName()));
+
+            finishOneofBuild(oneofBuilder, merged, messageName, conflictDetector, allVersions);
+        }
+
+        // Process remaining oneofs that weren't part of renamed groups
+        for (String oneofName : allOneofNames) {
+            if (processedOneofNames.contains(oneofName)) {
+                continue;
+            }
+
+            // Check if this oneof's fields are part of a renamed group (already processed)
+            Set<Integer> thisOneofFields = schemas.stream()
+                    .flatMap(schema -> schema.getMessage(messageName).stream())
+                    .flatMap(msg -> msg.findOneofByName(oneofName).stream())
+                    .flatMap(oneof -> oneof.getFieldNumbers().stream())
+                    .collect(Collectors.toSet());
+
+            boolean isPartOfRenamed = renamedFieldSets.stream()
+                    .anyMatch(fs -> !Collections.disjoint(fs, thisOneofFields));
+            if (isPartOfRenamed) {
+                continue;
+            }
+
+            MergedOneof.Builder oneofBuilder = MergedOneof.builder(oneofName);
+
+            // Collect oneofs from each version
+            for (VersionSchema schema : schemas) {
+                schema.getMessage(messageName).ifPresent(msg -> {
+                    msg.findOneofByName(oneofName).ifPresent(oneof -> {
+                        oneofBuilder.addVersionOneof(schema.getVersion(), oneof);
+                    });
+                });
+            }
+
+            finishOneofBuild(oneofBuilder, merged, messageName, conflictDetector, allVersions);
+        }
+
+        // Detect field membership changes (field in/out of oneof)
+        detectAndLogFieldMembershipChanges(conflictDetector, merged, messageName, schemas, allVersions);
+    }
+
+    /**
+     * Complete oneof building with fields and conflict detection.
+     */
+    private void finishOneofBuild(MergedOneof.Builder oneofBuilder, MergedMessage merged,
+                                   String messageName, OneofConflictDetector conflictDetector,
+                                   Set<String> allVersions) {
+        // Collect all field numbers from all version oneofs
+        Set<Integer> oneofFieldNumbers = new LinkedHashSet<>();
+        for (OneofInfo oneof : oneofBuilder.getVersionOneofs().values()) {
+            oneofFieldNumbers.addAll(oneof.getFieldNumbers());
+        }
+
+        // Find merged fields that belong to this oneof
+        List<MergedField> oneofFields = merged.getFields().stream()
+                .filter(f -> oneofFieldNumbers.contains(f.getNumber()))
+                .toList();
+
+        oneofBuilder.addFields(oneofFields);
+
+        // Detect conflicts
+        List<OneofConflictInfo> conflicts = conflictDetector.detectConflicts(
+                oneofBuilder, messageName, allVersions);
+        oneofBuilder.addConflicts(conflicts);
+
+        // Detect field number changes
+        List<OneofConflictInfo> numberChanges = conflictDetector.detectFieldNumberChanges(
+                oneofBuilder, messageName);
+        oneofBuilder.addConflicts(numberChanges);
+
+        MergedOneof mergedOneof = oneofBuilder.build();
+        merged.addOneofGroup(mergedOneof);
+
+        // Log conflicts
+        logOneofConflicts(mergedOneof, messageName);
+    }
+
+    /**
+     * Log detected oneof conflicts.
+     */
+    private void logOneofConflicts(MergedOneof oneof, String messageName) {
+        for (OneofConflictInfo conflict : oneof.getConflicts()) {
+            switch (conflict.getType()) {
+                case PARTIAL_EXISTENCE -> logger.warn(String.format(
+                        "Oneof PARTIAL: '%s.%s' not in all versions - %s",
+                        messageName, oneof.getProtoName(), conflict.getDescription()));
+                case FIELD_SET_DIFFERENCE -> logger.warn(String.format(
+                        "Oneof FIELD_DIFF: '%s.%s' - %s",
+                        messageName, oneof.getProtoName(), conflict.getDescription()));
+                case FIELD_TYPE_CONFLICT -> logger.warn(String.format(
+                        "Oneof TYPE_CONFLICT: '%s.%s' - %s",
+                        messageName, oneof.getProtoName(), conflict.getDescription()));
+                case FIELD_REMOVED -> logger.warn(String.format(
+                        "Oneof FIELD_REMOVED: '%s.%s' - %s",
+                        messageName, oneof.getProtoName(), conflict.getDescription()));
+                case FIELD_NUMBER_CHANGE -> logger.warn(String.format(
+                        "Oneof NUMBER_CHANGE: '%s.%s' - %s",
+                        messageName, oneof.getProtoName(), conflict.getDescription()));
+                case RENAMED -> {
+                    // Already logged during processing
+                }
+                default -> logger.warn(String.format(
+                        "Oneof CONFLICT: '%s.%s' [%s] - %s",
+                        messageName, oneof.getProtoName(), conflict.getType(), conflict.getDescription()));
+            }
+        }
+    }
+
+    /**
+     * Detect and log field membership changes (field moving in/out of oneof).
+     */
+    private void detectAndLogFieldMembershipChanges(
+            OneofConflictDetector conflictDetector,
+            MergedMessage merged,
+            String messageName,
+            List<VersionSchema> schemas,
+            Set<String> allVersions) {
+
+        // Build field map: fieldNumber -> version -> FieldInfo
+        Map<Integer, Map<String, FieldInfo>> allMessageFields = new LinkedHashMap<>();
+        for (VersionSchema schema : schemas) {
+            schema.getMessage(messageName).ifPresent(msg -> {
+                for (FieldInfo field : msg.getFields()) {
+                    allMessageFields
+                            .computeIfAbsent(field.getNumber(), k -> new LinkedHashMap<>())
+                            .put(schema.getVersion(), field);
+                }
+            });
+        }
+
+        // Build oneof map
+        Map<String, List<OneofInfo>> oneofsByVersion = new LinkedHashMap<>();
+        for (VersionSchema schema : schemas) {
+            schema.getMessage(messageName).ifPresent(msg -> {
+                oneofsByVersion.put(schema.getVersion(), msg.getOneofGroups());
+            });
+        }
+
+        List<OneofConflictInfo> membershipConflicts = conflictDetector.detectFieldMembershipChanges(
+                allMessageFields, oneofsByVersion, messageName, allVersions);
+
+        for (OneofConflictInfo conflict : membershipConflicts) {
+            logger.warn(String.format("Oneof MEMBERSHIP: '%s' - %s",
+                    messageName, conflict.getDescription()));
+        }
     }
 
     private MergedField mergeFields(List<FieldWithVersion> fields) {

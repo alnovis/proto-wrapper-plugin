@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-12-30
+
+### Added
+
+#### Oneof Field Support
+- **Full oneof support** - Generate unified API for protobuf oneof fields across versions
+  - `XxxCase` enum for discriminator (e.g., `MethodCase.CREDIT_CARD`)
+  - `getXxxCase()` method to check which field is set
+  - `hasXxx()` methods for individual oneof fields
+  - `clearXxx()` builder method to clear entire oneof group
+  - Works across versions with different oneof structures
+
+#### Oneof Conflict Detection
+- **Comprehensive conflict detection** - Automatically detects and logs oneof-related conflicts:
+  - `PARTIAL_EXISTENCE` - Oneof exists only in some versions
+  - `FIELD_SET_DIFFERENCE` - Different fields in oneof across versions
+  - `FIELD_TYPE_CONFLICT` - Type conflict within oneof field
+  - `RENAMED` - Oneof renamed between versions (detected by matching field numbers)
+  - `FIELD_MEMBERSHIP_CHANGE` - Field moved in/out of oneof
+  - `FIELD_NUMBER_CHANGE` - Field number changed within oneof
+  - `FIELD_REMOVED` - Field removed from oneof in some version
+  - `INCOMPATIBLE_TYPES` - Incompatible field types in oneof
+
+#### New Model Classes
+- `OneofInfo` - Oneof group information (name, index, field numbers)
+- `MergedOneof` - Merged oneof across versions with conflict tracking
+- `OneofConflictType` - Enum of all oneof conflict types
+- `OneofConflictInfo` - Detailed conflict information with affected versions
+- `OneofConflictDetector` - Conflict detection logic
+
+#### New Tests
+- `OneofConflictDetectorTest` - Unit tests for all conflict detection types
+- Integration tests for oneof field generation
+
+### Changed
+- `FieldInfo` - Added `oneofIndex` and `oneofName` fields
+- `MergedMessage` - Added oneof groups tracking
+- `VersionMerger` - Integrated oneof merging with conflict detection and logging
+- Conflict warnings logged at WARN level for visibility
+
+### Known Limitations
+- Renamed oneofs use the most common name across versions
+- Fields in oneofs that exist only in some versions return null/default in other versions
+
+---
+
 ## [1.1.1] - 2025-12-30
 
 ### Added
@@ -299,7 +345,6 @@ OrderRequest order = OrderRequest.newBuilder(ctx)
 
 ### Known Limitations
 
-- `oneof` fields are not supported
 - `map` fields have basic support only
 - Complex nested message hierarchies may require manual configuration
 
@@ -308,7 +353,5 @@ OrderRequest order = OrderRequest.newBuilder(ctx)
 ## [Unreleased]
 
 ### Planned
-- Support for `oneof` fields
 - Improved `map` field handling
-- Gradle plugin
 - Code generation customization hooks
