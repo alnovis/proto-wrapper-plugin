@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-12-30
+
+### Added
+
+#### Static newBuilder(VersionContext) Method
+- **`Type.newBuilder(ctx)` static method** — Create builders directly from interface types
+  - Available on all generated interfaces (top-level and nested)
+  - Equivalent to `ctx.newTypeBuilder()` but more intuitive
+  - Supports full builder chaining
+
+```java
+// New intuitive approach
+Money money = Money.newBuilder(ctx)
+        .setAmount(1000)
+        .setCurrency("USD")
+        .build();
+
+// For nested types
+Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
+        .setLatitude(40.7128)
+        .setLongitude(-74.0060)
+        .build();
+
+// Complex object graphs
+OrderRequest order = OrderRequest.newBuilder(ctx)
+        .setOrderId("ORD-001")
+        .setCustomer(Customer.newBuilder(ctx)
+                .setId("CUST-001")
+                .setName("John Doe")
+                .build())
+        .addItems(OrderItem.newBuilder(ctx)
+                .setProductId("PROD-001")
+                .setQuantity(2)
+                .build())
+        .build();
+```
+
+**Features:**
+- Works with all top-level interfaces
+- Works with all nested interfaces (e.g., `AuthResponse.SecurityChallenge.newBuilder(ctx)`)
+- Generated method delegates to `ctx.newTypeBuilder()` internally
+- Full JavaDoc with `@param` and `@return` documentation
+- Consistent with protobuf's native `Type.newBuilder()` pattern
+
+#### Integration Tests
+- **StaticNewBuilderTest** — 24 comprehensive tests for the new feature:
+  - Top-level interface tests (Money, Date, Address, UserProfile)
+  - Nested interface tests (GeoLocation, SecurityChallenge)
+  - Builder chaining tests
+  - Round-trip serialization tests
+  - Cross-version compatibility tests
+  - getContext() integration tests
+  - Complex object graph tests
+  - toBuilder() integration tests
+
+### Changed
+- **Total integration tests increased** — From 82 to 106 tests
+
+---
+
 ## [1.1.0] - 2025-12-22
 
 ### Added
