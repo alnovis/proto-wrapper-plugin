@@ -32,10 +32,19 @@ jobs:
           protoc --version
 
       - name: Build Core and Plugin (install to local repo)
-        run: mvn install -B -N && mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
+        run: |
+          mvn install -B -N
+          mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
+          echo "Verify plugin installed:"
+          ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/1.2.0/
 
-      - name: Run Integration Tests and Examples
-        run: mvn verify -B -pl proto-wrapper-integration-tests,examples/maven-example
+      - name: Run Integration Tests
+        working-directory: proto-wrapper-integration-tests
+        run: mvn verify -B
+
+      - name: Run Maven Example
+        working-directory: examples/maven-example
+        run: mvn verify -B
 
       - name: Upload Maven Plugin Artifact
         if: matrix.java-version == 17 && success()
