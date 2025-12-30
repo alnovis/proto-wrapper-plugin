@@ -31,20 +31,8 @@ jobs:
           sudo apt-get install -y protobuf-compiler
           protoc --version
 
-      - name: Install Parent POM
-        run: mvn install -B -N
-
-      - name: Build Core and Plugin
-        run: mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin -DskipTests
-
-      - name: Run Core Unit Tests
-        run: mvn test -B -pl proto-wrapper-core
-
-      - name: Run Integration Tests
-        run: mvn verify -B -pl proto-wrapper-integration-tests
-
-      - name: Build Maven Example
-        run: mvn verify -B -pl examples/maven-example
+      - name: Build and Test All Modules
+        run: mvn verify -B
 
       - name: Upload Maven Plugin Artifact
         if: matrix.java-version == 17 && success()
