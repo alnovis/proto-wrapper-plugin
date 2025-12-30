@@ -35,10 +35,8 @@ jobs:
         run: |
           mvn install -B -N
           mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
-          echo "Verify plugin installed:"
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "Project version: $VERSION"
-          ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/$VERSION/
+          echo "Installed plugins:"
+          ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/
 
       - name: Run Integration Tests
         working-directory: proto-wrapper-integration-tests
