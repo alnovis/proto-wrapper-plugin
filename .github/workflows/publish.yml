@@ -81,12 +81,14 @@ jobs:
           echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
           gpg-connect-agent reloadagent /bye
 
-      - name: Install Parent POM
-        run: mvn install -B -N
+      - name: Install Parent POM and Core
+        run: |
+          mvn install -B -N
+          mvn install -B -pl proto-wrapper-core -DskipTests
 
       - name: Publish proto-wrapper-core to Maven Central
         run: |
-          mvn clean deploy -B -pl proto-wrapper-core -P release \
+          mvn deploy -B -pl proto-wrapper-core -P release \
             -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
@@ -94,7 +96,7 @@ jobs:
 
       - name: Publish proto-wrapper-maven-plugin to Maven Central
         run: |
-          mvn clean deploy -B -pl proto-wrapper-maven-plugin -P release \
+          mvn deploy -B -pl proto-wrapper-maven-plugin -P release \
             -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
