@@ -12,7 +12,7 @@
 
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>1.1.1</version>
+    <!-- version inherited from parent -->
     <packaging>jar</packaging>
 
     <name>Proto Wrapper Core</name>
