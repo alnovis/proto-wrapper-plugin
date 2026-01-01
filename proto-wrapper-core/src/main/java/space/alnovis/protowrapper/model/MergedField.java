@@ -101,9 +101,9 @@ public class MergedField {
      *
      * @param field Field info from first version
      * @param version Version identifier
-     * @deprecated Use {@link #builder()} for immutable construction
+     * @deprecated Use {@link #builder()} for immutable construction. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public MergedField(FieldInfo field, String version) {
         this.name = field.getProtoName();
         this.javaName = field.getJavaName();
@@ -173,9 +173,9 @@ public class MergedField {
      *
      * @param version Version identifier
      * @param field Field info for this version
-     * @deprecated Use {@link #builder()} for immutable construction
+     * @deprecated Use {@link #builder()} for immutable construction. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public void addVersion(String version, FieldInfo field) {
         presentInVersions.add(version);
         versionFields.put(version, field);

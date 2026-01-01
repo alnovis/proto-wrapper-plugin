@@ -43,8 +43,11 @@ import java.nio.file.Path;
  */
 public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
-    // Legacy field - kept for backward compatibility
-    @Deprecated
+    /**
+     * Legacy field - kept for backward compatibility.
+     * @deprecated Use {@link GenerationContext} instead. Will be removed in version 2.0.0.
+     */
+    @Deprecated(forRemoval = true, since = "1.2.0")
     private TypeResolver typeResolver;
 
     public InterfaceGenerator(GeneratorConfig config) {
@@ -54,9 +57,9 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
     /**
      * Set the merged schema for cross-message type resolution.
      * @param schema The merged schema
-     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead
+     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public void setSchema(MergedSchema schema) {
         this.typeResolver = new TypeResolver(config, schema);
     }
@@ -194,9 +197,11 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate interface for a merged message.
-     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead
+     * @param message Merged message info
+     * @return Generated JavaFile
+     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public JavaFile generate(MergedMessage message) {
         if (typeResolver == null) {
             throw new IllegalStateException("Schema not set. Call setSchema() first or use generate(message, ctx)");
@@ -786,9 +791,12 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate and write interface.
-     * @deprecated Use {@link #generateAndWrite(MergedMessage, GenerationContext)} instead
+     * @param message Merged message info
+     * @return Path to the generated file
+     * @throws IOException if writing fails
+     * @deprecated Use {@link #generateAndWrite(MergedMessage, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public Path generateAndWrite(MergedMessage message) throws IOException {
         JavaFile javaFile = generate(message);
         writeToFile(javaFile);

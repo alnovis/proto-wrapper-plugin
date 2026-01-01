@@ -46,8 +46,11 @@ import java.util.stream.Stream;
  */
 public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
-    // Legacy fields - kept for backward compatibility
-    @Deprecated
+    /**
+     * Legacy field - kept for backward compatibility.
+     * @deprecated Use {@link GenerationContext} instead. Will be removed in version 2.0.0.
+     */
+    @Deprecated(forRemoval = true, since = "1.2.0")
     private TypeResolver typeResolver;
 
     public ImplClassGenerator(GeneratorConfig config) {
@@ -56,9 +59,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Set the merged schema for cross-message type resolution.
-     * @deprecated Use {@link #generate(MergedMessage, String, String, GenerationContext)} instead
+     * @param schema The merged schema
+     * @deprecated Use {@link #generate(MergedMessage, String, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public void setSchema(MergedSchema schema) {
         this.typeResolver = new TypeResolver(config, schema);
     }
@@ -193,9 +197,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate implementation class for a specific version.
-     * @deprecated Use {@link #generate(MergedMessage, String, GenerationContext)} instead
+     * @param message Merged message info
+     * @param version Protocol version (e.g., "v1", "v2")
+     * @param protoClassName Fully qualified proto class name
+     * @return Generated JavaFile
+     * @deprecated Use {@link #generate(MergedMessage, String, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public JavaFile generate(MergedMessage message, String version, String protoClassName) {
         if (typeResolver == null) {
             throw new IllegalStateException("Schema not set. Call setSchema() first or use generate(message, protoClassName, ctx)");
@@ -448,9 +456,14 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate and write implementation class.
-     * @deprecated Use {@link #generateAndWrite(MergedMessage, String, GenerationContext)} instead
+     * @param message Merged message info
+     * @param version Protocol version (e.g., "v1", "v2")
+     * @param protoClassName Fully qualified proto class name
+     * @return Path to the generated file
+     * @throws IOException if writing fails
+     * @deprecated Use {@link #generateAndWrite(MergedMessage, String, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public Path generateAndWrite(MergedMessage message, String version, String protoClassName) throws IOException {
         JavaFile javaFile = generate(message, version, protoClassName);
         writeToFile(javaFile);

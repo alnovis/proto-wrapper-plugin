@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### Comprehensive Conflict Type System
+- **ENUM_ENUM conflict type** - Handle enum-to-enum conflicts with different values across versions
+- **FLOAT_DOUBLE conflict type** - Handle float/double precision differences
+- **SIGNED_UNSIGNED conflict type** - Handle signed/unsigned integer conflicts (int32/uint32, sint32, etc.)
+- **REPEATED_SINGLE conflict type** - Handle repeated vs singular field conflicts
+- **PRIMITIVE_MESSAGE conflict type** - Detect primitive to message type changes
+- **OPTIONAL_REQUIRED conflict type** - Handle optional/required field modifier differences
+
+#### New Conflict Handlers
+- `EnumEnumHandler` - Generates unified int accessor for enum-enum conflicts
+- `FloatDoubleHandler` - Generates double accessor for float/double conflicts
+- `SignedUnsignedHandler` - Generates long accessor for signed/unsigned conflicts
+- `RepeatedSingleHandler` - Generates List accessor for repeated/single conflicts
+- `MapFieldHandler` - Improved map field handling
+
+#### Exception Hierarchy
+- `ProtoWrapperException` - Base exception class
+- `AnalysisException` - Proto file analysis errors
+- `GenerationException` - Code generation errors
+- `ConfigurationException` - Configuration validation errors
+- `MergeException` - Schema merging errors
+
+#### Documentation Improvements
+- **CONTRIBUTING.md** - Contribution guidelines with code style, testing, and PR process
+- **Mermaid diagrams** in ARCHITECTURE.md - Class diagrams, sequence diagrams, component diagrams
+- **docs/archive/** - Organized completed plans and drafts
+
+#### Package Documentation
+- Added `package-info.java` for all packages with comprehensive JavaDoc
+
+### Changed
+
+#### Deprecated API Improvements
+- Updated `@Deprecated` annotations with `forRemoval = true, since = "1.2.0"`
+- Added migration instructions in JavaDoc
+- Deprecated API will be removed in version 2.0.0:
+  - `InterfaceGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
+  - `AbstractClassGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
+  - `ImplClassGenerator.setSchema()`, `generate(MergedMessage, String, String)`, `generateAndWrite(...)`
+  - `MergedField(FieldInfo, String)` constructor, `addVersion(String, FieldInfo)` method
+  - `ProtocExecutor(Consumer<String>)` constructor
+
+#### Code Quality
+- Refactored generators to use `GenerationContext` consistently
+- Improved type resolution for nested messages
+- Better conflict detection logging
+
+### Fixed
+- Correct handling of optional fields in REPEATED_SINGLE conflicts
+- Proper type resolution for PRIMITIVE_MESSAGE conflicts with nested types
+
+---
+
 ## [1.2.0] - 2025-12-30
 
 ### Added

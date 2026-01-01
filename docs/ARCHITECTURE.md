@@ -258,6 +258,276 @@ public final class IntEnumHandler extends AbstractConflictHandler {
 
 ---
 
+## Class Diagrams
+
+### Generator Hierarchy
+
+```mermaid
+classDiagram
+    direction TB
+
+    class BaseGenerator~T~ {
+        <<abstract>>
+        #config: GeneratorConfig
+        +generate(T, ctx) JavaFile
+        +generateAndWrite(T, ctx) Path
+    }
+
+    class InterfaceGenerator {
+        generates Interface.java
+    }
+
+    class AbstractClassGenerator {
+        generates AbstractClass.java
+    }
+
+    class ImplClassGenerator {
+        generates ImplV1.java, ImplV2.java
+    }
+
+    class VersionContextGenerator {
+        generates VersionContext.java
+    }
+
+    BaseGenerator <|-- InterfaceGenerator
+    BaseGenerator <|-- AbstractClassGenerator
+    BaseGenerator <|-- ImplClassGenerator
+    BaseGenerator <|-- VersionContextGenerator
+```
+
+### Conflict Handler Chain
+
+```mermaid
+classDiagram
+    direction LR
+
+    class ConflictHandler {
+        <<interface>>
+        +handles(field, ctx) boolean
+        +addAbstractExtractMethods()
+        +addExtractImplementation()
+    }
+
+    class AbstractConflictHandler {
+        <<abstract>>
+        #addHasExtractMethod()
+        #generateDefaultValue()
+    }
+
+    namespace TypeConversion {
+        class IntEnumHandler
+        class EnumEnumHandler
+        class StringBytesHandler
+    }
+
+    namespace Numeric {
+        class WideningHandler
+        class FloatDoubleHandler
+        class SignedUnsignedHandler
+    }
+
+    namespace Structure {
+        class RepeatedSingleHandler
+        class PrimitiveMessageHandler
+        class MapFieldHandler
+        class DefaultHandler
+    }
+
+    ConflictHandler <|.. AbstractConflictHandler
+    AbstractConflictHandler <|-- IntEnumHandler
+    AbstractConflictHandler <|-- EnumEnumHandler
+    AbstractConflictHandler <|-- StringBytesHandler
+    AbstractConflictHandler <|-- WideningHandler
+    AbstractConflictHandler <|-- FloatDoubleHandler
+    AbstractConflictHandler <|-- SignedUnsignedHandler
+    AbstractConflictHandler <|-- RepeatedSingleHandler
+    AbstractConflictHandler <|-- PrimitiveMessageHandler
+    AbstractConflictHandler <|-- MapFieldHandler
+    AbstractConflictHandler <|-- DefaultHandler
+```
+
+### Model Classes
+
+```mermaid
+classDiagram
+    direction LR
+
+    class MergedSchema {
+        +messages: List
+        +enums: List
+        +versions: Set
+    }
+
+    class MergedMessage {
+        +name: String
+        +fields: List
+        +nestedMessages: List
+        +oneofGroups: List
+        +presentInVersions: Set
+    }
+
+    class MergedField {
+        +name: String
+        +javaType: String
+        +conflictType: ConflictType
+        +presentInVersions: Set
+    }
+
+    class MergedOneof {
+        +name: String
+        +fields: List
+    }
+
+    class MergedEnum {
+        +name: String
+        +values: List
+    }
+
+    MergedSchema "1" *-- "*" MergedMessage
+    MergedSchema "1" *-- "*" MergedEnum
+    MergedMessage "1" *-- "*" MergedField
+    MergedMessage "1" *-- "*" MergedOneof
+    MergedMessage "1" o-- "*" MergedMessage : nested
+```
+
+**ConflictType enum values:**
+`NONE` | `INT_ENUM` | `ENUM_ENUM` | `WIDENING` | `FLOAT_DOUBLE` | `SIGNED_UNSIGNED` | `REPEATED_SINGLE` | `STRING_BYTES` | `PRIMITIVE_MESSAGE` | `OPTIONAL_REQUIRED` | `INCOMPATIBLE`
+
+---
+
+## Sequence Diagrams
+
+### Generation Pipeline
+
+```mermaid
+sequenceDiagram
+    participant Plugin as Maven/Gradle Plugin
+    participant Orch as GenerationOrchestrator
+    participant Protoc as ProtocExecutor
+    participant Analyzer as ProtoAnalyzer
+    participant Merger as VersionMerger
+    participant Gen as Generators
+
+    Plugin->>Orch: generate(protoSources, config)
+
+    loop For each version
+        Orch->>Protoc: generateDescriptor(protoDir)
+        Protoc-->>Orch: descriptorFile.pb
+        Orch->>Analyzer: parse(descriptorFile)
+        Analyzer-->>Orch: SchemaInfo
+    end
+
+    Orch->>Merger: merge(schemas)
+    Merger-->>Orch: MergedSchema
+
+    Orch->>Gen: InterfaceGenerator.generate()
+    Orch->>Gen: AbstractClassGenerator.generate()
+
+    loop For each version
+        Orch->>Gen: ImplClassGenerator.generate(version)
+    end
+
+    Orch->>Gen: VersionContextGenerator.generate()
+
+    Gen-->>Orch: Generated files
+    Orch-->>Plugin: Generation complete
+```
+
+### Field Processing Chain
+
+```mermaid
+sequenceDiagram
+    participant Gen as Generator
+    participant Chain as FieldProcessingChain
+    participant Handlers as Handler[]
+
+    Gen->>Chain: findHandler(field, ctx)
+
+    loop For each handler in chain
+        Chain->>Handlers: handles(field, ctx)?
+        alt Handler matches
+            Handlers-->>Chain: true
+            Chain-->>Gen: return handler
+        else No match
+            Handlers-->>Chain: false
+            Note right of Chain: Try next handler
+        end
+    end
+
+    Note over Chain,Handlers: DefaultHandler always matches as fallback
+
+    Gen->>Chain: handler.addExtractMethods(...)
+```
+
+**Handler priority order:**
+1. IntEnumHandler, EnumEnumHandler, StringBytesHandler
+2. WideningHandler, FloatDoubleHandler, SignedUnsignedHandler
+3. RepeatedSingleHandler, PrimitiveMessageHandler, MapFieldHandler
+4. DefaultHandler (fallback)
+
+---
+
+## Component Diagram
+
+```mermaid
+flowchart TB
+    subgraph Plugins ["Build Plugins"]
+        direction LR
+        MP[Maven Plugin]
+        GP[Gradle Plugin]
+    end
+
+    subgraph Analysis ["1. Analysis"]
+        direction LR
+        PE[ProtocExecutor] --> PA[ProtoAnalyzer]
+    end
+
+    subgraph Merging ["2. Merging"]
+        direction LR
+        VM[VersionMerger] --> MS[MergedSchema]
+    end
+
+    subgraph Generation ["3. Generation"]
+        GO[Orchestrator]
+        subgraph Generators [" "]
+            direction LR
+            IG[InterfaceGen]
+            AG[AbstractGen]
+            ICG[ImplGen]
+            VCG[ContextGen]
+        end
+    end
+
+    subgraph Conflicts [" "]
+        FPC[ConflictHandlers]
+    end
+
+    subgraph Output ["4. Generated Code"]
+        direction LR
+        INT[Interfaces]
+        ABS[Abstract Classes]
+        IMPL[Impl V1/V2]
+        VC[VersionContext]
+    end
+
+    %% Vertical flow
+    Plugins --> Analysis
+    Analysis --> Merging
+    Merging --> Generation
+    MS --> GO
+    GO --> Generators
+    Generators --> Conflicts
+    Conflicts --> Output
+
+    %% Output connections
+    IG -.-> INT
+    AG -.-> ABS
+    ICG -.-> IMPL
+    VCG -.-> VC
+```
+
+---
+
 ## Key Classes
 
 ### Entry Points

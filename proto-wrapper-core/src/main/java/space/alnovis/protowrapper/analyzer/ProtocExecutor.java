@@ -39,9 +39,11 @@ public class ProtocExecutor {
     }
 
     /**
-     * @deprecated Use {@link #ProtocExecutor(PluginLogger)} instead
+     * Create a ProtocExecutor with a Consumer-based logger.
+     * @param logger Logger consumer for output messages
+     * @deprecated Use {@link #ProtocExecutor(PluginLogger)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public ProtocExecutor(Consumer<String> logger) {
         this(PluginLogger.fromConsumer(logger));
     }

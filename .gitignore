@@ -39,14 +39,9 @@ dependency-reduced-pom.xml
 
 # Service md documents
 *.ru.md
+docs/archive/
 docs/ISSUE_PROTOBUF2_BUILDERS.md
-docs/PLAN_IMPROVEMENTS.md
-docs/MIGRATION_PLAN_DOMAIN_SERVER.md
-docs/MEDIUM_ARTICLE_DRAFT.md
-docs/version_agnostic_protobuf_medium.md
-docs/GRADLE_PLUGIN_PLAN.md
 docs/PUBLISHING.md
-docs/ONEOF_IMPLEMENTATION_PLAN.md
 docs/KOTLIN_GENERATOR_PLAN.md
 docs/MAP_SUPPORT_PLAN.md
 docs/REFACTORING_PLAN.md
