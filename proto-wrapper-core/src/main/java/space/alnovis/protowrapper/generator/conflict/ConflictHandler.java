@@ -1,5 +1,6 @@
 package space.alnovis.protowrapper.generator.conflict;
 
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.MergedField;
 
@@ -22,8 +23,9 @@ import space.alnovis.protowrapper.model.MergedField;
  * @see FieldProcessingChain
  */
 public sealed interface ConflictHandler permits
-        IntEnumHandler, StringBytesHandler, WideningHandler,
-        PrimitiveMessageHandler, RepeatedConflictHandler, DefaultHandler {
+        IntEnumHandler, EnumEnumHandler, StringBytesHandler, WideningHandler, FloatDoubleHandler,
+        SignedUnsignedHandler, RepeatedSingleHandler, PrimitiveMessageHandler,
+        RepeatedConflictHandler, MapFieldHandler, DefaultHandler {
 
     /**
      * Determines if this handler should process the given field.
@@ -81,6 +83,9 @@ public sealed interface ConflictHandler permits
     /**
      * Add concrete builder method implementations to the builder implementation class.
      *
+     * <p>This generates the override implementations of the abstract doSetXxx methods
+     * that actually call the proto builder.</p>
+     *
      * @param builder The TypeSpec builder for the builder implementation
      * @param field The field being processed
      * @param presentInVersion Whether the field is present in the current version
@@ -88,4 +93,18 @@ public sealed interface ConflictHandler permits
      */
     void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                 boolean presentInVersion, ProcessingContext ctx);
+
+    /**
+     * Add concrete builder interface methods to the abstract builder class.
+     *
+     * <p>This generates the public final methods (setXxx, clearXxx, addXxx) that
+     * implement the Builder interface and delegate to the abstract doXxx methods.</p>
+     *
+     * @param builder The TypeSpec builder for the abstract builder
+     * @param field The field being processed
+     * @param builderReturnType The return type for fluent builder pattern (Builder interface type)
+     * @param ctx Processing context
+     */
+    void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                    TypeName builderReturnType, ProcessingContext ctx);
 }

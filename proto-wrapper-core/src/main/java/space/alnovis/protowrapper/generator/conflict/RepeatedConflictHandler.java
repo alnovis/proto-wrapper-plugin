@@ -12,12 +12,60 @@ import javax.lang.model.element.Modifier;
 import java.nio.charset.StandardCharsets;
 
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
+import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 /**
  * Handler for repeated fields with type conflicts.
  *
- * <p>This handler processes repeated fields that have WIDENING, INT_ENUM, or STRING_BYTES
- * conflicts between versions. It handles the list conversion appropriately.</p>
+ * <p>This handler processes repeated (list) fields that have type conflicts
+ * between versions. It handles element-wise conversion when extracting values.</p>
+ *
+ * <h2>Supported Conflict Types</h2>
+ * <ul>
+ *   <li>{@code WIDENING} - repeated int32 vs repeated int64</li>
+ *   <li>{@code FLOAT_DOUBLE} - repeated float vs repeated double</li>
+ *   <li>{@code SIGNED_UNSIGNED} - repeated int32 vs repeated uint32, etc.</li>
+ *   <li>{@code INT_ENUM} - repeated int32 vs repeated SomeEnum</li>
+ *   <li>{@code STRING_BYTES} - repeated string vs repeated bytes</li>
+ * </ul>
+ *
+ * <h2>Conflict Example</h2>
+ * <pre>
+ * // v1: message Order { repeated int32 tags = 1; }
+ * // v2: message Order { repeated int64 tags = 1; }
+ * </pre>
+ *
+ * <h2>Resolution Strategy</h2>
+ * <p>The handler uses stream operations for element-wise conversion:</p>
+ * <ul>
+ *   <li>WIDENING: {@code list.stream().map(Integer::longValue).toList()}</li>
+ *   <li>FLOAT_DOUBLE: {@code list.stream().map(Float::doubleValue).toList()}</li>
+ *   <li>SIGNED_UNSIGNED: {@code list.stream().map(Integer::toUnsignedLong).toList()}</li>
+ *   <li>INT_ENUM: {@code list.stream().map(Enum::getNumber).toList()}</li>
+ *   <li>STRING_BYTES: {@code list.stream().map(b -> b.toString(UTF_8)).toList()}</li>
+ * </ul>
+ *
+ * <h2>Generated Code</h2>
+ * <ul>
+ *   <li><b>Interface:</b> {@code List<Long> getTags()}</li>
+ *   <li><b>Abstract:</b> {@code extractTags(proto)}</li>
+ *   <li><b>Impl:</b> Version-specific extraction with stream conversion</li>
+ * </ul>
+ *
+ * <h2>Builder Behavior</h2>
+ * <p>Builder methods are <b>not generated</b> for repeated fields with type conflicts.
+ * The complexity of handling element-wise conversion in reverse makes it impractical.
+ * Application code should use version-specific builders for such fields.</p>
+ *
+ * <h2>Performance Note</h2>
+ * <p>Each getter call creates a new list via stream operations. For performance-critical
+ * code accessing the same field multiple times, cache the result in a local variable.</p>
+ *
+ * @see ConflictHandler
+ * @see FieldProcessingChain
+ * @see WideningHandler
+ * @see IntEnumHandler
+ * @see StringBytesHandler
  */
 public final class RepeatedConflictHandler extends AbstractConflictHandler implements ConflictHandler {
 
@@ -38,6 +86,14 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
 
         // Add main extract method (returns List<T> where T is the unified type)
         addAbstractExtractMethod(builder, field, returnType, ctx);
+    }
+
+    @Override
+    public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
+        // Repeated fields with type conflicts don't have builder methods in the interface
+        // (InterfaceGenerator skips them with "type conflict" note)
+        // And ImplClassGenerator also skips them in generateBuilderImplClass
+        // So we don't generate abstract builder methods either to maintain consistency
     }
 
     @Override
@@ -62,6 +118,8 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
 
         switch (conflictType) {
             case WIDENING -> addWideningExtraction(extract, field, versionField, versionJavaName);
+            case FLOAT_DOUBLE -> addFloatDoubleExtraction(extract, versionField, versionJavaName);
+            case SIGNED_UNSIGNED -> addSignedUnsignedExtraction(extract, versionField, versionJavaName);
             case INT_ENUM -> addIntEnumExtraction(extract, versionField, versionJavaName);
             case STRING_BYTES -> addStringBytesExtraction(extract, versionField, versionJavaName);
             default -> extract.addStatement("return proto.get$LList()", versionJavaName);
@@ -85,85 +143,19 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
     }
 
     @Override
-    public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName listType = ctx.parseFieldType(field);
-        TypeName singleElementType = extractListElementType(listType);
-
-        // doAdd
-        builder.addMethod(MethodSpec.methodBuilder("doAdd" + ctx.capitalize(field.getJavaName()))
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(singleElementType, field.getJavaName())
-                .build());
-
-        // doAddAll
-        builder.addMethod(MethodSpec.methodBuilder("doAddAll" + ctx.capitalize(field.getJavaName()))
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(listType, field.getJavaName())
-                .build());
-
-        // doSet (replace all)
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + ctx.capitalize(field.getJavaName()))
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(listType, field.getJavaName())
-                .build());
-
-        // doClear
-        builder.addMethod(MethodSpec.methodBuilder("doClear" + ctx.capitalize(field.getJavaName()))
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .build());
+    public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
+                                       boolean presentInVersion, ProcessingContext ctx) {
+        // Repeated fields with type conflicts don't have builder methods
+        // ImplClassGenerator skips them in generateBuilderImplClass (line 400-403)
+        // So we don't generate impl methods either to maintain consistency
     }
 
     @Override
-    public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
-                                       boolean presentInVersion, ProcessingContext ctx) {
-        String versionJavaName = getVersionSpecificJavaName(field, ctx);
-        TypeName listType = ctx.parseFieldType(field);
-        TypeName singleElementType = extractListElementType(listType);
-        String capitalizedName = ctx.capitalize(field.getJavaName());
-
-        MergedField.ConflictType conflictType = field.getConflictType();
-        String version = ctx.version();
-        FieldInfo versionField = version != null ? field.getVersionFields().get(version) : null;
-
-        // doAdd
-        MethodSpec.Builder doAdd = MethodSpec.methodBuilder("doAdd" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(singleElementType, field.getJavaName());
-
-        addVersionConditional(doAdd, presentInVersion, m ->
-                addDoAddStatement(m, field, conflictType, versionField, versionJavaName, ctx));
-        builder.addMethod(doAdd.build());
-
-        // doAddAll
-        MethodSpec.Builder doAddAll = MethodSpec.methodBuilder("doAddAll" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(listType, field.getJavaName());
-
-        addVersionConditional(doAddAll, presentInVersion, m ->
-                addDoAddAllStatement(m, field, conflictType, versionField, versionJavaName, ctx));
-        builder.addMethod(doAddAll.build());
-
-        // doSet (replace all)
-        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(listType, field.getJavaName());
-
-        addVersionConditional(doSet, presentInVersion, m -> {
-            m.addStatement("protoBuilder.clear$L()", versionJavaName);
-            addDoAddAllStatement(m, field, conflictType, versionField, versionJavaName, ctx);
-        });
-        builder.addMethod(doSet.build());
-
-        // doClear
-        MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED);
-
-        addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
-        builder.addMethod(doClear.build());
+    public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        // Repeated fields with type conflicts don't have builder methods in the interface
+        // (InterfaceGenerator skips them with "type conflict" note)
+        // So we don't generate concrete implementations either
     }
 
     private void addWideningExtraction(MethodSpec.Builder extract, MergedField field,
@@ -180,6 +172,47 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                     versionJavaName, wideningMethod);
         } else {
             extract.addStatement("return proto.get$LList()", versionJavaName);
+        }
+    }
+
+    private void addFloatDoubleExtraction(MethodSpec.Builder extract, FieldInfo versionField,
+                                           String versionJavaName) {
+        // For float -> double conversion, use doubleValue()
+        String versionType = versionField != null ? versionField.getJavaType() : null;
+        String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
+
+        if (TypeNormalizer.isFloatType(versionElementType)) {
+            // Version has List<Float>, unified type is List<Double> - need conversion
+            extract.addStatement("return proto.get$LList().stream().map(e -> e.doubleValue()).collect(java.util.stream.Collectors.toList())",
+                    versionJavaName);
+        } else {
+            // Version already has List<Double> - no conversion needed
+            extract.addStatement("return proto.get$LList()", versionJavaName);
+        }
+    }
+
+    private void addSignedUnsignedExtraction(MethodSpec.Builder extract, FieldInfo versionField,
+                                              String versionJavaName) {
+        // For signed/unsigned conversion, unified type is List<Long>
+        // Need to handle unsigned 32-bit values properly
+        if (versionField == null) {
+            extract.addStatement("return proto.get$LList()", versionJavaName);
+            return;
+        }
+
+        com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type type = versionField.getType();
+        boolean isUnsigned32 = type == com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type.TYPE_UINT32 ||
+                               type == com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type.TYPE_FIXED32;
+
+        if (isUnsigned32) {
+            // uint32/fixed32: values > Integer.MAX_VALUE appear as negative
+            // Use Integer.toUnsignedLong() for proper conversion
+            extract.addStatement("return proto.get$LList().stream().map(e -> $T.toUnsignedLong(e)).collect(java.util.stream.Collectors.toList())",
+                    versionJavaName, Integer.class);
+        } else {
+            // Signed 32-bit or any 64-bit: simple widening to long
+            extract.addStatement("return proto.get$LList().stream().map(e -> e.longValue()).collect(java.util.stream.Collectors.toList())",
+                    versionJavaName);
         }
     }
 

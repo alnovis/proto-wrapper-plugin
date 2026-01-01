@@ -1,9 +1,11 @@
 package space.alnovis.protowrapper.model;
 
+import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -20,11 +22,12 @@ public class FieldInfo {
     private final boolean isOptional;
     private final boolean isRepeated;
     private final boolean isMap;
+    private final MapInfo mapInfo;    // null if not a map
     private final int oneofIndex;     // -1 if not in oneof
     private final String oneofName;   // null if not in oneof
 
     public FieldInfo(FieldDescriptorProto proto) {
-        this(proto, -1, null);
+        this(proto, -1, null, null);
     }
 
     /**
@@ -35,6 +38,19 @@ public class FieldInfo {
      * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
      */
     public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName) {
+        this(proto, oneofIndex, oneofName, null);
+    }
+
+    /**
+     * Creates a FieldInfo with oneof information and access to map entry descriptors.
+     *
+     * @param proto the field descriptor
+     * @param oneofIndex the index of the oneof this field belongs to, or -1 if not in oneof
+     * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
+     * @param mapEntries map of entry type name to entry descriptor (can be null)
+     */
+    public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName,
+                     Map<String, DescriptorProto> mapEntries) {
         this.protoName = proto.getName();
         this.javaName = toJavaName(proto.getName());
         this.number = proto.getNumber();
@@ -43,20 +59,46 @@ public class FieldInfo {
         this.typeName = proto.hasTypeName() ? proto.getTypeName() : null;
         this.isOptional = proto.getLabel() == Label.LABEL_OPTIONAL;
         this.isRepeated = proto.getLabel() == Label.LABEL_REPEATED;
-        this.isMap = isRepeated && isMapEntry(proto);
         this.oneofIndex = oneofIndex;
         this.oneofName = oneofName;
+
+        // Detect map field
+        MapInfo detectedMapInfo = null;
+        if (isRepeated && proto.getType() == Type.TYPE_MESSAGE && mapEntries != null) {
+            // Look for map entry by type name
+            String entryTypeName = extractSimpleTypeName(typeName);
+            DescriptorProto entryDescriptor = mapEntries.get(entryTypeName);
+            if (entryDescriptor != null && entryDescriptor.getOptions().getMapEntry()) {
+                detectedMapInfo = MapInfo.fromDescriptor(entryDescriptor);
+            }
+        }
+
+        // Fallback to heuristic if no map entries provided
+        if (detectedMapInfo == null && isRepeated && isMapEntryHeuristic(proto)) {
+            // Cannot create MapInfo without entry descriptor, just mark as potential map
+            this.isMap = true;
+            this.mapInfo = null;
+        } else {
+            this.isMap = detectedMapInfo != null;
+            this.mapInfo = detectedMapInfo;
+        }
     }
 
     // Constructor for merged fields
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName) {
-        this(protoName, javaName, number, type, label, typeName, -1, null);
+        this(protoName, javaName, number, type, label, typeName, null, -1, null);
     }
 
     // Constructor for merged fields with oneof info
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, int oneofIndex, String oneofName) {
+        this(protoName, javaName, number, type, label, typeName, null, oneofIndex, oneofName);
+    }
+
+    // Constructor for merged fields with map info and oneof info
+    public FieldInfo(String protoName, String javaName, int number, Type type,
+                     Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName) {
         this.protoName = protoName;
         this.javaName = javaName;
         this.number = number;
@@ -65,7 +107,8 @@ public class FieldInfo {
         this.typeName = typeName;
         this.isOptional = label == Label.LABEL_OPTIONAL;
         this.isRepeated = label == Label.LABEL_REPEATED;
-        this.isMap = false; // Simplified
+        this.isMap = mapInfo != null;
+        this.mapInfo = mapInfo;
         this.oneofIndex = oneofIndex;
         this.oneofName = oneofName;
     }
@@ -84,15 +127,19 @@ public class FieldInfo {
         return result.toString();
     }
 
-    private boolean isMapEntry(FieldDescriptorProto proto) {
-        // Maps in proto3 are represented as repeated message with MapEntry option
-        return proto.getTypeName().endsWith("Entry");
+    private boolean isMapEntryHeuristic(FieldDescriptorProto proto) {
+        // Fallback heuristic: maps in proto3 are represented as repeated message with MapEntry option
+        // This is not 100% accurate (a message could legitimately end with "Entry")
+        return proto.hasTypeName() && proto.getTypeName().endsWith("Entry");
     }
 
     /**
      * Get Java type for this field.
      */
     public String getJavaType() {
+        if (isMap && mapInfo != null) {
+            return mapInfo.getMapJavaType();
+        }
         if (isRepeated && !isMap) {
             return "java.util.List<" + getSingleJavaType() + ">";
         }
@@ -103,6 +150,9 @@ public class FieldInfo {
      * Get Java type for getter return type (may be boxed for optional primitives).
      */
     public String getGetterType() {
+        if (isMap && mapInfo != null) {
+            return mapInfo.getMapJavaType();
+        }
         if (isRepeated) {
             return "java.util.List<" + getBoxedType(getSingleJavaType()) + ">";
         }
@@ -113,39 +163,28 @@ public class FieldInfo {
     }
 
     private String getSingleJavaType() {
-        switch (type) {
-            case TYPE_DOUBLE: return "double";
-            case TYPE_FLOAT: return "float";
-            case TYPE_INT64:
-            case TYPE_UINT64:
-            case TYPE_SINT64:
-            case TYPE_FIXED64:
-            case TYPE_SFIXED64: return "long";
-            case TYPE_INT32:
-            case TYPE_UINT32:
-            case TYPE_SINT32:
-            case TYPE_FIXED32:
-            case TYPE_SFIXED32: return "int";
-            case TYPE_BOOL: return "boolean";
-            case TYPE_STRING: return "String";
-            case TYPE_BYTES: return "byte[]";
-            case TYPE_MESSAGE:
-            case TYPE_ENUM:
-                return extractSimpleTypeName(typeName);
-            default:
-                return "Object";
-        }
+        return switch (type) {
+            case TYPE_DOUBLE -> "double";
+            case TYPE_FLOAT -> "float";
+            case TYPE_INT64, TYPE_UINT64, TYPE_SINT64, TYPE_FIXED64, TYPE_SFIXED64 -> "long";
+            case TYPE_INT32, TYPE_UINT32, TYPE_SINT32, TYPE_FIXED32, TYPE_SFIXED32 -> "int";
+            case TYPE_BOOL -> "boolean";
+            case TYPE_STRING -> "String";
+            case TYPE_BYTES -> "byte[]";
+            case TYPE_MESSAGE, TYPE_ENUM -> extractSimpleTypeName(typeName);
+            default -> "Object";
+        };
     }
 
     private String getBoxedType(String primitiveType) {
-        switch (primitiveType) {
-            case "int": return "Integer";
-            case "long": return "Long";
-            case "double": return "Double";
-            case "float": return "Float";
-            case "boolean": return "Boolean";
-            default: return primitiveType;
-        }
+        return switch (primitiveType) {
+            case "int" -> "Integer";
+            case "long" -> "Long";
+            case "double" -> "Double";
+            case "float" -> "Float";
+            case "boolean" -> "Boolean";
+            default -> primitiveType;
+        };
     }
 
     private String extractSimpleTypeName(String fullTypeName) {
@@ -208,24 +247,13 @@ public class FieldInfo {
     }
 
     public boolean isPrimitive() {
-        switch (type) {
-            case TYPE_DOUBLE:
-            case TYPE_FLOAT:
-            case TYPE_INT64:
-            case TYPE_UINT64:
-            case TYPE_SINT64:
-            case TYPE_FIXED64:
-            case TYPE_SFIXED64:
-            case TYPE_INT32:
-            case TYPE_UINT32:
-            case TYPE_SINT32:
-            case TYPE_FIXED32:
-            case TYPE_SFIXED32:
-            case TYPE_BOOL:
-                return true;
-            default:
-                return false;
-        }
+        return switch (type) {
+            case TYPE_DOUBLE, TYPE_FLOAT,
+                 TYPE_INT64, TYPE_UINT64, TYPE_SINT64, TYPE_FIXED64, TYPE_SFIXED64,
+                 TYPE_INT32, TYPE_UINT32, TYPE_SINT32, TYPE_FIXED32, TYPE_SFIXED32,
+                 TYPE_BOOL -> true;
+            default -> false;
+        };
     }
 
     public boolean isMessage() {
@@ -239,6 +267,80 @@ public class FieldInfo {
     public String getGetterName() {
         String prefix = type == Type.TYPE_BOOL ? "is" : "get";
         return prefix + capitalize(javaName);
+    }
+
+    // Map field method names
+
+    /**
+     * Getter name for map field (e.g., "getItemCountsMap").
+     */
+    public String getMapGetterName() {
+        return "get" + capitalize(javaName) + "Map";
+    }
+
+    /**
+     * Count getter name for map field (e.g., "getItemCountsCount").
+     */
+    public String getMapCountMethodName() {
+        return "get" + capitalize(javaName) + "Count";
+    }
+
+    /**
+     * Contains method name for map field (e.g., "containsItemCounts").
+     */
+    public String getMapContainsMethodName() {
+        return "contains" + capitalize(javaName);
+    }
+
+    /**
+     * GetOrDefault method name for map field (e.g., "getItemCountsOrDefault").
+     */
+    public String getMapGetOrDefaultMethodName() {
+        return "get" + capitalize(javaName) + "OrDefault";
+    }
+
+    /**
+     * GetOrThrow method name for map field (e.g., "getItemCountsOrThrow").
+     */
+    public String getMapGetOrThrowMethodName() {
+        return "get" + capitalize(javaName) + "OrThrow";
+    }
+
+    /**
+     * Extract method name for map field (e.g., "extractItemCountsMap").
+     */
+    public String getMapExtractMethodName() {
+        return "extract" + capitalize(javaName) + "Map";
+    }
+
+    // Builder method names for maps
+
+    /**
+     * Put method name for map builder (e.g., "putItemCounts").
+     */
+    public String getMapPutMethodName() {
+        return "put" + capitalize(javaName);
+    }
+
+    /**
+     * PutAll method name for map builder (e.g., "putAllItemCounts").
+     */
+    public String getMapPutAllMethodName() {
+        return "putAll" + capitalize(javaName);
+    }
+
+    /**
+     * Remove method name for map builder (e.g., "removeItemCounts").
+     */
+    public String getMapRemoveMethodName() {
+        return "remove" + capitalize(javaName);
+    }
+
+    /**
+     * Clear method name for map builder (e.g., "clearItemCounts").
+     */
+    public String getMapClearMethodName() {
+        return "clear" + capitalize(javaName);
     }
 
     public String getHasMethodName() {
@@ -268,6 +370,7 @@ public class FieldInfo {
     public boolean isOptional() { return isOptional; }
     public boolean isRepeated() { return isRepeated; }
     public boolean isMap() { return isMap; }
+    public MapInfo getMapInfo() { return mapInfo; }
     public int getOneofIndex() { return oneofIndex; }
     public String getOneofName() { return oneofName; }
     public boolean isInOneof() { return oneofIndex >= 0; }

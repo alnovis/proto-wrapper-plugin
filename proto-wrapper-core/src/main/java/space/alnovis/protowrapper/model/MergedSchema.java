@@ -148,7 +148,7 @@ public class MergedSchema {
         // Navigate through nested messages
         for (int i = 1; i < parts.length; i++) {
             Optional<MergedMessage> nested = current.findNestedMessage(parts[i]);
-            if (!nested.isPresent()) {
+            if (nested.isEmpty()) {
                 return Optional.empty();
             }
             current = nested.get();
@@ -182,7 +182,7 @@ public class MergedSchema {
         // Navigate through nested messages until we reach the enum's parent
         for (int i = 1; i < parts.length - 1; i++) {
             Optional<MergedMessage> nested = parent.findNestedMessage(parts[i]);
-            if (!nested.isPresent()) {
+            if (nested.isEmpty()) {
                 return Optional.empty();
             }
             parent = nested.get();

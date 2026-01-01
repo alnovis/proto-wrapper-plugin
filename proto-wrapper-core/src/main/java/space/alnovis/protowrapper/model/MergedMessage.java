@@ -303,6 +303,31 @@ public class MergedMessage {
                 .toList();
     }
 
+    /**
+     * Get map fields.
+     */
+    public List<MergedField> getMapFields() {
+        return fields.stream()
+                .filter(MergedField::isMap)
+                .toList();
+    }
+
+    /**
+     * Get repeated fields (excluding map fields).
+     */
+    public List<MergedField> getRepeatedFields() {
+        return fields.stream()
+                .filter(f -> f.isRepeated() && !f.isMap())
+                .toList();
+    }
+
+    /**
+     * Check if this message has any map fields.
+     */
+    public boolean hasMapFields() {
+        return fields.stream().anyMatch(MergedField::isMap);
+    }
+
     @Override
     public String toString() {
         return String.format("MergedMessage[%s, %d fields, versions=%s]",

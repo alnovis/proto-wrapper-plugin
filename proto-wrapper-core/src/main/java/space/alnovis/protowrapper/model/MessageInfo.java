@@ -5,6 +5,7 @@ import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -40,8 +41,13 @@ public class MessageInfo {
         // Extract oneof groups first (needed for field creation)
         this.oneofGroups = extractOneofGroups(proto);
 
-        // Create fields with oneof information
-        this.fields = createFieldsWithOneofInfo(proto, this.oneofGroups);
+        // Build map of entry type names to their descriptors for map field detection
+        Map<String, DescriptorProto> mapEntries = proto.getNestedTypeList().stream()
+                .filter(nested -> nested.getOptions().getMapEntry())
+                .collect(Collectors.toMap(DescriptorProto::getName, Function.identity()));
+
+        // Create fields with oneof information and map entries
+        this.fields = createFieldsWithOneofInfo(proto, this.oneofGroups, mapEntries);
 
         this.nestedMessages = proto.getNestedTypeList().stream()
                 .filter(nested -> !nested.getOptions().getMapEntry()) // Skip map entries
@@ -113,9 +119,10 @@ public class MessageInfo {
     }
 
     /**
-     * Creates FieldInfo objects with oneof information.
+     * Creates FieldInfo objects with oneof information and map entry access.
      */
-    private static List<FieldInfo> createFieldsWithOneofInfo(DescriptorProto proto, List<OneofInfo> oneofGroups) {
+    private static List<FieldInfo> createFieldsWithOneofInfo(DescriptorProto proto, List<OneofInfo> oneofGroups,
+                                                              Map<String, DescriptorProto> mapEntries) {
         // Build a map from field number to oneof info
         Map<Integer, OneofInfo> fieldToOneof = new HashMap<>();
         for (OneofInfo oneof : oneofGroups) {
@@ -128,9 +135,9 @@ public class MessageInfo {
         for (FieldDescriptorProto fieldProto : proto.getFieldList()) {
             OneofInfo oneof = fieldToOneof.get(fieldProto.getNumber());
             if (oneof != null) {
-                result.add(new FieldInfo(fieldProto, oneof.getIndex(), oneof.getProtoName()));
+                result.add(new FieldInfo(fieldProto, oneof.getIndex(), oneof.getProtoName(), mapEntries));
             } else {
-                result.add(new FieldInfo(fieldProto));
+                result.add(new FieldInfo(fieldProto, -1, null, mapEntries));
             }
         }
         return result;
@@ -195,11 +202,20 @@ public class MessageInfo {
     }
 
     /**
-     * Get repeated fields (lists).
+     * Get repeated fields (lists), excluding map fields.
      */
     public List<FieldInfo> getRepeatedFields() {
         return fields.stream()
-                .filter(FieldInfo::isRepeated)
+                .filter(f -> f.isRepeated() && !f.isMap())
+                .toList();
+    }
+
+    /**
+     * Get map fields.
+     */
+    public List<FieldInfo> getMapFields() {
+        return fields.stream()
+                .filter(FieldInfo::isMap)
                 .toList();
     }
 

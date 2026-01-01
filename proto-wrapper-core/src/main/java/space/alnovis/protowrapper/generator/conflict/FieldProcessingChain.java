@@ -1,5 +1,6 @@
 package space.alnovis.protowrapper.generator.conflict;
 
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
@@ -14,11 +15,16 @@ import java.util.List;
  *
  * <p>The chain is ordered from most specific to least specific:</p>
  * <ol>
- *   <li>IntEnumHandler - scalar INT_ENUM conflicts</li>
+ *   <li>IntEnumHandler - scalar INT_ENUM conflicts (int ↔ enum)</li>
+ *   <li>EnumEnumHandler - scalar ENUM_ENUM conflicts (different enum types)</li>
  *   <li>StringBytesHandler - scalar STRING_BYTES conflicts</li>
- *   <li>WideningHandler - scalar WIDENING conflicts</li>
+ *   <li>WideningHandler - scalar WIDENING conflicts (int to long)</li>
+ *   <li>FloatDoubleHandler - scalar FLOAT_DOUBLE conflicts (float to double)</li>
+ *   <li>SignedUnsignedHandler - scalar SIGNED_UNSIGNED conflicts (int32 vs uint32, etc.)</li>
+ *   <li>RepeatedSingleHandler - repeated ↔ singular conflicts</li>
  *   <li>PrimitiveMessageHandler - scalar PRIMITIVE_MESSAGE conflicts</li>
  *   <li>RepeatedConflictHandler - repeated fields with any type conflict</li>
+ *   <li>MapFieldHandler - map fields</li>
  *   <li>DefaultHandler - all other fields (fallback)</li>
  * </ol>
  */
@@ -26,11 +32,16 @@ public final class FieldProcessingChain {
 
     private static final List<ConflictHandler> HANDLERS = List.of(
             IntEnumHandler.INSTANCE,
+            EnumEnumHandler.INSTANCE,         // enum ↔ enum conflicts (different enum types)
             StringBytesHandler.INSTANCE,
             WideningHandler.INSTANCE,
+            FloatDoubleHandler.INSTANCE,      // float ↔ double conflicts
+            SignedUnsignedHandler.INSTANCE,   // int32 ↔ uint32, sint32, etc.
+            RepeatedSingleHandler.INSTANCE,   // repeated ↔ singular conflicts
             PrimitiveMessageHandler.INSTANCE,
             RepeatedConflictHandler.INSTANCE,
-            DefaultHandler.INSTANCE  // Fallback - must be last
+            MapFieldHandler.INSTANCE,  // Map fields handler
+            DefaultHandler.INSTANCE    // Fallback - must be last
     );
 
     private static final FieldProcessingChain INSTANCE = new FieldProcessingChain();
@@ -141,6 +152,25 @@ public final class FieldProcessingChain {
             boolean presentInVersion = field.getPresentInVersions().contains(version);
             ConflictHandler handler = findHandler(field, ctx);
             handler.addBuilderImplMethods(builder, field, presentInVersion, ctx);
+        }
+    }
+
+    /**
+     * Add concrete builder interface methods for all fields in a message.
+     *
+     * <p>These are the public final methods (setXxx, clearXxx, addXxx) that implement
+     * the Builder interface and delegate to the abstract doXxx methods.</p>
+     *
+     * @param builder The TypeSpec builder for the abstract builder
+     * @param message The message containing the fields
+     * @param builderReturnType The return type for fluent builder pattern (Builder interface type)
+     * @param ctx Processing context
+     */
+    public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedMessage message,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        for (MergedField field : message.getFieldsSorted()) {
+            ConflictHandler handler = findHandler(field, ctx);
+            handler.addConcreteBuilderMethods(builder, field, builderReturnType, ctx);
         }
     }
 

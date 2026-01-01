@@ -14,11 +14,52 @@ import java.nio.charset.StandardCharsets;
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
 
 /**
- * Handler for STRING_BYTES conflict fields.
+ * Handler for STRING_BYTES type conflict fields.
  *
- * <p>This handler processes fields where one version uses String type and another
- * uses bytes/ByteString. It generates both String and byte[] accessor methods
- * with UTF-8 conversion.</p>
+ * <p>This handler processes fields where one proto version uses {@code string} type
+ * and another version uses {@code bytes} type for the same field number.
+ * This is common when binary data needs to be stored as text or vice versa.</p>
+ *
+ * <h2>Conflict Example</h2>
+ * <pre>
+ * // v1: message Document { string content = 1; }
+ * // v2: message Document { bytes content = 1; }
+ * </pre>
+ *
+ * <h2>Resolution Strategy</h2>
+ * <p>The handler generates dual accessor methods with UTF-8 conversion:</p>
+ * <ul>
+ *   <li>{@code getContent()} - returns String (primary accessor)</li>
+ *   <li>{@code getContentBytes()} - returns byte[] (binary accessor)</li>
+ * </ul>
+ *
+ * <p>Conversion is handled transparently:</p>
+ * <ul>
+ *   <li>bytes to String: {@code ByteString.toString(StandardCharsets.UTF_8)}</li>
+ *   <li>String to bytes: {@code String.getBytes(StandardCharsets.UTF_8)}</li>
+ * </ul>
+ *
+ * <h2>Generated Code</h2>
+ * <ul>
+ *   <li><b>Interface:</b> {@code String getContent()}, {@code byte[] getContentBytes()},
+ *       {@code Builder.setContent(String)}, {@code Builder.setContentBytes(byte[])}</li>
+ *   <li><b>Abstract:</b> {@code extractContent(proto)}, {@code extractContentBytes(proto)}</li>
+ *   <li><b>Impl:</b> Version-specific extraction with UTF-8 conversion</li>
+ * </ul>
+ *
+ * <h2>Builder Behavior</h2>
+ * <p>Builder provides both String and byte[] setters:</p>
+ * <ul>
+ *   <li>{@code setContent(String)} - converts to ByteString for bytes versions</li>
+ *   <li>{@code setContentBytes(byte[])} - converts to String for string versions</li>
+ * </ul>
+ *
+ * <h2>Encoding</h2>
+ * <p>All conversions use UTF-8 encoding. Non-UTF-8 binary data may be corrupted
+ * when using String accessors on bytes fields. Use byte[] accessors for binary data.</p>
+ *
+ * @see ConflictHandler
+ * @see FieldProcessingChain
  */
 public final class StringBytesHandler extends AbstractConflictHandler implements ConflictHandler {
 
@@ -131,16 +172,14 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         // doSet (String)
-        builder.addMethod(MethodSpec.methodBuilder(field.getDoSetMethodName())
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(ClassName.get(String.class), field.getJavaName())
-                .build());
+        addAbstractDoSet(builder, field.getDoSetMethodName(), ClassName.get(String.class), field.getJavaName());
+
+        // doSetBytes (byte[])
+        addAbstractDoSet(builder, field.getDoSetMethodName() + "Bytes", ArrayTypeName.of(TypeName.BYTE), field.getJavaName());
 
         // doClear for optional
         if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder(field.getDoClearMethodName())
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .build());
+            addAbstractDoClear(builder, field.getDoClearMethodName());
         }
     }
 
@@ -154,29 +193,54 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
 
         // doSet (String)
-        MethodSpec.Builder doSet = MethodSpec.methodBuilder(field.getDoSetMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(ClassName.get(String.class), field.getJavaName());
+        buildDoSetImpl(builder, field.getDoSetMethodName(), ClassName.get(String.class), field.getJavaName(),
+                presentInVersion, m -> {
+                    if (versionIsBytes) {
+                        m.addStatement("protoBuilder.set$L($T.copyFromUtf8($L))",
+                                versionJavaName, ClassName.get("com.google.protobuf", "ByteString"), field.getJavaName());
+                    } else {
+                        m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                    }
+                });
 
-        addVersionConditional(doSet, presentInVersion, m -> {
-            if (versionIsBytes) {
-                m.addStatement("protoBuilder.set$L($T.copyFromUtf8($L))",
-                        versionJavaName, ClassName.get("com.google.protobuf", "ByteString"), field.getJavaName());
-            } else {
-                m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
-            }
-        });
-        builder.addMethod(doSet.build());
+        // doSetBytes (byte[])
+        buildDoSetImpl(builder, field.getDoSetMethodName() + "Bytes", ArrayTypeName.of(TypeName.BYTE), field.getJavaName(),
+                presentInVersion, m -> {
+                    if (versionIsBytes) {
+                        m.addStatement("protoBuilder.set$L($T.copyFrom($L))",
+                                versionJavaName, ClassName.get("com.google.protobuf", "ByteString"), field.getJavaName());
+                    } else {
+                        m.addStatement("protoBuilder.set$L(new $T($L, $T.UTF_8))",
+                                versionJavaName, String.class, field.getJavaName(), StandardCharsets.class);
+                    }
+                });
 
         // doClear for optional
         if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder(field.getDoClearMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
+            buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
+        }
+    }
 
-            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
-            builder.addMethod(doClear.build());
+    @Override
+    public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        // setXxx(String)
+        addConcreteSetMethod(builder, field.getJavaName(), ClassName.get(String.class), builderReturnType, ctx);
+
+        // setXxxBytes(byte[])
+        String capName = ctx.capitalize(field.getJavaName());
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName + "Bytes")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName())
+                .returns(builderReturnType)
+                .addStatement("$LBytes($L)", field.getDoSetMethodName(), field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // clearXxx() for optional
+        if (field.isOptional()) {
+            addConcreteClearMethod(builder, field.getJavaName(), builderReturnType, ctx);
         }
     }
 

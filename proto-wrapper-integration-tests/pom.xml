@@ -34,6 +34,14 @@
     </properties>
 
     <dependencies>
+        <!-- Proto wrapper core (for exception classes) -->
+        <dependency>
+            <groupId>space.alnovis</groupId>
+            <artifactId>proto-wrapper-core</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Protobuf runtime -->
         <dependency>
             <groupId>com.google.protobuf</groupId>

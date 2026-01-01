@@ -318,6 +318,84 @@ message NestedPrimitiveMessageConflicts {
 }
 
 // =============================================================================
+// FLOAT_DOUBLE CONFLICTS (float -> double, separate from integer widening)
+// Tests the FLOAT_DOUBLE conflict type with proper narrowing validation.
+// =============================================================================
+
+message FloatDoubleConflicts {
+    // Case 1: Required float -> double
+    required double temperature = 1;     // was float in v1
+
+    // Case 2: Optional float -> double
+    optional double pressure = 2;        // was float in v1
+
+    // Case 3: Multiple float fields
+    required double humidity = 3;        // was float in v1
+    optional double wind_speed = 4;      // was float in v1
+
+    // Non-conflicting fields
+    required string sensor_id = 10;
+    optional string location = 11;
+
+    // V2-only fields
+    optional string calibration_id = 12;
+    optional Date last_reading = 13;
+}
+
+// =============================================================================
+// SIGNED_UNSIGNED CONFLICTS (int32 -> uint32, sint32 vs int32, etc.)
+// Tests the SIGNED_UNSIGNED conflict type where Java types are the same (int/long)
+// but protobuf types differ in signedness semantics.
+// =============================================================================
+
+message SignedUnsignedConflicts {
+    // Case 1: uint32 (unsigned) - was int32 (signed) in v1
+    // Both map to Java int, but uint32 can have values > Integer.MAX_VALUE
+    required uint32 counter = 1;         // was int32 in v1
+
+    // Case 2: Optional uint32 - was int32 in v1
+    optional uint32 optional_count = 2;  // was int32 in v1
+
+    // Case 3: int32 (varint) - was sint32 (ZigZag) in v1
+    // Different wire encodings for negative numbers
+    optional int32 delta = 3;            // was sint32 in v1
+
+    // Case 4: fixed32 (unsigned fixed) - was sfixed32 (signed fixed) in v1
+    optional fixed32 checksum = 4;       // was sfixed32 in v1
+
+    // Case 5: uint64 - was int64 (64-bit signed/unsigned conflict)
+    optional uint64 big_counter = 5;     // was int64 in v1
+
+    // Non-conflicting fields
+    required string id = 10;
+    optional string name = 11;
+
+    // V2-only fields
+    optional string description = 12;
+}
+
+// =============================================================================
+// REPEATED SIGNED_UNSIGNED CONFLICTS
+// Tests signed/unsigned conflicts with repeated fields.
+// =============================================================================
+
+message RepeatedSignedUnsignedConflicts {
+    // Repeated uint32 - was repeated int32 in v1
+    repeated uint32 counters = 1;        // was repeated int32 in v1
+
+    // Repeated int32 - was repeated sint32 in v1
+    repeated int32 deltas = 2;           // was repeated sint32 in v1
+
+    // Repeated uint64 - was repeated int64 in v1
+    repeated uint64 big_counters = 3;    // was repeated int64 in v1
+
+    required string batch_id = 10;
+
+    // V2-only field
+    optional int32 count = 11;
+}
+
+// =============================================================================
 // PURE BYTES FIELDS (no conflict - bytes in both versions)
 // Tests that bytes fields work correctly in builders.
 // This is the scenario that was broken: byte[] -> ByteString conversion missing.
@@ -350,3 +428,88 @@ message BytesFieldsTest {
     // V2-only field
     optional string metadata = 11;
 }
+
+// =============================================================================
+// REPEATED_SINGLE CONFLICTS (repeated in v1 -> singular in v2)
+// Tests the REPEATED_SINGLE conflict type where cardinality differs.
+// =============================================================================
+
+message RepeatedSingleConflicts {
+    // Case 1: optional int32 in v2 - was repeated int32 in v1
+    optional int32 items = 1;            // was repeated int32 items in v1
+
+    // Case 2: optional string in v2 - was repeated string in v1
+    optional string tags = 2;            // was repeated string tags in v1
+
+    // Case 3: optional float in v2 - was repeated float in v1
+    optional float scores = 3;           // was repeated float scores in v1
+
+    // Non-conflicting fields
+    required string id = 10;
+    optional string name = 11;
+
+    // V2-only fields
+    optional string category = 12;
+}
+
+// =============================================================================
+// NESTED ALL CONFLICTS
+// Comprehensive test for ALL conflict types in nested structures.
+// Tests WIDENING, INT_ENUM, STRING_BYTES, FLOAT_DOUBLE, SIGNED_UNSIGNED in nested message.
+// =============================================================================
+
+message NestedAllConflicts {
+    required string id = 1;
+
+    // Nested message with ALL types of conflicts (v2 versions)
+    message NestedData {
+        // WIDENING: was int32 in v1 -> int64 in v2
+        required int64 widening_value = 1;    // was int32 in v1
+
+        // INT_ENUM: was int32 in v1 -> CodeEnum in v2
+        required CodeEnum enum_code = 2;      // was int32 in v1
+
+        // STRING_BYTES: was string in v1 -> bytes in v2
+        optional bytes text_data = 3;         // was string in v1
+
+        // FLOAT_DOUBLE: was float in v1 -> double in v2
+        required double precision = 4;        // was float in v1
+
+        // SIGNED_UNSIGNED: was int32 in v1 -> uint32 in v2
+        required uint32 counter = 5;          // was int32 in v1
+
+        // Non-conflicting
+        optional string label = 10;
+
+        // V2-only field
+        optional string metadata = 11;
+    }
+
+    required NestedData data = 2;
+    optional string description = 10;
+
+    // V2-only field
+    optional Date created_at = 11;
+}
+
+// =============================================================================
+// OPTIONAL_REQUIRED CONFLICTS (optional in v1 -> required in v2)
+// =============================================================================
+
+message OptionalRequiredConflicts {
+    // Case 1: optional in v1, required in v2
+    required string name = 1;
+
+    // Case 2: optional int in v1, required in v2
+    required int32 count = 2;
+
+    // Case 3: optional message in v1, required in v2
+    required Date timestamp = 3;
+
+    // Non-conflicting: required in both versions
+    required string id = 10;
+
+    // V2-only field
+    optional string extra = 11;
+}
+

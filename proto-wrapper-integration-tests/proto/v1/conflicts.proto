@@ -213,6 +213,74 @@ message NestedPrimitiveMessageConflicts {
 }
 
 // =============================================================================
+// FLOAT_DOUBLE CONFLICTS (float -> double, separate from integer widening)
+// Tests the FLOAT_DOUBLE conflict type with proper narrowing validation.
+// =============================================================================
+
+message FloatDoubleConflicts {
+    // Case 1: Required float -> double
+    required float temperature = 1;      // -> double in v2
+
+    // Case 2: Optional float -> double
+    optional float pressure = 2;         // -> double in v2
+
+    // Case 3: Multiple float fields
+    required float humidity = 3;         // -> double in v2
+    optional float wind_speed = 4;       // -> double in v2
+
+    // Non-conflicting fields
+    required string sensor_id = 10;
+    optional string location = 11;
+}
+
+// =============================================================================
+// SIGNED_UNSIGNED CONFLICTS (int32 -> uint32, sint32 vs int32, etc.)
+// Tests the SIGNED_UNSIGNED conflict type where Java types are the same (int/long)
+// but protobuf types differ in signedness semantics.
+// =============================================================================
+
+message SignedUnsignedConflicts {
+    // Case 1: int32 (signed) -> uint32 (unsigned) in v2
+    // Both map to Java int, but uint32 can have values > Integer.MAX_VALUE
+    required int32 counter = 1;          // -> uint32 in v2
+
+    // Case 2: Optional int32 -> uint32
+    optional int32 optional_count = 2;   // -> uint32 in v2
+
+    // Case 3: sint32 (ZigZag) -> int32 (varint) in v2
+    // Different wire encodings for negative numbers
+    optional sint32 delta = 3;           // -> int32 in v2
+
+    // Case 4: sfixed32 (signed fixed) -> fixed32 (unsigned fixed) in v2
+    optional sfixed32 checksum = 4;      // -> fixed32 in v2
+
+    // Case 5: int64 -> uint64 (64-bit signed/unsigned conflict)
+    optional int64 big_counter = 5;      // -> uint64 in v2
+
+    // Non-conflicting fields
+    required string id = 10;
+    optional string name = 11;
+}
+
+// =============================================================================
+// REPEATED SIGNED_UNSIGNED CONFLICTS
+// Tests signed/unsigned conflicts with repeated fields.
+// =============================================================================
+
+message RepeatedSignedUnsignedConflicts {
+    // Repeated int32 -> repeated uint32
+    repeated int32 counters = 1;         // -> repeated uint32 in v2
+
+    // Repeated sint32 -> repeated int32
+    repeated sint32 deltas = 2;          // -> repeated int32 in v2
+
+    // Repeated int64 -> repeated uint64
+    repeated int64 big_counters = 3;     // -> repeated uint64 in v2
+
+    required string batch_id = 10;
+}
+
+// =============================================================================
 // PURE BYTES FIELDS (no conflict - bytes in both versions)
 // Tests that bytes fields work correctly in builders.
 // This is the scenario that was broken: byte[] -> ByteString conversion missing.
@@ -242,3 +310,76 @@ message BytesFieldsTest {
     // Non-conflicting fields
     optional string description = 10;
 }
+
+// =============================================================================
+// REPEATED_SINGLE CONFLICTS (repeated in v1 -> singular in v2)
+// Tests the REPEATED_SINGLE conflict type where cardinality differs.
+// =============================================================================
+
+message RepeatedSingleConflicts {
+    // Case 1: repeated int32 in v1 -> optional int32 in v2
+    repeated int32 items = 1;            // -> optional int32 item in v2
+
+    // Case 2: repeated string in v1 -> optional string in v2
+    repeated string tags = 2;            // -> optional string tag in v2
+
+    // Case 3: repeated float in v1 -> optional float in v2
+    repeated float scores = 3;           // -> optional float score in v2
+
+    // Non-conflicting fields
+    required string id = 10;
+    optional string name = 11;
+}
+
+// =============================================================================
+// NESTED ALL CONFLICTS
+// Comprehensive test for ALL conflict types in nested structures.
+// Tests WIDENING, INT_ENUM, STRING_BYTES, FLOAT_DOUBLE, SIGNED_UNSIGNED in nested message.
+// =============================================================================
+
+message NestedAllConflicts {
+    required string id = 1;
+
+    // Nested message with ALL types of conflicts
+    message NestedData {
+        // WIDENING: int32 -> int64
+        required int32 widening_value = 1;    // -> int64 in v2
+
+        // INT_ENUM: int32 -> enum
+        required int32 enum_code = 2;         // -> CodeEnum in v2
+
+        // STRING_BYTES: string -> bytes
+        optional string text_data = 3;        // -> bytes in v2
+
+        // FLOAT_DOUBLE: float -> double
+        required float precision = 4;         // -> double in v2
+
+        // SIGNED_UNSIGNED: int32 -> uint32
+        required int32 counter = 5;           // -> uint32 in v2
+
+        // Non-conflicting
+        optional string label = 10;
+    }
+
+    required NestedData data = 2;
+    optional string description = 10;
+}
+
+// =============================================================================
+// OPTIONAL_REQUIRED CONFLICTS (optional in v1 -> required in v2)
+// =============================================================================
+
+message OptionalRequiredConflicts {
+    // Case 1: optional in v1, required in v2
+    optional string name = 1;
+
+    // Case 2: optional int in v1, required in v2
+    optional int32 count = 2;
+
+    // Case 3: optional message in v1, required in v2
+    optional Date timestamp = 3;
+
+    // Non-conflicting: required in both versions
+    required string id = 10;
+}
+

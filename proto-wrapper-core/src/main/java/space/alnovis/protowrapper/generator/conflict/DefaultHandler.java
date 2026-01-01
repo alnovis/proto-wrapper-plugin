@@ -10,12 +10,64 @@ import space.alnovis.protowrapper.model.MergedField;
 import javax.lang.model.element.Modifier;
 
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
+import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 /**
  * Default handler for fields without type conflicts.
  *
- * <p>This handler processes standard fields that have the same type across all versions
- * or no special conflict handling required.</p>
+ * <p>This is the fallback handler in the {@link FieldProcessingChain} that processes
+ * all fields not matched by specialized conflict handlers. It handles:</p>
+ * <ul>
+ *   <li>Fields with consistent types across all versions</li>
+ *   <li>Fields present in only some versions (with defaults for missing versions)</li>
+ *   <li>Both scalar and repeated fields</li>
+ *   <li>Message and enum field types</li>
+ * </ul>
+ *
+ * <h2>Processing Priority</h2>
+ * <p>The {@code DefaultHandler} is always last in the handler chain. It returns
+ * {@code true} from {@code handles()} unconditionally, serving as a catch-all.</p>
+ *
+ * <h2>Generated Code - Scalar Fields</h2>
+ * <p>For scalar fields like {@code string name = 1}:</p>
+ * <ul>
+ *   <li><b>Interface:</b> {@code String getName()}, {@code boolean hasName()} (if optional),
+ *       {@code Builder.setName(String)}, {@code Builder.clearName()}</li>
+ *   <li><b>Abstract:</b> {@code extractName(proto)}, {@code extractHasName(proto)}</li>
+ *   <li><b>Impl:</b> {@code extractName} calls {@code proto.getName()}</li>
+ * </ul>
+ *
+ * <h2>Generated Code - Repeated Fields</h2>
+ * <p>For repeated fields like {@code repeated string tags = 2}:</p>
+ * <ul>
+ *   <li><b>Interface:</b> {@code List<String> getTags()},
+ *       {@code Builder.addTags(String)}, {@code Builder.addAllTags(List)},
+ *       {@code Builder.setTags(List)}, {@code Builder.clearTags()}</li>
+ *   <li><b>Abstract:</b> {@code extractTags(proto)}</li>
+ *   <li><b>Impl:</b> {@code extractTags} calls {@code proto.getTagsList()}</li>
+ * </ul>
+ *
+ * <h2>Missing Field Behavior</h2>
+ * <p>When a field is not present in a specific version:</p>
+ * <ul>
+ *   <li>Scalar primitives return default value (0, false, etc.)</li>
+ *   <li>Scalar objects return null</li>
+ *   <li>Repeated fields return empty list</li>
+ *   <li>{@code hasXxx()} returns false</li>
+ *   <li>Builder setters throw {@code UnsupportedOperationException}</li>
+ * </ul>
+ *
+ * <h2>Message Fields</h2>
+ * <p>For message-type fields, the handler wraps the proto message in the
+ * corresponding version-specific wrapper class.</p>
+ *
+ * <h2>Enum Fields</h2>
+ * <p>For enum-type fields, the handler includes validation in builder setters
+ * to ensure the enum value is valid for the target proto version.</p>
+ *
+ * @see ConflictHandler
+ * @see FieldProcessingChain
+ * @see AbstractConflictHandler
  */
 public final class DefaultHandler extends AbstractConflictHandler implements ConflictHandler {
 
@@ -84,7 +136,6 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
 
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        // Skip fields with type conflicts that should be skipped
         if (field.shouldSkipBuilderSetter()) {
             return;
         }
@@ -93,42 +144,9 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
 
         if (field.isRepeated()) {
             TypeName singleElementType = extractListElementType(fieldType);
-
-            // doAdd
-            builder.addMethod(MethodSpec.methodBuilder("doAdd" + ctx.capitalize(field.getJavaName()))
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .addParameter(singleElementType, field.getJavaName())
-                    .build());
-
-            // doAddAll
-            builder.addMethod(MethodSpec.methodBuilder("doAddAll" + ctx.capitalize(field.getJavaName()))
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .addParameter(fieldType, field.getJavaName())
-                    .build());
-
-            // doSet (replace all)
-            builder.addMethod(MethodSpec.methodBuilder("doSet" + ctx.capitalize(field.getJavaName()))
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .addParameter(fieldType, field.getJavaName())
-                    .build());
-
-            // doClear
-            builder.addMethod(MethodSpec.methodBuilder("doClear" + ctx.capitalize(field.getJavaName()))
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .build());
+            addAbstractRepeatedBuilderMethods(builder, field, singleElementType, fieldType, ctx);
         } else {
-            // doSet
-            builder.addMethod(MethodSpec.methodBuilder("doSet" + ctx.capitalize(field.getJavaName()))
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .addParameter(fieldType, field.getJavaName())
-                    .build());
-
-            // doClear for optional fields
-            if (field.isOptional()) {
-                builder.addMethod(MethodSpec.methodBuilder("doClear" + ctx.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .build());
-            }
+            addAbstractScalarBuilderMethods(builder, field, fieldType, ctx);
         }
     }
 
@@ -151,6 +169,24 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
         } else {
             addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion,
                     capitalizedName, versionJavaName, ctx);
+        }
+    }
+
+    @Override
+    public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        // Skip fields with type conflicts that should be skipped
+        if (field.shouldSkipBuilderSetter()) {
+            return;
+        }
+
+        TypeName fieldType = ctx.parseFieldType(field);
+
+        if (field.isRepeated()) {
+            TypeName singleElementType = extractListElementType(fieldType);
+            addRepeatedConcreteBuilderMethods(builder, field, singleElementType, fieldType, builderReturnType, ctx);
+        } else {
+            addScalarConcreteBuilderMethods(builder, field, fieldType, builderReturnType, ctx);
         }
     }
 
@@ -177,33 +213,21 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                                                TypeName fieldType, boolean presentInVersion,
                                                String capitalizedName, String versionJavaName,
                                                ProcessingContext ctx) {
-        // doSet
-        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(fieldType, field.getJavaName());
+        // doSet - use template method that throws when field not present
+        buildDoSetImplOrThrow(builder, "doSet" + capitalizedName, fieldType, field.getJavaName(),
+                presentInVersion, field, m -> {
+                    if (field.isEnum()) {
+                        CodeGenerationHelper.addEnumSetterWithValidation(m, field, versionJavaName,
+                                field.getJavaName(), ctx);
+                    } else {
+                        String setterCall = generateProtoSetterCall(field, versionJavaName, ctx);
+                        m.addStatement(setterCall, field.getJavaName());
+                    }
+                });
 
-        addVersionConditionalOrThrow(doSet, presentInVersion, field, m -> {
-            if (field.isEnum()) {
-                // Use validation for enum fields to provide clear error messages
-                // when enum value doesn't exist in this protocol version
-                CodeGenerationHelper.addEnumSetterWithValidation(m, field, versionJavaName,
-                        field.getJavaName(), ctx);
-            } else {
-                String setterCall = generateProtoSetterCall(field, versionJavaName, ctx);
-                m.addStatement(setterCall, field.getJavaName());
-            }
-        });
-        builder.addMethod(doSet.build());
-
-        // doClear for optional
+        // doClear for optional - use template method
         if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
-
-            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
-            builder.addMethod(doClear.build());
+            buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }
 

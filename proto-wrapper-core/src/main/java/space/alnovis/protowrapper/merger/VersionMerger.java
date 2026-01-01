@@ -2,6 +2,7 @@ package space.alnovis.protowrapper.merger;
 
 import space.alnovis.protowrapper.PluginLogger;
 import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
+import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import space.alnovis.protowrapper.generator.TypeNormalizer;
 import space.alnovis.protowrapper.model.*;
 
@@ -169,31 +170,18 @@ public class VersionMerger {
         String enumTypeName = extractEnumName(field.getJavaType());
 
         // First, try to find as a nested enum in the message
-        for (VersionSchema schema : schemas) {
-            if (!schema.getVersion().equals(version)) continue;
-
-            Optional<MessageInfo> msgOpt = schema.getMessage(messageName);
-            if (msgOpt.isPresent()) {
-                MessageInfo msg = msgOpt.get();
-                for (EnumInfo nestedEnum : msg.getNestedEnums()) {
-                    if (nestedEnum.getName().equals(enumTypeName)) {
-                        return nestedEnum;
-                    }
-                }
-            }
-        }
-
-        // Try to find as a top-level enum
-        for (VersionSchema schema : schemas) {
-            if (!schema.getVersion().equals(version)) continue;
-
-            Optional<EnumInfo> enumOpt = schema.getEnum(enumTypeName);
-            if (enumOpt.isPresent()) {
-                return enumOpt.get();
-            }
-        }
-
-        return null;
+        return schemas.stream()
+                .filter(schema -> schema.getVersion().equals(version))
+                .flatMap(schema -> schema.getMessage(messageName).stream())
+                .flatMap(msg -> msg.getNestedEnums().stream())
+                .filter(nestedEnum -> nestedEnum.getName().equals(enumTypeName))
+                .findFirst()
+                // If not found as nested enum, try to find as a top-level enum
+                .or(() -> schemas.stream()
+                        .filter(schema -> schema.getVersion().equals(version))
+                        .flatMap(schema -> schema.getEnum(enumTypeName).stream())
+                        .findFirst())
+                .orElse(null);
     }
 
     /**
@@ -597,33 +585,80 @@ public class VersionMerger {
         // Add all version fields
         fields.forEach(fv -> builder.addVersionField(fv.version(), fv.field()));
 
-        // Collect unique types
+        // Collect unique Java types
         Set<String> uniqueTypes = fields.stream()
                 .map(fv -> fv.field().getJavaType())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        // Detect conflict type if multiple types exist
-        if (uniqueTypes.size() > 1) {
+        // Check for REPEATED_SINGLE conflict - some versions have repeated, others singular
+        if (hasRepeatedSingleConflict(fields)) {
+            FieldWithVersion first = fields.get(0);
+            builder.conflictType(MergedField.ConflictType.REPEATED_SINGLE);
+
+            // For REPEATED_SINGLE, always use List<T> as unified type
+            String elementType = determineElementType(fields);
+            String listType = "java.util.List<" + boxType(elementType) + ">";
+            builder.resolvedJavaType(listType);
+            builder.resolvedGetterType(listType);
+
+            // Log warning for conflict
+            String labelStr = fields.stream()
+                    .map(fv -> fv.version() + ":" + (fv.field().isRepeated() ? "repeated" : "singular"))
+                    .collect(Collectors.joining(", "));
+            logger.warn(String.format("Repeated/singular conflict for field '%s': %s (using List<%s>)",
+                    first.field().getProtoName(), labelStr, boxType(elementType)));
+        }
+        // Check for SIGNED_UNSIGNED conflict - this conflict is not visible
+        // by looking at Java types alone (int32 and uint32 both map to "int")
+        else if (hasSignedUnsignedConflict(fields)) {
+            FieldWithVersion first = fields.get(0);
+            builder.conflictType(MergedField.ConflictType.SIGNED_UNSIGNED);
+
+            // For SIGNED_UNSIGNED, always use long (safe for uint32 values > Integer.MAX_VALUE)
+            String widerType = "long";
+            boolean isRepeated = first.field().isRepeated();
+            if (isRepeated) {
+                String listType = "java.util.List<" + boxType(widerType) + ">";
+                builder.resolvedJavaType(listType);
+                builder.resolvedGetterType(listType);
+            } else {
+                builder.resolvedJavaType(widerType);
+                builder.resolvedGetterType(widerType);
+            }
+
+            // Log warning for conflict
+            String typesStr = fields.stream()
+                    .map(fv -> fv.version() + ":" + fv.field().getType())
+                    .collect(Collectors.joining(", "));
+            logger.warn(String.format("Signed/unsigned conflict for field '%s': %s (using long)",
+                    first.field().getProtoName(), typesStr));
+        } else if (uniqueTypes.size() > 1) {
+            // Other type conflicts (different Java types)
             FieldWithVersion first = fields.get(0);
             MergedField.ConflictType conflictType = detectConflictType(fields);
             builder.conflictType(conflictType);
 
-            // For WIDENING conflicts, set the resolved type to the wider type
-            if (conflictType == MergedField.ConflictType.WIDENING) {
+            // For WIDENING and FLOAT_DOUBLE conflicts, set the resolved type
+            if (conflictType == MergedField.ConflictType.WIDENING ||
+                conflictType == MergedField.ConflictType.FLOAT_DOUBLE) {
                 String widerType = determineWiderType(uniqueTypes);
                 if (widerType != null) {
                     boolean isRepeated = first.field().isRepeated();
                     if (isRepeated) {
-                        // For repeated fields, use List<BoxedWiderType>
                         String listType = "java.util.List<" + boxType(widerType) + ">";
                         builder.resolvedJavaType(listType);
                         builder.resolvedGetterType(listType);
                     } else {
-                        // For scalar fields, use primitive wider type
                         builder.resolvedJavaType(widerType);
                         builder.resolvedGetterType(widerType);
                     }
                 }
+            }
+
+            // For ENUM_ENUM conflicts, use int as unified type
+            if (conflictType == MergedField.ConflictType.ENUM_ENUM) {
+                builder.resolvedJavaType("int");
+                builder.resolvedGetterType("int");
             }
 
             // Log warning for conflicts
@@ -632,6 +667,22 @@ public class VersionMerger {
                     .collect(Collectors.joining(", "));
             logger.warn(String.format("Type conflict for field '%s' [%s]: %s",
                     first.field().getProtoName(), conflictType, typesStr));
+        }
+
+        // Check for OPTIONAL_REQUIRED conflict after type conflicts
+        // This can exist independently or alongside type conflicts
+        if (hasOptionalRequiredConflict(fields)) {
+            FieldWithVersion first = fields.get(0);
+            // Only set conflict type if no other conflict was detected
+            if (builder.getConflictType() == MergedField.ConflictType.NONE) {
+                builder.conflictType(MergedField.ConflictType.OPTIONAL_REQUIRED);
+            }
+            // Log warning for conflict
+            String optionalityStr = fields.stream()
+                    .map(fv -> fv.version() + ":" + (fv.field().isOptional() ? "optional" : "required"))
+                    .collect(Collectors.joining(", "));
+            logger.warn(String.format("Optional/required conflict for field '%s': %s",
+                    first.field().getProtoName(), optionalityStr));
         }
 
         return builder.build();
@@ -644,6 +695,9 @@ public class VersionMerger {
         Set<String> rawTypes = fields.stream()
                 .map(fv -> fv.field().getJavaType())
                 .collect(Collectors.toSet());
+
+        // Note: SIGNED_UNSIGNED is now detected in mergeFields() BEFORE this method is called
+        // because int32/uint32 both map to Java "int", so rawTypes.size() == 1 for them
 
         if (rawTypes.size() == 1) {
             return MergedField.ConflictType.NONE;
@@ -673,10 +727,21 @@ public class VersionMerger {
             return MergedField.ConflictType.INT_ENUM;
         }
 
-        // Check for widening: int → long, int → double, float → double
+        // Check for enum ↔ enum conflict (different enum types)
+        // All fields are enums but with different Java types
+        boolean allEnums = fields.stream().allMatch(fv -> fv.field().isEnum());
+        if (allEnums && types.size() > 1) {
+            return MergedField.ConflictType.ENUM_ENUM;
+        }
+
+        // Check for float ↔ double conflict (separate from integer widening)
+        if (hasFloat && hasDouble && !hasInt && !hasLong && !hasMessage && !hasEnum) {
+            return MergedField.ConflictType.FLOAT_DOUBLE;
+        }
+
+        // Check for integer widening: int → long
         if ((hasInt && hasLong && !hasDouble && !hasFloat && !hasMessage && !hasEnum) ||
-            (hasInt && (hasDouble || hasFloat) && !hasLong && !hasMessage && !hasEnum) ||
-            (hasFloat && hasDouble && !hasInt && !hasLong && !hasMessage && !hasEnum)) {
+            (hasInt && (hasDouble || hasFloat) && !hasLong && !hasMessage && !hasEnum)) {
             return MergedField.ConflictType.WIDENING;
         }
 
@@ -694,7 +759,9 @@ public class VersionMerger {
         }
 
         // Check for primitive ↔ message conflict
-        if (hasPrimitive && hasMessage) {
+        // Also treat String and bytes as "primitive-like" for this purpose
+        // because they can be accessed directly without needing message wrapper
+        if ((hasPrimitive || hasString || hasBytes) && hasMessage) {
             return MergedField.ConflictType.PRIMITIVE_MESSAGE;
         }
 
@@ -730,6 +797,145 @@ public class VersionMerger {
      */
     private boolean isFloatingPointType(String type) {
         return TypeNormalizer.isFloatingPointType(type);
+    }
+
+    /**
+     * Check if there is a signed/unsigned conflict between fields.
+     * This detects cases where Java types are the same (int or long)
+     * but protobuf types differ in signedness.
+     *
+     * <p>Examples of conflicts:</p>
+     * <ul>
+     *   <li>int32 (signed) vs uint32 (unsigned)</li>
+     *   <li>int32 vs sint32 (different wire encoding)</li>
+     *   <li>int64 vs uint64</li>
+     *   <li>fixed32 vs sfixed32</li>
+     * </ul>
+     *
+     * @param fields List of fields from different versions
+     * @return true if signed/unsigned conflict exists
+     */
+    private boolean hasSignedUnsignedConflict(List<FieldWithVersion> fields) {
+        Set<Type> protoTypes = fields.stream()
+                .map(fv -> fv.field().getType())
+                .collect(Collectors.toSet());
+
+        // If all fields have the same protobuf type, no conflict
+        if (protoTypes.size() <= 1) {
+            return false;
+        }
+
+        // Only check if all are integer types (not enum, not message)
+        if (fields.stream().anyMatch(fv -> fv.field().isEnum() || fv.field().isMessage())) {
+            return false;
+        }
+
+        // 32-bit integer type variants
+        boolean hasInt32 = protoTypes.contains(Type.TYPE_INT32);
+        boolean hasUint32 = protoTypes.contains(Type.TYPE_UINT32);
+        boolean hasSint32 = protoTypes.contains(Type.TYPE_SINT32);
+        boolean hasFixed32 = protoTypes.contains(Type.TYPE_FIXED32);
+        boolean hasSfixed32 = protoTypes.contains(Type.TYPE_SFIXED32);
+
+        // 64-bit integer type variants
+        boolean hasInt64 = protoTypes.contains(Type.TYPE_INT64);
+        boolean hasUint64 = protoTypes.contains(Type.TYPE_UINT64);
+        boolean hasSint64 = protoTypes.contains(Type.TYPE_SINT64);
+        boolean hasFixed64 = protoTypes.contains(Type.TYPE_FIXED64);
+        boolean hasSfixed64 = protoTypes.contains(Type.TYPE_SFIXED64);
+
+        // Check for 32-bit signed/unsigned conflicts
+        // Signed types: int32, sint32, sfixed32
+        // Unsigned types: uint32, fixed32
+        boolean has32BitSigned = hasInt32 || hasSint32 || hasSfixed32;
+        boolean has32BitUnsigned = hasUint32 || hasFixed32;
+        if (has32BitSigned && has32BitUnsigned) {
+            return true;
+        }
+
+        // Check for 64-bit signed/unsigned conflicts
+        // Signed types: int64, sint64, sfixed64
+        // Unsigned types: uint64, fixed64
+        boolean has64BitSigned = hasInt64 || hasSint64 || hasSfixed64;
+        boolean has64BitUnsigned = hasUint64 || hasFixed64;
+        if (has64BitSigned && has64BitUnsigned) {
+            return true;
+        }
+
+        // Check for encoding conflicts within same signedness
+        // sint32 uses ZigZag encoding, int32 uses varint - different wire formats
+        // This can cause issues when parsing cross-version data
+        Set<Type> signedTypes32 = new HashSet<>();
+        if (hasInt32) signedTypes32.add(Type.TYPE_INT32);
+        if (hasSint32) signedTypes32.add(Type.TYPE_SINT32);
+        if (hasSfixed32) signedTypes32.add(Type.TYPE_SFIXED32);
+        if (signedTypes32.size() > 1) {
+            return true;
+        }
+
+        Set<Type> signedTypes64 = new HashSet<>();
+        if (hasInt64) signedTypes64.add(Type.TYPE_INT64);
+        if (hasSint64) signedTypes64.add(Type.TYPE_SINT64);
+        if (hasSfixed64) signedTypes64.add(Type.TYPE_SFIXED64);
+        if (signedTypes64.size() > 1) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if fields have a repeated/singular conflict.
+     * This occurs when some versions have repeated label and others have singular.
+     */
+    private boolean hasRepeatedSingleConflict(List<FieldWithVersion> fields) {
+        if (fields.size() < 2) {
+            return false;
+        }
+
+        boolean hasRepeated = fields.stream().anyMatch(fv -> fv.field().isRepeated());
+        boolean hasSingular = fields.stream().anyMatch(fv -> !fv.field().isRepeated());
+
+        // Conflict exists if some versions are repeated and some are singular
+        // Also must not be a map in any version (maps have their own handling)
+        boolean hasMap = fields.stream().anyMatch(fv -> fv.field().isMap());
+        return hasRepeated && hasSingular && !hasMap;
+    }
+
+    /**
+     * Check if fields have an optional/required conflict.
+     * This occurs when some versions mark the field as optional and others as required.
+     */
+    private boolean hasOptionalRequiredConflict(List<FieldWithVersion> fields) {
+        if (fields.size() < 2) {
+            return false;
+        }
+
+        boolean hasOptional = fields.stream().anyMatch(fv -> fv.field().isOptional());
+        boolean hasRequired = fields.stream().anyMatch(fv -> !fv.field().isOptional());
+
+        return hasOptional && hasRequired;
+    }
+
+    /**
+     * Determine the element type for REPEATED_SINGLE conflicts.
+     * Returns the primitive/base type that should be used as List element type.
+     */
+    private String determineElementType(List<FieldWithVersion> fields) {
+        // Prefer the type from the singular field (it's the base type)
+        for (FieldWithVersion fv : fields) {
+            if (!fv.field().isRepeated()) {
+                return fv.field().getJavaType();
+            }
+        }
+        // Fall back to extracting element type from repeated field
+        for (FieldWithVersion fv : fields) {
+            if (fv.field().isRepeated()) {
+                return extractElementType(fv.field().getJavaType());
+            }
+        }
+        // Should never reach here
+        return "Object";
     }
 
     /**

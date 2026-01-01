@@ -31,14 +31,24 @@ public class MergedField {
         NONE,
         /** int ↔ enum conflict (convertible via getValue/forNumber) */
         INT_ENUM,
-        /** Type widening: int → long, int → double (safe conversion) */
+        /** enum ↔ enum conflict (different enum types, use int accessor) */
+        ENUM_ENUM,
+        /** Integer type widening: int32 → int64 (safe conversion to long) */
         WIDENING,
+        /** Float type widening: float → double (safe conversion to double) */
+        FLOAT_DOUBLE,
+        /** Signed/unsigned conflict: int32 ↔ uint32, sint32, etc. (use long for safety) */
+        SIGNED_UNSIGNED,
+        /** Repeated ↔ singular conflict: repeated T ↔ T (unified as List) */
+        REPEATED_SINGLE,
         /** Type narrowing: long → int, double → int (lossy conversion) */
         NARROWING,
         /** string ↔ bytes conflict (convertible via getBytes/new String) */
         STRING_BYTES,
         /** Primitive to message: int → SomeMessage (not convertible) */
         PRIMITIVE_MESSAGE,
+        /** Optional ↔ required conflict: field is optional in some versions, required in others */
+        OPTIONAL_REQUIRED,
         /** Other incompatible types: string ↔ int, etc. (not convertible) */
         INCOMPATIBLE;
 
@@ -47,17 +57,21 @@ public class MergedField {
          * @return true if conversion is possible without data loss
          */
         public boolean isConvertible() {
-            return this == NONE || this == INT_ENUM || this == WIDENING || this == STRING_BYTES;
+            return this == NONE || this == INT_ENUM || this == ENUM_ENUM || this == WIDENING
+                    || this == FLOAT_DOUBLE || this == SIGNED_UNSIGNED
+                    || this == REPEATED_SINGLE || this == STRING_BYTES
+                    || this == OPTIONAL_REQUIRED;
         }
 
         /**
          * Check if builder setters should be skipped for this conflict type.
-         * For the hybrid approach, ALL type conflicts result in skipped builder setters
+         * For the hybrid approach, type conflicts result in skipped builder setters
          * because the unified type cannot be directly passed to version-specific proto builders.
+         * OPTIONAL_REQUIRED is an exception - the type is the same, only optionality differs.
          * @return true if setters should not be generated
          */
         public boolean shouldSkipBuilderSetter() {
-            return this != NONE;
+            return this != NONE && this != OPTIONAL_REQUIRED;
         }
     }
 
@@ -71,11 +85,14 @@ public class MergedField {
     private final boolean primitive;
     private final boolean message;
     private final boolean isEnum;
+    private final boolean isMap;
+    private final MapInfo mapInfo; // null if not a map or if map info unavailable
     private final Set<String> presentInVersions;
     private final Map<String, FieldInfo> versionFields; // Version -> original field
     private final ConflictType conflictType;
     private final Map<String, String> typesPerVersion; // Version -> javaType
     private final Map<String, String> oneofNamePerVersion; // Version -> oneof name (null if not in oneof)
+    private final Map<String, Boolean> optionalityPerVersion; // Version -> isOptional
     private final boolean isInOneof; // true if in oneof in ANY version
 
     /**
@@ -98,6 +115,8 @@ public class MergedField {
         this.primitive = field.isPrimitive();
         this.message = field.isMessage();
         this.isEnum = field.isEnum();
+        this.isMap = field.isMap();
+        this.mapInfo = field.getMapInfo();
         this.presentInVersions = new LinkedHashSet<>();
         this.presentInVersions.add(version);
         this.versionFields = new LinkedHashMap<>();
@@ -109,6 +128,8 @@ public class MergedField {
         if (field.isInOneof()) {
             this.oneofNamePerVersion.put(version, field.getOneofName());
         }
+        this.optionalityPerVersion = new LinkedHashMap<>();
+        this.optionalityPerVersion.put(version, field.isOptional());
         this.isInOneof = field.isInOneof();
     }
 
@@ -127,11 +148,14 @@ public class MergedField {
         this.primitive = firstField.isPrimitive();
         this.message = firstField.isMessage();
         this.isEnum = firstField.isEnum();
+        this.isMap = firstField.isMap();
+        this.mapInfo = firstField.getMapInfo();
         this.presentInVersions = Collections.unmodifiableSet(new LinkedHashSet<>(builder.versionFields.keySet()));
         this.versionFields = Collections.unmodifiableMap(new LinkedHashMap<>(builder.versionFields));
         this.conflictType = builder.conflictType != null ? builder.conflictType : ConflictType.NONE;
         this.typesPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.typesPerVersion));
         this.oneofNamePerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.oneofNamePerVersion));
+        this.optionalityPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.optionalityPerVersion));
         this.isInOneof = !builder.oneofNamePerVersion.isEmpty();
     }
 
@@ -164,6 +188,7 @@ public class MergedField {
         private final Map<String, FieldInfo> versionFields = new LinkedHashMap<>();
         private final Map<String, String> typesPerVersion = new LinkedHashMap<>();
         private final Map<String, String> oneofNamePerVersion = new LinkedHashMap<>();
+        private final Map<String, Boolean> optionalityPerVersion = new LinkedHashMap<>();
         private String resolvedJavaType;
         private String resolvedGetterType;
         private ConflictType conflictType;
@@ -178,6 +203,7 @@ public class MergedField {
         public Builder addVersionField(String version, FieldInfo field) {
             versionFields.put(version, field);
             typesPerVersion.put(version, field.getJavaType());
+            optionalityPerVersion.put(version, field.isOptional());
             if (field.isInOneof()) {
                 oneofNamePerVersion.put(version, field.getOneofName());
             }
@@ -215,6 +241,15 @@ public class MergedField {
         public Builder conflictType(ConflictType conflictType) {
             this.conflictType = conflictType;
             return this;
+        }
+
+        /**
+         * Get the current conflict type set in this builder.
+         *
+         * @return Current conflict type, or NONE if not set
+         */
+        public ConflictType getConflictType() {
+            return conflictType != null ? conflictType : ConflictType.NONE;
         }
 
         /**
@@ -269,6 +304,14 @@ public class MergedField {
 
     public boolean isEnum() {
         return isEnum;
+    }
+
+    public boolean isMap() {
+        return isMap;
+    }
+
+    public MapInfo getMapInfo() {
+        return mapInfo;
     }
 
     public Set<String> getPresentInVersions() {
@@ -368,6 +411,47 @@ public class MergedField {
     }
 
     /**
+     * Get optionality status for a specific version.
+     * @param version Version identifier
+     * @return true if the field is optional in that version, false if required
+     */
+    public boolean isOptionalInVersion(String version) {
+        Boolean value = optionalityPerVersion.get(version);
+        return value != null && value;
+    }
+
+    /**
+     * Get optionality per version map.
+     * @return Unmodifiable map of version to optionality status
+     */
+    public Map<String, Boolean> getOptionalityPerVersion() {
+        return Collections.unmodifiableMap(optionalityPerVersion);
+    }
+
+    /**
+     * Check if this field has an optional/required conflict across versions.
+     * @return true if field is optional in some versions and required in others
+     */
+    public boolean hasOptionalRequiredMismatch() {
+        if (optionalityPerVersion.isEmpty() || optionalityPerVersion.size() <= 1) {
+            return false;
+        }
+        boolean hasOptional = optionalityPerVersion.values().stream().anyMatch(Boolean::booleanValue);
+        boolean hasRequired = optionalityPerVersion.values().stream().anyMatch(v -> !v);
+        return hasOptional && hasRequired;
+    }
+
+    /**
+     * Check if this field should be treated as optional in the unified API.
+     * Returns true if the field is optional in any version OR has an optional/required mismatch.
+     * This is used for determining whether to generate has-methods and nullable return types.
+     * @return true if field should be treated as optional in unified API
+     */
+    public boolean isEffectivelyOptional() {
+        return optionalityPerVersion.values().stream().anyMatch(Boolean::booleanValue);
+    }
+
+    /**
      * Get the full nested type path from the proto type name.
      * E.g., for type ".example.proto.v1.Order.ShippingInfo" with package "example.proto.v1"
      * returns "Order.ShippingInfo".
@@ -428,6 +512,106 @@ public class MergedField {
      */
     public String getExtractMessageMethodName() {
         return "extract" + capitalize(javaName) + "Message";
+    }
+
+    // ==================== Map Field Method Names ====================
+
+    /**
+     * Getter name for map field (e.g., "getItemCountsMap").
+     */
+    public String getMapGetterName() {
+        return "get" + capitalize(javaName) + "Map";
+    }
+
+    /**
+     * Count getter name for map field (e.g., "getItemCountsCount").
+     */
+    public String getMapCountMethodName() {
+        return "get" + capitalize(javaName) + "Count";
+    }
+
+    /**
+     * Contains method name for map field (e.g., "containsItemCounts").
+     */
+    public String getMapContainsMethodName() {
+        return "contains" + capitalize(javaName);
+    }
+
+    /**
+     * GetOrDefault method name for map field (e.g., "getItemCountsOrDefault").
+     */
+    public String getMapGetOrDefaultMethodName() {
+        return "get" + capitalize(javaName) + "OrDefault";
+    }
+
+    /**
+     * GetOrThrow method name for map field (e.g., "getItemCountsOrThrow").
+     */
+    public String getMapGetOrThrowMethodName() {
+        return "get" + capitalize(javaName) + "OrThrow";
+    }
+
+    /**
+     * Extract method name for map field (e.g., "extractItemCountsMap").
+     */
+    public String getMapExtractMethodName() {
+        return "extract" + capitalize(javaName) + "Map";
+    }
+
+    /**
+     * Put method name for map builder (e.g., "putItemCounts").
+     */
+    public String getMapPutMethodName() {
+        return "put" + capitalize(javaName);
+    }
+
+    /**
+     * PutAll method name for map builder (e.g., "putAllItemCounts").
+     */
+    public String getMapPutAllMethodName() {
+        return "putAll" + capitalize(javaName);
+    }
+
+    /**
+     * Remove method name for map builder (e.g., "removeItemCounts").
+     */
+    public String getMapRemoveMethodName() {
+        return "remove" + capitalize(javaName);
+    }
+
+    /**
+     * Clear method name for map builder (e.g., "clearItemCounts").
+     */
+    public String getMapClearMethodName() {
+        return "clear" + capitalize(javaName);
+    }
+
+    /**
+     * DoSet method name for map builder (e.g., "doPutItemCounts").
+     */
+    public String getMapDoPutMethodName() {
+        return "doPut" + capitalize(javaName);
+    }
+
+    /**
+     * DoPutAll method name for map builder (e.g., "doPutAllItemCounts").
+     */
+    public String getMapDoPutAllMethodName() {
+        return "doPutAll" + capitalize(javaName);
+    }
+
+    /**
+     * DoRemove method name for map builder (e.g., "doRemoveItemCounts").
+     */
+    public String getMapDoRemoveMethodName() {
+        return "doRemove" + capitalize(javaName);
+    }
+
+    /**
+     * DoClear method name for map builder (e.g., "doClearItemCounts").
+     */
+    public String getMapDoClearMethodName() {
+        return "doClear" + capitalize(javaName);
     }
 
     // ==================== Builder Method Names ====================
