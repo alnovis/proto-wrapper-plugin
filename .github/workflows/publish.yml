@@ -23,28 +23,125 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Configure Maven settings
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>central-secure</id>
+                <name>Maven Central (HTTPS)</name>
+                <url>https://repo1.maven.org/maven2/</url>
+                <mirrorOf>central</mirrorOf>
+              </mirror>
+            </mirrors>
+            <profiles>
+              <profile>
+                <id>default</id>
+                <repositories>
+                  <repository>
+                    <id>central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>false</enabled>
+                    </snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>false</enabled>
+                    </snapshots>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>default</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+
+      - name: Configure Gradle repositories
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle << 'EOF'
+          allprojects {
+            repositories {
+              mavenCentral()
+              maven {
+                url = uri("https://repo1.maven.org/maven2/")
+              }
+              gradlePluginPortal()
+            }
+          }
+          settingsEvaluated { settings ->
+            settings.pluginManagement {
+              repositories {
+                gradlePluginPortal()
+                mavenCentral()
+                maven {
+                  url = uri("https://repo1.maven.org/maven2/")
+                }
+              }
+            }
+          }
+          EOF
+
       - name: Install protoc
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
 
       - name: Build Core and Plugin
-        run: |
-          mvn install -B -N
-          mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            mvn install -B -N
+            mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
 
       - name: Run Integration Tests
-        working-directory: proto-wrapper-integration-tests
-        run: mvn verify -B
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd proto-wrapper-integration-tests
+            mvn verify -B
 
       - name: Run Maven Example
-        working-directory: examples/maven-example
-        run: mvn verify -B
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd examples/maven-example
+            mvn verify -B
 
       - name: Run Gradle tests
-        run: |
-          chmod +x gradlew
-          ./gradlew test --no-daemon
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            chmod +x gradlew
+            ./gradlew test --no-daemon
 
   # Publish Maven modules to Maven Central
   publish-maven:
@@ -64,6 +161,62 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
 
+      - name: Configure Maven settings
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>central-secure</id>
+                <name>Maven Central (HTTPS)</name>
+                <url>https://repo1.maven.org/maven2/</url>
+                <mirrorOf>central</mirrorOf>
+              </mirror>
+            </mirrors>
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${env.MAVEN_USERNAME}</username>
+                <password>${env.MAVEN_PASSWORD}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>default</id>
+                <repositories>
+                  <repository>
+                    <id>central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>false</enabled>
+                    </snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>false</enabled>
+                    </snapshots>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>default</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+
       - name: Install protoc
         run: |
           sudo apt-get update
@@ -82,22 +235,37 @@ jobs:
           gpg-connect-agent reloadagent /bye
 
       - name: Install Parent POM and Core
-        run: |
-          mvn install -B -N
-          mvn install -B -pl proto-wrapper-core -DskipTests
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            mvn install -B -N
+            mvn install -B -pl proto-wrapper-core -DskipTests
 
       - name: Publish proto-wrapper-core to Maven Central
-        run: |
-          mvn deploy -B -pl proto-wrapper-core -P release \
-            -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            mvn deploy -B -pl proto-wrapper-core -P release \
+              -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
 
       - name: Publish proto-wrapper-maven-plugin to Maven Central
-        run: |
-          mvn deploy -B -pl proto-wrapper-maven-plugin -P release \
-            -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            mvn deploy -B -pl proto-wrapper-maven-plugin -P release \
+              -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
@@ -117,6 +285,32 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Configure Gradle repositories
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle << 'EOF'
+          allprojects {
+            repositories {
+              mavenCentral()
+              maven {
+                url = uri("https://repo1.maven.org/maven2/")
+              }
+              gradlePluginPortal()
+            }
+          }
+          settingsEvaluated { settings ->
+            settings.pluginManagement {
+              repositories {
+                gradlePluginPortal()
+                mavenCentral()
+                maven {
+                  url = uri("https://repo1.maven.org/maven2/")
+                }
+              }
+            }
+          }
+          EOF
+
       - name: Install protoc
         run: |
           sudo apt-get update
@@ -131,12 +325,17 @@ jobs:
           sleep 60
 
       - name: Publish to Gradle Plugin Portal
-        run: |
-          ./gradlew :proto-wrapper-gradle-plugin:publishPlugins \
-            -Pgradle.publish.key=${{ secrets.GRADLE_PUBLISH_KEY }} \
-            -Pgradle.publish.secret=${{ secrets.GRADLE_PUBLISH_SECRET }} \
-            -PuseMavenCentral=true \
-            --no-daemon
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            ./gradlew :proto-wrapper-gradle-plugin:publishPlugins \
+              -Pgradle.publish.key=${{ secrets.GRADLE_PUBLISH_KEY }} \
+              -Pgradle.publish.secret=${{ secrets.GRADLE_PUBLISH_SECRET }} \
+              -PuseMavenCentral=true \
+              --no-daemon
         env:
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
