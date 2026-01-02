@@ -32,6 +32,10 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     abstract val generateBuilders: Property<Boolean>
     abstract val protobufMajorVersion: Property<Int>
 
+    // Well-Known Types support (since 1.3.0)
+    abstract val convertWellKnownTypes: Property<Boolean>
+    abstract val generateRawProtoAccessors: Property<Boolean>
+
     // Filtering
     abstract val includeMessages: ListProperty<String>
     abstract val excludeMessages: ListProperty<String>
@@ -61,5 +65,7 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         includeVersionSuffix.convention(true)
         generateBuilders.convention(false)
         protobufMajorVersion.convention(3)
+        convertWellKnownTypes.convention(true)
+        generateRawProtoAccessors.convention(false)
     }
 }

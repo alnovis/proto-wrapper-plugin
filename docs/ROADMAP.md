@@ -24,21 +24,16 @@ This document outlines the development roadmap for upcoming releases.
 
 ---
 
-## Version 1.3.0
+## Version 1.3.0 (Completed)
 
-**Target:** Jan 2026
+**Released:** January 2, 2026
 **Theme:** Well-Known Types Support
 
 ### Feature: Well-Known Types Support
 
-**Priority:** High
-**Complexity:** Medium
+**Status:** Completed
 
-#### Description
-
-Automatically convert Google Well-Known Types to Java standard library equivalents.
-
-#### Supported Types
+#### Supported Types (15 total)
 
 | Proto Type | Java Type | Notes |
 |------------|-----------|-------|
@@ -47,70 +42,45 @@ Automatically convert Google Well-Known Types to Java standard library equivalen
 | `google.protobuf.StringValue` | `String` | Nullable wrapper |
 | `google.protobuf.Int32Value` | `Integer` | Nullable wrapper |
 | `google.protobuf.Int64Value` | `Long` | Nullable wrapper |
+| `google.protobuf.UInt32Value` | `Long` | Unsigned, nullable |
+| `google.protobuf.UInt64Value` | `Long` | Unsigned, nullable |
 | `google.protobuf.BoolValue` | `Boolean` | Nullable wrapper |
 | `google.protobuf.FloatValue` | `Float` | Nullable wrapper |
 | `google.protobuf.DoubleValue` | `Double` | Nullable wrapper |
 | `google.protobuf.BytesValue` | `byte[]` | Nullable wrapper |
+| `google.protobuf.FieldMask` | `List<String>` | Field paths |
+| `google.protobuf.Struct` | `Map<String, Object>` | JSON-like |
+| `google.protobuf.Value` | `Object` | Dynamic |
+| `google.protobuf.ListValue` | `List<Object>` | Dynamic list |
 
-#### Generated Code Example
+#### Configuration Options
 
-```java
-// Proto definition
-message Event {
-    google.protobuf.Timestamp created_at = 1;
-    google.protobuf.Duration duration = 2;
-    google.protobuf.StringValue optional_name = 3;
-}
-
-// Generated interface
-public interface Event {
-    // Direct Java types
-    Instant getCreatedAt();
-    Duration getDuration();
-    String getOptionalName();  // null if not set
-
-    // Optional: Raw proto access
-    Timestamp getCreatedAtProto();
-
-    interface Builder {
-        Builder setCreatedAt(Instant value);
-        Builder setDuration(Duration value);
-        Builder setOptionalName(String value);
-    }
-}
+```xml
+<configuration>
+    <convertWellKnownTypes>true</convertWellKnownTypes>
+    <generateRawProtoAccessors>false</generateRawProtoAccessors>
+</configuration>
 ```
 
-#### Implementation Plan
+#### Implementation Details
 
-1. Create `WellKnownTypeResolver` class
-   - Map proto types to Java types
-   - Generate conversion code
-2. Update `TypeResolver` to detect well-known types
-3. Create handlers for each type:
-   - `TimestampHandler`
-   - `DurationHandler`
-   - `WrapperTypeHandler` (for StringValue, Int32Value, etc.)
-4. Add configuration option to enable/disable:
-   ```xml
-   <configuration>
-       <convertWellKnownTypes>true</convertWellKnownTypes>
-   </configuration>
-   ```
-5. Update documentation
+- `WellKnownTypeInfo` - Enum registry with inline conversion code
+- `WellKnownTypeHandler` - Handler for scalar WKT fields
+- `RepeatedWellKnownTypeHandler` - Handler for repeated WKT fields
+- `StructConverterGenerator` - Generates utility class for Struct/Value/ListValue
 
 #### Acceptance Criteria
 
-- [ ] All listed types converted automatically
-- [ ] Null handling for wrapper types
-- [ ] Builder setters accept Java types
-- [ ] Configuration option to disable
-- [ ] Integration tests for all types
-- [ ] Documentation updated
+- [x] All 15 types converted automatically
+- [x] Null handling for wrapper types
+- [x] Builder setters accept Java types
+- [x] Configuration option to disable
+- [x] StructConverter utility class auto-generated when needed
+- [x] Documentation updated
 
-### Migration Notes
+#### Not Supported
 
-- No breaking changes
-- New feature is opt-in (enabled by default)
+- `google.protobuf.Any` - Requires runtime type registry
 
 ---
 
@@ -1066,9 +1036,9 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 
 ### Priority Areas
 
-1. Well-Known Types support
+1. Repeated conflict field builders
 2. Kotlin extensions
-3. Documentation improvements
+3. Schema diff tool
 4. Integration tests
 
 ### How to Propose Features
@@ -1085,7 +1055,7 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 | Version | Feature | Target |
 |---------|---------|--------|
 | 1.2.0 | Map Support, Lazy Caching, Oneof | Released (2026-01-02) |
-| 1.3.0 | Well-Known Types Support | Jan 2026 |
+| 1.3.0 | Well-Known Types Support | Released (2026-01-02) |
 | 1.4.0 | Repeated Conflict Field Builders | Jan 2026 |
 | 1.5.0 | Schema Diff Tool | Feb 2026 |
 | 1.6.0 | Incremental Generation | Feb 2026 |

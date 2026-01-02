@@ -1,5 +1,7 @@
 package space.alnovis.protowrapper.model;
 
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
+
 import java.util.*;
 
 /**
@@ -96,6 +98,7 @@ public class MergedField {
     private final Map<String, String> oneofNamePerVersion; // Version -> oneof name (null if not in oneof)
     private final Map<String, Boolean> optionalityPerVersion; // Version -> isOptional
     private final boolean isInOneof; // true if in oneof in ANY version
+    private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
 
     /**
      * Create a new MergedField from a FieldInfo.
@@ -135,6 +138,7 @@ public class MergedField {
         this.optionalityPerVersion = new LinkedHashMap<>();
         this.optionalityPerVersion.put(version, field.isOptional());
         this.isInOneof = field.isInOneof();
+        this.wellKnownType = field.getWellKnownType();
     }
 
     /**
@@ -164,6 +168,7 @@ public class MergedField {
         this.oneofNamePerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.oneofNamePerVersion));
         this.optionalityPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.optionalityPerVersion));
         this.isInOneof = !builder.oneofNamePerVersion.isEmpty();
+        this.wellKnownType = firstField.getWellKnownType();
     }
 
     /**
@@ -343,6 +348,26 @@ public class MergedField {
 
     public MapInfo getMapInfo() {
         return mapInfo;
+    }
+
+    /**
+     * Get the well-known type info for this field.
+     *
+     * @return WellKnownTypeInfo if field is a well-known type, null otherwise
+     * @since 1.3.0
+     */
+    public WellKnownTypeInfo getWellKnownType() {
+        return wellKnownType;
+    }
+
+    /**
+     * Check if this field is a Google Well-Known Type.
+     *
+     * @return true if field type is Timestamp, Duration, StringValue, etc.
+     * @since 1.3.0
+     */
+    public boolean isWellKnownType() {
+        return wellKnownType != null;
     }
 
     /**

@@ -26,7 +26,8 @@ import java.util.function.Consumer;
 public abstract sealed class AbstractConflictHandler permits
         IntEnumHandler, EnumEnumHandler, StringBytesHandler, WideningHandler, FloatDoubleHandler,
         SignedUnsignedHandler, RepeatedSingleHandler, PrimitiveMessageHandler,
-        RepeatedConflictHandler, MapFieldHandler, DefaultHandler {
+        RepeatedConflictHandler, MapFieldHandler, WellKnownTypeHandler, RepeatedWellKnownTypeHandler,
+        DefaultHandler {
 
     /**
      * Add an abstract extractHas method for optional fields.

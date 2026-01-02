@@ -11,6 +11,90 @@ _No changes yet._
 
 ---
 
+## [1.3.0] - 2026-01-02
+
+### Added
+
+#### Google Well-Known Types Support
+- **Automatic type conversion** — Convert Google Well-Known Types to idiomatic Java types
+  - `google.protobuf.Timestamp` → `java.time.Instant`
+  - `google.protobuf.Duration` → `java.time.Duration`
+  - `google.protobuf.StringValue` → `String` (nullable)
+  - `google.protobuf.Int32Value` → `Integer` (nullable)
+  - `google.protobuf.Int64Value` → `Long` (nullable)
+  - `google.protobuf.UInt32Value` → `Long` (nullable, unsigned)
+  - `google.protobuf.UInt64Value` → `Long` (nullable, unsigned)
+  - `google.protobuf.BoolValue` → `Boolean` (nullable)
+  - `google.protobuf.FloatValue` → `Float` (nullable)
+  - `google.protobuf.DoubleValue` → `Double` (nullable)
+  - `google.protobuf.BytesValue` → `byte[]` (nullable)
+  - `google.protobuf.FieldMask` → `List<String>`
+  - `google.protobuf.Struct` → `Map<String, Object>`
+  - `google.protobuf.Value` → `Object`
+  - `google.protobuf.ListValue` → `List<Object>`
+
+#### New Configuration Options
+- **`convertWellKnownTypes`** (default: `true`) — Enable/disable WKT conversion
+- **`generateRawProtoAccessors`** (default: `false`) — Generate additional `getXxxProto()` methods
+
+#### New Handlers
+- `WellKnownTypeHandler` — Handler for scalar well-known type fields
+- `RepeatedWellKnownTypeHandler` — Handler for repeated well-known type fields
+
+#### New Generator Classes
+- `WellKnownTypeInfo` — Enum registry with 15 supported types and inline conversion code
+- `StructConverterGenerator` — Generates utility class for Struct/Value/ListValue conversion
+
+#### StructConverter Utility Class
+- **Auto-generated when needed** — Only generated if Struct/Value/ListValue fields are used
+- **Bidirectional conversion:**
+  - `toMap(Struct)` → `Map<String, Object>`
+  - `toStruct(Map)` → `Struct`
+  - `toObject(Value)` → `Object`
+  - `toValue(Object)` → `Value`
+  - `toList(ListValue)` → `List<Object>`
+  - `toListValue(List)` → `ListValue`
+
+### Changed
+- `FieldInfo` — Added `wellKnownType` field and detection logic
+- `MergedField` — Propagates well-known type info from FieldInfo
+- `TypeResolver` — Added WKT type resolution in `parseFieldType()`
+- `FieldProcessingChain` — Added WellKnownTypeHandler and RepeatedWellKnownTypeHandler
+- `HandlerType` — Added `WELL_KNOWN_TYPE` and `REPEATED_WELL_KNOWN_TYPE` entries
+- `ConflictHandler` — Updated sealed interface permits clause
+- `AbstractConflictHandler` — Updated sealed class permits clause
+- `GenerationOrchestrator` — Added utility class generation
+
+### Design Decisions
+- **Inline conversion code** — No runtime dependencies required
+- **Conditional generation** — StructConverter only generated when Struct/Value/ListValue used
+- **google.protobuf.Any not supported** — Requires runtime type registry, incompatible with inline approach
+
+### Example Usage
+
+```java
+// Proto definition:
+// google.protobuf.Timestamp created_at = 1;
+// google.protobuf.Duration timeout = 2;
+// google.protobuf.StringValue optional_name = 3;
+
+// Generated interface:
+public interface Event {
+    Instant getCreatedAt();        // java.time.Instant
+    Duration getTimeout();          // java.time.Duration
+    String getOptionalName();       // nullable String
+}
+
+// Builder support:
+Event event = Event.newBuilder(ctx)
+    .setCreatedAt(Instant.now())
+    .setTimeout(Duration.ofMinutes(5))
+    .setOptionalName("test")
+    .build();
+```
+
+---
+
 ## [1.2.0] - 2026-01-02
 
 ### Added
