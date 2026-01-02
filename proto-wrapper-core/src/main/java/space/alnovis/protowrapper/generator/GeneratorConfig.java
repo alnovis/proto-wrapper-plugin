@@ -74,6 +74,8 @@ public class GeneratorConfig {
     private boolean includeVersionSuffix = true;
     private boolean generateBuilders = false;
     private int protobufMajorVersion = 3; // 2 for protobuf 2.x, 3 for protobuf 3.x
+    private boolean convertWellKnownTypes = true;
+    private boolean generateRawProtoAccessors = false;
 
     private Set<String> includedMessages = new HashSet<>();
     private Set<String> excludedMessages = new HashSet<>();
@@ -108,6 +110,8 @@ public class GeneratorConfig {
     public int getProtobufMajorVersion() { return protobufMajorVersion; }
     public boolean isProtobuf2() { return protobufMajorVersion == 2; }
     public boolean isProtobuf3() { return protobufMajorVersion >= 3; }
+    public boolean isConvertWellKnownTypes() { return convertWellKnownTypes; }
+    public boolean isGenerateRawProtoAccessors() { return generateRawProtoAccessors; }
 
     /**
      * Get the implementation class name for a message in a specific version.
@@ -195,6 +199,16 @@ public class GeneratorConfig {
                 throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);
             }
             config.protobufMajorVersion = version;
+            return this;
+        }
+
+        public Builder convertWellKnownTypes(boolean value) {
+            config.convertWellKnownTypes = value;
+            return this;
+        }
+
+        public Builder generateRawProtoAccessors(boolean value) {
+            config.generateRawProtoAccessors = value;
             return this;
         }
 

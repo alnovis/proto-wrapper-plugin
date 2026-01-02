@@ -101,6 +101,15 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             MethodSpec getter = methodGenerator.generateGetter(field, message, resolver);
             interfaceBuilder.addMethod(getter);
 
+            // Add raw proto accessor for well-known type fields when enabled
+            if (methodGenerator.shouldGenerateRawProtoAccessor(field)) {
+                if (field.isRepeated()) {
+                    interfaceBuilder.addMethod(methodGenerator.generateRepeatedRawProtoAccessor(field, resolver));
+                } else {
+                    interfaceBuilder.addMethod(methodGenerator.generateRawProtoAccessor(field, resolver));
+                }
+            }
+
             if (field.isOptional() && !field.isRepeated()) {
                 interfaceBuilder.addMethod(methodGenerator.generateHasMethod(field, resolver));
             }

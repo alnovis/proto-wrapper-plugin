@@ -24,6 +24,8 @@ import java.util.List;
  *   <li>RepeatedSingleHandler - repeated ↔ singular conflicts</li>
  *   <li>PrimitiveMessageHandler - scalar PRIMITIVE_MESSAGE conflicts</li>
  *   <li>RepeatedConflictHandler - repeated fields with any type conflict</li>
+ *   <li>WellKnownTypeHandler - scalar well-known type fields (Timestamp, Duration, etc.)</li>
+ *   <li>RepeatedWellKnownTypeHandler - repeated well-known type fields</li>
  *   <li>MapFieldHandler - map fields</li>
  *   <li>DefaultHandler - all other fields (fallback)</li>
  * </ol>
@@ -32,16 +34,18 @@ public final class FieldProcessingChain {
 
     private static final List<ConflictHandler> HANDLERS = List.of(
             IntEnumHandler.INSTANCE,
-            EnumEnumHandler.INSTANCE,         // enum ↔ enum conflicts (different enum types)
+            EnumEnumHandler.INSTANCE,              // enum ↔ enum conflicts (different enum types)
             StringBytesHandler.INSTANCE,
             WideningHandler.INSTANCE,
-            FloatDoubleHandler.INSTANCE,      // float ↔ double conflicts
-            SignedUnsignedHandler.INSTANCE,   // int32 ↔ uint32, sint32, etc.
-            RepeatedSingleHandler.INSTANCE,   // repeated ↔ singular conflicts
+            FloatDoubleHandler.INSTANCE,           // float ↔ double conflicts
+            SignedUnsignedHandler.INSTANCE,        // int32 ↔ uint32, sint32, etc.
+            RepeatedSingleHandler.INSTANCE,        // repeated ↔ singular conflicts
             PrimitiveMessageHandler.INSTANCE,
             RepeatedConflictHandler.INSTANCE,
-            MapFieldHandler.INSTANCE,  // Map fields handler
-            DefaultHandler.INSTANCE    // Fallback - must be last
+            WellKnownTypeHandler.INSTANCE,         // well-known type conversion (scalar)
+            RepeatedWellKnownTypeHandler.INSTANCE, // well-known type conversion (repeated)
+            MapFieldHandler.INSTANCE,              // Map fields handler
+            DefaultHandler.INSTANCE                // Fallback - must be last
     );
 
     private static final FieldProcessingChain INSTANCE = new FieldProcessingChain();

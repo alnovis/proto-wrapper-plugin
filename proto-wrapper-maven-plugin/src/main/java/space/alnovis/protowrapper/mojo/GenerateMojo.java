@@ -165,6 +165,26 @@ public class GenerateMojo extends AbstractMojo {
     private int protobufMajorVersion;
 
     /**
+     * Whether to convert Google Well-Known Types to Java types.
+     * If true (default): google.protobuf.Timestamp -> java.time.Instant, etc.
+     * If false: keep proto types as-is.
+     *
+     * @since 1.3.0
+     */
+    @Parameter(defaultValue = "true")
+    private boolean convertWellKnownTypes;
+
+    /**
+     * Whether to generate additional raw proto accessors for well-known types.
+     * If true: generates getXxxProto() methods returning the original proto type.
+     * If false (default): only Java type accessors are generated.
+     *
+     * @since 1.3.0
+     */
+    @Parameter(defaultValue = "false")
+    private boolean generateRawProtoAccessors;
+
+    /**
      * Messages to include (empty = all).
      */
     @Parameter
@@ -406,7 +426,9 @@ public class GenerateMojo extends AbstractMojo {
                 .generateVersionContext(generateVersionContext)
                 .includeVersionSuffix(includeVersionSuffix)
                 .generateBuilders(generateBuilders)
-                .protobufMajorVersion(protobufMajorVersion);
+                .protobufMajorVersion(protobufMajorVersion)
+                .convertWellKnownTypes(convertWellKnownTypes)
+                .generateRawProtoAccessors(generateRawProtoAccessors);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {

@@ -19,6 +19,11 @@ Supports both **Maven** and **Gradle** build systems.
   - `WIDENING`: int → long, float → double
   - `STRING_BYTES`: string ↔ bytes (UTF-8)
   - `PRIMITIVE_MESSAGE`: primitive ↔ message
+- **Google Well-Known Types support** (v1.3.0+):
+  - `Timestamp` → `java.time.Instant`
+  - `Duration` → `java.time.Duration`
+  - Wrapper types → nullable Java primitives
+  - `Struct/Value/ListValue` → `Map/Object/List`
 - Automatic detection of equivalent enums (nested vs top-level)
 - Supported versions info in Javadoc
 - Thread-safe immutable wrappers
@@ -59,7 +64,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -100,7 +105,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.2.0"
+    id("space.alnovis.proto-wrapper") version "1.3.0"
 }
 
 protoWrapper {
@@ -190,6 +195,8 @@ With `basePackage=com.mycompany.myapp.model`:
 | `generateBuilders` | `false` | Generate Builder pattern for modifications |
 | `protobufMajorVersion` | `3` | Protobuf version (2 or 3) |
 | `includeVersionSuffix` | `true` | Include version suffix (MoneyV1 vs Money) |
+| `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types |
+| `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for WKT fields |
 | `includeMessages` | (all) | List of message names to include |
 | `excludeMessages` | (none) | List of message names to exclude |
 
@@ -324,6 +331,63 @@ Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
 | `2` | `EnumType.valueOf(int)` |
 | `3` (default) | `EnumType.forNumber(int)` |
 
+## Well-Known Types Support
+
+Since v1.3.0, Google Well-Known Types are automatically converted to idiomatic Java types.
+
+### Supported Types
+
+| Proto Type | Java Type |
+|------------|-----------|
+| `google.protobuf.Timestamp` | `java.time.Instant` |
+| `google.protobuf.Duration` | `java.time.Duration` |
+| `google.protobuf.StringValue` | `String` (nullable) |
+| `google.protobuf.Int32Value` | `Integer` (nullable) |
+| `google.protobuf.Int64Value` | `Long` (nullable) |
+| `google.protobuf.UInt32Value` | `Long` (nullable) |
+| `google.protobuf.UInt64Value` | `Long` (nullable) |
+| `google.protobuf.BoolValue` | `Boolean` (nullable) |
+| `google.protobuf.FloatValue` | `Float` (nullable) |
+| `google.protobuf.DoubleValue` | `Double` (nullable) |
+| `google.protobuf.BytesValue` | `byte[]` (nullable) |
+| `google.protobuf.FieldMask` | `List<String>` |
+| `google.protobuf.Struct` | `Map<String, Object>` |
+| `google.protobuf.Value` | `Object` |
+| `google.protobuf.ListValue` | `List<Object>` |
+
+### Usage Example
+
+```java
+// Proto definition:
+// google.protobuf.Timestamp created_at = 1;
+// google.protobuf.Duration timeout = 2;
+// google.protobuf.StringValue optional_name = 3;
+
+// Generated interface:
+public interface Event {
+    Instant getCreatedAt();        // java.time.Instant
+    Duration getTimeout();          // java.time.Duration
+    String getOptionalName();       // nullable String
+}
+
+// Usage:
+Event event = ctx.wrapEvent(protoEvent);
+Instant createdAt = event.getCreatedAt();
+Duration timeout = event.getTimeout();
+String name = event.getOptionalName();  // null if not set
+```
+
+### Configuration
+
+```xml
+<!-- Disable WKT conversion (keep proto types) -->
+<configuration>
+    <convertWellKnownTypes>false</convertWellKnownTypes>
+</configuration>
+```
+
+**Note:** `google.protobuf.Any` is not supported because it requires a runtime type registry.
+
 ## Generated Code Examples
 
 ### Interface
@@ -444,9 +508,9 @@ See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 
 **Summary:**
 - `oneof` fields: supported with conflict detection (v1.2.0+)
-- `map` fields: basic support
+- `map` fields: full support (v1.2.0+)
+- Well-known types: 15 types supported (v1.3.0+), `google.protobuf.Any` not supported
 - Extensions (proto2): not supported
-- Well-known types (google.protobuf.*): treated as regular messages
 - Version conversion (`asVersion`): implemented via serialization
 - Repeated fields with conflicts: read-only (no builder setters)
 

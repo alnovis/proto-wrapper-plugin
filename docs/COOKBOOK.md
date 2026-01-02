@@ -10,6 +10,7 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 - [Generation Modes](#generation-modes)
 - [Oneof Field Handling](#oneof-field-handling)
 - [Common Use Cases](#common-use-cases)
+- [Well-Known Types](#well-known-types)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -22,7 +23,7 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
     <configuration>
         <basePackage>com.mycompany.model</basePackage>
         <protoPackagePattern>com.mycompany.proto.{version}</protoPackagePattern>
@@ -869,6 +870,185 @@ void testOrderProcessing(int version) {
     // Assertions work for any version
     assertThat(result.getStatus()).isEqualTo(OrderStatus.COMPLETED);
 }
+```
+
+---
+
+## Well-Known Types
+
+Since v1.3.0, proto-wrapper automatically converts Google Well-Known Types to Java standard library types.
+
+### Temporal Types
+
+```protobuf
+// Proto definition
+message Event {
+    google.protobuf.Timestamp created_at = 1;
+    google.protobuf.Duration timeout = 2;
+}
+```
+
+```java
+// Generated interface
+public interface Event {
+    Instant getCreatedAt();    // java.time.Instant
+    Duration getTimeout();      // java.time.Duration
+}
+
+// Usage
+Event event = ctx.wrapEvent(protoEvent);
+Instant createdAt = event.getCreatedAt();
+Duration timeout = event.getTimeout();
+
+// Java Time API operations
+LocalDateTime local = LocalDateTime.ofInstant(createdAt, ZoneId.systemDefault());
+long minutes = timeout.toMinutes();
+```
+
+### Wrapper Types (Nullable Primitives)
+
+```protobuf
+message UserProfile {
+    google.protobuf.StringValue nickname = 1;
+    google.protobuf.Int32Value age = 2;
+    google.protobuf.BoolValue verified = 3;
+}
+```
+
+```java
+// Generated interface - nullable types!
+public interface UserProfile {
+    String getNickname();       // null if not set
+    Integer getAge();           // null if not set
+    Boolean getVerified();      // null if not set
+}
+
+// Usage - can distinguish "not set" from default value
+UserProfile profile = ctx.wrapUserProfile(proto);
+
+String nickname = profile.getNickname();
+if (nickname == null) {
+    System.out.println("User has no nickname");
+}
+
+Integer age = profile.getAge();
+if (age != null && age >= 18) {
+    System.out.println("User is an adult");
+}
+```
+
+### FieldMask
+
+```protobuf
+message UpdateRequest {
+    string id = 1;
+    google.protobuf.FieldMask update_mask = 2;
+}
+```
+
+```java
+// Generated interface
+public interface UpdateRequest {
+    String getId();
+    List<String> getUpdateMask();  // List of field paths
+}
+
+// Usage
+UpdateRequest request = ctx.wrapUpdateRequest(proto);
+List<String> fieldsToUpdate = request.getUpdateMask();
+// fieldsToUpdate = ["name", "email", "address.city"]
+```
+
+### Struct/Value/ListValue (JSON-like)
+
+```protobuf
+message ApiResponse {
+    google.protobuf.Struct metadata = 1;
+    google.protobuf.Value dynamic_data = 2;
+}
+```
+
+```java
+// Generated interface
+public interface ApiResponse {
+    Map<String, Object> getMetadata();
+    Object getDynamicData();
+}
+
+// Usage
+ApiResponse response = ctx.wrapApiResponse(proto);
+Map<String, Object> metadata = response.getMetadata();
+
+// Values can be: null, Double, String, Boolean, Map, List
+String type = (String) metadata.get("type");
+Double count = (Double) metadata.get("count");
+Map<?, ?> nested = (Map<?, ?>) metadata.get("nested_object");
+List<?> items = (List<?>) metadata.get("items");
+
+// Dynamic data
+Object data = response.getDynamicData();
+if (data instanceof Map<?, ?> map) {
+    // Handle object
+} else if (data instanceof List<?> list) {
+    // Handle array
+} else if (data instanceof String s) {
+    // Handle string
+}
+```
+
+### Building with Well-Known Types
+
+```java
+Event event = Event.newBuilder(ctx)
+    .setCreatedAt(Instant.now())
+    .setTimeout(Duration.ofMinutes(30))
+    .build();
+
+UserProfile profile = UserProfile.newBuilder(ctx)
+    .setNickname("john_doe")
+    .setAge(25)
+    .setVerified(true)
+    .build();
+
+ApiResponse response = ApiResponse.newBuilder(ctx)
+    .setMetadata(Map.of(
+        "status", "success",
+        "count", 42.0,
+        "tags", List.of("a", "b", "c"),
+        "nested", Map.of("key", "value")
+    ))
+    .build();
+```
+
+### Repeated Well-Known Types
+
+```protobuf
+message EventLog {
+    repeated google.protobuf.Timestamp events = 1;
+}
+```
+
+```java
+// Generated interface
+public interface EventLog {
+    List<Instant> getEvents();  // List<java.time.Instant>
+}
+
+// Builder
+EventLog log = EventLog.newBuilder(ctx)
+    .addEvents(Instant.now())
+    .addEvents(Instant.now().minusHours(1))
+    .build();
+```
+
+### Disabling WKT Conversion
+
+If you prefer the original protobuf types:
+
+```xml
+<configuration>
+    <convertWellKnownTypes>false</convertWellKnownTypes>
+</configuration>
 ```
 
 ---

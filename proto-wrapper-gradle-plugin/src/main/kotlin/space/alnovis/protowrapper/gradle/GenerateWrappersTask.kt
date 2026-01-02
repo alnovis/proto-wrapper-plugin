@@ -166,6 +166,26 @@ abstract class GenerateWrappersTask : DefaultTask() {
     abstract val protobufMajorVersion: Property<Int>
 
     /**
+     * Whether to convert Google Well-Known Types to idiomatic Java types.
+     * If true: google.protobuf.Timestamp -> java.time.Instant, etc.
+     * If false: keeps raw proto types
+     * Default: true
+     * @since 1.3.0
+     */
+    @get:Input
+    abstract val convertWellKnownTypes: Property<Boolean>
+
+    /**
+     * Whether to generate raw proto accessor methods alongside converted types.
+     * If true: generates getXxxProto() methods returning original proto types
+     * Only relevant when convertWellKnownTypes is true.
+     * Default: false
+     * @since 1.3.0
+     */
+    @get:Input
+    abstract val generateRawProtoAccessors: Property<Boolean>
+
+    /**
      * Messages to include in generation.
      * Empty list means include all messages.
      */
@@ -477,6 +497,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .includeVersionSuffix(includeVersionSuffix.get())
             .generateBuilders(generateBuilders.get())
             .protobufMajorVersion(protobufMajorVersion.get())
+            .convertWellKnownTypes(convertWellKnownTypes.get())
+            .generateRawProtoAccessors(generateRawProtoAccessors.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)
