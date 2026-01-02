@@ -23,6 +23,29 @@
     </description>
     <url>https://github.com/alnovis/proto-wrapper-plugin</url>
 
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>alnovis</id>
+            <name>Alexander Novikov</name>
+            <email>dev@alnovis.space</email>
+            <url>https://alnovis.space</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/alnovis/proto-wrapper-plugin.git</connection>
+        <developerConnection>scm:git:ssh://github.com:alnovis/proto-wrapper-plugin.git</developerConnection>
+        <url>https://github.com/alnovis/proto-wrapper-plugin/tree/main</url>
+    </scm>
+
     <dependencies>
         <!-- Core library -->
         <dependency>
