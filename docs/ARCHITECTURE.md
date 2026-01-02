@@ -314,24 +314,16 @@ classDiagram
         #generateDefaultValue()
     }
 
-    namespace TypeConversion {
-        class IntEnumHandler
-        class EnumEnumHandler
-        class StringBytesHandler
-    }
-
-    namespace Numeric {
-        class WideningHandler
-        class FloatDoubleHandler
-        class SignedUnsignedHandler
-    }
-
-    namespace Structure {
-        class RepeatedSingleHandler
-        class PrimitiveMessageHandler
-        class MapFieldHandler
-        class DefaultHandler
-    }
+    class IntEnumHandler
+    class EnumEnumHandler
+    class StringBytesHandler
+    class WideningHandler
+    class FloatDoubleHandler
+    class SignedUnsignedHandler
+    class RepeatedSingleHandler
+    class PrimitiveMessageHandler
+    class MapFieldHandler
+    class DefaultHandler
 
     ConflictHandler <|.. AbstractConflictHandler
     AbstractConflictHandler <|-- IntEnumHandler
@@ -345,6 +337,11 @@ classDiagram
     AbstractConflictHandler <|-- MapFieldHandler
     AbstractConflictHandler <|-- DefaultHandler
 ```
+
+**Handler Categories:**
+- Type Conversion: IntEnumHandler, EnumEnumHandler, StringBytesHandler
+- Numeric: WideningHandler, FloatDoubleHandler, SignedUnsignedHandler
+- Structure: RepeatedSingleHandler, PrimitiveMessageHandler, MapFieldHandler, DefaultHandler
 
 ### Model Classes
 
@@ -472,58 +469,46 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     subgraph Plugins ["Build Plugins"]
-        direction LR
         MP[Maven Plugin]
         GP[Gradle Plugin]
     end
 
     subgraph Analysis ["1. Analysis"]
-        direction LR
         PE[ProtocExecutor] --> PA[ProtoAnalyzer]
     end
 
     subgraph Merging ["2. Merging"]
-        direction LR
         VM[VersionMerger] --> MS[MergedSchema]
     end
 
     subgraph Generation ["3. Generation"]
         GO[Orchestrator]
-        subgraph Generators [" "]
-            direction LR
-            IG[InterfaceGen]
-            AG[AbstractGen]
-            ICG[ImplGen]
-            VCG[ContextGen]
-        end
-    end
-
-    subgraph Conflicts [" "]
+        IG[InterfaceGen]
+        AG[AbstractGen]
+        ICG[ImplGen]
+        VCG[ContextGen]
         FPC[ConflictHandlers]
     end
 
     subgraph Output ["4. Generated Code"]
-        direction LR
         INT[Interfaces]
         ABS[Abstract Classes]
         IMPL[Impl V1/V2]
         VC[VersionContext]
     end
 
-    %% Vertical flow
     Plugins --> Analysis
     Analysis --> Merging
     Merging --> Generation
     MS --> GO
-    GO --> Generators
-    Generators --> Conflicts
-    Conflicts --> Output
-
-    %% Output connections
-    IG -.-> INT
-    AG -.-> ABS
-    ICG -.-> IMPL
-    VCG -.-> VC
+    GO --> IG
+    GO --> AG
+    GO --> ICG
+    GO --> VCG
+    IG --> FPC
+    AG --> FPC
+    ICG --> FPC
+    FPC --> Output
 ```
 
 ---
