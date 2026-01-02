@@ -16,9 +16,9 @@ This document outlines the development roadmap for upcoming releases.
 - [Version 1.7.0](#version-170) - Parallel Generation
 - [Version 1.8.0](#version-180) - Per-version Proto Syntax
 - [Version 1.9.0](#version-190) - Validation Annotations
-- [Version 2.0.0](#version-200) - Kotlin Extensions
-- [Version 2.1.0](#version-210) - Service/RPC Wrappers
-- [Version 2.2.0](#version-220) - API Cleanup
+- [Version 1.10.0](#version-1100) - Kotlin Extensions
+- [Version 1.11.0](#version-1110) - Service/RPC Wrappers
+- [Version 2.0.0](#version-200) - API Cleanup (Breaking Changes)
 - [Future Considerations](#future-considerations)
 - [Contributing](#contributing)
 
@@ -716,7 +716,7 @@ public interface Order {
 
 ---
 
-## Version 2.0.0
+## Version 1.10.0
 
 **Target:** May 2026
 **Theme:** Kotlin Extensions
@@ -842,7 +842,7 @@ protoWrapper {
 
 ---
 
-## Version 2.1.0
+## Version 1.11.0
 
 **Target:** Jun 2026
 **Theme:** Service/RPC Wrappers
@@ -922,10 +922,10 @@ public class OrderServiceGrpcAdapter implements OrderService {
 
 ---
 
-## Version 2.2.0
+## Version 2.0.0
 
 **Target:** Jul 2026
-**Theme:** API Cleanup
+**Theme:** API Cleanup (Breaking Changes)
 
 ### Feature: Remove Deprecated API
 
@@ -1028,7 +1028,7 @@ GeneratorConfig config = GeneratorConfig.builder()
 
 ## Future Considerations
 
-Features considered for v2.3.0+:
+Features considered for v2.1.0+:
 
 ### Protocol Buffers Edition Support
 - Support for proto editions (2023+)
@@ -1092,6 +1092,6 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 | 1.7.0 | Parallel Generation | Mar 2026 |
 | 1.8.0 | Per-version Proto Syntax | Mar 2026 |
 | 1.9.0 | Validation Annotations | Apr 2026 |
-| 2.0.0 | Kotlin Extensions | May 2026 |
-| 2.1.0 | Service/RPC Wrappers | Jun 2026 |
-| 2.2.0 | API Cleanup | Jul 2026 |
+| 1.10.0 | Kotlin Extensions | May 2026 |
+| 1.11.0 | Service/RPC Wrappers | Jun 2026 |
+| 2.0.0 | API Cleanup (Breaking) | Jul 2026 |
