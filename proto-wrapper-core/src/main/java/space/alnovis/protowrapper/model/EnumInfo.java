@@ -24,7 +24,7 @@ public class EnumInfo {
     public EnumInfo(EnumDescriptorProto proto, String sourceFileName) {
         this.name = proto.getName();
         this.values = proto.getValueList().stream()
-                .map(EnumValue::new)
+                .map(EnumValue::fromProto)
                 .toList();
         this.sourceFileName = sourceFileName;
     }
@@ -91,23 +91,18 @@ public class EnumInfo {
 
     /**
      * Represents a single enum value.
+     *
+     * @param name the proto enum value name
+     * @param number the enum value number
      */
-    public static class EnumValue {
-        private final String name;
-        private final int number;
+    public record EnumValue(String name, int number) {
 
-        public EnumValue(EnumValueDescriptorProto proto) {
-            this.name = proto.getName();
-            this.number = proto.getNumber();
+        /**
+         * Creates EnumValue from protobuf descriptor.
+         */
+        public static EnumValue fromProto(EnumValueDescriptorProto proto) {
+            return new EnumValue(proto.getName(), proto.getNumber());
         }
-
-        public EnumValue(String name, int number) {
-            this.name = name;
-            this.number = number;
-        }
-
-        public String getName() { return name; }
-        public int getNumber() { return number; }
 
         /**
          * Convert proto enum name to Java enum name.
@@ -122,6 +117,10 @@ public class EnumInfo {
             }
             return result;
         }
+
+        // Accessor methods for compatibility
+        public String getName() { return name; }
+        public int getNumber() { return number; }
 
         @Override
         public String toString() {

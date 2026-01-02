@@ -242,19 +242,7 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
      * E.g., for TicketRequest.Item.Commodity returns "newTicketRequestItemCommodityBuilder"
      */
     private String buildNestedBuilderMethodName(MergedMessage nested) {
-        StringBuilder sb = new StringBuilder("new");
-        MergedMessage current = nested;
-        List<String> names = new ArrayList<>();
-        while (current != null) {
-            names.add(current.getName());
-            current = current.getParent();
-        }
-        Collections.reverse(names);
-        for (String name : names) {
-            sb.append(name);
-        }
-        sb.append("Builder");
-        return sb.toString();
+        return "new" + String.join("", collectMessageHierarchyNames(nested)) + "Builder";
     }
 
     /**
@@ -262,14 +250,18 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
      * E.g., "TicketRequest.Item.Commodity"
      */
     private String buildNestedQualifiedName(MergedMessage nested) {
-        List<String> names = new ArrayList<>();
-        MergedMessage current = nested;
-        while (current != null) {
-            names.add(current.getName());
-            current = current.getParent();
+        return String.join(".", collectMessageHierarchyNames(nested));
+    }
+
+    /**
+     * Collect message names from root to current (e.g., ["Order", "Item"] for Order.Item).
+     */
+    private List<String> collectMessageHierarchyNames(MergedMessage message) {
+        java.util.LinkedList<String> names = new java.util.LinkedList<>();
+        for (MergedMessage current = message; current != null; current = current.getParent()) {
+            names.addFirst(current.getName());
         }
-        Collections.reverse(names);
-        return String.join(".", names);
+        return names;
     }
 
     /**
@@ -433,23 +425,22 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
      */
     private ClassName buildNestedImplType(MergedMessage nested, String implPackage, String topLevelImplClassName) {
         // Collect path from nested to root (excluding root since we start from topLevelImplClassName)
-        List<String> path = new ArrayList<>();
-        MergedMessage current = nested;
-        while (current != null && current.getParent() != null) {
-            path.add(current.getName());
-            current = current.getParent();
+        List<String> path = collectNestedPathWithoutRoot(nested);
+
+        // Build nested ClassName using reduce
+        ClassName base = ClassName.get(implPackage, topLevelImplClassName);
+        return path.stream().reduce(base, ClassName::nestedClass, (a, b) -> b);
+    }
+
+    /**
+     * Collect message names excluding root (e.g., ["Item", "Commodity"] for Order.Item.Commodity).
+     */
+    private List<String> collectNestedPathWithoutRoot(MergedMessage message) {
+        java.util.LinkedList<String> path = new java.util.LinkedList<>();
+        for (MergedMessage current = message; current != null && current.getParent() != null; current = current.getParent()) {
+            path.addFirst(current.getName());
         }
-        Collections.reverse(path);
-
-        // Start with top-level impl class
-        ClassName result = ClassName.get(implPackage, topLevelImplClassName);
-
-        // Add nested classes
-        for (String name : path) {
-            result = result.nestedClass(name);
-        }
-
-        return result;
+        return path;
     }
 
     /**

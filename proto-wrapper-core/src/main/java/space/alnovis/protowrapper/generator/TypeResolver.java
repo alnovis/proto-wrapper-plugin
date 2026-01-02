@@ -165,45 +165,41 @@ public class TypeResolver {
             return ClassName.get(config.getApiPackage(), topLevelName);
         }
 
-        // Check in context hierarchy first - nested messages
-        Optional<MergedMessage> nestedOpt = context.findNestedMessageRecursive(typePath);
-        if (nestedOpt.isPresent()) {
-            return buildNestedClassName(nestedOpt.get().getQualifiedInterfaceName());
-        }
-
-        // Check nested enums
-        Optional<MergedEnum> nestedEnumOpt = context.findNestedEnumRecursive(typePath);
-        if (nestedEnumOpt.isPresent()) {
-            String enumPath = context.getTopLevelParent().getName() + "." + typePath;
-            if (schema != null && schema.hasEquivalentTopLevelEnum(enumPath)) {
-                String topLevelName = schema.getEquivalentTopLevelEnum(enumPath);
-                return ClassName.get(config.getApiPackage(), topLevelName);
-            }
-            return buildNestedClassName(enumPath);
-        }
-
-        // Check sibling types if context is nested
-        if (context.isNested()) {
-            MergedMessage topLevel = context.getTopLevelParent();
-
-            Optional<MergedMessage> siblingOpt = topLevel.findNestedMessageRecursive(typePath);
-            if (siblingOpt.isPresent()) {
-                return buildNestedClassName(siblingOpt.get().getQualifiedInterfaceName());
-            }
-
-            Optional<MergedEnum> siblingEnumOpt = topLevel.findNestedEnumRecursive(typePath);
-            if (siblingEnumOpt.isPresent()) {
-                String siblingEnumPath = topLevel.getName() + "." + typePath;
-                if (schema != null && schema.hasEquivalentTopLevelEnum(siblingEnumPath)) {
-                    String topLevelName = schema.getEquivalentTopLevelEnum(siblingEnumPath);
-                    return ClassName.get(config.getApiPackage(), topLevelName);
-                }
-                return buildNestedClassName(siblingEnumPath);
-            }
-        }
-
-        // Not a nested type - assume it's a top-level type in API package
-        return ClassName.get(config.getApiPackage(), typePath);
+        // Check in context hierarchy - chain Optional lookups with or()
+        return context.findNestedMessageRecursive(typePath)
+                .map(nested -> (TypeName) buildNestedClassName(nested.getQualifiedInterfaceName()))
+                // Check nested enums
+                .or(() -> context.findNestedEnumRecursive(typePath)
+                        .map(ignored -> {
+                            String enumPath = context.getTopLevelParent().getName() + "." + typePath;
+                            if (schema != null && schema.hasEquivalentTopLevelEnum(enumPath)) {
+                                String topLevelName = schema.getEquivalentTopLevelEnum(enumPath);
+                                return ClassName.get(config.getApiPackage(), topLevelName);
+                            }
+                            return buildNestedClassName(enumPath);
+                        }))
+                // Check sibling types if context is nested
+                .or(() -> {
+                    if (!context.isNested()) return Optional.empty();
+                    MergedMessage topLevel = context.getTopLevelParent();
+                    return topLevel.findNestedMessageRecursive(typePath)
+                            .map(sibling -> (TypeName) buildNestedClassName(sibling.getQualifiedInterfaceName()));
+                })
+                .or(() -> {
+                    if (!context.isNested()) return Optional.empty();
+                    MergedMessage topLevel = context.getTopLevelParent();
+                    return topLevel.findNestedEnumRecursive(typePath)
+                            .map(ignored -> {
+                                String siblingEnumPath = topLevel.getName() + "." + typePath;
+                                if (schema != null && schema.hasEquivalentTopLevelEnum(siblingEnumPath)) {
+                                    String topLevelName = schema.getEquivalentTopLevelEnum(siblingEnumPath);
+                                    return ClassName.get(config.getApiPackage(), topLevelName);
+                                }
+                                return buildNestedClassName(siblingEnumPath);
+                            });
+                })
+                // Default: top-level type in API package
+                .orElse(ClassName.get(config.getApiPackage(), typePath));
     }
 
     /**

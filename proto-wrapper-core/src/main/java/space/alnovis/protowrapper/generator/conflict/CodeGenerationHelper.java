@@ -21,7 +21,56 @@ import java.util.function.Consumer;
  * Helper class containing code generation utilities shared by conflict handlers.
  *
  * <p>This class centralizes common code generation patterns to avoid duplication
- * across different handlers.</p>
+ * across different handlers. All methods are static utilities.</p>
+ *
+ * <h2>Method Categories</h2>
+ *
+ * <h3>Type Resolution</h3>
+ * <ul>
+ *   <li>{@link #getVersionSpecificJavaName} - Get field name for current version</li>
+ *   <li>{@link #getWrapperClassName} - Get wrapper class for message fields</li>
+ *   <li>{@link #getEnumTypeForFromProtoValue} - Get enum type for conversion</li>
+ *   <li>{@link #getProtoTypeForField} - Get proto message type</li>
+ *   <li>{@link #getProtoEnumTypeForField} - Get proto enum type</li>
+ *   <li>{@link #getMessageTypeForField} - Get JavaPoet TypeName for message</li>
+ * </ul>
+ *
+ * <h3>Code Generation</h3>
+ * <ul>
+ *   <li>{@link #generateProtoGetterCall} - Generate proto.getXxx() expression</li>
+ *   <li>{@link #generateProtoSetterCall} - Generate protoBuilder.setXxx() expression</li>
+ *   <li>{@link #addEnumSetterWithValidation} - Add enum setter with null check</li>
+ * </ul>
+ *
+ * <h3>Version-Conditional Helpers</h3>
+ * <ul>
+ *   <li>{@link #addVersionConditional} - Add code only if field present</li>
+ *   <li>{@link #addVersionConditionalOrThrow} - Add code or throw if not present</li>
+ *   <li>{@link #addVersionConditionalClear} - Add protoBuilder.clearXxx()</li>
+ *   <li>{@link #addFieldNotInVersionError} - Generate UnsupportedOperationException</li>
+ * </ul>
+ *
+ * <h3>Field Type Dispatch</h3>
+ * <ul>
+ *   <li>{@link FieldTypeDispatcher} - Dispatch based on message/enum/bytes/primitive</li>
+ *   <li>{@link #ADD_SINGLE_DISPATCHER} - Dispatcher for protoBuilder.addXxx()</li>
+ *   <li>{@link #ADD_ALL_DISPATCHER} - Dispatcher for addAll operations</li>
+ * </ul>
+ *
+ * <h2>Usage Example</h2>
+ * <pre>{@code
+ * // In a ConflictHandler implementation:
+ * String getterCall = CodeGenerationHelper.generateProtoGetterCall(field, ctx);
+ * method.addStatement("return $L", getterCall);
+ *
+ * // Version-conditional setter:
+ * CodeGenerationHelper.addVersionConditionalOrThrow(method, presentInVersion, field,
+ *     m -> m.addStatement("protoBuilder.set$L($L)", javaName, paramName));
+ * }</pre>
+ *
+ * @see ConflictHandler
+ * @see AbstractConflictHandler
+ * @see ProcessingContext
  */
 public final class CodeGenerationHelper {
 
@@ -419,8 +468,17 @@ public final class CodeGenerationHelper {
     public record FieldTypeDispatcher(
             FieldTypeAction messageAction,
             FieldTypeAction enumAction,
+            FieldTypeAction bytesAction,
             FieldTypeAction primitiveAction
     ) {
+        /**
+         * Constructor for backward compatibility (without bytesAction).
+         */
+        public FieldTypeDispatcher(FieldTypeAction messageAction, FieldTypeAction enumAction,
+                                    FieldTypeAction primitiveAction) {
+            this(messageAction, enumAction, null, primitiveAction);
+        }
+
         /**
          * Dispatch to the appropriate action based on field type.
          */
@@ -430,6 +488,8 @@ public final class CodeGenerationHelper {
                 messageAction.apply(method, field, versionJavaName, ctx);
             } else if (field.isEnum()) {
                 enumAction.apply(method, field, versionJavaName, ctx);
+            } else if (bytesAction != null && isBytesType(field)) {
+                bytesAction.apply(method, field, versionJavaName, ctx);
             } else {
                 primitiveAction.apply(method, field, versionJavaName, ctx);
             }
@@ -454,6 +514,9 @@ public final class CodeGenerationHelper {
                 m.addStatement("protoBuilder.add$L($L.$L($L.getValue()))",
                         n, protoEnumType, enumMethod, f.getJavaName());
             },
+            // Bytes - convert byte[] to ByteString
+            (m, f, n, c) -> m.addStatement("protoBuilder.add$L($T.copyFrom($L))",
+                    n, ClassName.get("com.google.protobuf", "ByteString"), f.getJavaName()),
             // Primitive
             (m, f, n, c) -> m.addStatement("protoBuilder.add$L($L)", n, f.getJavaName())
     );
@@ -476,6 +539,9 @@ public final class CodeGenerationHelper {
                 m.addStatement("$L.forEach(e -> protoBuilder.add$L($L.$L(e.getValue())))",
                         f.getJavaName(), n, protoEnumType, enumMethod);
             },
+            // Bytes - convert each byte[] to ByteString
+            (m, f, n, c) -> m.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
+                    f.getJavaName(), n, ClassName.get("com.google.protobuf", "ByteString")),
             // Primitive
             (m, f, n, c) -> m.addStatement("protoBuilder.addAll$L($L)", n, f.getJavaName())
     );
@@ -495,9 +561,21 @@ public final class CodeGenerationHelper {
             String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
             String enumMethod = getEnumFromIntMethod(ctx.config());
             return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
+        } else if (isBytesType(field)) {
+            // Convert byte[] to ByteString for protobuf
+            return "protoBuilder.set" + versionJavaName + "(com.google.protobuf.ByteString.copyFrom($L))";
         } else {
             return "protoBuilder.set" + versionJavaName + "($L)";
         }
+    }
+
+    /**
+     * Check if field is a bytes type (proto bytes -> Java byte[]).
+     * Handles both scalar "byte[]" and repeated "List<byte[]>".
+     */
+    public static boolean isBytesType(MergedField field) {
+        String getterType = field.getGetterType();
+        return "byte[]".equals(getterType) || getterType.contains("byte[]");
     }
 
     /**

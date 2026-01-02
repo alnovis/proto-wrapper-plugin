@@ -1,0 +1,30 @@
+// Map fields with type conflicts - v1
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v1;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_outer_classname = "MapConflicts";
+
+// Enum for testing INT_ENUM conflict
+enum MapStatus {
+    MAP_STATUS_UNKNOWN = 0;
+    MAP_STATUS_ACTIVE = 1;
+    MAP_STATUS_INACTIVE = 2;
+}
+
+// Message with map type conflicts
+message MapConflictMessage {
+    // WIDENING conflict: int32 in v1, int64 in v2
+    map<string, int32> widening_counts = 1;
+
+    // INT_ENUM conflict: int32 in v1, enum in v2
+    map<string, int32> status_map = 2;
+
+    // INT_ENUM conflict with NON-SEQUENTIAL values: int32 in v1, enum in v2
+    // Used to test that getNumber() is used instead of ordinal()
+    map<string, int32> priority_map = 3;
+
+    // No conflict - for comparison
+    map<string, string> labels = 10;
+}

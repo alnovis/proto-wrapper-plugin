@@ -4,19 +4,25 @@ import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
+import space.alnovis.protowrapper.model.MergedOneof;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
+import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 import space.alnovis.protowrapper.generator.conflict.AbstractBuilderContext;
 import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
 import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
+import space.alnovis.protowrapper.generator.oneof.OneofGenerator;
 
 import javax.lang.model.element.Modifier;
+import space.alnovis.protowrapper.model.MapInfo;
+
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -51,8 +57,11 @@ import java.util.Set;
  */
 public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
-    // Legacy field - kept for backward compatibility
-    @Deprecated
+    /**
+     * Legacy field - kept for backward compatibility.
+     * @deprecated Use {@link GenerationContext} instead. Will be removed in version 2.0.0.
+     */
+    @Deprecated(forRemoval = true, since = "1.2.0")
     private TypeResolver typeResolver;
 
     public AbstractClassGenerator(GeneratorConfig config) {
@@ -62,9 +71,9 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
     /**
      * Set the merged schema for cross-message type resolution.
      * @param schema The merged schema
-     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead
+     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public void setSchema(MergedSchema schema) {
         this.typeResolver = new TypeResolver(config, schema);
     }
@@ -88,9 +97,9 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
      *
      * @param message Merged message info
      * @return Generated JavaFile
-     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead
+     * @deprecated Use {@link #generate(MergedMessage, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public JavaFile generate(MergedMessage message) {
         if (typeResolver == null) {
             throw new IllegalStateException("Schema not set. Call setSchema() first or use generate(message, ctx)");
@@ -134,6 +143,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         ProcessingContext procCtx = ProcessingContext.forAbstract(message, protoType, ctx, config);
         FieldProcessingChain.getInstance().addAbstractExtractMethods(classBuilder, message, procCtx);
         FieldProcessingChain.getInstance().addGetterImplementations(classBuilder, message, procCtx);
+
+        // Add oneof support (abstract extract methods and implementations)
+        OneofGenerator oneofGenerator = new OneofGenerator(config);
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            classBuilder.addMethod(oneofGenerator.generateAbstractExtractCaseMethod(oneof, message, protoType));
+            classBuilder.addMethod(oneofGenerator.generateAbstractCaseGetter(oneof, message));
+        }
 
         // Add common methods
         addCommonMethods(classBuilder, message, protoType, resolver);
@@ -279,82 +295,16 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                     .addJavadoc("@param <PROTO> Protocol-specific message type\n");
         }
 
-        // Add abstract doSet/doClear/doAdd/doBuild methods
-        for (MergedField field : message.getFieldsSorted()) {
-            // Skip repeated fields with type conflicts (not supported in builder yet)
-            if (field.isRepeated() && field.hasTypeConflict()) {
-                continue;
-            }
+        // Create processing context for handler chain
+        ProcessingContext processingCtx = ProcessingContext.forAbstract(message, protoType, genCtx, config);
 
-            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = genCtx.getSchema()
-                        .getConflictEnum(message.getName(), field.getName());
-                if (enumInfoOpt.isPresent()) {
-                    addIntEnumAbstractMethods(builder, field, enumInfoOpt.get(), resolver);
-                    continue;
-                }
-            }
+        // Add abstract doSet/doClear/doAdd/doBuild methods using handler chain
+        FieldProcessingChain.getInstance().addAbstractBuilderMethods(builder, message, processingCtx);
 
-            // Handle WIDENING conflicts with wider type (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
-                addWideningAbstractMethods(builder, field, resolver);
-                continue;
-            }
-
-            // Handle STRING_BYTES conflicts with dual setters (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-                addStringBytesAbstractMethods(builder, field, resolver);
-                continue;
-            }
-
-            // Skip fields with other non-convertible type conflicts
-            if (field.shouldSkipBuilderSetter()) {
-                continue;
-            }
-
-            TypeName fieldType = resolver.parseFieldType(field, message);
-
-            if (field.isRepeated()) {
-                // For repeated fields
-                TypeName singleElementType = extractListElementType(fieldType);
-
-                // doAdd
-                builder.addMethod(MethodSpec.methodBuilder("doAdd" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(singleElementType, field.getJavaName())
-                        .build());
-
-                // doAddAll
-                builder.addMethod(MethodSpec.methodBuilder("doAddAll" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(fieldType, field.getJavaName())
-                        .build());
-
-                // doSet (replace all)
-                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(fieldType, field.getJavaName())
-                        .build());
-
-                // doClear
-                builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .build());
-            } else {
-                // doSet
-                builder.addMethod(MethodSpec.methodBuilder("doSet" + resolver.capitalize(field.getJavaName()))
-                        .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                        .addParameter(fieldType, field.getJavaName())
-                        .build());
-
-                // doClear for optional fields
-                if (field.isOptional()) {
-                    builder.addMethod(MethodSpec.methodBuilder("doClear" + resolver.capitalize(field.getJavaName()))
-                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                            .build());
-                }
-            }
+        // Add oneof abstract methods
+        OneofGenerator oneofGenerator = new OneofGenerator(config);
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            builder.addMethod(oneofGenerator.generateAbstractBuilderDoClear(oneof));
         }
 
         // Abstract doBuild method
@@ -369,105 +319,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .returns(TypeName.INT)
                 .build());
 
-        // Add concrete implementations that delegate to abstract methods
-        for (MergedField field : message.getFieldsSorted()) {
-            // Skip repeated fields with type conflicts (not supported in builder yet)
-            if (field.isRepeated() && field.hasTypeConflict()) {
-                continue;
-            }
+        // Add concrete implementations that delegate to abstract methods using handler chain
+        FieldProcessingChain.getInstance().addConcreteBuilderMethods(builder, message, builderInterfaceType, processingCtx);
 
-            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = genCtx.getSchema()
-                        .getConflictEnum(message.getName(), field.getName());
-                if (enumInfoOpt.isPresent()) {
-                    addIntEnumConcreteMethods(builder, field, enumInfoOpt.get(), resolver, builderInterfaceType);
-                    continue;
-                }
-            }
-
-            // Handle WIDENING conflicts with wider type (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
-                addWideningConcreteMethods(builder, field, resolver, builderInterfaceType);
-                continue;
-            }
-
-            // Handle STRING_BYTES conflicts with dual setters (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-                addStringBytesConcreteMethods(builder, field, resolver, builderInterfaceType);
-                continue;
-            }
-
-            // Skip fields with other non-convertible type conflicts
-            if (field.shouldSkipBuilderSetter()) {
-                continue;
-            }
-
-            TypeName fieldType = resolver.parseFieldType(field, message);
-
-            if (field.isRepeated()) {
-                TypeName singleElementType = extractListElementType(fieldType);
-
-                // add single
-                builder.addMethod(MethodSpec.methodBuilder("add" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(singleElementType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doAdd$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                // addAll
-                builder.addMethod(MethodSpec.methodBuilder("addAll" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(fieldType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doAddAll$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                // set (replace all)
-                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(fieldType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                // clear
-                builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .returns(builderInterfaceType)
-                        .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
-                        .addStatement("return this")
-                        .build());
-            } else {
-                // set
-                builder.addMethod(MethodSpec.methodBuilder("set" + resolver.capitalize(field.getJavaName()))
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                        .addParameter(fieldType, field.getJavaName())
-                        .returns(builderInterfaceType)
-                        .addStatement("doSet$L($L)", resolver.capitalize(field.getJavaName()), field.getJavaName())
-                        .addStatement("return this")
-                        .build());
-
-                // clear for optional
-                if (field.isOptional()) {
-                    builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
-                            .addAnnotation(Override.class)
-                            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                            .returns(builderInterfaceType)
-                            .addStatement("doClear$L()", resolver.capitalize(field.getJavaName()))
-                            .addStatement("return this")
-                            .build());
-                }
-            }
+        // Add oneof concrete methods
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            builder.addMethod(oneofGenerator.generateAbstractBuilderClear(oneof, builderInterfaceType));
         }
 
         // build() implementation
@@ -716,8 +573,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
             // For optional fields, check hasXxx()
             // For required fields, always consider them as "having value"
-            if (field.isOptional() && !field.isRepeated()) {
+            if (field.isOptional() && !field.isRepeated() && !field.isMap()) {
                 method.beginControlFlow("if ($L && !($L))", hasMethod, versionCheck);
+            } else if (field.isMap()) {
+                // For map fields, use getXxxMap()
+                String getMethod = field.getMapGetterName() + "()";
+                method.beginControlFlow("if (!$L.isEmpty() && !($L))", getMethod, versionCheck);
             } else if (field.isRepeated()) {
                 // For repeated fields, check if list is not empty
                 String getMethod = field.getGetterName() + "()";
@@ -819,234 +680,6 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     /**
-     * Add abstract methods for INT_ENUM conflict field.
-     */
-    private void addIntEnumAbstractMethods(TypeSpec.Builder builder, MergedField field,
-                                            ConflictEnumInfo enumInfo, TypeResolver resolver) {
-        String capName = resolver.capitalize(field.getJavaName());
-        ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
-
-        // doSetXxx(int) - for int value
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(TypeName.INT, field.getJavaName())
-                .build());
-
-        // doSetXxx(EnumType) - for enum value
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(enumType, field.getJavaName())
-                .build());
-
-        // doClearXxx()
-        builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .build());
-    }
-
-    /**
-     * Add concrete implementations for INT_ENUM conflict field.
-     */
-    private void addIntEnumConcreteMethods(TypeSpec.Builder builder, MergedField field,
-                                            ConflictEnumInfo enumInfo, TypeResolver resolver,
-                                            ClassName builderInterfaceType) {
-        String capName = resolver.capitalize(field.getJavaName());
-        ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
-
-        // Build version check condition for enum versions only
-        // Validation should only happen for versions that use enum type (not int)
-        Set<String> enumVersions = enumInfo.getEnumVersions();
-        List<Integer> enumVersionNumbers = enumVersions.stream()
-                .map(resolver::extractVersionNumber)
-                .sorted()
-                .toList();
-
-        // Build setXxx(int) method with version-aware validation
-        MethodSpec.Builder setIntMethod = MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(TypeName.INT, field.getJavaName())
-                .returns(builderInterfaceType);
-
-        // Add version-aware validation: only validate for versions that use enum type
-        if (!enumVersionNumbers.isEmpty()) {
-            String versionCondition = enumVersionNumbers.stream()
-                    .map(v -> "getVersion() == " + v)
-                    .reduce((a, b) -> a + " || " + b)
-                    .orElse("false");
-
-            setIntMethod.beginControlFlow("if ($L)", versionCondition)
-                    .addStatement("$T.fromProtoValueOrThrow($L)", enumType, field.getJavaName())
-                    .endControlFlow();
-        }
-
-        setIntMethod.addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this");
-
-        builder.addMethod(setIntMethod.build());
-
-        // setXxx(EnumType)
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(enumType, field.getJavaName())
-                .returns(builderInterfaceType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // clearXxx()
-        builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(builderInterfaceType)
-                .addStatement("doClear$L()", capName)
-                .addStatement("return this")
-                .build());
-    }
-
-    /**
-     * Add abstract methods for WIDENING conflict field.
-     * Uses the wider type (e.g., long for int/long, double for int/double).
-     */
-    private void addWideningAbstractMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
-        String capName = resolver.capitalize(field.getJavaName());
-        TypeName widerType = getWiderPrimitiveType(field.getJavaType());
-
-        // doSetXxx(widerType)
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(widerType, field.getJavaName())
-                .build());
-
-        // doClearXxx()
-        if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .build());
-        }
-    }
-
-    /**
-     * Add concrete implementations for WIDENING conflict field.
-     */
-    private void addWideningConcreteMethods(TypeSpec.Builder builder, MergedField field,
-                                             TypeResolver resolver, ClassName builderInterfaceType) {
-        String capName = resolver.capitalize(field.getJavaName());
-        TypeName widerType = getWiderPrimitiveType(field.getJavaType());
-
-        // setXxx(widerType)
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(widerType, field.getJavaName())
-                .returns(builderInterfaceType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // clearXxx()
-        if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(builderInterfaceType)
-                    .addStatement("doClear$L()", capName)
-                    .addStatement("return this")
-                    .build());
-        }
-    }
-
-    /**
-     * Get the primitive TypeName for a wider type string.
-     */
-    private TypeName getWiderPrimitiveType(String javaType) {
-        return switch (javaType) {
-            case "long", "Long" -> TypeName.LONG;
-            case "double", "Double" -> TypeName.DOUBLE;
-            case "int", "Integer" -> TypeName.INT;
-            default -> TypeName.LONG; // Default to long for numeric widening
-        };
-    }
-
-    /**
-     * Add abstract methods for STRING_BYTES conflict field.
-     * Provides dual setters: one for String, one for byte[].
-     */
-    private void addStringBytesAbstractMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
-        String capName = resolver.capitalize(field.getJavaName());
-
-        // doSetXxx(String) - for String value
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(ClassName.get(String.class), field.getJavaName())
-                .build());
-
-        // doSetXxxBytes(byte[]) - for byte[] value
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName + "Bytes")
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName())
-                .build());
-
-        // doClearXxx() for optional fields
-        if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .build());
-        }
-    }
-
-    /**
-     * Add concrete implementations for STRING_BYTES conflict field.
-     */
-    private void addStringBytesConcreteMethods(TypeSpec.Builder builder, MergedField field,
-                                                TypeResolver resolver, ClassName builderInterfaceType) {
-        String capName = resolver.capitalize(field.getJavaName());
-
-        // setXxx(String)
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(ClassName.get(String.class), field.getJavaName())
-                .returns(builderInterfaceType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // setXxxBytes(byte[])
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName + "Bytes")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName())
-                .returns(builderInterfaceType)
-                .addStatement("doSet$L$L($L)", capName, "Bytes", field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // clearXxx() for optional
-        if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(builderInterfaceType)
-                    .addStatement("doClear$L()", capName)
-                    .addStatement("return this")
-                    .build());
-        }
-    }
-
-    /**
-     * Extract element type from List<T> type.
-     */
-    private TypeName extractListElementType(TypeName listType) {
-        if (listType instanceof ParameterizedTypeName parameterized
-                && !parameterized.typeArguments.isEmpty()) {
-            return parameterized.typeArguments.get(0);
-        }
-        return ClassName.get(Object.class);
-    }
-
-    /**
      * Generate and write abstract class using context.
      */
     public Path generateAndWrite(MergedMessage message, GenerationContext ctx) throws IOException {
@@ -1060,9 +693,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate and write abstract class.
-     * @deprecated Use {@link #generateAndWrite(MergedMessage, GenerationContext)} instead
+     * @param message Merged message info
+     * @return Path to the generated file
+     * @throws IOException if writing fails
+     * @deprecated Use {@link #generateAndWrite(MergedMessage, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public Path generateAndWrite(MergedMessage message) throws IOException {
         JavaFile javaFile = generate(message);
         writeToFile(javaFile);
@@ -1071,4 +707,5 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 + "/" + message.getAbstractClassName() + ".java";
         return config.getOutputDirectory().resolve(relativePath);
     }
+
 }

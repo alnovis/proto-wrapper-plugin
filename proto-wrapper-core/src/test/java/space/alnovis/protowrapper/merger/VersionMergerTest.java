@@ -224,6 +224,159 @@ class VersionMergerTest {
     }
 
     @Test
+    void shouldDetectFloatDoubleConflict() {
+        DescriptorProto.Builder v1Builder = DescriptorProto.newBuilder()
+                .setName("Sensor")
+                .addField(createField("temperature", 1, Type.TYPE_FLOAT, Label.LABEL_OPTIONAL));
+
+        DescriptorProto.Builder v2Builder = DescriptorProto.newBuilder()
+                .setName("Sensor")
+                .addField(createField("temperature", 1, Type.TYPE_DOUBLE, Label.LABEL_OPTIONAL));
+
+        VersionSchema v1 = createVersionSchema("v1");
+        v1.addMessage(new MessageInfo(v1Builder.build(), "test.proto"));
+
+        VersionSchema v2 = createVersionSchema("v2");
+        v2.addMessage(new MessageInfo(v2Builder.build(), "test.proto"));
+
+        MergedSchema merged = merger.merge(Arrays.asList(v1, v2));
+
+        MergedMessage sensor = merged.getMessage("Sensor").orElseThrow();
+        assertThat(sensor.getFields()).hasSize(1);
+
+        MergedField tempField = sensor.getFields().get(0);
+        // For FLOAT_DOUBLE conflicts, the wider type (double) is used
+        assertThat(tempField.getJavaType()).isEqualTo("double");
+        assertThat(tempField.getConflictType()).isEqualTo(MergedField.ConflictType.FLOAT_DOUBLE);
+    }
+
+    @Test
+    void shouldDetectFloatDoubleConflictWithMultipleVersions() {
+        // v1: float, v2: double, v3: float
+        DescriptorProto.Builder v1Builder = DescriptorProto.newBuilder()
+                .setName("Measurement")
+                .addField(createField("value", 1, Type.TYPE_FLOAT, Label.LABEL_OPTIONAL));
+
+        DescriptorProto.Builder v2Builder = DescriptorProto.newBuilder()
+                .setName("Measurement")
+                .addField(createField("value", 1, Type.TYPE_DOUBLE, Label.LABEL_OPTIONAL));
+
+        DescriptorProto.Builder v3Builder = DescriptorProto.newBuilder()
+                .setName("Measurement")
+                .addField(createField("value", 1, Type.TYPE_FLOAT, Label.LABEL_OPTIONAL));
+
+        VersionSchema v1 = createVersionSchema("v1");
+        v1.addMessage(new MessageInfo(v1Builder.build(), "test.proto"));
+
+        VersionSchema v2 = createVersionSchema("v2");
+        v2.addMessage(new MessageInfo(v2Builder.build(), "test.proto"));
+
+        VersionSchema v3 = createVersionSchema("v3");
+        v3.addMessage(new MessageInfo(v3Builder.build(), "test.proto"));
+
+        MergedSchema merged = merger.merge(Arrays.asList(v1, v2, v3));
+
+        MergedMessage measurement = merged.getMessage("Measurement").orElseThrow();
+        MergedField valueField = measurement.getFields().get(0);
+
+        // Should be FLOAT_DOUBLE conflict with double as unified type
+        assertThat(valueField.getConflictType()).isEqualTo(MergedField.ConflictType.FLOAT_DOUBLE);
+        assertThat(valueField.getJavaType()).isEqualTo("double");
+        assertThat(valueField.getPresentInVersions()).containsExactly("v1", "v2", "v3");
+    }
+
+    @Test
+    void shouldDetectSignedUnsignedConflict() {
+        // v1: int32 (signed)
+        // v2: uint32 (unsigned)
+        DescriptorProto v1Builder = DescriptorProto.newBuilder()
+                .setName("Counter")
+                .addField(createField("value", 1, Type.TYPE_INT32, Label.LABEL_REQUIRED))
+                .build();
+
+        DescriptorProto v2Builder = DescriptorProto.newBuilder()
+                .setName("Counter")
+                .addField(createField("value", 1, Type.TYPE_UINT32, Label.LABEL_REQUIRED))
+                .build();
+
+        VersionSchema v1 = createVersionSchema("v1");
+        v1.addMessage(new MessageInfo(v1Builder, "test.proto"));
+
+        VersionSchema v2 = createVersionSchema("v2");
+        v2.addMessage(new MessageInfo(v2Builder, "test.proto"));
+
+        MergedSchema merged = merger.merge(Arrays.asList(v1, v2));
+
+        MergedMessage counter = merged.getMessage("Counter").orElseThrow();
+        MergedField valueField = counter.getFields().get(0);
+
+        // Should be SIGNED_UNSIGNED conflict with long as unified type
+        assertThat(valueField.getConflictType()).isEqualTo(MergedField.ConflictType.SIGNED_UNSIGNED);
+        assertThat(valueField.getJavaType()).isEqualTo("long");
+        assertThat(valueField.getPresentInVersions()).containsExactly("v1", "v2");
+    }
+
+    @Test
+    void shouldDetectSignedUnsignedConflictWithSint32() {
+        // v1: sint32 (ZigZag encoding)
+        // v2: int32 (regular varint)
+        DescriptorProto v1Builder = DescriptorProto.newBuilder()
+                .setName("Delta")
+                .addField(createField("offset", 1, Type.TYPE_SINT32, Label.LABEL_REQUIRED))
+                .build();
+
+        DescriptorProto v2Builder = DescriptorProto.newBuilder()
+                .setName("Delta")
+                .addField(createField("offset", 1, Type.TYPE_INT32, Label.LABEL_REQUIRED))
+                .build();
+
+        VersionSchema v1 = createVersionSchema("v1");
+        v1.addMessage(new MessageInfo(v1Builder, "test.proto"));
+
+        VersionSchema v2 = createVersionSchema("v2");
+        v2.addMessage(new MessageInfo(v2Builder, "test.proto"));
+
+        MergedSchema merged = merger.merge(Arrays.asList(v1, v2));
+
+        MergedMessage delta = merged.getMessage("Delta").orElseThrow();
+        MergedField offsetField = delta.getFields().get(0);
+
+        // Should be SIGNED_UNSIGNED conflict (different wire encodings)
+        assertThat(offsetField.getConflictType()).isEqualTo(MergedField.ConflictType.SIGNED_UNSIGNED);
+        assertThat(offsetField.getJavaType()).isEqualTo("long");
+    }
+
+    @Test
+    void shouldDetectSignedUnsignedConflict64Bit() {
+        // v1: int64 (signed)
+        // v2: uint64 (unsigned)
+        DescriptorProto v1Builder = DescriptorProto.newBuilder()
+                .setName("BigCounter")
+                .addField(createField("value", 1, Type.TYPE_INT64, Label.LABEL_REQUIRED))
+                .build();
+
+        DescriptorProto v2Builder = DescriptorProto.newBuilder()
+                .setName("BigCounter")
+                .addField(createField("value", 1, Type.TYPE_UINT64, Label.LABEL_REQUIRED))
+                .build();
+
+        VersionSchema v1 = createVersionSchema("v1");
+        v1.addMessage(new MessageInfo(v1Builder, "test.proto"));
+
+        VersionSchema v2 = createVersionSchema("v2");
+        v2.addMessage(new MessageInfo(v2Builder, "test.proto"));
+
+        MergedSchema merged = merger.merge(Arrays.asList(v1, v2));
+
+        MergedMessage counter = merged.getMessage("BigCounter").orElseThrow();
+        MergedField valueField = counter.getFields().get(0);
+
+        // Should be SIGNED_UNSIGNED conflict with long as unified type
+        assertThat(valueField.getConflictType()).isEqualTo(MergedField.ConflictType.SIGNED_UNSIGNED);
+        assertThat(valueField.getJavaType()).isEqualTo("long");
+    }
+
+    @Test
     void shouldMergeWithConfig() {
         VersionMerger.MergerConfig config = new VersionMerger.MergerConfig()
                 .addFieldNameMapping("old_name", "newName")

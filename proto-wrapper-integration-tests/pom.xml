@@ -7,7 +7,7 @@
     <parent>
         <groupId>space.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
-        <version>1.1.1</version>
+        <version>1.2.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -34,6 +34,14 @@
     </properties>
 
     <dependencies>
+        <!-- Proto wrapper core (for exception classes) -->
+        <dependency>
+            <groupId>space.alnovis</groupId>
+            <artifactId>proto-wrapper-core</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Protobuf runtime -->
         <dependency>
             <groupId>com.google.protobuf</groupId>
@@ -155,6 +163,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
+                <version>3.1.1</version>
                 <configuration>
                     <skip>true</skip>
                 </configuration>

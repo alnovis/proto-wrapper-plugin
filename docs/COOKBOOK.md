@@ -8,6 +8,7 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 - [Plugin Configuration](#plugin-configuration)
 - [Type Conflict Handling](#type-conflict-handling)
 - [Generation Modes](#generation-modes)
+- [Oneof Field Handling](#oneof-field-handling)
 - [Common Use Cases](#common-use-cases)
 - [Troubleshooting](#troubleshooting)
 
@@ -21,7 +22,7 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
     <configuration>
         <basePackage>com.mycompany.model</basePackage>
         <protoPackagePattern>com.mycompany.proto.{version}</protoPackagePattern>
@@ -481,6 +482,307 @@ Order newOrder = Order.newBuilder()
     .setOrderId("ORD-456")
     .setCustomerId("CUST-789")
     .build();
+```
+
+---
+
+## Oneof Field Handling
+
+Proto-wrapper fully supports protobuf `oneof` fields with automatic conflict detection.
+
+### Basic Oneof Usage
+
+**Proto definition:**
+
+```protobuf
+message Payment {
+    string id = 1;
+    int64 amount = 2;
+
+    oneof method {
+        CreditCard credit_card = 10;
+        BankTransfer bank_transfer = 11;
+        Crypto crypto = 12;  // V2 only
+    }
+}
+```
+
+**Creating a payment with oneof:**
+
+```java
+VersionContext ctx = VersionContext.forVersion(1);
+
+// Create the oneof field value
+CreditCard card = ctx.newCreditCardBuilder()
+        .setCardNumber("4111111111111111")
+        .setExpiry("12/25")
+        .setHolderName("John Doe")
+        .build();
+
+// Create payment with credit card selected
+Payment payment = ctx.newPaymentBuilder()
+        .setId("PAY-001")
+        .setAmount(10000L)
+        .setCreditCard(card)
+        .build();
+```
+
+**Checking which oneof field is set:**
+
+```java
+switch (payment.getMethodCase()) {
+    case CREDIT_CARD -> {
+        CreditCard card = payment.getCreditCard();
+        processCard(card);
+    }
+    case BANK_TRANSFER -> {
+        BankTransfer transfer = payment.getBankTransfer();
+        processTransfer(transfer);
+    }
+    case CRYPTO -> {
+        Crypto crypto = payment.getCrypto();
+        processCrypto(crypto);
+    }
+    case METHOD_NOT_SET -> {
+        throw new IllegalStateException("Payment method not specified");
+    }
+}
+```
+
+**Using individual has-methods:**
+
+```java
+if (payment.hasCreditCard()) {
+    CreditCard card = payment.getCreditCard();
+    // Process card...
+} else if (payment.hasBankTransfer()) {
+    BankTransfer transfer = payment.getBankTransfer();
+    // Process transfer...
+}
+```
+
+### Changing Oneof Selection
+
+Setting a new oneof field automatically clears the previous one:
+
+```java
+Payment.Builder builder = payment.toBuilder();
+
+// Currently has credit card selected
+assert builder.build().getMethodCase() == MethodCase.CREDIT_CARD;
+
+// Setting bank transfer clears credit card
+BankTransfer transfer = ctx.newBankTransferBuilder()
+        .setAccountNumber("123456789")
+        .setBankCode("SWIFT123")
+        .build();
+builder.setBankTransfer(transfer);
+
+Payment modified = builder.build();
+assert modified.getMethodCase() == MethodCase.BANK_TRANSFER;
+assert !modified.hasCreditCard();  // Credit card is now cleared
+```
+
+### Clearing Oneof
+
+```java
+Payment cleared = payment.toBuilder()
+        .clearMethod()  // Clears the entire oneof group
+        .build();
+
+assert cleared.getMethodCase() == MethodCase.METHOD_NOT_SET;
+assert !cleared.hasCreditCard();
+assert !cleared.hasBankTransfer();
+assert !cleared.hasCrypto();
+```
+
+### Version Conversion with Oneof
+
+**V1 to V2 - field is preserved:**
+
+```java
+// V1 payment with credit card
+VersionContext v1Ctx = VersionContext.forVersion(1);
+Payment v1Payment = v1Ctx.newPaymentBuilder()
+        .setId("PAY-001")
+        .setCreditCard(card)
+        .build();
+
+// Convert to V2 - credit card is preserved
+Payment v2Payment = v1Payment.asVersion(
+        space.example.model.v2.Payment.class);
+
+assert v2Payment.getMethodCase() == MethodCase.CREDIT_CARD;
+assert v2Payment.getCreditCard() != null;
+```
+
+**V2 to V1 - V2-only field is dropped:**
+
+```java
+// V2 payment with crypto (V2-only option)
+VersionContext v2Ctx = VersionContext.forVersion(2);
+Payment v2Payment = v2Ctx.newPaymentBuilder()
+        .setId("PAY-002")
+        .setCrypto(crypto)
+        .build();
+
+assert v2Payment.getMethodCase() == MethodCase.CRYPTO;
+
+// Convert to V1 - crypto doesn't exist in V1
+Payment v1Payment = v2Payment.asVersion(
+        space.example.model.v1.Payment.class);
+
+// Oneof becomes unset because crypto is not supported
+assert v1Payment.getMethodCase() == MethodCase.METHOD_NOT_SET;
+```
+
+### Oneof with Different Fields Across Versions
+
+When versions have different oneof fields:
+
+```protobuf
+// V1: 2 payment methods
+message Payment {
+    oneof method {
+        CreditCard credit_card = 10;
+        BankTransfer bank_transfer = 11;
+    }
+}
+
+// V2: 3 payment methods (adds crypto)
+message Payment {
+    oneof method {
+        CreditCard credit_card = 10;
+        BankTransfer bank_transfer = 11;
+        Crypto crypto = 12;
+    }
+}
+```
+
+**Generated Case enum includes all options:**
+
+```java
+public enum MethodCase {
+    CREDIT_CARD(10),
+    BANK_TRANSFER(11),
+    CRYPTO(12),        // V2 only
+    METHOD_NOT_SET(0);
+}
+```
+
+**Handling version-specific options safely:**
+
+```java
+public void processPayment(Payment payment) {
+    switch (payment.getMethodCase()) {
+        case CREDIT_CARD, BANK_TRANSFER -> {
+            // Available in all versions
+            processStandardPayment(payment);
+        }
+        case CRYPTO -> {
+            // V2 only - check version first
+            if (payment.getWrapperVersion() < 2) {
+                throw new IllegalStateException(
+                    "Crypto not supported in V" + payment.getWrapperVersion());
+            }
+            processCryptoPayment(payment.getCrypto());
+        }
+        case METHOD_NOT_SET -> {
+            throw new IllegalArgumentException("Payment method required");
+        }
+    }
+}
+```
+
+### Renamed Oneof Handling
+
+When oneof is renamed between versions but has the same fields:
+
+```protobuf
+// V1
+message Payment {
+    oneof payment_method {  // Original name
+        CreditCard credit_card = 10;
+        BankTransfer bank_transfer = 11;
+    }
+}
+
+// V2
+message Payment {
+    oneof method {  // Renamed
+        CreditCard credit_card = 10;
+        BankTransfer bank_transfer = 11;
+    }
+}
+```
+
+The plugin detects this and generates a unified API using the most common name. A warning is logged:
+
+```
+[WARN] Oneof RENAMED: 'Payment.method' has different names: {v1=payment_method, v2=method}
+```
+
+Usage remains the same regardless of version:
+
+```java
+// Works for both V1 and V2
+Payment payment = ctx.parsePaymentFromBytes(bytes);
+MethodCase methodCase = payment.getMethodCase();
+```
+
+### Testing Oneof Fields
+
+```java
+@ParameterizedTest
+@ValueSource(ints = {1, 2})
+void testPaymentWithCreditCard(int version) {
+    VersionContext ctx = VersionContext.forVersion(version);
+
+    CreditCard card = ctx.newCreditCardBuilder()
+            .setCardNumber("4111111111111111")
+            .setExpiry("12/25")
+            .build();
+
+    Payment payment = ctx.newPaymentBuilder()
+            .setId("TEST-001")
+            .setAmount(1000L)
+            .setCreditCard(card)
+            .build();
+
+    // Assertions work for any version
+    assertThat(payment.getMethodCase()).isEqualTo(MethodCase.CREDIT_CARD);
+    assertThat(payment.hasCreditCard()).isTrue();
+    assertThat(payment.hasBankTransfer()).isFalse();
+    assertThat(payment.getCreditCard().getCardNumber()).isEqualTo("4111111111111111");
+}
+
+@Test
+void testCryptoOnlyInV2() {
+    VersionContext v1Ctx = VersionContext.forVersion(1);
+    VersionContext v2Ctx = VersionContext.forVersion(2);
+
+    // Crypto is V2-only
+    Payment v1Payment = v1Ctx.newPaymentBuilder()
+            .setId("TEST-002")
+            .build();
+
+    assertThat(v1Payment.hasCrypto()).isFalse();
+    assertThat(v1Payment.getCrypto()).isNull();
+
+    // V2 can have crypto
+    Crypto crypto = v2Ctx.newCryptoBuilder()
+            .setWalletAddress("0x123")
+            .setCurrency("ETH")
+            .build();
+
+    Payment v2Payment = v2Ctx.newPaymentBuilder()
+            .setId("TEST-003")
+            .setCrypto(crypto)
+            .build();
+
+    assertThat(v2Payment.hasCrypto()).isTrue();
+    assertThat(v2Payment.getCrypto().getCurrency()).isEqualTo("ETH");
+}
 ```
 
 ---

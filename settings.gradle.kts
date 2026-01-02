@@ -15,3 +15,6 @@ include("proto-wrapper-gradle-plugin")
 // - proto-wrapper-maven-plugin (зависит от Maven Plugin API)
 // - proto-wrapper-integration-tests (Maven-специфичные тесты)
 // - examples/maven-example
+
+// Gradle example как composite build (для сборки из корня)
+includeBuild("examples/gradle-example")

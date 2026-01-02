@@ -14,10 +14,51 @@ import java.util.Optional;
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
 
 /**
- * Handler for INT_ENUM conflict fields.
+ * Handler for INT_ENUM type conflict fields.
  *
- * <p>This handler processes fields where one version uses an int type and another
- * uses an enum type. It generates both int and enum accessor methods.</p>
+ * <p>This handler processes fields where one proto version uses an integer type
+ * (int32, int64) and another version uses an enum type for the same field number.
+ * This is a common scenario when evolving proto schemas from raw integers to
+ * type-safe enums.</p>
+ *
+ * <h2>Conflict Example</h2>
+ * <pre>
+ * // v1: message Order { int32 status = 1; }
+ * // v2: message Order { OrderStatus status = 1; }
+ * </pre>
+ *
+ * <h2>Resolution Strategy</h2>
+ * <p>The handler generates dual accessor methods:</p>
+ * <ul>
+ *   <li>{@code getStatus()} - returns int value (works with all versions)</li>
+ *   <li>{@code getStatusEnum()} - returns unified ConflictEnum type</li>
+ * </ul>
+ *
+ * <p>A unified {@code ConflictEnum} is generated containing all enum values
+ * from all versions. The enum provides bidirectional conversion:</p>
+ * <ul>
+ *   <li>{@code getValue()} - returns the int value</li>
+ *   <li>{@code fromProtoValue(int)} - converts int to enum constant</li>
+ * </ul>
+ *
+ * <h2>Generated Code</h2>
+ * <ul>
+ *   <li><b>Interface:</b> {@code int getStatus()}, {@code StatusEnum getStatusEnum()},
+ *       {@code Builder.setStatus(int)}, {@code Builder.setStatus(StatusEnum)}</li>
+ *   <li><b>Abstract:</b> {@code extractStatus(proto)}, {@code extractStatusEnum(proto)}</li>
+ *   <li><b>Impl:</b> Version-specific extraction with int-to-enum conversion</li>
+ * </ul>
+ *
+ * <h2>Builder Behavior</h2>
+ * <p>Builder setter methods include validation:</p>
+ * <ul>
+ *   <li>{@code setStatus(int)} - validates the int value against enum range for enum versions</li>
+ *   <li>{@code setStatus(StatusEnum)} - always valid, converts enum to int internally</li>
+ * </ul>
+ *
+ * @see ConflictHandler
+ * @see FieldProcessingChain
+ * @see space.alnovis.protowrapper.model.ConflictEnumInfo
  */
 public final class IntEnumHandler extends AbstractConflictHandler implements ConflictHandler {
 
@@ -25,6 +66,11 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
 
     private IntEnumHandler() {
         // Singleton
+    }
+
+    @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.INT_ENUM;
     }
 
     @Override
@@ -147,31 +193,18 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
 
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName intType = ctx.parseFieldType(field);
-
-        // doSet (int)
-        builder.addMethod(MethodSpec.methodBuilder(field.getDoSetMethodName())
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(intType, field.getJavaName())
-                .build());
+        // doSet (int) - use primitive int to match ImplClassGenerator
+        addAbstractDoSet(builder, field.getDoSetMethodName(), TypeName.INT, field.getJavaName());
 
         // Add enum setter
         ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
                 .ifPresent(enumInfo -> {
                     ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-
-                    builder.addMethod(MethodSpec.methodBuilder(field.getDoSetMethodName())
-                            .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                            .addParameter(enumType, field.getJavaName())
-                            .build());
+                    addAbstractDoSet(builder, field.getDoSetMethodName(), enumType, field.getJavaName());
                 });
 
-        // doClear for optional
-        if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder(field.getDoClearMethodName())
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .build());
-        }
+        // doClear - always generated for INT_ENUM (interface has clearXxx unconditionally)
+        addAbstractDoClear(builder, field.getDoClearMethodName());
     }
 
     @Override
@@ -181,25 +214,19 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
         FieldInfo versionField = field.getVersionFields().get(version);
         boolean versionIsEnum = versionField != null && versionField.isEnum();
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
-        TypeName intType = ctx.parseFieldType(field);
 
-        // doSet (int)
-        MethodSpec.Builder doSetInt = MethodSpec.methodBuilder(field.getDoSetMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(intType, field.getJavaName());
-
-        addVersionConditional(doSetInt, presentInVersion, m -> {
-            if (versionIsEnum) {
-                String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                String enumMethod = getEnumFromIntMethod(ctx.config());
-                m.addStatement("protoBuilder.set$L($L.$L($L))",
-                        versionJavaName, protoEnumType, enumMethod, field.getJavaName());
-            } else {
-                m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
-            }
-        });
-        builder.addMethod(doSetInt.build());
+        // doSet (int) - use primitive int to match abstract method and ImplClassGenerator
+        buildDoSetImpl(builder, field.getDoSetMethodName(), TypeName.INT, field.getJavaName(),
+                presentInVersion, m -> {
+                    if (versionIsEnum) {
+                        String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
+                        String enumMethod = getEnumFromIntMethod(ctx.config());
+                        m.addStatement("protoBuilder.set$L($L.$L($L))",
+                                versionJavaName, protoEnumType, enumMethod, field.getJavaName());
+                    } else {
+                        m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                    }
+                });
 
         // doSet (enum)
         final boolean isEnumVersion = versionIsEnum;
@@ -207,35 +234,77 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
         ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
                 .ifPresent(enumInfo -> {
                     ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-
-                    MethodSpec.Builder doSetEnum = MethodSpec.methodBuilder(field.getDoSetMethodName())
-                            .addAnnotation(Override.class)
-                            .addModifiers(Modifier.PROTECTED)
-                            .addParameter(enumType, field.getJavaName());
-
-                    addVersionConditional(doSetEnum, presentInVersion, m -> {
-                        if (isEnumVersion) {
-                            String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                            String enumMethod = getEnumFromIntMethod(ctx.config());
-                            m.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
-                                    javaName, protoEnumType, enumMethod, field.getJavaName());
-                        } else {
-                            m.addStatement("protoBuilder.set$L($L.getValue())",
-                                    javaName, field.getJavaName());
-                        }
-                    });
-                    builder.addMethod(doSetEnum.build());
+                    buildDoSetImpl(builder, field.getDoSetMethodName(), enumType, field.getJavaName(),
+                            presentInVersion, m -> {
+                                if (isEnumVersion) {
+                                    String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
+                                    String enumMethod = getEnumFromIntMethod(ctx.config());
+                                    m.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
+                                            javaName, protoEnumType, enumMethod, field.getJavaName());
+                                } else {
+                                    m.addStatement("protoBuilder.set$L($L.getValue())",
+                                            javaName, field.getJavaName());
+                                }
+                            });
                 });
 
-        // doClear for optional
-        if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder(field.getDoClearMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
+        // doClear - always generated for INT_ENUM
+        buildDoClearImpl(builder, field.getDoClearMethodName(), presentInVersion, versionJavaName);
+    }
 
-            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
-            builder.addMethod(doClear.build());
+    @Override
+    public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        String capName = ctx.capitalize(field.getJavaName());
+
+        Optional<ConflictEnumInfo> enumInfoOpt = ctx.schema().getConflictEnum(ctx.message().getName(), field.getName());
+        if (enumInfoOpt.isEmpty()) {
+            return;
         }
+        ConflictEnumInfo enumInfo = enumInfoOpt.get();
+        ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
+
+        // Build version check condition for enum versions only
+        java.util.Set<String> enumVersions = enumInfo.getEnumVersions();
+        java.util.List<Integer> enumVersionNumbers = enumVersions.stream()
+                .map(ctx.resolver()::extractVersionNumber)
+                .sorted()
+                .toList();
+
+        // setXxx(int) with version-aware validation
+        MethodSpec.Builder setIntMethod = MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(TypeName.INT, field.getJavaName())
+                .returns(builderReturnType);
+
+        if (!enumVersionNumbers.isEmpty()) {
+            String versionCondition = enumVersionNumbers.stream()
+                    .map(v -> "getVersion() == " + v)
+                    .reduce((a, b) -> a + " || " + b)
+                    .orElse("false");
+
+            setIntMethod.beginControlFlow("if ($L)", versionCondition)
+                    .addStatement("$T.fromProtoValueOrThrow($L)", enumType, field.getJavaName())
+                    .endControlFlow();
+        }
+
+        setIntMethod.addStatement("$L($L)", field.getDoSetMethodName(), field.getJavaName())
+                .addStatement("return this");
+        builder.addMethod(setIntMethod.build());
+
+        // setXxx(EnumType)
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(enumType, field.getJavaName())
+                .returns(builderReturnType)
+                .addStatement("$L($L)", field.getDoSetMethodName(), field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // clearXxx() - always generated for INT_ENUM fields (interface has it unconditionally)
+        addConcreteClearMethod(builder, field.getJavaName(), builderReturnType, ctx);
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {

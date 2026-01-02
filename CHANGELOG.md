@@ -5,6 +5,115 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+_No changes yet._
+
+---
+
+## [1.2.0] - 2026-01-02
+
+### Added
+
+#### Comprehensive Conflict Type System
+- **ENUM_ENUM conflict type** - Handle enum-to-enum conflicts with different values across versions
+- **FLOAT_DOUBLE conflict type** - Handle float/double precision differences
+- **SIGNED_UNSIGNED conflict type** - Handle signed/unsigned integer conflicts (int32/uint32, sint32, etc.)
+- **REPEATED_SINGLE conflict type** - Handle repeated vs singular field conflicts
+- **PRIMITIVE_MESSAGE conflict type** - Detect primitive to message type changes
+- **OPTIONAL_REQUIRED conflict type** - Handle optional/required field modifier differences
+
+#### New Conflict Handlers
+- `EnumEnumHandler` - Generates unified int accessor for enum-enum conflicts
+- `FloatDoubleHandler` - Generates double accessor for float/double conflicts
+- `SignedUnsignedHandler` - Generates long accessor for signed/unsigned conflicts
+- `RepeatedSingleHandler` - Generates List accessor for repeated/single conflicts
+- `MapFieldHandler` - Full map field support with type conflicts:
+  - WIDENING conflicts (int32 in v1, int64 in v2 → unified as long)
+  - INT_ENUM conflicts (int32 in v1, enum in v2 → unified as int)
+  - All accessor methods: `getXxxMap()`, `getXxxCount()`, `containsXxx()`, `getXxxOrDefault()`, `getXxxOrThrow()`
+  - All builder methods: `putXxx()`, `putAllXxx()`, `removeXxx()`, `clearXxx()`
+  - Lazy caching with `volatile` fields for thread-safe performance
+  - Non-sequential enum value support (uses `getNumber()` instead of `ordinal()`)
+  - Validation for invalid enum values in builders with clear error messages
+
+#### Exception Hierarchy
+- `ProtoWrapperException` - Base exception class
+- `AnalysisException` - Proto file analysis errors
+- `GenerationException` - Code generation errors
+- `ConfigurationException` - Configuration validation errors
+- `MergeException` - Schema merging errors
+
+#### Oneof Field Support
+- **Full oneof support** - Generate unified API for protobuf oneof fields across versions
+  - `XxxCase` enum for discriminator (e.g., `MethodCase.CREDIT_CARD`)
+  - `getXxxCase()` method to check which field is set
+  - `hasXxx()` methods for individual oneof fields
+  - `clearXxx()` builder method to clear entire oneof group
+  - Works across versions with different oneof structures
+
+#### Oneof Conflict Detection
+- **Comprehensive conflict detection** - Automatically detects and logs oneof-related conflicts:
+  - `PARTIAL_EXISTENCE` - Oneof exists only in some versions
+  - `FIELD_SET_DIFFERENCE` - Different fields in oneof across versions
+  - `FIELD_TYPE_CONFLICT` - Type conflict within oneof field
+  - `RENAMED` - Oneof renamed between versions (detected by matching field numbers)
+  - `FIELD_MEMBERSHIP_CHANGE` - Field moved in/out of oneof
+  - `FIELD_NUMBER_CHANGE` - Field number changed within oneof
+  - `FIELD_REMOVED` - Field removed from oneof in some version
+  - `INCOMPATIBLE_TYPES` - Incompatible field types in oneof
+
+#### New Model Classes
+- `OneofInfo` - Oneof group information (name, index, field numbers)
+- `MergedOneof` - Merged oneof across versions with conflict tracking
+- `OneofConflictType` - Enum of all oneof conflict types
+- `OneofConflictInfo` - Detailed conflict information with affected versions
+- `OneofConflictDetector` - Conflict detection logic
+
+#### New Tests
+- `OneofConflictDetectorTest` - Unit tests for all conflict detection types
+- Integration tests for oneof field generation
+- `NonSequentialEnumTests` - Tests for map fields with non-sequential enum values
+
+#### Documentation Improvements
+- **CONTRIBUTING.md** - Contribution guidelines with code style, testing, and PR process
+- **Mermaid diagrams** in ARCHITECTURE.md - Class diagrams, sequence diagrams, component diagrams
+- **docs/archive/** - Organized completed plans and drafts
+
+#### Package Documentation
+- Added `package-info.java` for all packages with comprehensive JavaDoc
+
+### Changed
+- `FieldInfo` - Added `oneofIndex` and `oneofName` fields
+- `MergedMessage` - Added oneof groups tracking
+- `VersionMerger` - Integrated oneof merging with conflict detection and logging
+- Conflict warnings logged at WARN level for visibility
+- Refactored generators to use `GenerationContext` consistently
+- Improved type resolution for nested messages
+- Better conflict detection logging
+
+#### Deprecated API Improvements
+- Updated `@Deprecated` annotations with `forRemoval = true, since = "1.2.0"`
+- Added migration instructions in JavaDoc
+- Deprecated API will be removed in version 2.0.0:
+  - `InterfaceGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
+  - `AbstractClassGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
+  - `ImplClassGenerator.setSchema()`, `generate(MergedMessage, String, String)`, `generateAndWrite(...)`
+  - `MergedField(FieldInfo, String)` constructor, `addVersion(String, FieldInfo)` method
+  - `ProtocExecutor(Consumer<String>)` constructor
+
+### Fixed
+- Correct handling of optional fields in REPEATED_SINGLE conflicts
+- Proper type resolution for PRIMITIVE_MESSAGE conflicts with nested types
+- **CRITICAL:** Fixed `ordinal()` vs `getNumber()` bug in map enum conversion - was causing data corruption for non-sequential enum values
+- Fixed NPE when putting invalid enum values in map builders - now throws `IllegalArgumentException` with clear message
+
+### Known Limitations
+- Renamed oneofs use the most common name across versions
+- Fields in oneofs that exist only in some versions return null/default in other versions
+
+---
+
 ## [1.1.1] - 2025-12-30
 
 ### Added
@@ -299,16 +408,5 @@ OrderRequest order = OrderRequest.newBuilder(ctx)
 
 ### Known Limitations
 
-- `oneof` fields are not supported
-- `map` fields have basic support only
+- `map` fields have basic support only (full support added in v1.2.0)
 - Complex nested message hierarchies may require manual configuration
-
----
-
-## [Unreleased]
-
-### Planned
-- Support for `oneof` fields
-- Improved `map` field handling
-- Gradle plugin
-- Code generation customization hooks

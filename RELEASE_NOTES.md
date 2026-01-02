@@ -1,118 +1,157 @@
-# Release Notes - Proto Wrapper Plugin v1.1.1
+# Release Notes - Proto Wrapper Plugin v1.2.0
 
-**Release Date:** December 30, 2025
+**Release Date:** January 2, 2026
 
 ## Overview
 
-This release introduces the static `newBuilder(VersionContext)` method on all generated interfaces, providing a more intuitive and consistent API for creating builder instances that mirrors the native protobuf pattern.
+This major release introduces comprehensive conflict type handling, full map field support with type conflicts, oneof field support, and a structured exception hierarchy. It also includes critical bug fixes for map fields with non-sequential enum values.
 
 ## What's New
 
-### Static newBuilder(VersionContext) Method
+### Full Map Field Support
 
-All generated interfaces now include a static `newBuilder(ctx)` method for creating builders:
+Map fields are now fully supported with all accessor and builder methods:
 
 ```java
-// Before (still works)
-Money money = ctx.newMoneyBuilder()
-        .setAmount(1000)
-        .setCurrency("USD")
-        .build();
+// Accessor methods
+Map<String, Status> statuses = message.getStatusesMap();
+int count = message.getStatusesCount();
+boolean hasKey = message.containsStatuses("key");
+Status status = message.getStatusesOrDefault("key", Status.UNKNOWN);
+Status status = message.getStatusesOrThrow("key");
 
-// After (new intuitive approach)
-Money money = Money.newBuilder(ctx)
-        .setAmount(1000)
-        .setCurrency("USD")
-        .build();
+// Builder methods
+builder.putStatuses("key", Status.ACTIVE);
+builder.putAllStatuses(statusMap);
+builder.removeStatuses("key");
+builder.clearStatuses();
 ```
 
-**Why this matters:**
-- More intuitive - matches the native protobuf pattern `Type.newBuilder()`
-- Better IDE discoverability - type the class name, then `.newBuilder`
-- Cleaner code when building complex object graphs
-- Consistent API across all generated interfaces
+#### Map Type Conflict Handling
 
-### Nested Interface Support
-
-The static `newBuilder(ctx)` method is available on nested interfaces too:
+Maps with type conflicts across versions are handled automatically:
 
 ```java
-// Nested GeoLocation inside Address
-Address.GeoLocation location = Address.GeoLocation.newBuilder(ctx)
-        .setLatitude(40.7128)
-        .setLongitude(-74.0060)
-        .setAccuracy(10.0)
-        .build();
+// WIDENING conflict: int32 in v1, int64 in v2 -> unified as long
+Map<String, Long> values = message.getValuesMap();
 
-// Nested SecurityChallenge inside AuthResponse
-AuthResponse.SecurityChallenge challenge = AuthResponse.SecurityChallenge.newBuilder(ctx)
-        .setType(ChallengeType.SMS_VERIFICATION)
-        .setChallengeId("CHAL-123")
-        .setHint("Enter 6-digit code")
-        .build();
+// INT_ENUM conflict: int32 in v1, enum in v2 -> unified as int
+Map<String, Integer> types = message.getTypesMap();
 ```
 
-### Complex Object Graphs
+#### Lazy Caching for Performance
 
-Building complex nested structures is now cleaner:
+Maps with type conversion use lazy caching with volatile fields for thread-safe performance:
 
 ```java
-VersionContext ctx = VersionContext.forVersion(2);
+private volatile Map<String, Integer> cachedStatusMap;
 
-OrderRequest order = OrderRequest.newBuilder(ctx)
-        .setOrderId("ORD-001")
-        .setCustomer(Customer.newBuilder(ctx)
-                .setId("CUST-001")
-                .setName("John Doe")
-                .setEmail("john@example.com")
-                .setShippingAddress(Address.newBuilder(ctx)
-                        .setStreet("123 Main St")
-                        .setCity("Boston")
-                        .setCountry("USA")
-                        .setLocation(Address.GeoLocation.newBuilder(ctx)
-                                .setLatitude(42.3601)
-                                .setLongitude(-71.0589)
-                                .build())
-                        .build())
-                .build())
-        .addItems(OrderItem.newBuilder(ctx)
-                .setProductId("PROD-001")
-                .setProductName("Widget")
-                .setQuantity(2)
-                .setUnitPrice(Money.newBuilder(ctx)
-                        .setAmount(2500)
-                        .setCurrency("USD")
-                        .build())
-                .build())
-        .setTotalAmount(Money.newBuilder(ctx)
-                .setAmount(5000)
-                .setCurrency("USD")
-                .build())
-        .setPaymentMethod(PaymentMethod.CARD)
-        .setOrderDate(Date.newBuilder(ctx)
-                .setYear(2024)
-                .setMonth(12)
-                .setDay(30)
-                .build())
-        .build();
+@Override
+protected Map<String, Integer> extractStatusMap() {
+    if (cachedStatusMap != null) {
+        return cachedStatusMap;
+    }
+    // Perform conversion...
+    cachedStatusMap = result;
+    return result;
+}
 ```
 
-### Context Propagation
+### Oneof Field Support
 
-The built objects retain their context, allowing chained creation:
+Full support for protobuf oneof fields with unified API across versions:
 
 ```java
-Money money = Money.newBuilder(ctx)
-        .setAmount(100)
-        .setCurrency("USD")
-        .build();
+// Check which field is set
+PaymentRequest.MethodCase methodCase = request.getMethodCase();
 
-// Use the context from the built object
-Date date = Date.newBuilder(money.getContext())
-        .setYear(2024)
-        .setMonth(6)
-        .setDay(15)
-        .build();
+switch (methodCase) {
+    case CREDIT_CARD -> processCreditCard(request.getCreditCard());
+    case BANK_TRANSFER -> processBankTransfer(request.getBankTransfer());
+    case CRYPTO -> processCrypto(request.getCrypto());
+    case METHOD_NOT_SET -> handleNoMethod();
+}
+
+// Check individual fields
+if (request.hasCreditCard()) {
+    CreditCard card = request.getCreditCard();
+}
+
+// Clear oneof group in builder
+builder.clearMethod();
+```
+
+### Comprehensive Conflict Type System
+
+New conflict types for complete schema evolution handling:
+
+| Conflict Type | Description | Unified Type |
+|--------------|-------------|--------------|
+| ENUM_ENUM | Different enum values across versions | int |
+| FLOAT_DOUBLE | float/double precision differences | double |
+| SIGNED_UNSIGNED | int32/uint32, sint32, etc. | long |
+| REPEATED_SINGLE | repeated vs singular fields | List |
+| PRIMITIVE_MESSAGE | Primitive to message type changes | Detection only |
+| OPTIONAL_REQUIRED | Optional/required modifier differences | Optional |
+
+### Exception Hierarchy
+
+Structured exception classes for better error handling:
+
+```java
+try {
+    schema = analyzer.analyze(protoFiles);
+} catch (AnalysisException e) {
+    // Proto file analysis errors
+} catch (ConfigurationException e) {
+    // Configuration validation errors
+} catch (GenerationException e) {
+    // Code generation errors
+} catch (MergeException e) {
+    // Schema merging errors
+} catch (ProtoWrapperException e) {
+    // Base exception for all plugin errors
+}
+```
+
+### Builder Validation for Enum Maps
+
+Invalid enum values in map builders throw clear error messages:
+
+```java
+// Throws IllegalArgumentException with message:
+// "Invalid value 999 for StatusType in field 'statusMap'. Valid values: [ACTIVE(1), INACTIVE(2), PENDING(3)]"
+builder.putStatusMap("key", 999);
+```
+
+## Critical Bug Fixes
+
+### Fixed: ordinal() vs getNumber() in Map Enum Conversion
+
+**Issue:** Map fields with enum values used `ordinal()` for conversion, causing data corruption when enums had non-sequential values (e.g., `ACTIVE=1, INACTIVE=5, PENDING=10`).
+
+**Fix:** Changed to use `getNumber()` which returns the actual proto field number.
+
+```java
+// Before (WRONG - caused data corruption)
+result.put(k, ((ProtocolMessageEnum) v).ordinal());
+
+// After (CORRECT)
+result.put(k, ((ProtocolMessageEnum) v).getNumber());
+```
+
+### Fixed: NPE for Invalid Enum Values
+
+**Issue:** Putting an invalid enum value in map builders caused NullPointerException.
+
+**Fix:** Added validation with clear error messages:
+
+```java
+StatusType enumValue = StatusType.forNumber(value);
+if (enumValue == null) {
+    throw new IllegalArgumentException(
+        "Invalid value " + value + " for StatusType...");
+}
 ```
 
 ## Upgrade Guide
@@ -124,14 +163,14 @@ Date date = Date.newBuilder(money.getContext())
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
 </plugin>
 ```
 
 **Gradle:**
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.1.1"
+    id("space.alnovis.proto-wrapper") version "1.2.0"
 }
 ```
 
@@ -147,67 +186,52 @@ mvn clean compile
 ./gradlew clean generateProtoWrapper
 ```
 
-### 3. Use New Feature (Optional)
+### 3. Update Exception Handling (Optional)
 
-Replace `ctx.newTypeBuilder()` calls with `Type.newBuilder(ctx)` for improved readability:
+If you catch plugin exceptions, update to use new exception hierarchy:
 
 ```java
-// Old style (still works)
-Money money = ctx.newMoneyBuilder().setAmount(100).build();
+// Old (still works)
+catch (RuntimeException e) { ... }
 
-// New style (recommended)
-Money money = Money.newBuilder(ctx).setAmount(100).build();
+// New (recommended)
+catch (ProtoWrapperException e) { ... }
 ```
 
 ## Breaking Changes
 
 None. All changes are backward compatible.
 
-## API Compatibility
+## Deprecated API
 
-- Generated code is fully compatible with previous versions
-- The new `newBuilder(ctx)` method is additive
-- Existing `ctx.newTypeBuilder()` calls continue to work
+The following APIs are deprecated and will be removed in version 2.0.0:
+
+| Deprecated | Replacement |
+|------------|-------------|
+| `InterfaceGenerator.setSchema()` | Use `GenerationContext` |
+| `InterfaceGenerator.generate(MergedMessage)` | Use `generate(GenerationContext)` |
+| `MergedField(FieldInfo, String)` constructor | Use `MergedField.create()` factory |
+| `ProtocExecutor(Consumer<String>)` | Use `ProtocExecutor(PluginLogger)` |
 
 ## Test Coverage
 
-| Test Class | Tests | Purpose |
-|------------|-------|---------|
-| `StaticNewBuilderTest` | 24 | Static newBuilder method |
-| - TopLevelInterfaceTests | 8 | Money, Date, Address, UserProfile |
-| - NestedInterfaceTests | 4 | GeoLocation, SecurityChallenge |
-| - BuilderChainingTests | 2 | Fluent API, clear methods |
-| - RoundTripTests | 2 | Serialization round-trip |
-| - CrossVersionTests | 2 | V1/V2 conversion |
-| - GetContextTests | 2 | Context propagation |
-| - ComplexGraphTests | 2 | Nested object graphs |
-| - ToBuilderTests | 2 | toBuilder/emptyBuilder |
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Map Fields | 18 | Type conflicts, caching, builders |
+| Oneof Fields | 24 | Case detection, clearing, conflicts |
+| Conflict Handlers | 32 | All conflict types |
+| Exception Hierarchy | 12 | Exception classes and messages |
+| Integration Tests | 120+ | End-to-end scenarios |
 
-**Total integration tests:** 106
+## Known Limitations
 
-## Generated Code Example
+### Oneof Fields
+- Renamed oneofs use the most common name across versions
+- Fields in oneofs that exist only in some versions return null/default in other versions
 
-```java
-public interface Money {
-    // ... existing methods ...
-
-    /**
-     * Create a new builder for Money using the specified version context.
-     * <p>This is a convenience method equivalent to {@code ctx.newMoneyBuilder()}.</p>
-     * @param ctx Version context to use for builder creation
-     * @return Empty builder for Money
-     */
-    static Builder newBuilder(VersionContext ctx) {
-        return ctx.newMoneyBuilder();
-    }
-
-    interface Builder {
-        Builder setAmount(long amount);
-        Builder setCurrency(String currency);
-        Money build();
-    }
-}
-```
+### Detected Conflicts (Not Auto-Resolved)
+- PRIMITIVE_MESSAGE conflicts are detected but require manual handling
+- Renaming oneofs between versions is supported but may need configuration
 
 ## Full Changelog
 
@@ -218,6 +242,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 - [GitHub Repository](https://github.com/alnovis/proto-wrapper-plugin)
 - [Documentation](README.md)
 - [API Reference](docs/API_REFERENCE.md)
+- [Architecture](docs/ARCHITECTURE.md)
 - [Cookbook](docs/COOKBOOK.md)
 - [Changelog](CHANGELOG.md)
 

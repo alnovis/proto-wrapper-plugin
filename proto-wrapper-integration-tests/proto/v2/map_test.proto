@@ -1,0 +1,26 @@
+// Map field tests for v2 - same types as v1 (no conflicts)
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "MapTest";
+
+// Main message with simple map fields (same types as v1)
+message MapTestMessage {
+    // Simple string to int32 map (same as v1)
+    map<string, int32> counts = 1;
+
+    // String to string map (same as v1)
+    map<string, string> labels = 2;
+
+    // Int64 key to string value (same as v1)
+    map<int64, string> indexed_names = 3;
+
+    // Regular fields (same as v1)
+    optional string name = 10;
+    optional int32 version = 11;
+
+    // NEW in v2 - simple map field only in v2
+    map<string, double> scores = 12;
+}

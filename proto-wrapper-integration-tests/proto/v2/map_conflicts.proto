@@ -1,0 +1,42 @@
+// Map fields with type conflicts - v2
+syntax = "proto2";
+
+package space.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "MapConflicts";
+
+// Enum for testing INT_ENUM conflict (same values as v1)
+enum MapStatus {
+    MAP_STATUS_UNKNOWN = 0;
+    MAP_STATUS_ACTIVE = 1;
+    MAP_STATUS_INACTIVE = 2;
+    // NEW in v2
+    MAP_STATUS_PENDING = 3;
+}
+
+// Enum with NON-SEQUENTIAL values for testing ordinal vs getNumber bug
+// ordinal: 0, 1, 2, 3
+// getNumber: 0, 10, 50, 100
+enum TaskPriority {
+    TASK_PRIORITY_UNKNOWN = 0;
+    TASK_PRIORITY_LOW = 10;
+    TASK_PRIORITY_MEDIUM = 50;
+    TASK_PRIORITY_HIGH = 100;
+}
+
+// Message with map type conflicts
+message MapConflictMessage {
+    // WIDENING conflict: int32 in v1, int64 in v2
+    map<string, int64> widening_counts = 1;
+
+    // INT_ENUM conflict: int32 in v1, enum in v2
+    map<string, MapStatus> status_map = 2;
+
+    // INT_ENUM conflict with NON-SEQUENTIAL values: int32 in v1, enum in v2
+    // ordinal() would return 0,1,2,3 but getNumber() returns 0,10,50,100
+    map<string, TaskPriority> priority_map = 3;
+
+    // No conflict - for comparison
+    map<string, string> labels = 10;
+}

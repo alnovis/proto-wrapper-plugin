@@ -1,10 +1,9 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
-import space.alnovis.protowrapper.model.ConflictEnumInfo;
-import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
+import space.alnovis.protowrapper.model.MergedOneof;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
@@ -12,16 +11,13 @@ import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 import space.alnovis.protowrapper.generator.conflict.BuilderImplContext;
 import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
 import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
+import space.alnovis.protowrapper.generator.oneof.OneofGenerator;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -50,8 +46,11 @@ import java.util.stream.Stream;
  */
 public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
-    // Legacy fields - kept for backward compatibility
-    @Deprecated
+    /**
+     * Legacy field - kept for backward compatibility.
+     * @deprecated Use {@link GenerationContext} instead. Will be removed in version 2.0.0.
+     */
+    @Deprecated(forRemoval = true, since = "1.2.0")
     private TypeResolver typeResolver;
 
     public ImplClassGenerator(GeneratorConfig config) {
@@ -60,9 +59,10 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Set the merged schema for cross-message type resolution.
-     * @deprecated Use {@link #generate(MergedMessage, String, String, GenerationContext)} instead
+     * @param schema The merged schema
+     * @deprecated Use {@link #generate(MergedMessage, String, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public void setSchema(MergedSchema schema) {
         this.typeResolver = new TypeResolver(config, schema);
     }
@@ -109,17 +109,19 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         ProcessingContext procCtx = ProcessingContext.forImpl(message, protoType, ctx, config);
         FieldProcessingChain.getInstance().addExtractImplementations(classBuilder, message, version, procCtx);
 
+        // Add oneof extract implementations
+        OneofGenerator oneofGenerator = new OneofGenerator(config);
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            classBuilder.addMethod(oneofGenerator.generateImplExtractCaseMethod(
+                    oneof, message, protoType, version, ctx.getApiPackage()));
+        }
+
         // Add common implementation methods
         addCommonImplMethods(classBuilder, className, protoType, implPackage, ctx);
 
         // Add Builder support if enabled
         if (config.isGenerateBuilders()) {
-            currentProtoClassName.set(protoClassName);
-            try {
-                addBuilderImpl(classBuilder, message, protoType, className, implPackage, ctx);
-            } finally {
-                currentProtoClassName.remove();
-            }
+            addBuilderImpl(classBuilder, message, protoType, className, implPackage, ctx);
         }
 
         // Add nested impl classes for nested messages
@@ -195,9 +197,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate implementation class for a specific version.
-     * @deprecated Use {@link #generate(MergedMessage, String, GenerationContext)} instead
+     * @param message Merged message info
+     * @param version Protocol version (e.g., "v1", "v2")
+     * @param protoClassName Fully qualified proto class name
+     * @return Generated JavaFile
+     * @deprecated Use {@link #generate(MergedMessage, String, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public JavaFile generate(MergedMessage message, String version, String protoClassName) {
         if (typeResolver == null) {
             throw new IllegalStateException("Schema not set. Call setSchema() first or use generate(message, protoClassName, ctx)");
@@ -239,6 +245,13 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
         ProcessingContext nestedProcCtx = ProcessingContext.forImpl(nested, protoType, ctx, config);
         FieldProcessingChain.getInstance().addExtractImplementations(classBuilder, nested, version, nestedProcCtx);
 
+        // Add oneof extract implementations for nested class
+        OneofGenerator oneofGenerator = new OneofGenerator(config);
+        for (MergedOneof oneof : nested.getOneofGroups()) {
+            classBuilder.addMethod(oneofGenerator.generateImplExtractCaseMethod(
+                    oneof, nested, protoType, version, ctx.getApiPackage()));
+        }
+
         classBuilder.addMethod(MethodSpec.methodBuilder("from")
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .returns(ClassName.get("", className))
@@ -257,12 +270,7 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         // Add builder support for nested impl class if enabled
         if (config.isGenerateBuilders()) {
-            currentProtoClassName.set(protoClassName);
-            try {
-                addNestedBuilderImpl(classBuilder, nested, protoType, className, ctx);
-            } finally {
-                currentProtoClassName.remove();
-            }
+            addNestedBuilderImpl(classBuilder, nested, protoType, className, ctx);
         }
 
         for (MergedMessage deeplyNested : nested.getNestedMessages()) {
@@ -289,13 +297,6 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                         }
                 ));
     }
-
-    private String getVersionSpecificJavaName(MergedField field, String version, TypeResolver resolver) {
-        return Optional.ofNullable(field.getVersionFields().get(version))
-                .map(vf -> resolver.capitalize(vf.getJavaName()))
-                .orElseGet(() -> resolver.capitalize(field.getJavaName()));
-    }
-
 
     private void addNestedBuilderImpl(TypeSpec.Builder classBuilder, MergedMessage nested,
                                         ClassName protoType, String className, GenerationContext ctx) {
@@ -379,53 +380,14 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return $L", versionNumber)
                 .build());
 
-        // Implement doSet/doClear/doAdd methods for each field
-        for (MergedField field : message.getFieldsSorted()) {
-            // Skip repeated fields with type conflicts (not supported in builder yet)
-            if (field.isRepeated() && field.hasTypeConflict()) {
-                continue;
-            }
+        // Implement doSet/doClear/doAdd methods for each field using handler chain
+        ProcessingContext procCtx = ProcessingContext.forImpl(message, protoType, genCtx, config);
+        FieldProcessingChain.getInstance().addBuilderImplMethods(builder, message, version, procCtx);
 
-            // Handle INT_ENUM conflicts with overloaded methods (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM) {
-                Optional<ConflictEnumInfo> enumInfoOpt = genCtx.getSchema()
-                        .getConflictEnum(message.getName(), field.getName());
-                if (enumInfoOpt.isPresent()) {
-                    boolean presentInVersion = field.getPresentInVersions().contains(version);
-                    addIntEnumBuilderMethods(builder, field, enumInfoOpt.get(), presentInVersion, message, genCtx);
-                    continue;
-                }
-            }
-
-            // Handle WIDENING conflicts with range checking (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING) {
-                boolean presentInVersion = field.getPresentInVersions().contains(version);
-                addWideningBuilderMethods(builder, field, presentInVersion, message, genCtx);
-                continue;
-            }
-
-            // Handle STRING_BYTES conflicts with UTF-8 conversion (scalar only)
-            if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES) {
-                boolean presentInVersion = field.getPresentInVersions().contains(version);
-                addStringBytesBuilderMethods(builder, field, presentInVersion, message, genCtx);
-                continue;
-            }
-
-            // Skip fields with other non-convertible type conflicts
-            if (field.shouldSkipBuilderSetter()) {
-                continue;
-            }
-
-            TypeName fieldType = resolver.parseFieldType(field, message);
-            boolean presentInVersion = field.getPresentInVersions().contains(version);
-
-            if (field.isRepeated()) {
-                TypeName singleElementType = extractListElementType(fieldType);
-                addRepeatedFieldBuilderMethods(builder, field, singleElementType, fieldType,
-                        presentInVersion, message, genCtx);
-            } else {
-                addSingleFieldBuilderMethods(builder, field, fieldType, presentInVersion, message, genCtx);
-            }
+        // Add oneof builder methods
+        OneofGenerator oneofGenerator = new OneofGenerator(config);
+        for (MergedOneof oneof : message.getOneofGroups()) {
+            builder.addMethod(oneofGenerator.generateImplBuilderDoClear(oneof, version));
         }
 
         // doBuild() implementation
@@ -436,22 +398,26 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return new $L(protoBuilder.build())", implClassName)
                 .build());
 
-        // Helper method to extract proto from wrapper
-        builder.addMethod(MethodSpec.methodBuilder("extractProto")
-                .addModifiers(Modifier.PRIVATE)
-                .addParameter(Object.class, "wrapper")
-                .returns(MESSAGE_CLASS)
-                .beginControlFlow("if (wrapper == null)")
-                .addStatement("return null")
-                .endControlFlow()
-                .beginControlFlow("try")
-                .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
-                .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
-                .nextControlFlow("catch ($T e)", Exception.class)
-                .addStatement("throw new $T($S + wrapper.getClass(), e)",
-                        RuntimeException.class, "Cannot extract proto from ")
-                .endControlFlow()
-                .build());
+        // Helper method to extract proto from wrapper - only needed for message fields (not map)
+        boolean hasMessageFields = message.getFields().stream()
+                .anyMatch(f -> f.isMessage() && !f.isMap());
+        if (hasMessageFields) {
+            builder.addMethod(MethodSpec.methodBuilder("extractProto")
+                    .addModifiers(Modifier.PRIVATE)
+                    .addParameter(Object.class, "wrapper")
+                    .returns(MESSAGE_CLASS)
+                    .beginControlFlow("if (wrapper == null)")
+                    .addStatement("return null")
+                    .endControlFlow()
+                    .beginControlFlow("try")
+                    .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
+                    .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
+                    .nextControlFlow("catch ($T e)", Exception.class)
+                    .addStatement("throw new $T($S + wrapper.getClass(), e)",
+                            RuntimeException.class, "Cannot extract proto from ")
+                    .endControlFlow()
+                    .build());
+        }
 
         return builder.build();
     }
@@ -493,621 +459,15 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
     }
 
     /**
-     * Add builder methods for INT_ENUM conflict field.
-     * Generates overloaded doSetXxx(int) and doSetXxx(EnumType) methods.
-     */
-    private void addIntEnumBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                           ConflictEnumInfo enumInfo, boolean presentInVersion,
-                                           MergedMessage message, GenerationContext ctx) {
-        TypeResolver resolver = ctx.getTypeResolver();
-        String version = ctx.requireVersion();
-        String capitalizedName = resolver.capitalize(field.getJavaName());
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-
-        ClassName enumType = ClassName.get(config.getApiPackage(), enumInfo.getEnumName());
-
-        FieldInfo versionField = field.getVersionFields().get(version);
-        boolean versionIsEnum = versionField != null && versionField.isEnum();
-
-        // doSetXxx(int value)
-        MethodSpec.Builder doSetInt = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(TypeName.INT, field.getJavaName());
-
-        if (presentInVersion) {
-            if (versionIsEnum) {
-                // Version has enum - need to convert int to proto enum
-                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-                String enumMethod = getEnumFromIntMethod();
-                doSetInt.addStatement("protoBuilder.set$L($L.$L($L))",
-                        versionJavaName, protoEnumType, enumMethod, field.getJavaName());
-            } else {
-                // Version has int - use directly
-                doSetInt.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doSetInt, field);
-        }
-        builder.addMethod(doSetInt.build());
-
-        // doSetXxx(EnumType value)
-        MethodSpec.Builder doSetEnum = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(enumType, field.getJavaName());
-
-        if (presentInVersion) {
-            if (versionIsEnum) {
-                // Version has enum - need to convert unified enum to proto enum
-                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-                String enumMethod = getEnumFromIntMethod();
-                doSetEnum.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
-                        versionJavaName, protoEnumType, enumMethod, field.getJavaName());
-            } else {
-                // Version has int - get value from unified enum
-                doSetEnum.addStatement("protoBuilder.set$L($L.getValue())",
-                        versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doSetEnum, field);
-        }
-        builder.addMethod(doSetEnum.build());
-
-        // doClearXxx()
-        MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED);
-
-        if (presentInVersion) {
-            doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-        } else {
-            doClear.addComment("Field not present in this version - ignored");
-        }
-        builder.addMethod(doClear.build());
-    }
-
-    /**
-     * Add builder methods for WIDENING conflict field.
-     * Generates doSetXxx(widerType) with range checking for versions with narrower types.
-     */
-    private void addWideningBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                            boolean presentInVersion, MergedMessage message,
-                                            GenerationContext ctx) {
-        TypeResolver resolver = ctx.getTypeResolver();
-        String version = ctx.requireVersion();
-        String capitalizedName = resolver.capitalize(field.getJavaName());
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-
-        // Determine the wider type (unified type) and the version's actual type
-        String widerType = field.getJavaType(); // Already resolved to wider type
-        TypeName widerTypeName = getWiderPrimitiveType(widerType);
-
-        // Get the version-specific type
-        FieldInfo versionField = field.getVersionFields().get(version);
-        String versionType = versionField != null ? versionField.getJavaType() : widerType;
-        boolean needsNarrowing = !versionType.equals(widerType) && !versionType.equals("Long") && !versionType.equals("Double");
-
-        // doSetXxx(widerType value)
-        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(widerTypeName, field.getJavaName());
-
-        if (presentInVersion) {
-            if (needsNarrowing) {
-                // Need to check range and narrow
-                switch (widerType) {
-                    case "long", "Long", "double", "Double" -> {
-                        // Narrowing to int with range check
-                        doSet.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
-                                field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
-                        doSet.addStatement("throw new $T(\"Value \" + $L + \" exceeds int range for $L\")",
-                                IllegalArgumentException.class, field.getJavaName(), version);
-                        doSet.endControlFlow();
-                        doSet.addStatement("protoBuilder.set$L((int) $L)", versionJavaName, field.getJavaName());
-                    }
-                    default -> // Unknown narrowing - just cast
-                            doSet.addStatement("protoBuilder.set$L(($L) $L)", versionJavaName, versionType, field.getJavaName());
-                }
-            } else {
-                // No narrowing needed - use directly
-                doSet.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doSet, field);
-        }
-        builder.addMethod(doSet.build());
-
-        // doClearXxx() for optional fields
-        if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
-
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                // Clear is safe to ignore for non-existent fields
-                doClear.addComment("Field not present in this version - clear is no-op");
-            }
-            builder.addMethod(doClear.build());
-        }
-    }
-
-    /**
-     * Add builder methods for STRING_BYTES conflict field.
-     * Generates doSetXxx(String) and doSetXxxBytes(byte[]) with UTF-8 conversion.
-     */
-    private void addStringBytesBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                               boolean presentInVersion, MergedMessage message,
-                                               GenerationContext ctx) {
-        TypeResolver resolver = ctx.getTypeResolver();
-        String version = ctx.requireVersion();
-        String capitalizedName = resolver.capitalize(field.getJavaName());
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-
-        // Determine if this version uses bytes or string
-        FieldInfo versionField = field.getVersionFields().get(version);
-        String versionType = versionField != null ? versionField.getJavaType() : "String";
-        boolean versionIsBytes = "byte[]".equals(versionType) || "ByteString".equals(versionType);
-
-        // doSetXxx(String value)
-        MethodSpec.Builder doSetString = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(ClassName.get(String.class), field.getJavaName());
-
-        if (presentInVersion) {
-            if (versionIsBytes) {
-                // Version has bytes - convert String to ByteString using UTF-8
-                doSetString.addStatement("protoBuilder.set$L($T.copyFrom($L, $T.UTF_8))",
-                        versionJavaName, BYTE_STRING_CLASS, field.getJavaName(), StandardCharsets.class);
-            } else {
-                // Version has String - set directly
-                doSetString.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doSetString, field);
-        }
-        builder.addMethod(doSetString.build());
-
-        // doSetXxxBytes(byte[] value)
-        MethodSpec.Builder doSetBytes = MethodSpec.methodBuilder("doSet" + capitalizedName + "Bytes")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(ArrayTypeName.of(TypeName.BYTE), field.getJavaName());
-
-        if (presentInVersion) {
-            if (versionIsBytes) {
-                // Version has bytes - convert byte[] to ByteString
-                doSetBytes.addStatement("protoBuilder.set$L($T.copyFrom($L))",
-                        versionJavaName, BYTE_STRING_CLASS, field.getJavaName());
-            } else {
-                // Version has String - convert bytes to String using UTF-8
-                doSetBytes.addStatement("protoBuilder.set$L(new $T($L, $T.UTF_8))",
-                        versionJavaName, String.class, field.getJavaName(), StandardCharsets.class);
-            }
-        } else {
-            addFieldNotInVersionError(doSetBytes, field);
-        }
-        builder.addMethod(doSetBytes.build());
-
-        // doClearXxx() for optional fields
-        if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
-
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                // Clear is safe to ignore for non-existent fields
-                doClear.addComment("Field not present in this version - clear is no-op");
-            }
-            builder.addMethod(doClear.build());
-        }
-    }
-
-    /**
-     * Get the primitive TypeName for a wider type string.
-     */
-    private TypeName getWiderPrimitiveType(String javaType) {
-        return switch (javaType) {
-            case "long", "Long" -> TypeName.LONG;
-            case "double", "Double" -> TypeName.DOUBLE;
-            case "int", "Integer" -> TypeName.INT;
-            default -> TypeName.LONG; // Default to long for numeric widening
-        };
-    }
-
-    private void addSingleFieldBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                               TypeName fieldType, boolean presentInVersion,
-                                               MergedMessage message, GenerationContext ctx) {
-        TypeResolver resolver = ctx.getTypeResolver();
-        String version = ctx.requireVersion();
-        String capitalizedName = resolver.capitalize(field.getJavaName());
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-
-        // doSet
-        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(fieldType, field.getJavaName());
-
-        if (presentInVersion) {
-            if (field.isEnum()) {
-                // Use validation for enum fields to provide clear error messages
-                // when enum value doesn't exist in this protocol version
-                addEnumSetterWithValidation(doSet, field, message, ctx);
-            } else {
-                String setterCall = generateProtoSetterCall(field, message, ctx);
-                doSet.addStatement(setterCall, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doSet, field);
-        }
-        builder.addMethod(doSet.build());
-
-        // doClear for optional
-        if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
-
-            if (presentInVersion) {
-                doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-            } else {
-                // Clear is safe to ignore for non-existent fields
-                doClear.addComment("Field not present in this version - clear is no-op");
-            }
-            builder.addMethod(doClear.build());
-        }
-    }
-
-    private void addRepeatedFieldBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                                 TypeName singleElementType, TypeName listType,
-                                                 boolean presentInVersion, MergedMessage message,
-                                                 GenerationContext ctx) {
-        TypeResolver resolver = ctx.getTypeResolver();
-        String version = ctx.requireVersion();
-        String capitalizedName = resolver.capitalize(field.getJavaName());
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-
-        // doAdd
-        MethodSpec.Builder doAdd = MethodSpec.methodBuilder("doAdd" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(singleElementType, field.getJavaName());
-
-        if (presentInVersion) {
-            if (field.isMessage()) {
-                String protoTypeName = getProtoTypeForField(field, message, ctx);
-                doAdd.addStatement("protoBuilder.add$L(($L) extractProto($L))", versionJavaName, protoTypeName, field.getJavaName());
-            } else if (field.isEnum()) {
-                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-                String enumMethod = getEnumFromIntMethod();
-                doAdd.addStatement("protoBuilder.add$L($L." + enumMethod + "($L.getValue()))", versionJavaName, protoEnumType, field.getJavaName());
-            } else if (isBytesType(field)) {
-                // Convert byte[] to ByteString for protobuf
-                doAdd.addStatement("protoBuilder.add$L($T.copyFrom($L))", versionJavaName, BYTE_STRING_CLASS, field.getJavaName());
-            } else {
-                doAdd.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doAdd, field);
-        }
-        builder.addMethod(doAdd.build());
-
-        // doAddAll
-        MethodSpec.Builder doAddAll = MethodSpec.methodBuilder("doAddAll" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(listType, field.getJavaName());
-
-        if (presentInVersion) {
-            if (field.isMessage()) {
-                String protoTypeName = getProtoTypeForField(field, message, ctx);
-                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
-                        field.getJavaName(), versionJavaName, protoTypeName);
-            } else if (field.isEnum()) {
-                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-                String enumMethod = getEnumFromIntMethod();
-                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
-                        field.getJavaName(), versionJavaName, protoEnumType);
-            } else if (isBytesType(field)) {
-                // Convert each byte[] to ByteString for protobuf
-                doAddAll.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
-                        field.getJavaName(), versionJavaName, BYTE_STRING_CLASS);
-            } else {
-                doAddAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doAddAll, field);
-        }
-        builder.addMethod(doAddAll.build());
-
-        // doSet (replace all)
-        MethodSpec.Builder doSetAll = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(listType, field.getJavaName());
-
-        if (presentInVersion) {
-            doSetAll.addStatement("protoBuilder.clear$L()", versionJavaName);
-            if (field.isMessage()) {
-                String protoTypeName = getProtoTypeForField(field, message, ctx);
-                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) extractProto(e)))",
-                        field.getJavaName(), versionJavaName, protoTypeName);
-            } else if (field.isEnum()) {
-                String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-                String enumMethod = getEnumFromIntMethod();
-                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($L." + enumMethod + "(e.getValue())))",
-                        field.getJavaName(), versionJavaName, protoEnumType);
-            } else if (isBytesType(field)) {
-                // Convert each byte[] to ByteString for protobuf
-                doSetAll.addStatement("$L.forEach(e -> protoBuilder.add$L($T.copyFrom(e)))",
-                        field.getJavaName(), versionJavaName, BYTE_STRING_CLASS);
-            } else {
-                doSetAll.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
-            }
-        } else {
-            addFieldNotInVersionError(doSetAll, field);
-        }
-        builder.addMethod(doSetAll.build());
-
-        // doClear
-        MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED);
-
-        if (presentInVersion) {
-            doClear.addStatement("protoBuilder.clear$L()", versionJavaName);
-        } else {
-            // Clear is safe to ignore for non-existent fields
-            doClear.addComment("Field not present in this version - clear is no-op");
-        }
-        builder.addMethod(doClear.build());
-    }
-
-    private String generateProtoSetterCall(MergedField field, MergedMessage message, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.getTypeResolver();
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-
-        if (field.isMessage()) {
-            // Get proto type for casting
-            String protoTypeName = getProtoTypeForField(field, message, ctx);
-            return "protoBuilder.set" + versionJavaName + "((" + protoTypeName + ") extractProto($L))";
-        } else if (field.isEnum()) {
-            // Get proto enum type and use version-specific method to convert
-            String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-            String enumMethod = getEnumFromIntMethod();
-            return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
-        } else if (isBytesType(field)) {
-            // Convert byte[] to ByteString for protobuf
-            return "protoBuilder.set" + versionJavaName + "(com.google.protobuf.ByteString.copyFrom($L))";
-        } else {
-            return "protoBuilder.set" + versionJavaName + "($L)";
-        }
-    }
-
-    /**
-     * Add enum setter statements with null validation to a method builder.
-     * This provides clear error messages when an enum value doesn't exist in this protocol version.
-     */
-    private void addEnumSetterWithValidation(MethodSpec.Builder method, MergedField field,
-                                              MergedMessage message, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.getTypeResolver();
-        String versionJavaName = getVersionSpecificJavaName(field, version, resolver);
-        String protoEnumType = getProtoEnumTypeForField(field, message, ctx);
-        String enumMethod = getEnumFromIntMethod();
-        String localVarName = "protoEnumValue";
-        String enumTypeName = field.getGetterType();
-        String fieldParamName = field.getJavaName();
-
-        // ProtoEnumType protoEnumValue = ProtoEnumType.valueOf(param.getValue());
-        method.addStatement("$L $L = $L.$L($L.getValue())",
-                protoEnumType, localVarName, protoEnumType, enumMethod, fieldParamName);
-
-        // if (protoEnumValue == null) { throw ... }
-        method.beginControlFlow("if ($L == null)", localVarName);
-        method.addStatement("throw new $T($S + $L.name() + $S + $L.getValue() + $S + getVersion())",
-                IllegalArgumentException.class,
-                enumTypeName + ".",
-                fieldParamName,
-                " (value=",
-                fieldParamName,
-                ") is not supported in protocol version ");
-        method.endControlFlow();
-
-        // protoBuilder.setFieldName(protoEnumValue);
-        method.addStatement("protoBuilder.set$L($L)", versionJavaName, localVarName);
-    }
-
-    /**
-     * Check if field is a bytes type (proto bytes -> Java byte[]).
-     * Handles both scalar "byte[]" and repeated "List<byte[]>".
-     */
-    private boolean isBytesType(MergedField field) {
-        String getterType = field.getGetterType();
-        return "byte[]".equals(getterType) || getterType.contains("byte[]");
-    }
-
-    // Store current proto class name for type resolution during builder generation
-    private ThreadLocal<String> currentProtoClassName = new ThreadLocal<>();
-
-    private String getProtoTypeForField(MergedField field, MergedMessage message, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        FieldInfo versionField = field.getVersionFields().get(version);
-        if (versionField == null) {
-            return "com.google.protobuf.Message";
-        }
-
-        String typeName = versionField.getTypeName();
-        if (typeName.startsWith(".")) {
-            typeName = typeName.substring(1);
-        }
-
-        String javaProtoPackage = config.getProtoPackage(version);
-        TypeResolver resolver = ctx.getTypeResolver();
-        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
-
-        // Extract message path (e.g., "OrderRequest.GiftOptions" or "Money")
-        String messagePath = versionField.extractNestedTypePath(protoPackage);
-
-        // Look up the message in MergedSchema to find its outer class
-        MergedSchema schema = ctx.getSchema();
-        String outerClassName = findOuterClassForType(messagePath, schema, version);
-
-        if (outerClassName != null) {
-            // Build full Java proto class: package.OuterClass.MessagePath
-            return javaProtoPackage + "." + outerClassName + "." + messagePath;
-        }
-
-        // Fallback: try using current message's outer class for nested types
-        String currentProto = currentProtoClassName.get();
-        if (currentProto != null && currentProto.startsWith(javaProtoPackage + ".")) {
-            String afterPackage = currentProto.substring(javaProtoPackage.length() + 1);
-            int dotIdx = afterPackage.indexOf('.');
-            if (dotIdx > 0) {
-                String currentOuterClass = afterPackage.substring(0, dotIdx);
-                return javaProtoPackage + "." + currentOuterClass + "." + messagePath;
-            }
-        }
-
-        // Last fallback
-        return javaProtoPackage + "." + messagePath;
-    }
-
-    /**
-     * Find the outer class name for a message type by looking it up in the schema.
-     */
-    private String findOuterClassForType(String messagePath, MergedSchema schema, String version) {
-        if (schema == null || messagePath == null) {
-            return null;
-        }
-
-        // messagePath could be "Money" or "OrderRequest.GiftOptions"
-        String topLevelName = messagePath.contains(".")
-                ? messagePath.substring(0, messagePath.indexOf('.'))
-                : messagePath;
-
-        // Look up the top-level message in the schema
-        return schema.getMessage(topLevelName)
-                .map(msg -> msg.getOuterClassName(version))
-                .orElse(null);
-    }
-
-    private String getProtoEnumTypeForField(MergedField field, MergedMessage message, GenerationContext ctx) {
-        String version = ctx.requireVersion();
-        FieldInfo versionField = field.getVersionFields().get(version);
-        if (versionField == null) {
-            return "Object";
-        }
-
-        String typeName = versionField.getTypeName();
-        if (typeName.startsWith(".")) {
-            typeName = typeName.substring(1);
-        }
-
-        String javaProtoPackage = config.getProtoPackage(version);
-        TypeResolver resolver = ctx.getTypeResolver();
-        String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
-
-        // Extract enum path (e.g., "Priority" or "OrderItem.Discount.DiscountType")
-        String enumPath = versionField.extractNestedTypePath(protoPackage);
-
-        // Look up the enum in MergedSchema to find its outer class
-        MergedSchema schema = ctx.getSchema();
-        String outerClassName = findOuterClassForEnum(enumPath, schema, version);
-
-        if (outerClassName != null) {
-            // Build full Java proto class: package.OuterClass.EnumPath
-            return javaProtoPackage + "." + outerClassName + "." + enumPath;
-        }
-
-        // Fallback: try using current message's outer class for nested enums
-        String currentProto = currentProtoClassName.get();
-        if (currentProto != null && currentProto.startsWith(javaProtoPackage + ".")) {
-            String afterPackage = currentProto.substring(javaProtoPackage.length() + 1);
-            int dotIdx = afterPackage.indexOf('.');
-            if (dotIdx > 0) {
-                String currentOuterClass = afterPackage.substring(0, dotIdx);
-                return javaProtoPackage + "." + currentOuterClass + "." + enumPath;
-            }
-        }
-
-        // Last fallback
-        return javaProtoPackage + "." + enumPath;
-    }
-
-    /**
-     * Find the outer class name for an enum type by looking it up in the schema.
-     */
-    private String findOuterClassForEnum(String enumPath, MergedSchema schema, String version) {
-        if (schema == null || enumPath == null) {
-            return null;
-        }
-
-        // enumPath could be "Priority" (top-level) or "OrderItem.Discount.DiscountType" (nested)
-        if (!enumPath.contains(".")) {
-            // Top-level enum - look it up directly in the schema
-            return schema.getEnum(enumPath)
-                    .map(e -> e.getOuterClassName(version))
-                    .orElse(null);
-        } else {
-            // Nested enum - get the top-level message and find its outer class
-            String topLevelName = enumPath.substring(0, enumPath.indexOf('.'));
-            return schema.getMessage(topLevelName)
-                    .map(msg -> msg.getOuterClassName(version))
-                    .orElse(null);
-        }
-    }
-
-    /**
-     * Get the enum conversion method name based on protobuf version.
-     * Protobuf 2.x uses valueOf(int), protobuf 3.x uses forNumber(int).
-     */
-    private String getEnumFromIntMethod() {
-        return config.isProtobuf2() ? "valueOf" : "forNumber";
-    }
-
-    /**
-     * Add a throw statement for when trying to set a field that doesn't exist in the current version.
-     *
-     * @param method The method builder to add the throw statement to
-     * @param field The field being accessed
-     */
-    private void addFieldNotInVersionError(MethodSpec.Builder method, MergedField field) {
-        String fieldName = field.getJavaName();
-        // getPresentInVersions() returns version strings like "v202", "v203"
-        String versionsStr = String.join(", ", field.getPresentInVersions());
-
-        method.addStatement("throw new $T($S + getVersion() + $S)",
-                UnsupportedOperationException.class,
-                "Field '" + fieldName + "' is not available in protocol version ",
-                ". This field exists only in versions: [" + versionsStr + "]");
-    }
-
-    /**
-     * Extract element type from List<T> type.
-     */
-    private TypeName extractListElementType(TypeName listType) {
-        if (listType instanceof ParameterizedTypeName parameterized
-                && !parameterized.typeArguments.isEmpty()) {
-            return parameterized.typeArguments.get(0);
-        }
-        return ClassName.get(Object.class);
-    }
-
-
-    /**
      * Generate and write implementation class.
-     * @deprecated Use {@link #generateAndWrite(MergedMessage, String, GenerationContext)} instead
+     * @param message Merged message info
+     * @param version Protocol version (e.g., "v1", "v2")
+     * @param protoClassName Fully qualified proto class name
+     * @return Path to the generated file
+     * @throws IOException if writing fails
+     * @deprecated Use {@link #generateAndWrite(MergedMessage, String, GenerationContext)} instead. Will be removed in version 2.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "1.2.0")
     public Path generateAndWrite(MergedMessage message, String version, String protoClassName) throws IOException {
         JavaFile javaFile = generate(message, version, protoClassName);
         writeToFile(javaFile);
@@ -1129,4 +489,5 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 + "/" + ctx.getImplClassName(message.getName()) + ".java";
         return config.getOutputDirectory().resolve(relativePath);
     }
+
 }

@@ -9,17 +9,58 @@ import space.alnovis.protowrapper.model.MergedField;
 import javax.lang.model.element.Modifier;
 
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
+import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 /**
- * Handler for scalar WIDENING conflict fields.
+ * Handler for scalar WIDENING type conflict fields.
  *
- * <p>This handler processes scalar fields where different versions use different
- * numeric types that can be widened (e.g., int in v1, long in v2). The unified
- * type is the wider type (long), and conversions are handled transparently.</p>
+ * <p>This handler processes scalar fields where different proto versions use
+ * different numeric types that can be safely widened. The unified type is
+ * the widest type across all versions.</p>
  *
- * <p>For extract methods, the DefaultHandler already handles widening through
- * the generateProtoGetterCall. This handler only adds special builder methods
- * with range checking for narrowing operations.</p>
+ * <h2>Conflict Example</h2>
+ * <pre>
+ * // v1: message Product { int32 price = 1; }
+ * // v2: message Product { int64 price = 1; }
+ * </pre>
+ *
+ * <h2>Resolution Strategy</h2>
+ * <p>Uses the widest type as the unified type:</p>
+ * <ul>
+ *   <li>int32 + int64 → long</li>
+ *   <li>float + double → double</li>
+ *   <li>int32 + float → not supported (INCOMPATIBLE)</li>
+ * </ul>
+ *
+ * <h2>Widening Hierarchy</h2>
+ * <pre>
+ * int32 → int64 → (unified as long)
+ * float → double → (unified as double)
+ * </pre>
+ *
+ * <h2>Generated Code</h2>
+ * <ul>
+ *   <li><b>Interface:</b> {@code long getPrice()}, {@code Builder.setPrice(long)}</li>
+ *   <li><b>Abstract:</b> {@code extractPrice(proto)} - delegates to DefaultHandler</li>
+ *   <li><b>Impl:</b> Automatic widening cast when reading from narrower versions</li>
+ * </ul>
+ *
+ * <h2>Builder Behavior</h2>
+ * <p>Builder setter methods include range validation for narrower versions:</p>
+ * <ul>
+ *   <li>When setting to v1 (int32): validates value fits in int range</li>
+ *   <li>When setting to v2 (int64): no validation needed</li>
+ *   <li>Throws {@code IllegalArgumentException} if value exceeds target range</li>
+ * </ul>
+ *
+ * <h2>Implementation Note</h2>
+ * <p>Extract methods delegate to {@link DefaultHandler} since the widening cast
+ * is already handled by {@code generateProtoGetterCall}. This handler only provides
+ * special builder methods with narrowing validation.</p>
+ *
+ * @see ConflictHandler
+ * @see FieldProcessingChain
+ * @see DefaultHandler
  */
 public final class WideningHandler extends AbstractConflictHandler implements ConflictHandler {
 
@@ -27,6 +68,11 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
 
     private WideningHandler() {
         // Singleton
+    }
+
+    @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.WIDENING;
     }
 
     @Override
@@ -58,21 +104,17 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
 
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        String capName = ctx.capitalize(field.getJavaName());
         TypeName widerType = getWiderPrimitiveType(field.getJavaType());
+        // Use template method for scalar abstract builder methods
+        addAbstractScalarBuilderMethods(builder, field, widerType, ctx);
+    }
 
-        // doSetXxx(widerType)
-        builder.addMethod(MethodSpec.methodBuilder("doSet" + capName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(widerType, field.getJavaName())
-                .build());
-
-        // doClearXxx()
-        if (field.isOptional()) {
-            builder.addMethod(MethodSpec.methodBuilder("doClear" + capName)
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .build());
-        }
+    @Override
+    public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        TypeName widerType = getWiderPrimitiveType(field.getJavaType());
+        // Use template method for scalar concrete builder methods
+        addScalarConcreteBuilderMethods(builder, field, widerType, builderReturnType, ctx);
     }
 
     @Override
@@ -82,39 +124,27 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
         String capitalizedName = ctx.capitalize(field.getJavaName());
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
 
-        // Determine the wider type (unified type) and the version's actual type
         String widerType = field.getJavaType();
         TypeName widerTypeName = getWiderPrimitiveType(widerType);
 
-        // Get the version-specific type
         FieldInfo versionField = field.getVersionFields().get(version);
         String versionType = versionField != null ? versionField.getJavaType() : widerType;
         boolean needsNarrowing = !versionType.equals(widerType) &&
                 !versionType.equals("Long") && !versionType.equals("Double");
 
-        // doSetXxx(widerType value)
-        MethodSpec.Builder doSet = MethodSpec.methodBuilder("doSet" + capitalizedName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(widerTypeName, field.getJavaName());
+        // doSet - use template method
+        buildDoSetImpl(builder, "doSet" + capitalizedName, widerTypeName, field.getJavaName(),
+                presentInVersion, m -> {
+                    if (needsNarrowing) {
+                        addNarrowingSetterBody(m, field.getJavaName(), widerType, versionType, versionJavaName, version);
+                    } else {
+                        m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                    }
+                });
 
-        addVersionConditional(doSet, presentInVersion, m -> {
-            if (needsNarrowing) {
-                addNarrowingSetterBody(m, field.getJavaName(), widerType, versionType, versionJavaName, version);
-            } else {
-                m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
-            }
-        });
-        builder.addMethod(doSet.build());
-
-        // doClearXxx()
+        // doClear - use template method
         if (field.isOptional()) {
-            MethodSpec.Builder doClear = MethodSpec.methodBuilder("doClear" + capitalizedName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED);
-
-            addVersionConditionalClear(doClear, presentInVersion, versionJavaName);
-            builder.addMethod(doClear.build());
+            buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }
 

@@ -5,6 +5,59 @@ import java.util.*;
 
 /**
  * Configuration for code generation.
+ *
+ * <p>This class holds all configuration options that control the code generation
+ * process. It uses the Builder pattern for construction and provides sensible
+ * defaults for most options.</p>
+ *
+ * <h2>Required Configuration</h2>
+ * <ul>
+ *   <li>{@code outputDirectory} - Where to write generated files</li>
+ * </ul>
+ *
+ * <h2>Package Configuration</h2>
+ * <ul>
+ *   <li>{@code apiPackage} - Package for public interfaces and enums</li>
+ *   <li>{@code implPackagePattern} - Pattern for implementation packages (uses {version} placeholder)</li>
+ *   <li>{@code protoPackagePattern} - Pattern for proto class packages</li>
+ *   <li>{@code abstractClassPackage} - Package for abstract classes (defaults to apiPackage + ".impl")</li>
+ * </ul>
+ *
+ * <h2>Generation Flags</h2>
+ * <ul>
+ *   <li>{@code generateInterfaces} - Generate public API interfaces</li>
+ *   <li>{@code generateAbstractClasses} - Generate abstract implementation classes</li>
+ *   <li>{@code generateImplClasses} - Generate version-specific implementations</li>
+ *   <li>{@code generateVersionContext} - Generate VersionContext factory class</li>
+ *   <li>{@code includeVersionSuffix} - Add version suffix to impl class names (e.g., PersonV1)</li>
+ * </ul>
+ *
+ * <h2>Usage Example</h2>
+ * <pre>{@code
+ * GeneratorConfig config = GeneratorConfig.builder()
+ *     .outputDirectory(Path.of("target/generated-sources"))
+ *     .apiPackage("com.example.api")
+ *     .implPackagePattern("com.example.impl.{version}")
+ *     .protoPackagePattern("com.example.proto.{version}")
+ *     .generateInterfaces(true)
+ *     .generateAbstractClasses(true)
+ *     .generateImplClasses(true)
+ *     .build();
+ * }</pre>
+ *
+ * <h2>Message Filtering</h2>
+ * <p>You can include or exclude specific messages from generation:</p>
+ * <pre>{@code
+ * GeneratorConfig config = GeneratorConfig.builder()
+ *     .outputDirectory(outputDir)
+ *     .includeMessage("Person")      // Only generate Person
+ *     .includeMessage("Address")     // and Address
+ *     .excludeMessage("InternalMsg") // Never generate InternalMsg
+ *     .build();
+ * }</pre>
+ *
+ * @see GenerationOrchestrator
+ * @see BaseGenerator
  */
 public class GeneratorConfig {
 

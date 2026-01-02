@@ -22,6 +22,7 @@ Supports both **Maven** and **Gradle** build systems.
 - Automatic detection of equivalent enums (nested vs top-level)
 - Supported versions info in Javadoc
 - Thread-safe immutable wrappers
+- Oneof field support with conflict detection
 
 ## Documentation
 
@@ -58,7 +59,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -99,7 +100,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.1.1"
+    id("space.alnovis.proto-wrapper") version "1.2.0"
 }
 
 protoWrapper {
@@ -442,7 +443,7 @@ Order.Builder builder = ctx.newOrderBuilder();
 See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 
 **Summary:**
-- `oneof` fields: not specially handled
+- `oneof` fields: supported with conflict detection (v1.2.0+)
 - `map` fields: basic support
 - Extensions (proto2): not supported
 - Well-known types (google.protobuf.*): treated as regular messages
