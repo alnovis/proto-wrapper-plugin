@@ -1,0 +1,313 @@
+name: Execute Branch Cleanup
+
+on:
+  schedule:
+    # Run daily at 3:00 AM UTC
+    - cron: '0 3 * * *'
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual deletion)'
+        type: boolean
+        default: true
+      delay_hours:
+        description: 'Minimum hours since merge'
+        type: number
+        default: 24
+      max_branches:
+        description: 'Maximum branches to delete in one run'
+        type: number
+        default: 50
+
+env:
+  CLEANUP_DELAY_HOURS: ${{ inputs.delay_hours || 24 }}
+  MAX_BRANCHES: ${{ inputs.max_branches || 50 }}
+  DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+jobs:
+  execute-cleanup:
+    name: Delete scheduled branches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Find and delete branches
+        id: cleanup
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const delayHours = parseInt(process.env.CLEANUP_DELAY_HOURS);
+            const maxBranches = parseInt(process.env.MAX_BRANCHES);
+            const dryRun = process.env.DRY_RUN === 'true';
+            const cutoffTime = new Date(Date.now() - delayHours * 60 * 60 * 1000);
+
+            console.log(`Configuration:`);
+            console.log(`  Delay: ${delayHours} hours`);
+            console.log(`  Cutoff time: ${cutoffTime.toISOString()}`);
+            console.log(`  Max branches: ${maxBranches}`);
+            console.log(`  Dry run: ${dryRun}`);
+            console.log('');
+
+            // Find PRs with cleanup-scheduled label
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              labels: 'cleanup-scheduled',
+              per_page: 100,
+              sort: 'updated',
+              direction: 'asc'
+            });
+
+            console.log(`Found ${issues.length} PRs with cleanup-scheduled label`);
+
+            const results = {
+              deleted: [],
+              skipped: [],
+              errors: []
+            };
+
+            let processedCount = 0;
+
+            for (const issue of issues) {
+              if (processedCount >= maxBranches) {
+                console.log(`Reached max branches limit (${maxBranches})`);
+                break;
+              }
+
+              // Get PR details
+              let pr;
+              try {
+                const { data } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: issue.number
+                });
+                pr = data;
+              } catch (e) {
+                console.log(`#${issue.number}: Not a PR, skipping`);
+                continue;
+              }
+
+              const branch = pr.head.ref;
+              const mergedAt = pr.merged_at ? new Date(pr.merged_at) : null;
+
+              console.log(`\nProcessing PR #${issue.number}: ${branch}`);
+
+              // Check if PR was merged
+              if (!pr.merged) {
+                console.log(`  Skipped: PR was closed without merge`);
+                results.skipped.push({ pr: issue.number, branch, reason: 'not-merged' });
+
+                // Remove label from unmerged PRs
+                if (!dryRun) {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: 'cleanup-scheduled'
+                  }).catch(() => {});
+                }
+                continue;
+              }
+
+              // Check if enough time has passed
+              if (mergedAt > cutoffTime) {
+                const hoursRemaining = Math.ceil((mergedAt.getTime() + delayHours * 60 * 60 * 1000 - Date.now()) / (60 * 60 * 1000));
+                console.log(`  Skipped: ${hoursRemaining}h remaining until eligible`);
+                results.skipped.push({ pr: issue.number, branch, reason: 'too-recent', hoursRemaining });
+                continue;
+              }
+
+              // Check for keep-branch label
+              const labels = pr.labels.map(l => l.name);
+              if (labels.includes('keep-branch')) {
+                console.log(`  Skipped: keep-branch label present`);
+                results.skipped.push({ pr: issue.number, branch, reason: 'keep-label' });
+
+                // Remove cleanup-scheduled label
+                if (!dryRun) {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: 'cleanup-scheduled'
+                  }).catch(() => {});
+                }
+                continue;
+              }
+
+              // Check if branch still exists
+              let branchExists = true;
+              try {
+                await github.rest.repos.getBranch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  branch: branch
+                });
+              } catch (e) {
+                if (e.status === 404) {
+                  branchExists = false;
+                  console.log(`  Skipped: branch already deleted`);
+                  results.skipped.push({ pr: issue.number, branch, reason: 'already-deleted' });
+
+                  // Remove label
+                  if (!dryRun) {
+                    await github.rest.issues.removeLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      name: 'cleanup-scheduled'
+                    }).catch(() => {});
+                  }
+                  continue;
+                }
+              }
+
+              // Check for open PRs using this branch
+              const { data: openPRs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${context.repo.owner}:${branch}`
+              });
+
+              if (openPRs.length > 0) {
+                console.log(`  Skipped: branch has ${openPRs.length} open PR(s)`);
+                results.skipped.push({
+                  pr: issue.number,
+                  branch,
+                  reason: 'open-prs',
+                  openPRs: openPRs.map(p => p.number)
+                });
+                continue;
+              }
+
+              // Delete the branch
+              if (dryRun) {
+                console.log(`  [DRY RUN] Would delete branch: ${branch}`);
+                results.deleted.push({ pr: issue.number, branch, dryRun: true });
+              } else {
+                try {
+                  await github.rest.git.deleteRef({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: `heads/${branch}`
+                  });
+                  console.log(`  Deleted branch: ${branch}`);
+                  results.deleted.push({ pr: issue.number, branch });
+
+                  // Update labels
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: 'cleanup-scheduled'
+                  }).catch(() => {});
+
+                  // Ensure cleanup-done label exists
+                  try {
+                    await github.rest.issues.createLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      name: 'cleanup-done',
+                      color: '0e8a16',
+                      description: 'Branch was automatically deleted'
+                    });
+                  } catch (e) {}
+
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ['cleanup-done']
+                  });
+
+                  // Post completion comment
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `## Branch Deleted
+
+            | Property | Value |
+            |----------|-------|
+            | **Branch** | \`${branch}\` |
+            | **Deleted at** | ${new Date().toUTCString()} |
+            | **Merged at** | ${mergedAt.toUTCString()} |
+
+            The branch has been automatically deleted after the grace period.
+
+            ---
+            <sub>Automated by Branch Cleanup Action</sub>`
+                  });
+
+                } catch (e) {
+                  console.log(`  Error deleting branch: ${e.message}`);
+                  results.errors.push({ pr: issue.number, branch, error: e.message });
+                }
+              }
+
+              processedCount++;
+            }
+
+            // Summary
+            console.log('\n========== SUMMARY ==========');
+            console.log(`Deleted: ${results.deleted.length}`);
+            console.log(`Skipped: ${results.skipped.length}`);
+            console.log(`Errors: ${results.errors.length}`);
+
+            core.setOutput('deleted_count', results.deleted.length);
+            core.setOutput('skipped_count', results.skipped.length);
+            core.setOutput('error_count', results.errors.length);
+            core.setOutput('results', JSON.stringify(results));
+
+      - name: Create summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = JSON.parse(process.env.RESULTS || '{"deleted":[],"skipped":[],"errors":[]}');
+            const dryRun = process.env.DRY_RUN === 'true';
+
+            let summary = `# Branch Cleanup Report ${dryRun ? '(DRY RUN)' : ''}\n\n`;
+            summary += `| Metric | Count |\n|--------|-------|\n`;
+            summary += `| Deleted | ${results.deleted.length} |\n`;
+            summary += `| Skipped | ${results.skipped.length} |\n`;
+            summary += `| Errors | ${results.errors.length} |\n\n`;
+
+            if (results.deleted.length > 0) {
+              summary += `## Deleted Branches\n\n`;
+              summary += `| PR | Branch |\n|-----|--------|\n`;
+              for (const item of results.deleted) {
+                summary += `| #${item.pr} | \`${item.branch}\` |\n`;
+              }
+              summary += '\n';
+            }
+
+            if (results.skipped.length > 0) {
+              summary += `## Skipped Branches\n\n`;
+              summary += `| PR | Branch | Reason |\n|-----|--------|--------|\n`;
+              for (const item of results.skipped) {
+                let reason = item.reason;
+                if (item.hoursRemaining) reason += ` (${item.hoursRemaining}h left)`;
+                if (item.openPRs) reason += ` (PRs: ${item.openPRs.map(n => '#' + n).join(', ')})`;
+                summary += `| #${item.pr} | \`${item.branch}\` | ${reason} |\n`;
+              }
+              summary += '\n';
+            }
+
+            if (results.errors.length > 0) {
+              summary += `## Errors\n\n`;
+              summary += `| PR | Branch | Error |\n|-----|--------|-------|\n`;
+              for (const item of results.errors) {
+                summary += `| #${item.pr} | \`${item.branch}\` | ${item.error} |\n`;
+              }
+            }
+
+            await core.summary.addRaw(summary).write();
+        env:
+          RESULTS: ${{ steps.cleanup.outputs.results }}
