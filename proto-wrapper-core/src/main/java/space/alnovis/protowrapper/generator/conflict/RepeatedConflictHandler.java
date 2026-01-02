@@ -76,6 +76,11 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.REPEATED_CONFLICT;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return field.isRepeated() && field.hasTypeConflict();
     }

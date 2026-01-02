@@ -635,38 +635,47 @@ public class VersionMerger {
         } else if (uniqueTypes.size() > 1) {
             // Other type conflicts (different Java types)
             FieldWithVersion first = fields.get(0);
-            MergedField.ConflictType conflictType = detectConflictType(fields);
-            builder.conflictType(conflictType);
 
-            // For WIDENING and FLOAT_DOUBLE conflicts, set the resolved type
-            if (conflictType == MergedField.ConflictType.WIDENING ||
-                conflictType == MergedField.ConflictType.FLOAT_DOUBLE) {
-                String widerType = determineWiderType(uniqueTypes);
-                if (widerType != null) {
-                    boolean isRepeated = first.field().isRepeated();
-                    if (isRepeated) {
-                        String listType = "java.util.List<" + boxType(widerType) + ">";
-                        builder.resolvedJavaType(listType);
-                        builder.resolvedGetterType(listType);
-                    } else {
-                        builder.resolvedJavaType(widerType);
-                        builder.resolvedGetterType(widerType);
+            // For map fields, value type conflicts are handled separately by detectMapValueConflict()
+            // Don't set field-level conflictType for maps - they use mapValueConflictType instead
+            boolean allMaps = fields.stream().allMatch(fv -> fv.field().isMap());
+            if (allMaps) {
+                // Map fields with value type conflicts are handled by detectMapValueConflict()
+                // Don't mark as INCOMPATIBLE - leave conflictType as NONE
+            } else {
+                MergedField.ConflictType conflictType = detectConflictType(fields);
+                builder.conflictType(conflictType);
+
+                // For WIDENING and FLOAT_DOUBLE conflicts, set the resolved type
+                if (conflictType == MergedField.ConflictType.WIDENING ||
+                    conflictType == MergedField.ConflictType.FLOAT_DOUBLE) {
+                    String widerType = determineWiderType(uniqueTypes);
+                    if (widerType != null) {
+                        boolean isRepeated = first.field().isRepeated();
+                        if (isRepeated) {
+                            String listType = "java.util.List<" + boxType(widerType) + ">";
+                            builder.resolvedJavaType(listType);
+                            builder.resolvedGetterType(listType);
+                        } else {
+                            builder.resolvedJavaType(widerType);
+                            builder.resolvedGetterType(widerType);
+                        }
                     }
                 }
-            }
 
-            // For ENUM_ENUM conflicts, use int as unified type
-            if (conflictType == MergedField.ConflictType.ENUM_ENUM) {
-                builder.resolvedJavaType("int");
-                builder.resolvedGetterType("int");
-            }
+                // For ENUM_ENUM conflicts, use int as unified type
+                if (conflictType == MergedField.ConflictType.ENUM_ENUM) {
+                    builder.resolvedJavaType("int");
+                    builder.resolvedGetterType("int");
+                }
 
-            // Log warning for conflicts
-            String typesStr = fields.stream()
-                    .map(fv -> fv.version() + ":" + fv.field().getJavaType())
-                    .collect(Collectors.joining(", "));
-            logger.warn(String.format("Type conflict for field '%s' [%s]: %s",
-                    first.field().getProtoName(), conflictType, typesStr));
+                // Log warning for conflicts
+                String typesStr = fields.stream()
+                        .map(fv -> fv.version() + ":" + fv.field().getJavaType())
+                        .collect(Collectors.joining(", "));
+                logger.warn(String.format("Type conflict for field '%s' [%s]: %s",
+                        first.field().getProtoName(), conflictType, typesStr));
+            }
         }
 
         // Check for OPTIONAL_REQUIRED conflict after type conflicts
@@ -685,7 +694,80 @@ public class VersionMerger {
                     first.field().getProtoName(), optionalityStr));
         }
 
+        // Detect map value type conflicts
+        detectMapValueConflict(fields, builder);
+
         return builder.build();
+    }
+
+    /**
+     * Detect type conflicts in map value types across versions.
+     */
+    private void detectMapValueConflict(List<FieldWithVersion> fields, MergedField.Builder builder) {
+        // Only process if all fields are maps
+        boolean allMaps = fields.stream().allMatch(fv -> fv.field().isMap());
+        if (!allMaps) {
+            return;
+        }
+
+        // Collect map value types from all versions
+        Set<String> valueTypes = new LinkedHashSet<>();
+        Set<com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type> protoValueTypes = new LinkedHashSet<>();
+        boolean hasEnumValue = false;
+        boolean hasMessageValue = false;
+
+        for (FieldWithVersion fv : fields) {
+            MapInfo mapInfo = fv.field().getMapInfo();
+            if (mapInfo != null) {
+                valueTypes.add(mapInfo.getValueJavaType());
+                protoValueTypes.add(mapInfo.getValueType());
+                if (mapInfo.hasEnumValue()) hasEnumValue = true;
+                if (mapInfo.hasMessageValue()) hasMessageValue = true;
+            }
+        }
+
+        // No conflict if all value types are the same
+        if (valueTypes.size() <= 1) {
+            return;
+        }
+
+        FieldWithVersion first = fields.get(0);
+        String fieldName = first.field().getProtoName();
+
+        // Determine conflict type based on value types
+        boolean hasIntValue = valueTypes.stream().anyMatch(this::isIntType);
+        boolean hasLongValue = valueTypes.stream().anyMatch(this::isLongType);
+
+        // INT_ENUM conflict: some versions have int, others have enum
+        if (hasIntValue && hasEnumValue) {
+            builder.mapValueConflictType(MergedField.ConflictType.INT_ENUM);
+            builder.resolvedMapValueType("int");
+            String typesStr = fields.stream()
+                    .map(fv -> fv.version() + ":" + fv.field().getMapInfo().getValueJavaType())
+                    .collect(Collectors.joining(", "));
+            logger.warn(String.format("Map value type conflict [INT_ENUM] for field '%s': %s (using int)",
+                    fieldName, typesStr));
+            return;
+        }
+
+        // WIDENING conflict: int32 -> int64
+        if (hasIntValue && hasLongValue) {
+            builder.mapValueConflictType(MergedField.ConflictType.WIDENING);
+            builder.resolvedMapValueType("long");
+            String typesStr = fields.stream()
+                    .map(fv -> fv.version() + ":" + fv.field().getMapInfo().getValueJavaType())
+                    .collect(Collectors.joining(", "));
+            logger.warn(String.format("Map value type conflict [WIDENING] for field '%s': %s (using long)",
+                    fieldName, typesStr));
+            return;
+        }
+
+        // Other conflicts - log warning but don't set special handling
+        String typesStr = fields.stream()
+                .map(fv -> fv.version() + ":" + fv.field().getMapInfo().getValueJavaType())
+                .collect(Collectors.joining(", "));
+        logger.warn(String.format("Map value type conflict for field '%s': %s",
+                fieldName, typesStr));
     }
 
     /**

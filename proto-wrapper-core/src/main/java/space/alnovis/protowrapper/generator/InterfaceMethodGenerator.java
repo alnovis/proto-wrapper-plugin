@@ -312,7 +312,13 @@ public final class InterfaceMethodGenerator {
         MapInfo mapInfo = field.getMapInfo();
 
         TypeName keyType = parseMapKeyType(mapInfo);
-        TypeName valueType = parseMapValueType(mapInfo);
+        // Use resolved type if there's a map value conflict
+        TypeName valueType;
+        if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
+            valueType = parseSimpleType(field.getResolvedMapValueType());
+        } else {
+            valueType = parseMapValueType(mapInfo);
+        }
         TypeName boxedKeyType = keyType.isPrimitive() ? keyType.box() : keyType;
         TypeName boxedValueType = valueType.isPrimitive() ? valueType.box() : valueType;
         TypeName mapType = ParameterizedTypeName.get(

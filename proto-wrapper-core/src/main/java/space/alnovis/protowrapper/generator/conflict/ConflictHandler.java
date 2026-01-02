@@ -28,6 +28,15 @@ public sealed interface ConflictHandler permits
         RepeatedConflictHandler, MapFieldHandler, DefaultHandler {
 
     /**
+     * Get the type identifier for this handler.
+     *
+     * <p>Used for logging, debugging, and identifying which handler processed a field.</p>
+     *
+     * @return The handler type
+     */
+    HandlerType getHandlerType();
+
+    /**
      * Determines if this handler should process the given field.
      *
      * @param field The field to check

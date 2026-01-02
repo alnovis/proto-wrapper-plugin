@@ -103,6 +103,19 @@ public final class TypeUtils {
         return createMapType(keyType, valueType);
     }
 
+    /**
+     * Create a parameterized Map type with a resolved value type (for map value conflicts).
+     *
+     * @param mapInfo Map field information
+     * @param resolvedValueType Resolved unified value type (e.g., "long" for WIDENING, "int" for INT_ENUM)
+     * @return ParameterizedTypeName for Map&lt;K, V&gt; with the resolved value type
+     */
+    public static TypeName createMapTypeWithResolvedValue(MapInfo mapInfo, String resolvedValueType) {
+        TypeName keyType = parseMapKeyType(mapInfo);
+        TypeName valueType = parseSimpleType(resolvedValueType);
+        return createMapType(keyType, valueType);
+    }
+
     // ==================== List Type Operations ====================
 
     /**

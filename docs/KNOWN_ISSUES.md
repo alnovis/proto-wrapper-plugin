@@ -226,8 +226,15 @@ public NewFeature getNewFeatureIfAvailable(VersionContext ctx, Message proto) {
 - **Note:** Renamed oneofs use the most common name across versions
 
 ### 2. map Fields
-- **Status:** Basic support
-- **Description:** Map fields have limited support, may not work correctly with type conflicts
+- **Status:** Full support (v1.2.0+)
+- **Description:** Map fields are fully supported including type conflicts
+- **Features:**
+  - All map accessor methods: `getXxxMap()`, `getXxxCount()`, `containsXxx()`, `getXxxOrDefault()`, `getXxxOrThrow()`
+  - Builder methods: `putXxx()`, `putAllXxx()`, `removeXxx()`, `clearXxx()`
+  - Type conflict handling: WIDENING (int32→int64), INT_ENUM (int32→enum)
+  - Lazy caching with volatile fields for thread-safe performance
+  - Non-sequential enum value support (uses `getNumber()` not `ordinal()`)
+  - Validation for invalid enum values in builders
 
 ### 3. Extensions
 - **Status:** Not supported

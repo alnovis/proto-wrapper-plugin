@@ -87,6 +87,8 @@ public class MergedField {
     private final boolean isEnum;
     private final boolean isMap;
     private final MapInfo mapInfo; // null if not a map or if map info unavailable
+    private final ConflictType mapValueConflictType; // Conflict type for map value types (null if not a map or no conflict)
+    private final String resolvedMapValueType; // Resolved unified type for map values with conflicts
     private final Set<String> presentInVersions;
     private final Map<String, FieldInfo> versionFields; // Version -> original field
     private final ConflictType conflictType;
@@ -117,6 +119,8 @@ public class MergedField {
         this.isEnum = field.isEnum();
         this.isMap = field.isMap();
         this.mapInfo = field.getMapInfo();
+        this.mapValueConflictType = null;
+        this.resolvedMapValueType = null;
         this.presentInVersions = new LinkedHashSet<>();
         this.presentInVersions.add(version);
         this.versionFields = new LinkedHashMap<>();
@@ -149,7 +153,10 @@ public class MergedField {
         this.message = firstField.isMessage();
         this.isEnum = firstField.isEnum();
         this.isMap = firstField.isMap();
-        this.mapInfo = firstField.getMapInfo();
+        // Find mapInfo from any version field (first non-null wins)
+        this.mapInfo = findMapInfo(builder.versionFields.values());
+        this.mapValueConflictType = builder.mapValueConflictType;
+        this.resolvedMapValueType = builder.resolvedMapValueType;
         this.presentInVersions = Collections.unmodifiableSet(new LinkedHashSet<>(builder.versionFields.keySet()));
         this.versionFields = Collections.unmodifiableMap(new LinkedHashMap<>(builder.versionFields));
         this.conflictType = builder.conflictType != null ? builder.conflictType : ConflictType.NONE;
@@ -192,6 +199,8 @@ public class MergedField {
         private String resolvedJavaType;
         private String resolvedGetterType;
         private ConflictType conflictType;
+        private ConflictType mapValueConflictType;
+        private String resolvedMapValueType;
 
         /**
          * Add a version field.
@@ -250,6 +259,28 @@ public class MergedField {
          */
         public ConflictType getConflictType() {
             return conflictType != null ? conflictType : ConflictType.NONE;
+        }
+
+        /**
+         * Set the map value conflict type (for map fields with type conflicts in values).
+         *
+         * @param mapValueConflictType Type of conflict in map values between versions
+         * @return This builder
+         */
+        public Builder mapValueConflictType(ConflictType mapValueConflictType) {
+            this.mapValueConflictType = mapValueConflictType;
+            return this;
+        }
+
+        /**
+         * Set the resolved map value type (for map value type conflict resolution).
+         *
+         * @param resolvedMapValueType Resolved unified type for map values
+         * @return This builder
+         */
+        public Builder resolvedMapValueType(String resolvedMapValueType) {
+            this.resolvedMapValueType = resolvedMapValueType;
+            return this;
         }
 
         /**
@@ -312,6 +343,30 @@ public class MergedField {
 
     public MapInfo getMapInfo() {
         return mapInfo;
+    }
+
+    /**
+     * Get the conflict type for map value types.
+     * @return The type of conflict in map values, or null if not a map or no conflict
+     */
+    public ConflictType getMapValueConflictType() {
+        return mapValueConflictType;
+    }
+
+    /**
+     * Check if this map field has a type conflict in its values.
+     * @return true if map value types differ across versions
+     */
+    public boolean hasMapValueConflict() {
+        return mapValueConflictType != null && mapValueConflictType != ConflictType.NONE;
+    }
+
+    /**
+     * Get the resolved unified type for map values (when there's a conflict).
+     * @return Resolved map value type, or null if no conflict
+     */
+    public String getResolvedMapValueType() {
+        return resolvedMapValueType;
     }
 
     public Set<String> getPresentInVersions() {
@@ -614,6 +669,13 @@ public class MergedField {
         return "doClear" + capitalize(javaName);
     }
 
+    /**
+     * Do-get method name for map builder (e.g., "doGetItemCountsMap").
+     */
+    public String getMapDoGetMethodName() {
+        return "doGet" + capitalize(javaName) + "Map";
+    }
+
     // ==================== Builder Method Names ====================
 
     /**
@@ -705,6 +767,20 @@ public class MergedField {
      */
     public boolean isUniversal(Set<String> allVersions) {
         return presentInVersions.containsAll(allVersions);
+    }
+
+    /**
+     * Find MapInfo from any version field (first non-null wins).
+     * This handles cases where map detection worked for some versions but not others.
+     */
+    private static MapInfo findMapInfo(java.util.Collection<FieldInfo> fields) {
+        for (FieldInfo field : fields) {
+            MapInfo info = field.getMapInfo();
+            if (info != null) {
+                return info;
+            }
+        }
+        return null;
     }
 
     private String capitalize(String s) {

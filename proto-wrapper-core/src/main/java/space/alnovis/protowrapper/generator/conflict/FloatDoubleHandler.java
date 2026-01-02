@@ -62,6 +62,11 @@ public final class FloatDoubleHandler extends AbstractConflictHandler implements
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.FLOAT_DOUBLE;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return !field.isRepeated() && field.getConflictType() == MergedField.ConflictType.FLOAT_DOUBLE;
     }

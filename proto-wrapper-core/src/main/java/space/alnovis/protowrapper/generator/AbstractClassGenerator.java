@@ -573,8 +573,12 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
             // For optional fields, check hasXxx()
             // For required fields, always consider them as "having value"
-            if (field.isOptional() && !field.isRepeated()) {
+            if (field.isOptional() && !field.isRepeated() && !field.isMap()) {
                 method.beginControlFlow("if ($L && !($L))", hasMethod, versionCheck);
+            } else if (field.isMap()) {
+                // For map fields, use getXxxMap()
+                String getMethod = field.getMapGetterName() + "()";
+                method.beginControlFlow("if (!$L.isEmpty() && !($L))", getMethod, versionCheck);
             } else if (field.isRepeated()) {
                 // For repeated fields, check if list is not empty
                 String getMethod = field.getGetterName() + "()";

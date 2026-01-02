@@ -64,6 +64,11 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.REPEATED_SINGLE;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return field.getConflictType() == MergedField.ConflictType.REPEATED_SINGLE;
     }

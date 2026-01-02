@@ -71,6 +71,11 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.WIDENING;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return !field.isRepeated() && field.getConflictType() == MergedField.ConflictType.WIDENING;
     }

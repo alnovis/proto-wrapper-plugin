@@ -78,6 +78,11 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.DEFAULT;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         // Default handler handles fields that don't match any specific conflict handler
         // It's always used as the fallback

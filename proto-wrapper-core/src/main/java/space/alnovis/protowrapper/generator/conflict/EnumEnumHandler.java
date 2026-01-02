@@ -49,6 +49,11 @@ public final class EnumEnumHandler extends AbstractConflictHandler implements Co
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.ENUM_ENUM;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return !field.isRepeated() && field.getConflictType() == MergedField.ConflictType.ENUM_ENUM;
     }

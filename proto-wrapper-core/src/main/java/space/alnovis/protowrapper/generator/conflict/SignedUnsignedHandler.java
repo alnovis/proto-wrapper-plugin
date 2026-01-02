@@ -74,6 +74,11 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.SIGNED_UNSIGNED;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return !field.isRepeated() && field.getConflictType() == MergedField.ConflictType.SIGNED_UNSIGNED;
     }

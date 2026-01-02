@@ -398,22 +398,26 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return new $L(protoBuilder.build())", implClassName)
                 .build());
 
-        // Helper method to extract proto from wrapper
-        builder.addMethod(MethodSpec.methodBuilder("extractProto")
-                .addModifiers(Modifier.PRIVATE)
-                .addParameter(Object.class, "wrapper")
-                .returns(MESSAGE_CLASS)
-                .beginControlFlow("if (wrapper == null)")
-                .addStatement("return null")
-                .endControlFlow()
-                .beginControlFlow("try")
-                .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
-                .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
-                .nextControlFlow("catch ($T e)", Exception.class)
-                .addStatement("throw new $T($S + wrapper.getClass(), e)",
-                        RuntimeException.class, "Cannot extract proto from ")
-                .endControlFlow()
-                .build());
+        // Helper method to extract proto from wrapper - only needed for message fields (not map)
+        boolean hasMessageFields = message.getFields().stream()
+                .anyMatch(f -> f.isMessage() && !f.isMap());
+        if (hasMessageFields) {
+            builder.addMethod(MethodSpec.methodBuilder("extractProto")
+                    .addModifiers(Modifier.PRIVATE)
+                    .addParameter(Object.class, "wrapper")
+                    .returns(MESSAGE_CLASS)
+                    .beginControlFlow("if (wrapper == null)")
+                    .addStatement("return null")
+                    .endControlFlow()
+                    .beginControlFlow("try")
+                    .addStatement("$T method = wrapper.getClass().getMethod($S)", java.lang.reflect.Method.class, "getTypedProto")
+                    .addStatement("return ($T) method.invoke(wrapper)", MESSAGE_CLASS)
+                    .nextControlFlow("catch ($T e)", Exception.class)
+                    .addStatement("throw new $T($S + wrapper.getClass(), e)",
+                            RuntimeException.class, "Cannot extract proto from ")
+                    .endControlFlow()
+                    .build());
+        }
 
         return builder.build();
     }

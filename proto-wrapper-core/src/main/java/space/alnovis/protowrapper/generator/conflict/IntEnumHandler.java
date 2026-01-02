@@ -69,6 +69,11 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.INT_ENUM;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return !field.isRepeated() && field.getConflictType() == MergedField.ConflictType.INT_ENUM;
     }

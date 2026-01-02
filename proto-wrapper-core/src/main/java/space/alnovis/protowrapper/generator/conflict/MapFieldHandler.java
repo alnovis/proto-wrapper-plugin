@@ -1,6 +1,7 @@
 package space.alnovis.protowrapper.generator.conflict;
 
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
@@ -87,6 +88,106 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
         // Singleton
     }
 
+    /**
+     * Get the proto value type for a map field, handling enum types correctly.
+     * For enums, constructs the full class name using the proto outer class.
+     */
+    private TypeName getProtoValueType(MapInfo mapInfo, ProcessingContext ctx) {
+        if (mapInfo.hasEnumValue()) {
+            // For enum types, construct full class name: OuterClass.EnumName
+            ClassName protoClass = ctx.protoClassName();
+            String outerClass = protoClass.simpleNames().get(0);
+            String enumName = mapInfo.getSimpleValueTypeName();
+            return ClassName.get(protoClass.packageName(), outerClass, enumName);
+        }
+        return parseSimpleType(mapInfo.getValueJavaType());
+    }
+
+    /**
+     * Get the appropriate map type, considering map value conflicts.
+     * If there's a WIDENING or INT_ENUM conflict in map values, uses the resolved type.
+     */
+    private TypeName getResolvedMapType(MergedField field) {
+        MapInfo mapInfo = field.getMapInfo();
+        if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
+            return createMapTypeWithResolvedValue(mapInfo, field.getResolvedMapValueType());
+        }
+        return createMapType(mapInfo);
+    }
+
+    /**
+     * Get the appropriate value type, considering map value conflicts.
+     */
+    private TypeName getResolvedValueType(MergedField field) {
+        MapInfo mapInfo = field.getMapInfo();
+        if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
+            return parseSimpleType(field.getResolvedMapValueType());
+        }
+        return parseSimpleType(mapInfo.getValueJavaType());
+    }
+
+    /**
+     * Get version-specific MapInfo for the current processing context.
+     * Falls back to unified MapInfo if version-specific is not available.
+     *
+     * @param field the merged field
+     * @param unifiedMapInfo the unified map info from merged field
+     * @param ctx the processing context with version info
+     * @return version-specific MapInfo or unified MapInfo as fallback
+     */
+    private MapInfo getVersionSpecificMapInfo(MergedField field, MapInfo unifiedMapInfo, ProcessingContext ctx) {
+        String version = ctx.requireVersion();
+        space.alnovis.protowrapper.model.FieldInfo versionField = field.getVersionFields().get(version);
+        if (versionField != null) {
+            MapInfo versionMapInfo = versionField.getMapInfo();
+            if (versionMapInfo != null) {
+                return versionMapInfo;
+            }
+        }
+        return unifiedMapInfo;
+    }
+
+    /**
+     * Get the cache field name for a map field.
+     */
+    private String getCacheFieldName(MergedField field) {
+        return "cached" + capitalize(field.getJavaName()) + "Map";
+    }
+
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /**
+     * Check if this map field needs type conversion and thus can benefit from caching.
+     */
+    private boolean needsTypeConversion(MergedField field, MapInfo versionMapInfo, TypeName resolvedValueType) {
+        if (!field.hasMapValueConflict()) {
+            return false;
+        }
+        TypeName protoValueType = parseSimpleType(versionMapInfo.getValueJavaType());
+        if (resolvedValueType.equals(protoValueType)) {
+            return false;
+        }
+        // WIDENING: int -> long conversion
+        if (field.getMapValueConflictType() == MergedField.ConflictType.WIDENING
+                && protoValueType.equals(TypeName.INT)) {
+            return true;
+        }
+        // INT_ENUM: enum -> int conversion
+        if (field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
+                && versionMapInfo.hasEnumValue()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.MAP_FIELD;
+    }
+
     @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return field.isMap() && field.getMapInfo() != null;
@@ -94,8 +195,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
 
     @Override
     public void addAbstractExtractMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = createMapType(mapInfo);
+        TypeName mapType = getResolvedMapType(field);
 
         // Add abstract extractXxxMap(proto) method
         builder.addMethod(MethodSpec.methodBuilder(field.getMapExtractMethodName())
@@ -108,9 +208,28 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     @Override
     public void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
                                           boolean presentInVersion, ProcessingContext ctx) {
-        MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = createMapType(mapInfo);
+        MapInfo unifiedMapInfo = field.getMapInfo();
+        TypeName mapType = getResolvedMapType(field);
+        TypeName resolvedValueType = getResolvedValueType(field);
         String versionJavaName = CodeGenerationHelper.getVersionSpecificJavaName(field, ctx);
+        boolean hasValueConflict = field.hasMapValueConflict();
+
+        // Get version-specific MapInfo for correct proto type detection
+        MapInfo versionMapInfo = getVersionSpecificMapInfo(field, unifiedMapInfo, ctx);
+
+        // Proto value type for THIS version (not unified type)
+        TypeName protoValueType = parseSimpleType(versionMapInfo.getValueJavaType());
+
+        // Check if this map needs type conversion (benefits from caching)
+        boolean useCache = presentInVersion && needsTypeConversion(field, versionMapInfo, resolvedValueType);
+        String cacheFieldName = getCacheFieldName(field);
+
+        // Add cache field for maps that need type conversion (volatile for thread safety)
+        if (useCache) {
+            builder.addField(FieldSpec.builder(mapType, cacheFieldName, Modifier.PRIVATE, Modifier.VOLATILE)
+                    .addJavadoc("Cached converted map for lazy evaluation (thread-safe).\n")
+                    .build());
+        }
 
         MethodSpec.Builder extract = MethodSpec.methodBuilder(field.getMapExtractMethodName())
                 .addAnnotation(Override.class)
@@ -119,8 +238,54 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 .addParameter(ctx.protoClassName(), "proto");
 
         if (presentInVersion) {
-            // Return the proto's map (already unmodifiable in protobuf)
-            extract.addStatement("return proto.get$LMap()", versionJavaName);
+            // Handle type conversion for map value conflicts
+            // Compare proto value type with resolved unified type
+            if (hasValueConflict && !resolvedValueType.equals(protoValueType)) {
+                // WIDENING: int -> long conversion (only when proto has int, unified has long)
+                if (field.getMapValueConflictType() == MergedField.ConflictType.WIDENING
+                        && protoValueType.equals(TypeName.INT)) {
+                    // Need to convert Map<K, Integer> to Map<K, Long>
+                    TypeName keyType = parseSimpleType(versionMapInfo.getKeyJavaType());
+                    // Use lazy caching
+                    extract.beginControlFlow("if ($N != null)", cacheFieldName);
+                    extract.addStatement("return $N", cacheFieldName);
+                    extract.endControlFlow();
+                    extract.addStatement("$T<$T, $T> source = proto.get$LMap()",
+                            Map.class, keyType.box(), protoValueType.box(), versionJavaName);
+                    extract.addStatement("$T<$T, $T> result = new $T<>(source.size())",
+                            Map.class, keyType.box(), resolvedValueType.box(),
+                            ClassName.get("java.util", "LinkedHashMap"));
+                    extract.addStatement("source.forEach((k, v) -> result.put(k, v.longValue()))");
+                    extract.addStatement("$N = result", cacheFieldName);
+                    extract.addStatement("return result");
+                }
+                // INT_ENUM: enum -> int conversion (only when proto has enum, unified has int)
+                else if (field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
+                        && versionMapInfo.hasEnumValue()) {
+                    // Convert Map<K, EnumType> to Map<K, Integer>
+                    TypeName keyType = parseSimpleType(versionMapInfo.getKeyJavaType());
+                    // Use lazy caching
+                    extract.beginControlFlow("if ($N != null)", cacheFieldName);
+                    extract.addStatement("return $N", cacheFieldName);
+                    extract.endControlFlow();
+                    extract.addStatement("$T<$T, ?> source = proto.get$LMap()",
+                            Map.class, keyType.box(), versionJavaName);
+                    extract.addStatement("$T<$T, $T> result = new $T<>(source.size())",
+                            Map.class, keyType.box(), resolvedValueType.box(),
+                            ClassName.get("java.util", "LinkedHashMap"));
+                    extract.addStatement("source.forEach((k, v) -> result.put(k, (($T) v).getNumber()))",
+                            ClassName.get("com.google.protobuf", "ProtocolMessageEnum"));
+                    extract.addStatement("$N = result", cacheFieldName);
+                    extract.addStatement("return result");
+                }
+                else {
+                    // Default: direct return (types match or handled implicitly)
+                    extract.addStatement("return proto.get$LMap()", versionJavaName);
+                }
+            } else {
+                // No conflict or types already match - return directly
+                extract.addStatement("return proto.get$LMap()", versionJavaName);
+            }
         } else {
             // Return empty map for missing field
             extract.addStatement("return $T.emptyMap()", Collections.class)
@@ -133,9 +298,9 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     @Override
     public void addGetterImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = createMapType(mapInfo);
+        TypeName mapType = getResolvedMapType(field);
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = parseSimpleType(mapInfo.getValueJavaType());
+        TypeName valueType = getResolvedValueType(field);
         String capitalizedName = ctx.capitalize(field.getJavaName());
 
         // 1. getXxxMap() - delegate to extract
@@ -192,9 +357,9 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = createMapType(mapInfo);
+        TypeName mapType = getResolvedMapType(field);
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = parseSimpleType(mapInfo.getValueJavaType());
+        TypeName valueType = getResolvedValueType(field);
         String capitalizedName = ctx.capitalize(field.getJavaName());
 
         // doPut
@@ -220,6 +385,12 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
         builder.addMethod(MethodSpec.methodBuilder(field.getMapDoClearMethodName())
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .build());
+
+        // doGetXxxMap - for inspection
+        builder.addMethod(MethodSpec.methodBuilder(field.getMapDoGetMethodName())
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(mapType)
+                .build());
     }
 
     @Override
@@ -227,8 +398,8 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                                            TypeName builderReturnType, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = parseSimpleType(mapInfo.getValueJavaType());
-        TypeName mapType = createMapType(mapInfo);
+        TypeName valueType = getResolvedValueType(field);
+        TypeName mapType = getResolvedMapType(field);
 
         // put(key, value) -> Builder
         builder.addMethod(MethodSpec.methodBuilder(field.getMapPutMethodName())
@@ -269,17 +440,30 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 .addStatement("$L()", field.getMapDoClearMethodName())
                 .addStatement("return this")
                 .build());
+
+        // getXxxMap() -> Map - for inspection during building
+        builder.addMethod(MethodSpec.methodBuilder(field.getMapGetterName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(mapType)
+                .addStatement("return $T.unmodifiableMap($L())", Collections.class, field.getMapDoGetMethodName())
+                .build());
     }
 
     @Override
     public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                        boolean presentInVersion, ProcessingContext ctx) {
-        MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = createMapType(mapInfo);
-        TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = parseSimpleType(mapInfo.getValueJavaType());
+        MapInfo unifiedMapInfo = field.getMapInfo();
+        TypeName mapType = getResolvedMapType(field);
+        TypeName keyType = parseSimpleType(unifiedMapInfo.getKeyJavaType());
+        TypeName valueType = getResolvedValueType(field);
         String capitalizedName = ctx.capitalize(field.getJavaName());
         String versionJavaName = CodeGenerationHelper.getVersionSpecificJavaName(field, ctx);
+        boolean hasValueConflict = field.hasMapValueConflict();
+
+        // Get version-specific MapInfo for correct proto type detection
+        MapInfo versionMapInfo = getVersionSpecificMapInfo(field, unifiedMapInfo, ctx);
+        TypeName protoValueType = getProtoValueType(versionMapInfo, ctx);
 
         // doPut
         MethodSpec.Builder doPut = MethodSpec.methodBuilder(field.getMapDoPutMethodName())
@@ -289,7 +473,38 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 .addParameter(valueType, "value");
 
         if (presentInVersion) {
-            doPut.addStatement("protoBuilder.put$L(key, value)", versionJavaName);
+            // Handle type conversion for map value conflicts
+            if (hasValueConflict && !valueType.equals(protoValueType)) {
+                // WIDENING: long -> int cast with range check
+                if (field.getMapValueConflictType() == MergedField.ConflictType.WIDENING
+                        && valueType.equals(TypeName.LONG) && protoValueType.equals(TypeName.INT)) {
+                    doPut.beginControlFlow("if (value < $T.MIN_VALUE || value > $T.MAX_VALUE)",
+                            Integer.class, Integer.class);
+                    doPut.addStatement("throw new $T($S + value)",
+                            IllegalArgumentException.class, "Value out of int range: ");
+                    doPut.endControlFlow();
+                    doPut.addStatement("protoBuilder.put$L(key, (int) value)", versionJavaName);
+                }
+                // INT_ENUM: int -> enum conversion (when version has enum)
+                else if (field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
+                        && versionMapInfo.hasEnumValue()) {
+                    // Convert int to proto enum using forNumber() with null check
+                    doPut.addStatement("$T enumValue = $T.forNumber(value)", protoValueType, protoValueType);
+                    doPut.beginControlFlow("if (enumValue == null)");
+                    doPut.addStatement("throw new $T($S + value + $S)",
+                            IllegalArgumentException.class,
+                            "Invalid enum value ",
+                            " for field '" + field.getName() + "'");
+                    doPut.endControlFlow();
+                    doPut.addStatement("protoBuilder.put$L(key, enumValue)", versionJavaName);
+                }
+                else {
+                    // Default: direct pass (types match or implicit conversion)
+                    doPut.addStatement("protoBuilder.put$L(key, value)", versionJavaName);
+                }
+            } else {
+                doPut.addStatement("protoBuilder.put$L(key, value)", versionJavaName);
+            }
         } else {
             doPut.addStatement("throw new $T($S)",
                     UnsupportedOperationException.class,
@@ -304,7 +519,26 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 .addParameter(mapType, "values");
 
         if (presentInVersion) {
-            doPutAll.addStatement("protoBuilder.putAll$L(values)", versionJavaName);
+            // Handle type conversion for map value conflicts
+            if (hasValueConflict && !valueType.equals(protoValueType)) {
+                // WIDENING: convert Map<K, Long> to Map<K, Integer>
+                if (field.getMapValueConflictType() == MergedField.ConflictType.WIDENING
+                        && valueType.equals(TypeName.LONG) && protoValueType.equals(TypeName.INT)) {
+                    doPutAll.addStatement("values.forEach((k, v) -> $L(k, v))", field.getMapDoPutMethodName());
+                }
+                // INT_ENUM: convert Map<K, Integer> to Map<K, EnumType>
+                // Delegate to doPut which has validation for invalid enum values
+                else if (field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
+                        && versionMapInfo.hasEnumValue()) {
+                    doPutAll.addStatement("values.forEach((k, v) -> $L(k, v))", field.getMapDoPutMethodName());
+                }
+                else {
+                    // Default: direct pass
+                    doPutAll.addStatement("protoBuilder.putAll$L(values)", versionJavaName);
+                }
+            } else {
+                doPutAll.addStatement("protoBuilder.putAll$L(values)", versionJavaName);
+            }
         } else {
             doPutAll.addStatement("throw new $T($S)",
                     UnsupportedOperationException.class,
@@ -339,5 +573,49 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
             doClear.addComment("Field not present in this version - no-op");
         }
         builder.addMethod(doClear.build());
+
+        // doGetXxxMap
+        MethodSpec.Builder doGet = MethodSpec.methodBuilder(field.getMapDoGetMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(mapType);
+
+        if (presentInVersion) {
+            // Handle type conversion for map value conflicts
+            if (hasValueConflict && !valueType.equals(protoValueType)) {
+                // WIDENING: convert Map<K, Integer> to Map<K, Long>
+                if (field.getMapValueConflictType() == MergedField.ConflictType.WIDENING
+                        && valueType.equals(TypeName.LONG) && protoValueType.equals(TypeName.INT)) {
+                    doGet.addStatement("$T<$T, $T> source = protoBuilder.get$LMap()",
+                            Map.class, keyType.box(), protoValueType.box(), versionJavaName);
+                    doGet.addStatement("$T<$T, $T> result = new $T<>(source.size())",
+                            Map.class, keyType.box(), valueType.box(),
+                            ClassName.get("java.util", "LinkedHashMap"));
+                    doGet.addStatement("source.forEach((k, v) -> result.put(k, v.longValue()))");
+                    doGet.addStatement("return result");
+                }
+                // INT_ENUM: convert Map<K, EnumType> to Map<K, Integer>
+                else if (field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
+                        && versionMapInfo.hasEnumValue()) {
+                    doGet.addStatement("$T<$T, ?> source = protoBuilder.get$LMap()",
+                            Map.class, keyType.box(), versionJavaName);
+                    doGet.addStatement("$T<$T, $T> result = new $T<>(source.size())",
+                            Map.class, keyType.box(), valueType.box(),
+                            ClassName.get("java.util", "LinkedHashMap"));
+                    doGet.addStatement("source.forEach((k, v) -> result.put(k, (($T) v).getNumber()))",
+                            ClassName.get("com.google.protobuf", "ProtocolMessageEnum"));
+                    doGet.addStatement("return result");
+                }
+                else {
+                    // Default: direct return
+                    doGet.addStatement("return protoBuilder.get$LMap()", versionJavaName);
+                }
+            } else {
+                doGet.addStatement("return protoBuilder.get$LMap()", versionJavaName);
+            }
+        } else {
+            doGet.addStatement("return $T.emptyMap()", Collections.class);
+        }
+        builder.addMethod(doGet.build());
     }
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_No changes yet._
+
+---
+
+## [1.2.0] - 2026-01-02
+
 ### Added
 
 #### Comprehensive Conflict Type System
@@ -22,7 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FloatDoubleHandler` - Generates double accessor for float/double conflicts
 - `SignedUnsignedHandler` - Generates long accessor for signed/unsigned conflicts
 - `RepeatedSingleHandler` - Generates List accessor for repeated/single conflicts
-- `MapFieldHandler` - Improved map field handling
+- `MapFieldHandler` - Full map field support with type conflicts:
+  - WIDENING conflicts (int32 in v1, int64 in v2 → unified as long)
+  - INT_ENUM conflicts (int32 in v1, enum in v2 → unified as int)
+  - All accessor methods: `getXxxMap()`, `getXxxCount()`, `containsXxx()`, `getXxxOrDefault()`, `getXxxOrThrow()`
+  - All builder methods: `putXxx()`, `putAllXxx()`, `removeXxx()`, `clearXxx()`
+  - Lazy caching with `volatile` fields for thread-safe performance
+  - Non-sequential enum value support (uses `getNumber()` instead of `ordinal()`)
+  - Validation for invalid enum values in builders with clear error messages
 
 #### Exception Hierarchy
 - `ProtoWrapperException` - Base exception class
@@ -30,41 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GenerationException` - Code generation errors
 - `ConfigurationException` - Configuration validation errors
 - `MergeException` - Schema merging errors
-
-#### Documentation Improvements
-- **CONTRIBUTING.md** - Contribution guidelines with code style, testing, and PR process
-- **Mermaid diagrams** in ARCHITECTURE.md - Class diagrams, sequence diagrams, component diagrams
-- **docs/archive/** - Organized completed plans and drafts
-
-#### Package Documentation
-- Added `package-info.java` for all packages with comprehensive JavaDoc
-
-### Changed
-
-#### Deprecated API Improvements
-- Updated `@Deprecated` annotations with `forRemoval = true, since = "1.2.0"`
-- Added migration instructions in JavaDoc
-- Deprecated API will be removed in version 2.0.0:
-  - `InterfaceGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
-  - `AbstractClassGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
-  - `ImplClassGenerator.setSchema()`, `generate(MergedMessage, String, String)`, `generateAndWrite(...)`
-  - `MergedField(FieldInfo, String)` constructor, `addVersion(String, FieldInfo)` method
-  - `ProtocExecutor(Consumer<String>)` constructor
-
-#### Code Quality
-- Refactored generators to use `GenerationContext` consistently
-- Improved type resolution for nested messages
-- Better conflict detection logging
-
-### Fixed
-- Correct handling of optional fields in REPEATED_SINGLE conflicts
-- Proper type resolution for PRIMITIVE_MESSAGE conflicts with nested types
-
----
-
-## [1.2.0] - 2025-12-30
-
-### Added
 
 #### Oneof Field Support
 - **Full oneof support** - Generate unified API for protobuf oneof fields across versions
@@ -95,12 +73,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### New Tests
 - `OneofConflictDetectorTest` - Unit tests for all conflict detection types
 - Integration tests for oneof field generation
+- `NonSequentialEnumTests` - Tests for map fields with non-sequential enum values
+
+#### Documentation Improvements
+- **CONTRIBUTING.md** - Contribution guidelines with code style, testing, and PR process
+- **Mermaid diagrams** in ARCHITECTURE.md - Class diagrams, sequence diagrams, component diagrams
+- **docs/archive/** - Organized completed plans and drafts
+
+#### Package Documentation
+- Added `package-info.java` for all packages with comprehensive JavaDoc
 
 ### Changed
 - `FieldInfo` - Added `oneofIndex` and `oneofName` fields
 - `MergedMessage` - Added oneof groups tracking
 - `VersionMerger` - Integrated oneof merging with conflict detection and logging
 - Conflict warnings logged at WARN level for visibility
+- Refactored generators to use `GenerationContext` consistently
+- Improved type resolution for nested messages
+- Better conflict detection logging
+
+#### Deprecated API Improvements
+- Updated `@Deprecated` annotations with `forRemoval = true, since = "1.2.0"`
+- Added migration instructions in JavaDoc
+- Deprecated API will be removed in version 2.0.0:
+  - `InterfaceGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
+  - `AbstractClassGenerator.setSchema()`, `generate(MergedMessage)`, `generateAndWrite(MergedMessage)`
+  - `ImplClassGenerator.setSchema()`, `generate(MergedMessage, String, String)`, `generateAndWrite(...)`
+  - `MergedField(FieldInfo, String)` constructor, `addVersion(String, FieldInfo)` method
+  - `ProtocExecutor(Consumer<String>)` constructor
+
+### Fixed
+- Correct handling of optional fields in REPEATED_SINGLE conflicts
+- Proper type resolution for PRIMITIVE_MESSAGE conflicts with nested types
+- **CRITICAL:** Fixed `ordinal()` vs `getNumber()` bug in map enum conversion - was causing data corruption for non-sequential enum values
+- Fixed NPE when putting invalid enum values in map builders - now throws `IllegalArgumentException` with clear message
 
 ### Known Limitations
 - Renamed oneofs use the most common name across versions
@@ -402,13 +408,5 @@ OrderRequest order = OrderRequest.newBuilder(ctx)
 
 ### Known Limitations
 
-- `map` fields have basic support only
+- `map` fields have basic support only (full support added in v1.2.0)
 - Complex nested message hierarchies may require manual configuration
-
----
-
-## [Unreleased]
-
-### Planned
-- Improved `map` field handling
-- Code generation customization hooks

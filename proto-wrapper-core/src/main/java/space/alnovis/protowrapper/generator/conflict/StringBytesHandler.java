@@ -70,6 +70,11 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
     }
 
     @Override
+    public HandlerType getHandlerType() {
+        return HandlerType.STRING_BYTES;
+    }
+
+    @Override
     public boolean handles(MergedField field, ProcessingContext ctx) {
         return !field.isRepeated() && field.getConflictType() == MergedField.ConflictType.STRING_BYTES;
     }
