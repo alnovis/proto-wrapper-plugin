@@ -24,6 +24,58 @@ jobs:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
           cache: 'maven'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+
+      - name: Configure Maven settings
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>central-secure</id>
+                <name>Maven Central (HTTPS)</name>
+                <url>https://repo1.maven.org/maven2/</url>
+                <mirrorOf>central</mirrorOf>
+              </mirror>
+            </mirrors>
+            <profiles>
+              <profile>
+                <id>default</id>
+                <repositories>
+                  <repository>
+                    <id>central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>false</enabled>
+                    </snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>central</id>
+                    <url>https://repo1.maven.org/maven2/</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>false</enabled>
+                    </snapshots>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>default</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
 
       - name: Install protoc
         run: |
@@ -32,19 +84,36 @@ jobs:
           protoc --version
 
       - name: Build Core and Plugin (install to local repo)
-        run: |
-          mvn install -B -N
-          mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
-          echo "Installed plugins:"
-          ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            mvn install -B -N
+            mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
+            echo "Installed plugins:"
+            ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/
 
       - name: Run Integration Tests
-        working-directory: proto-wrapper-integration-tests
-        run: mvn verify -B
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd proto-wrapper-integration-tests
+            mvn verify -B
 
       - name: Run Maven Example
-        working-directory: examples/maven-example
-        run: mvn verify -B
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd examples/maven-example
+            mvn verify -B
 
       - name: Upload Maven Plugin Artifact
         if: matrix.java-version == 17 && success()
@@ -80,6 +149,32 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Configure Gradle repositories
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle << 'EOF'
+          allprojects {
+            repositories {
+              mavenCentral()
+              maven {
+                url = uri("https://repo1.maven.org/maven2/")
+              }
+              gradlePluginPortal()
+            }
+          }
+          settingsEvaluated { settings ->
+            settings.pluginManagement {
+              repositories {
+                gradlePluginPortal()
+                mavenCentral()
+                maven {
+                  url = uri("https://repo1.maven.org/maven2/")
+                }
+              }
+            }
+          }
+          EOF
+
       - name: Install protoc
         run: |
           sudo apt-get update
@@ -90,14 +185,25 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build --no-daemon
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: ./gradlew build --no-daemon
 
       - name: Grant execute permission for example gradlew
         run: chmod +x examples/gradle-example/gradlew
 
       - name: Build Gradle Example
-        working-directory: examples/gradle-example
-        run: ./gradlew build --no-daemon
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd examples/gradle-example
+            ./gradlew build --no-daemon
 
       - name: Upload Gradle Plugin Artifact
         if: matrix.java-version == 17 && success()
@@ -136,7 +242,7 @@ jobs:
               echo "::error::Missing: $file"
               MISSING=$((MISSING + 1))
             else
-              echo "✓ $file"
+              echo "OK $file"
             fi
           done
           if [ $MISSING -gt 0 ]; then
