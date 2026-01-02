@@ -266,34 +266,29 @@ public final class IntEnumHandler extends AbstractConflictHandler {
 classDiagram
     direction TB
 
-    class BaseGenerator~T~ {
+    class BaseGenerator {
         <<abstract>>
-        #config: GeneratorConfig
-        +generate(T, ctx) JavaFile
-        +generateAndWrite(T, ctx) Path
+        #config GeneratorConfig
+        +generate() JavaFile
+        +generateAndWrite() Path
     }
 
-    class InterfaceGenerator {
-        generates Interface.java
-    }
-
-    class AbstractClassGenerator {
-        generates AbstractClass.java
-    }
-
-    class ImplClassGenerator {
-        generates ImplV1.java, ImplV2.java
-    }
-
-    class VersionContextGenerator {
-        generates VersionContext.java
-    }
+    class InterfaceGenerator
+    class AbstractClassGenerator
+    class ImplClassGenerator
+    class VersionContextGenerator
 
     BaseGenerator <|-- InterfaceGenerator
     BaseGenerator <|-- AbstractClassGenerator
     BaseGenerator <|-- ImplClassGenerator
     BaseGenerator <|-- VersionContextGenerator
 ```
+
+**Generator outputs:**
+- InterfaceGenerator: Interface.java
+- AbstractClassGenerator: AbstractClass.java
+- ImplClassGenerator: ImplV1.java, ImplV2.java
+- VersionContextGenerator: VersionContext.java
 
 ### Conflict Handler Chain
 
@@ -350,41 +345,41 @@ classDiagram
     direction LR
 
     class MergedSchema {
-        +messages: List
-        +enums: List
-        +versions: Set
+        +messages List
+        +enums List
+        +versions Set
     }
 
     class MergedMessage {
-        +name: String
-        +fields: List
-        +nestedMessages: List
-        +oneofGroups: List
-        +presentInVersions: Set
+        +name String
+        +fields List
+        +nestedMessages List
+        +oneofGroups List
+        +presentInVersions Set
     }
 
     class MergedField {
-        +name: String
-        +javaType: String
-        +conflictType: ConflictType
-        +presentInVersions: Set
+        +name String
+        +javaType String
+        +conflictType ConflictType
+        +presentInVersions Set
     }
 
     class MergedOneof {
-        +name: String
-        +fields: List
+        +name String
+        +fields List
     }
 
     class MergedEnum {
-        +name: String
-        +values: List
+        +name String
+        +values List
     }
 
-    MergedSchema "1" *-- "*" MergedMessage
-    MergedSchema "1" *-- "*" MergedEnum
-    MergedMessage "1" *-- "*" MergedField
-    MergedMessage "1" *-- "*" MergedOneof
-    MergedMessage "1" o-- "*" MergedMessage : nested
+    MergedSchema *-- MergedMessage
+    MergedSchema *-- MergedEnum
+    MergedMessage *-- MergedField
+    MergedMessage *-- MergedOneof
+    MergedMessage o-- MergedMessage
 ```
 
 **ConflictType enum values:**
@@ -398,36 +393,32 @@ classDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Plugin as Maven/Gradle Plugin
-    participant Orch as GenerationOrchestrator
+    participant Plugin as BuildPlugin
+    participant Orch as Orchestrator
     participant Protoc as ProtocExecutor
     participant Analyzer as ProtoAnalyzer
     participant Merger as VersionMerger
     participant Gen as Generators
 
-    Plugin->>Orch: generate(protoSources, config)
+    Plugin->>Orch: generate(config)
 
     loop For each version
-        Orch->>Protoc: generateDescriptor(protoDir)
-        Protoc-->>Orch: descriptorFile.pb
-        Orch->>Analyzer: parse(descriptorFile)
+        Orch->>Protoc: generateDescriptor()
+        Protoc-->>Orch: descriptorFile
+        Orch->>Analyzer: parse()
         Analyzer-->>Orch: SchemaInfo
     end
 
     Orch->>Merger: merge(schemas)
     Merger-->>Orch: MergedSchema
 
-    Orch->>Gen: InterfaceGenerator.generate()
-    Orch->>Gen: AbstractClassGenerator.generate()
-
-    loop For each version
-        Orch->>Gen: ImplClassGenerator.generate(version)
-    end
-
-    Orch->>Gen: VersionContextGenerator.generate()
+    Orch->>Gen: generateInterfaces()
+    Orch->>Gen: generateAbstractClasses()
+    Orch->>Gen: generateImplClasses()
+    Orch->>Gen: generateVersionContext()
 
     Gen-->>Orch: Generated files
-    Orch-->>Plugin: Generation complete
+    Orch-->>Plugin: Complete
 ```
 
 ### Field Processing Chain
@@ -436,7 +427,7 @@ sequenceDiagram
 sequenceDiagram
     participant Gen as Generator
     participant Chain as FieldProcessingChain
-    participant Handlers as Handler[]
+    participant Handlers as HandlerList
 
     Gen->>Chain: findHandler(field, ctx)
 
@@ -447,13 +438,12 @@ sequenceDiagram
             Chain-->>Gen: return handler
         else No match
             Handlers-->>Chain: false
-            Note right of Chain: Try next handler
         end
     end
 
-    Note over Chain,Handlers: DefaultHandler always matches as fallback
+    Note over Chain: DefaultHandler always matches
 
-    Gen->>Chain: handler.addExtractMethods(...)
+    Gen->>Chain: handler.addExtractMethods()
 ```
 
 **Handler priority order:**
