@@ -1057,8 +1057,8 @@ class TypeConflictTest {
         }
 
         @Test
-        @DisplayName("Builder skips repeated conflict fields, sets non-conflicting")
-        void builderSkipsRepeatedConflictFields() {
+        @DisplayName("Builder supports repeated conflict fields (v1.4.0)")
+        void builderSupportsRepeatedConflictFields() {
             space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
                     space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
                             .addNumbers(100L)
@@ -1072,20 +1072,24 @@ class TypeConflictTest {
             space.alnovis.protowrapper.it.model.api.RepeatedConflicts wrapper =
                     new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto);
 
-            // Builder can modify non-conflicting fields
+            // v1.4.0: Builder now supports repeated conflict fields
             space.alnovis.protowrapper.it.model.api.RepeatedConflicts modified = wrapper.toBuilder()
                     .setBatchId("MODIFIED")
                     .setItemCount(20)
+                    .addNumbers(200L)      // Add to numbers
+                    .addCodes(2)           // Add to codes
+                    .addTexts("more")      // Add to texts
+                    .addValues(2.5)        // Add to values
                     .build();
 
             assertThat(modified.getBatchId()).isEqualTo("MODIFIED");
             assertThat(modified.getItemCount()).isEqualTo(20);
 
-            // Repeated conflict fields remain unchanged
-            assertThat(modified.getNumbers()).containsExactly(100L);
-            assertThat(modified.getCodes()).containsExactly(1);
-            assertThat(modified.getTexts()).containsExactly("text");
-            assertThat(modified.getValues()).containsExactly(1.5);
+            // Repeated conflict fields now support modification
+            assertThat(modified.getNumbers()).containsExactly(100L, 200L);
+            assertThat(modified.getCodes()).containsExactly(1, 2);
+            assertThat(modified.getTexts()).containsExactly("text", "more");
+            assertThat(modified.getValues()).containsExactly(1.5, 2.5);
         }
     }
 

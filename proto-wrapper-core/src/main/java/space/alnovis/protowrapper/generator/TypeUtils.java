@@ -176,4 +176,61 @@ public final class TypeUtils {
             default -> false;
         };
     }
+
+    // ==================== Repeated Conflict Type Resolution ====================
+
+    /**
+     * Get the unified element type for a repeated field with type conflict.
+     *
+     * @param conflictType The type of conflict
+     * @return TypeName for the unified element type (always boxed)
+     */
+    public static TypeName getRepeatedConflictElementType(space.alnovis.protowrapper.model.MergedField.ConflictType conflictType) {
+        return switch (conflictType) {
+            case WIDENING -> TypeName.LONG.box();
+            case FLOAT_DOUBLE -> TypeName.DOUBLE.box();
+            case SIGNED_UNSIGNED -> TypeName.LONG.box();
+            case INT_ENUM -> TypeName.INT.box();
+            case STRING_BYTES -> ClassName.get(String.class);
+            default -> ClassName.get(Object.class);
+        };
+    }
+
+    /**
+     * Get primitive unbox cast for boxed types.
+     * E.g., for "Long" returns "(long)" to unbox before further casting.
+     *
+     * @param boxedType Boxed type name (e.g., "Long", "Double")
+     * @return Cast string or empty if not applicable
+     */
+    public static String getPrimitiveUnboxCast(String boxedType) {
+        return switch (boxedType) {
+            case "Long" -> "(long)";
+            case "Integer" -> "(int)";
+            case "Double" -> "(double)";
+            case "Float" -> "(float)";
+            default -> "";
+        };
+    }
+
+    /**
+     * Check if a type is int/Integer.
+     */
+    public static boolean isIntType(String elementType) {
+        return "Integer".equals(elementType) || "int".equals(elementType);
+    }
+
+    /**
+     * Check if a type is float/Float.
+     */
+    public static boolean isFloatType(String elementType) {
+        return "Float".equals(elementType) || "float".equals(elementType);
+    }
+
+    /**
+     * Check if a type is long/Long.
+     */
+    public static boolean isLongType(String elementType) {
+        return "Long".equals(elementType) || "long".equals(elementType);
+    }
 }
