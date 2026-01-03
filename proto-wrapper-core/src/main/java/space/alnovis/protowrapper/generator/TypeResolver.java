@@ -1,6 +1,7 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.MergedEnum;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
@@ -41,6 +42,16 @@ public class TypeResolver {
      * @return TypeName for the field
      */
     public TypeName parseFieldType(MergedField field, MergedMessage context) {
+        // Check for well-known type conversion first
+        if (config.isConvertWellKnownTypes() && field.isWellKnownType()) {
+            WellKnownTypeInfo wkt = field.getWellKnownType();
+            TypeName javaType = wkt.getJavaTypeName();
+            if (field.isRepeated()) {
+                return ParameterizedTypeName.get(ClassName.get(java.util.List.class), javaType);
+            }
+            return javaType;
+        }
+
         String getterType = field.getGetterType();
 
         // Handle primitives and common types

@@ -1,0 +1,194 @@
+name: Schedule Branch Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop, main, master]
+
+env:
+  CLEANUP_DELAY_HOURS: 24
+  DELETABLE_PREFIXES: 'feature/,fix/,bugfix/,chore/,hotfix/,refactor/,docs/'
+  PROTECTED_BRANCHES: 'main,master,develop,release,staging'
+
+jobs:
+  schedule-cleanup:
+    name: Schedule branch for cleanup
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Check branch eligibility
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const baseBranch = context.payload.pull_request.base.ref;
+            const prNumber = context.payload.pull_request.number;
+            const isFork = context.payload.pull_request.head.repo.full_name !== context.payload.pull_request.base.repo.full_name;
+
+            console.log(`Branch: ${branch}`);
+            console.log(`Base: ${baseBranch}`);
+            console.log(`Is fork: ${isFork}`);
+
+            // Skip fork branches (can't delete)
+            if (isFork) {
+              console.log('Skipping: fork branch');
+              core.setOutput('eligible', 'false');
+              core.setOutput('reason', 'fork');
+              return;
+            }
+
+            // Check protected branches
+            const protectedBranches = process.env.PROTECTED_BRANCHES.split(',');
+            if (protectedBranches.some(p => branch === p || branch.startsWith(`${p}/`))) {
+              console.log('Skipping: protected branch');
+              core.setOutput('eligible', 'false');
+              core.setOutput('reason', 'protected');
+              return;
+            }
+
+            // Check deletable prefixes
+            const deletablePrefixes = process.env.DELETABLE_PREFIXES.split(',');
+            const isDeletable = deletablePrefixes.some(p => branch.startsWith(p));
+
+            if (!isDeletable) {
+              console.log('Skipping: branch prefix not in deletable list');
+              core.setOutput('eligible', 'false');
+              core.setOutput('reason', 'prefix');
+              return;
+            }
+
+            // Check for existing keep-branch label
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            if (labels.includes('keep-branch')) {
+              console.log('Skipping: keep-branch label present');
+              core.setOutput('eligible', 'false');
+              core.setOutput('reason', 'keep-label');
+              return;
+            }
+
+            // Check if branch has other open PRs
+            const { data: openPRs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`
+            });
+
+            if (openPRs.length > 0) {
+              console.log(`Skipping: branch has ${openPRs.length} open PR(s)`);
+              core.setOutput('eligible', 'false');
+              core.setOutput('reason', 'open-prs');
+              core.setOutput('open_prs', openPRs.map(p => `#${p.number}`).join(', '));
+              return;
+            }
+
+            console.log('Branch eligible for cleanup');
+            core.setOutput('eligible', 'true');
+            core.setOutput('branch', branch);
+
+      - name: Add cleanup label
+        if: steps.check.outputs.eligible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+
+            // Ensure label exists
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'cleanup-scheduled',
+                color: 'fbca04',
+                description: 'Branch scheduled for automatic deletion'
+              });
+            } catch (e) {
+              // Label already exists
+            }
+
+            // Add label to PR
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              labels: ['cleanup-scheduled']
+            });
+
+      - name: Post cleanup notification
+        if: steps.check.outputs.eligible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = '${{ steps.check.outputs.branch }}';
+            const prNumber = context.payload.pull_request.number;
+            const delayHours = parseInt(process.env.CLEANUP_DELAY_HOURS);
+            const deletionTime = new Date(Date.now() + delayHours * 60 * 60 * 1000);
+
+            const comment = `## Branch Cleanup Scheduled
+
+            | Property | Value |
+            |----------|-------|
+            | **Branch** | \`${branch}\` |
+            | **Scheduled deletion** | ${deletionTime.toUTCString()} |
+            | **Delay** | ${delayHours} hours |
+
+            ### How to prevent deletion
+
+            Add the \`keep-branch\` label to this PR before the scheduled time:
+
+            \`\`\`bash
+            gh pr edit ${prNumber} --add-label "keep-branch"
+            \`\`\`
+
+            Or use the Labels menu on this PR page.
+
+            ---
+            <sub>Automated by Branch Cleanup Action</sub>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+
+      - name: Post skip notification
+        if: steps.check.outputs.eligible == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reason = '${{ steps.check.outputs.reason }}';
+            const branch = context.payload.pull_request.head.ref;
+            const prNumber = context.payload.pull_request.number;
+
+            const reasons = {
+              'fork': 'Branch is from a fork (cannot be deleted automatically)',
+              'protected': 'Branch is protected',
+              'prefix': `Branch prefix not in deletable list: \`${process.env.DELETABLE_PREFIXES}\``,
+              'keep-label': 'Branch has \`keep-branch\` label',
+              'open-prs': `Branch has other open PRs: ${{ steps.check.outputs.open_prs }}`
+            };
+
+            const comment = `## Branch Cleanup Skipped
+
+            | Property | Value |
+            |----------|-------|
+            | **Branch** | \`${branch}\` |
+            | **Reason** | ${reasons[reason] || reason} |
+
+            The branch will **not** be automatically deleted.
+
+            ---
+            <sub>Automated by Branch Cleanup Action</sub>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });

@@ -100,6 +100,24 @@ public enum HandlerType {
     MAP_FIELD("map field"),
 
     /**
+     * Handles scalar well-known type fields.
+     * Converts Google Well-Known Types (Timestamp, Duration, wrapper types) to idiomatic Java types.
+     *
+     * @since 1.3.0
+     * @see WellKnownTypeHandler
+     */
+    WELL_KNOWN_TYPE("well-known type conversion"),
+
+    /**
+     * Handles repeated well-known type fields.
+     * Converts repeated Google Well-Known Types to List of idiomatic Java types.
+     *
+     * @since 1.3.0
+     * @see RepeatedWellKnownTypeHandler
+     */
+    REPEATED_WELL_KNOWN_TYPE("repeated well-known type conversion"),
+
+    /**
      * Default handler for fields without conflicts.
      * Handles regular fields that have the same type across all versions.
      *

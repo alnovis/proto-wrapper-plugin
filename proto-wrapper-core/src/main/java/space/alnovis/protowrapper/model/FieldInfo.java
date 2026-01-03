@@ -4,6 +4,7 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 
 import java.util.Map;
 import java.util.Objects;
@@ -25,6 +26,7 @@ public class FieldInfo {
     private final MapInfo mapInfo;    // null if not a map
     private final int oneofIndex;     // -1 if not in oneof
     private final String oneofName;   // null if not in oneof
+    private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
 
     public FieldInfo(FieldDescriptorProto proto) {
         this(proto, -1, null, null);
@@ -82,23 +84,35 @@ public class FieldInfo {
             this.isMap = detectedMapInfo != null;
             this.mapInfo = detectedMapInfo;
         }
+
+        // Detect well-known type
+        this.wellKnownType = (typeName != null && type == Type.TYPE_MESSAGE)
+                ? WellKnownTypeInfo.fromProtoType(typeName).orElse(null)
+                : null;
     }
 
     // Constructor for merged fields
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName) {
-        this(protoName, javaName, number, type, label, typeName, null, -1, null);
+        this(protoName, javaName, number, type, label, typeName, null, -1, null, null);
     }
 
     // Constructor for merged fields with oneof info
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, int oneofIndex, String oneofName) {
-        this(protoName, javaName, number, type, label, typeName, null, oneofIndex, oneofName);
+        this(protoName, javaName, number, type, label, typeName, null, oneofIndex, oneofName, null);
     }
 
     // Constructor for merged fields with map info and oneof info
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName) {
+        this(protoName, javaName, number, type, label, typeName, mapInfo, oneofIndex, oneofName, null);
+    }
+
+    // Full constructor for merged fields with map info, oneof info, and well-known type
+    public FieldInfo(String protoName, String javaName, int number, Type type,
+                     Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
+                     WellKnownTypeInfo wellKnownType) {
         this.protoName = protoName;
         this.javaName = javaName;
         this.number = number;
@@ -111,6 +125,11 @@ public class FieldInfo {
         this.mapInfo = mapInfo;
         this.oneofIndex = oneofIndex;
         this.oneofName = oneofName;
+        // Detect well-known type if not explicitly provided
+        this.wellKnownType = wellKnownType != null ? wellKnownType
+                : (typeName != null && type == Type.TYPE_MESSAGE
+                        ? WellKnownTypeInfo.fromProtoType(typeName).orElse(null)
+                        : null);
     }
 
     private static String toJavaName(String protoName) {
@@ -374,6 +393,8 @@ public class FieldInfo {
     public int getOneofIndex() { return oneofIndex; }
     public String getOneofName() { return oneofName; }
     public boolean isInOneof() { return oneofIndex >= 0; }
+    public WellKnownTypeInfo getWellKnownType() { return wellKnownType; }
+    public boolean isWellKnownType() { return wellKnownType != null; }
 
     @Override
     public boolean equals(Object o) {

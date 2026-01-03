@@ -1,157 +1,152 @@
-# Release Notes - Proto Wrapper Plugin v1.2.0
+# Release Notes - Proto Wrapper Plugin v1.3.0
 
 **Release Date:** January 2, 2026
 
 ## Overview
 
-This major release introduces comprehensive conflict type handling, full map field support with type conflicts, oneof field support, and a structured exception hierarchy. It also includes critical bug fixes for map fields with non-sequential enum values.
+This release introduces support for Google Well-Known Types, automatically converting protobuf wrapper types, timestamps, durations, and JSON-like structures to idiomatic Java types.
 
 ## What's New
 
-### Full Map Field Support
+### Google Well-Known Types Support
 
-Map fields are now fully supported with all accessor and builder methods:
+15 Well-Known Types are now automatically converted to Java types:
+
+#### Temporal Types
 
 ```java
-// Accessor methods
-Map<String, Status> statuses = message.getStatusesMap();
-int count = message.getStatusesCount();
-boolean hasKey = message.containsStatuses("key");
-Status status = message.getStatusesOrDefault("key", Status.UNKNOWN);
-Status status = message.getStatusesOrThrow("key");
+// Proto definition:
+// google.protobuf.Timestamp created_at = 1;
+// google.protobuf.Duration timeout = 2;
 
-// Builder methods
-builder.putStatuses("key", Status.ACTIVE);
-builder.putAllStatuses(statusMap);
-builder.removeStatuses("key");
-builder.clearStatuses();
+// Generated interface:
+Instant getCreatedAt();      // java.time.Instant
+Duration getTimeout();        // java.time.Duration
 ```
 
-#### Map Type Conflict Handling
-
-Maps with type conflicts across versions are handled automatically:
+#### Wrapper Types (Nullable Primitives)
 
 ```java
-// WIDENING conflict: int32 in v1, int64 in v2 -> unified as long
-Map<String, Long> values = message.getValuesMap();
+// Proto definition:
+// google.protobuf.StringValue optional_name = 1;
+// google.protobuf.Int32Value optional_count = 2;
 
-// INT_ENUM conflict: int32 in v1, enum in v2 -> unified as int
-Map<String, Integer> types = message.getTypesMap();
+// Generated interface:
+String getOptionalName();     // null if not set
+Integer getOptionalCount();   // null if not set
 ```
 
-#### Lazy Caching for Performance
+#### Complete Type Mapping
 
-Maps with type conversion use lazy caching with volatile fields for thread-safe performance:
+| Proto Type | Java Type | Notes |
+|------------|-----------|-------|
+| `google.protobuf.Timestamp` | `java.time.Instant` | |
+| `google.protobuf.Duration` | `java.time.Duration` | |
+| `google.protobuf.StringValue` | `String` | nullable |
+| `google.protobuf.Int32Value` | `Integer` | nullable |
+| `google.protobuf.Int64Value` | `Long` | nullable |
+| `google.protobuf.UInt32Value` | `Long` | unsigned, nullable |
+| `google.protobuf.UInt64Value` | `Long` | unsigned, nullable |
+| `google.protobuf.BoolValue` | `Boolean` | nullable |
+| `google.protobuf.FloatValue` | `Float` | nullable |
+| `google.protobuf.DoubleValue` | `Double` | nullable |
+| `google.protobuf.BytesValue` | `byte[]` | nullable |
+| `google.protobuf.FieldMask` | `List<String>` | path list |
+| `google.protobuf.Struct` | `Map<String, Object>` | JSON-like |
+| `google.protobuf.Value` | `Object` | dynamic |
+| `google.protobuf.ListValue` | `List<Object>` | dynamic |
+
+### JSON-like Structures (Struct/Value/ListValue)
+
+Full support for dynamic JSON-like structures:
 
 ```java
-private volatile Map<String, Integer> cachedStatusMap;
+// Proto definition:
+// google.protobuf.Struct metadata = 1;
+// google.protobuf.Value dynamic_field = 2;
 
-@Override
-protected Map<String, Integer> extractStatusMap() {
-    if (cachedStatusMap != null) {
-        return cachedStatusMap;
-    }
-    // Perform conversion...
-    cachedStatusMap = result;
-    return result;
+// Generated interface:
+Map<String, Object> getMetadata();
+Object getDynamicField();
+
+// Usage:
+Map<String, Object> metadata = message.getMetadata();
+String name = (String) metadata.get("name");
+Double count = (Double) metadata.get("count");
+List<?> items = (List<?>) metadata.get("items");
+```
+
+### StructConverter Utility Class
+
+When Struct/Value/ListValue fields are used, a utility class is auto-generated:
+
+```java
+// Generated in your API package
+public final class StructConverter {
+    // Struct <-> Map conversion
+    public static Map<String, Object> toMap(Struct struct);
+    public static Struct toStruct(Map<String, ?> map);
+
+    // Value <-> Object conversion
+    public static Object toObject(Value value);
+    public static Value toValue(Object obj);
+
+    // ListValue <-> List conversion
+    public static List<Object> toList(ListValue listValue);
+    public static ListValue toListValue(List<?> list);
 }
 ```
 
-### Oneof Field Support
+### Configuration Options
 
-Full support for protobuf oneof fields with unified API across versions:
+Two new configuration options:
 
-```java
-// Check which field is set
-PaymentRequest.MethodCase methodCase = request.getMethodCase();
+```xml
+<!-- Maven -->
+<configuration>
+    <!-- Enable/disable WKT conversion (default: true) -->
+    <convertWellKnownTypes>true</convertWellKnownTypes>
 
-switch (methodCase) {
-    case CREDIT_CARD -> processCreditCard(request.getCreditCard());
-    case BANK_TRANSFER -> processBankTransfer(request.getBankTransfer());
-    case CRYPTO -> processCrypto(request.getCrypto());
-    case METHOD_NOT_SET -> handleNoMethod();
-}
-
-// Check individual fields
-if (request.hasCreditCard()) {
-    CreditCard card = request.getCreditCard();
-}
-
-// Clear oneof group in builder
-builder.clearMethod();
+    <!-- Generate getXxxProto() methods (default: false) -->
+    <generateRawProtoAccessors>false</generateRawProtoAccessors>
+</configuration>
 ```
 
-### Comprehensive Conflict Type System
-
-New conflict types for complete schema evolution handling:
-
-| Conflict Type | Description | Unified Type |
-|--------------|-------------|--------------|
-| ENUM_ENUM | Different enum values across versions | int |
-| FLOAT_DOUBLE | float/double precision differences | double |
-| SIGNED_UNSIGNED | int32/uint32, sint32, etc. | long |
-| REPEATED_SINGLE | repeated vs singular fields | List |
-| PRIMITIVE_MESSAGE | Primitive to message type changes | Detection only |
-| OPTIONAL_REQUIRED | Optional/required modifier differences | Optional |
-
-### Exception Hierarchy
-
-Structured exception classes for better error handling:
-
-```java
-try {
-    schema = analyzer.analyze(protoFiles);
-} catch (AnalysisException e) {
-    // Proto file analysis errors
-} catch (ConfigurationException e) {
-    // Configuration validation errors
-} catch (GenerationException e) {
-    // Code generation errors
-} catch (MergeException e) {
-    // Schema merging errors
-} catch (ProtoWrapperException e) {
-    // Base exception for all plugin errors
+```kotlin
+// Gradle
+protoWrapper {
+    convertWellKnownTypes = true
+    generateRawProtoAccessors = false
 }
 ```
 
-### Builder Validation for Enum Maps
+### Repeated Well-Known Types
 
-Invalid enum values in map builders throw clear error messages:
+Lists of well-known types are also converted:
 
 ```java
-// Throws IllegalArgumentException with message:
-// "Invalid value 999 for StatusType in field 'statusMap'. Valid values: [ACTIVE(1), INACTIVE(2), PENDING(3)]"
-builder.putStatusMap("key", 999);
+// Proto definition:
+// repeated google.protobuf.Timestamp events = 1;
+
+// Generated interface:
+List<Instant> getEvents();  // List<java.time.Instant>
 ```
 
-## Critical Bug Fixes
+### Builder Support
 
-### Fixed: ordinal() vs getNumber() in Map Enum Conversion
-
-**Issue:** Map fields with enum values used `ordinal()` for conversion, causing data corruption when enums had non-sequential values (e.g., `ACTIVE=1, INACTIVE=5, PENDING=10`).
-
-**Fix:** Changed to use `getNumber()` which returns the actual proto field number.
+Full builder support for all well-known types:
 
 ```java
-// Before (WRONG - caused data corruption)
-result.put(k, ((ProtocolMessageEnum) v).ordinal());
-
-// After (CORRECT)
-result.put(k, ((ProtocolMessageEnum) v).getNumber());
-```
-
-### Fixed: NPE for Invalid Enum Values
-
-**Issue:** Putting an invalid enum value in map builders caused NullPointerException.
-
-**Fix:** Added validation with clear error messages:
-
-```java
-StatusType enumValue = StatusType.forNumber(value);
-if (enumValue == null) {
-    throw new IllegalArgumentException(
-        "Invalid value " + value + " for StatusType...");
-}
+Event event = Event.newBuilder(ctx)
+    .setCreatedAt(Instant.now())
+    .setTimeout(Duration.ofMinutes(5))
+    .setOptionalName("test-event")
+    .setMetadata(Map.of(
+        "key1", "value1",
+        "key2", 123.45,
+        "nested", Map.of("a", "b")
+    ))
+    .build();
 ```
 
 ## Upgrade Guide
@@ -163,14 +158,14 @@ if (enumValue == null) {
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
 </plugin>
 ```
 
 **Gradle:**
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.2.0"
+    id("space.alnovis.proto-wrapper") version "1.3.0"
 }
 ```
 
@@ -186,52 +181,69 @@ mvn clean compile
 ./gradlew clean generateProtoWrapper
 ```
 
-### 3. Update Exception Handling (Optional)
+### 3. Update Code to Use Java Types
 
-If you catch plugin exceptions, update to use new exception hierarchy:
+If you were using protobuf types directly, update to Java types:
 
 ```java
-// Old (still works)
-catch (RuntimeException e) { ... }
+// Before (v1.2.0):
+Timestamp createdAt = message.getCreatedAt();
+long seconds = createdAt.getSeconds();
 
-// New (recommended)
-catch (ProtoWrapperException e) { ... }
+// After (v1.3.0):
+Instant createdAt = message.getCreatedAt();
+long seconds = createdAt.getEpochSecond();
+```
+
+### 4. Disable Conversion (If Needed)
+
+If you prefer the old behavior:
+
+```xml
+<convertWellKnownTypes>false</convertWellKnownTypes>
 ```
 
 ## Breaking Changes
 
-None. All changes are backward compatible.
+**Behavioral change:** Well-known type fields now return Java types instead of protobuf types by default.
 
-## Deprecated API
+To maintain old behavior, set `convertWellKnownTypes=false`.
 
-The following APIs are deprecated and will be removed in version 2.0.0:
+## Not Supported
 
-| Deprecated | Replacement |
-|------------|-------------|
-| `InterfaceGenerator.setSchema()` | Use `GenerationContext` |
-| `InterfaceGenerator.generate(MergedMessage)` | Use `generate(GenerationContext)` |
-| `MergedField(FieldInfo, String)` constructor | Use `MergedField.create()` factory |
-| `ProtocExecutor(Consumer<String>)` | Use `ProtocExecutor(PluginLogger)` |
+### google.protobuf.Any
+
+`Any` type is not supported because it requires a runtime type registry to unpack. This conflicts with our design principle of inline code with no runtime dependencies.
+
+Workaround: Use raw proto accessor with `generateRawProtoAccessors=true`:
+
+```java
+// In generated code:
+com.google.protobuf.Any getPayloadProto();
+
+// Usage:
+Any any = message.getPayloadProto();
+if (any.is(User.class)) {
+    User user = any.unpack(User.class);
+}
+```
+
+## Design Decisions
+
+1. **Inline conversion code** - No runtime dependencies required
+2. **StructConverter generated only when needed** - Reduces generated code size
+3. **Default enabled** - Most users expect Java types
+4. **Nullable wrappers** - Wrapper types can distinguish "not set" from default value
 
 ## Test Coverage
 
 | Category | Tests | Description |
 |----------|-------|-------------|
-| Map Fields | 18 | Type conflicts, caching, builders |
-| Oneof Fields | 24 | Case detection, clearing, conflicts |
-| Conflict Handlers | 32 | All conflict types |
-| Exception Hierarchy | 12 | Exception classes and messages |
-| Integration Tests | 120+ | End-to-end scenarios |
-
-## Known Limitations
-
-### Oneof Fields
-- Renamed oneofs use the most common name across versions
-- Fields in oneofs that exist only in some versions return null/default in other versions
-
-### Detected Conflicts (Not Auto-Resolved)
-- PRIMITIVE_MESSAGE conflicts are detected but require manual handling
-- Renaming oneofs between versions is supported but may need configuration
+| WellKnownTypeInfo | 15 | All type mappings |
+| WellKnownTypeHandler | 12 | Scalar field handling |
+| RepeatedWellKnownTypeHandler | 8 | List field handling |
+| HandlerType | 13 | All handler types |
+| Integration Tests | 349+ | End-to-end scenarios |
 
 ## Full Changelog
 

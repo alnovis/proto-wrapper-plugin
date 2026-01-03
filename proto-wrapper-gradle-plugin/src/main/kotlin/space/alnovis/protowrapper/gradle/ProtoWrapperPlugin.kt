@@ -38,6 +38,8 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.includeVersionSuffix.set(extension.includeVersionSuffix)
             task.generateBuilders.set(extension.generateBuilders)
             task.protobufMajorVersion.set(extension.protobufMajorVersion)
+            task.convertWellKnownTypes.set(extension.convertWellKnownTypes)
+            task.generateRawProtoAccessors.set(extension.generateRawProtoAccessors)
             task.includeMessages.set(extension.includeMessages)
             task.excludeMessages.set(extension.excludeMessages)
 

@@ -1,6 +1,7 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MapInfo;
@@ -373,5 +374,90 @@ public final class InterfaceMethodGenerator {
                 .addJavadoc("@return the value for the key\n")
                 .addJavadoc("@throws IllegalArgumentException if key is not present\n")
                 .build());
+    }
+
+    // ==================== Well-Known Type Raw Proto Accessors ====================
+
+    /**
+     * Check if raw proto accessor should be generated for a field.
+     *
+     * @param field Field to check
+     * @return true if raw proto accessor should be generated
+     * @since 1.3.0
+     */
+    public boolean shouldGenerateRawProtoAccessor(MergedField field) {
+        return config.isGenerateRawProtoAccessors()
+                && config.isConvertWellKnownTypes()
+                && field.isWellKnownType()
+                && !field.isMap();
+    }
+
+    /**
+     * Generate raw proto accessor method for well-known type field.
+     *
+     * <p>When {@code generateRawProtoAccessors} is enabled, this generates
+     * an additional accessor that returns the original proto type instead
+     * of the converted Java type.</p>
+     *
+     * <p>Example:</p>
+     * <ul>
+     *   <li>{@code getCreatedAt()} returns {@code Instant}</li>
+     *   <li>{@code getCreatedAtProto()} returns {@code Timestamp}</li>
+     * </ul>
+     *
+     * @param field Well-known type field
+     * @param resolver Type resolver
+     * @return Generated raw proto accessor method
+     * @since 1.3.0
+     */
+    public MethodSpec generateRawProtoAccessor(MergedField field, TypeResolver resolver) {
+        WellKnownTypeInfo wkt = field.getWellKnownType();
+        String methodName = "get" + resolver.capitalize(field.getJavaName()) + "Proto";
+
+        // Determine proto type name from WKT info
+        String protoTypeName = wkt.getProtoTypeShort(); // e.g., "google.protobuf.Timestamp"
+        TypeName protoType = ClassName.bestGuess(protoTypeName);
+
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(protoType)
+                .addJavadoc("Get $L as raw protobuf type.\n", field.getJavaName())
+                .addJavadoc("<p>Returns the original protobuf {@code $L} without conversion.</p>\n",
+                        wkt.getProtoTypeShort())
+                .addJavadoc("<p>Use {@code get$L()} for the converted {@code $L} type.</p>\n",
+                        resolver.capitalize(field.getJavaName()), wkt.getJavaTypeSimpleName())
+                .addJavadoc("@return Raw protobuf value, or null if not present\n");
+
+        return builder.build();
+    }
+
+    /**
+     * Generate raw proto accessor for repeated well-known type field.
+     *
+     * @param field Repeated well-known type field
+     * @param resolver Type resolver
+     * @return Generated raw proto accessor method for repeated field
+     * @since 1.3.0
+     */
+    public MethodSpec generateRepeatedRawProtoAccessor(MergedField field, TypeResolver resolver) {
+        WellKnownTypeInfo wkt = field.getWellKnownType();
+        String methodName = "get" + resolver.capitalize(field.getJavaName()) + "ProtoList";
+
+        // Determine proto type name from WKT info
+        String protoTypeName = wkt.getProtoTypeShort();
+        TypeName protoType = ClassName.bestGuess(protoTypeName);
+        TypeName listType = ParameterizedTypeName.get(
+                ClassName.get(java.util.List.class), protoType);
+
+        return MethodSpec.methodBuilder(methodName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(listType)
+                .addJavadoc("Get $L list as raw protobuf types.\n", field.getJavaName())
+                .addJavadoc("<p>Returns the original protobuf {@code $L} list without conversion.</p>\n",
+                        wkt.getProtoTypeShort())
+                .addJavadoc("<p>Use {@code get$L()} for the converted {@code List<$L>} type.</p>\n",
+                        resolver.capitalize(field.getJavaName()), wkt.getJavaTypeSimpleName())
+                .addJavadoc("@return List of raw protobuf values\n")
+                .build();
     }
 }
