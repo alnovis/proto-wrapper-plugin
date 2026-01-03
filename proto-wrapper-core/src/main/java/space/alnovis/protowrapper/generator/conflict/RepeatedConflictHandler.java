@@ -340,12 +340,22 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 boolean versionIsInt = versionElementType != null && TypeUtils.isIntType(versionElementType);
                 if (versionIsInt) {
                     // Need to narrow Long -> int with validation
+                    // Check if version field is unsigned (uint32) - requires value >= 0
+                    boolean isUnsigned = versionField != null && versionField.getType() != null &&
+                            versionField.getType().name().contains("UINT");
                     String version = ctx.requireVersion();
-                    method.beginControlFlow("if ($L < $T.MIN_VALUE || $L > 0xFFFFFFFFL)",
-                            field.getJavaName(), Integer.class, field.getJavaName());
+                    if (isUnsigned) {
+                        // uint32: 0 to 4294967295
+                        method.beginControlFlow("if ($L < 0 || $L > 0xFFFFFFFFL)",
+                                field.getJavaName(), field.getJavaName());
+                    } else {
+                        // int32: -2147483648 to 2147483647
+                        method.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                                field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+                    }
                     method.addStatement("throw new $T($S + $L + $S)",
                             IllegalArgumentException.class,
-                            "Value ", field.getJavaName(), " exceeds uint32/int32 range for " + version);
+                            "Value ", field.getJavaName(), " exceeds " + (isUnsigned ? "uint32" : "int32") + " range for " + version);
                     method.endControlFlow();
                     method.addStatement("protoBuilder.add$L((int) (long) $L)", versionJavaName, field.getJavaName());
                 } else {
@@ -434,15 +444,28 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
                 boolean versionIsInt = versionElementType != null && TypeUtils.isIntType(versionElementType);
                 if (versionIsInt) {
+                    boolean isUnsigned = versionField != null && versionField.getType() != null &&
+                            versionField.getType().name().contains("UINT");
                     String version = ctx.requireVersion();
-                    method.addStatement("$L.forEach(e -> { " +
-                            "if (e < $T.MIN_VALUE || e > 0xFFFFFFFFL) " +
-                            "throw new $T($S + e + $S); " +
-                            "protoBuilder.add$L((int) (long) e); })",
-                            field.getJavaName(), Integer.class,
-                            IllegalArgumentException.class,
-                            "Value ", " exceeds uint32/int32 range for " + version,
-                            versionJavaName);
+                    if (isUnsigned) {
+                        method.addStatement("$L.forEach(e -> { " +
+                                "if (e < 0 || e > 0xFFFFFFFFL) " +
+                                "throw new $T($S + e + $S); " +
+                                "protoBuilder.add$L((int) (long) e); })",
+                                field.getJavaName(),
+                                IllegalArgumentException.class,
+                                "Value ", " exceeds uint32 range for " + version,
+                                versionJavaName);
+                    } else {
+                        method.addStatement("$L.forEach(e -> { " +
+                                "if (e < $T.MIN_VALUE || e > $T.MAX_VALUE) " +
+                                "throw new $T($S + e + $S); " +
+                                "protoBuilder.add$L((int) (long) e); })",
+                                field.getJavaName(), Integer.class, Integer.class,
+                                IllegalArgumentException.class,
+                                "Value ", " exceeds int32 range for " + version,
+                                versionJavaName);
+                    }
                 } else {
                     method.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
                 }

@@ -24,6 +24,9 @@ Supports both **Maven** and **Gradle** build systems.
   - `Duration` → `java.time.Duration`
   - Wrapper types → nullable Java primitives
   - `Struct/Value/ListValue` → `Map/Object/List`
+- **Repeated conflict field builders** (v1.4.0+):
+  - Full builder support for repeated fields with type conflicts
+  - Runtime range validation for narrowing conversions
 - Automatic detection of equivalent enums (nested vs top-level)
 - Supported versions info in Javadoc
 - Thread-safe immutable wrappers
@@ -64,7 +67,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.3.0</version>
+    <version>1.4.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -105,7 +108,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.3.0"
+    id("space.alnovis.proto-wrapper") version "1.4.0"
 }
 
 protoWrapper {
@@ -510,9 +513,9 @@ See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 - `oneof` fields: supported with conflict detection (v1.2.0+)
 - `map` fields: full support (v1.2.0+)
 - Well-known types: 15 types supported (v1.3.0+), `google.protobuf.Any` not supported
+- Repeated fields with conflicts: full builder support with range validation (v1.4.0+)
 - Extensions (proto2): not supported
 - Version conversion (`asVersion`): implemented via serialization
-- Repeated fields with conflicts: read-only (no builder setters)
 
 ## Development
 

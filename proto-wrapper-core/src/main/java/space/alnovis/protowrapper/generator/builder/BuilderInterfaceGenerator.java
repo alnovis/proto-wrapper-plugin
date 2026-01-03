@@ -246,12 +246,13 @@ public final class BuilderInterfaceGenerator {
     private void addMapMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
         MapInfo mapInfo = field.getMapInfo();
         TypeName keyType = parseMapKeyType(mapInfo);
-        // Use resolved type if there's a map value conflict
+        // Use resolved type if there's a map value conflict, otherwise check for WKT
         TypeName valueType;
         if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
             valueType = parseSimpleType(field.getResolvedMapValueType());
         } else {
-            valueType = parseMapValueType(mapInfo);
+            // Check for WKT map values and convert to Java types if enabled
+            valueType = parseMapValueTypeWithWkt(mapInfo, config.isConvertWellKnownTypes());
         }
         TypeName boxedKeyType = keyType.isPrimitive() ? keyType.box() : keyType;
         TypeName boxedValueType = valueType.isPrimitive() ? valueType.box() : valueType;

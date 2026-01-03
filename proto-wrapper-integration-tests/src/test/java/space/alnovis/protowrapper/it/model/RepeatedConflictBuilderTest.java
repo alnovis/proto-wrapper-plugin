@@ -141,6 +141,77 @@ class RepeatedConflictBuilderTest {
 
             assertThat(result.getNumbers()).isEmpty();
         }
+
+        @Test
+        @DisplayName("V1 addAllNumbers with out-of-range value throws IllegalArgumentException")
+        void v1AddAllNumbersWithOutOfRangeThrows() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto).toBuilder();
+
+            assertThatThrownBy(() -> builder.addAllNumbers(List.of(1L, 9_999_999_999L)).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds int32 range");
+        }
+
+        @Test
+        @DisplayName("V1 setNumbers with out-of-range value throws IllegalArgumentException")
+        void v1SetNumbersWithOutOfRangeThrows() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto).toBuilder();
+
+            assertThatThrownBy(() -> builder.setNumbers(List.of(Long.MAX_VALUE)).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds int32 range");
+        }
+
+        @Test
+        @DisplayName("V1 addNumbers with boundary values succeeds")
+        void v1AddNumbersWithBoundaryValues() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto)
+                            .toBuilder()
+                            .addNumbers((long) Integer.MIN_VALUE)
+                            .addNumbers((long) Integer.MAX_VALUE)
+                            .addNumbers(0L)
+                            .build();
+
+            assertThat(result.getNumbers()).containsExactly(
+                    (long) Integer.MIN_VALUE,
+                    (long) Integer.MAX_VALUE,
+                    0L
+            );
+        }
+
+        @Test
+        @DisplayName("V1 addNumbers with negative out-of-range throws")
+        void v1AddNumbersWithNegativeOutOfRangeThrows() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto).toBuilder();
+
+            assertThatThrownBy(() -> builder.addNumbers(Long.MIN_VALUE).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds int32 range");
+        }
     }
 
     // ==================== FLOAT_DOUBLE: repeated float -> double ====================
@@ -213,6 +284,101 @@ class RepeatedConflictBuilderTest {
                             .setValues(List.of(5.0, 6.0))
                             .build();
             assertThat(withSet.getValues()).containsExactly(5.0, 6.0);
+        }
+
+        @Test
+        @DisplayName("V1 addValues with out-of-float-range throws IllegalArgumentException")
+        void v1AddValuesWithOutOfFloatRangeThrows() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto).toBuilder();
+
+            // Double value exceeding float range
+            double exceedsFloatRange = (double) Float.MAX_VALUE * 2;
+
+            assertThatThrownBy(() -> builder.addValues(exceedsFloatRange).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds float range");
+        }
+
+        @Test
+        @DisplayName("V1 addAllValues with out-of-float-range throws IllegalArgumentException")
+        void v1AddAllValuesWithOutOfFloatRangeThrows() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto).toBuilder();
+
+            double exceedsFloatRange = (double) Float.MAX_VALUE * 2;
+
+            assertThatThrownBy(() -> builder.addAllValues(List.of(1.0, exceedsFloatRange)).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds float range");
+        }
+
+        @Test
+        @DisplayName("V1 addValues with Float boundary values succeeds")
+        void v1AddValuesWithBoundaryValues() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto)
+                            .toBuilder()
+                            .addValues((double) Float.MAX_VALUE)
+                            .addValues((double) -Float.MAX_VALUE)
+                            .addValues(0.0)
+                            .build();
+
+            assertThat(result.getValues()).hasSize(3);
+        }
+
+        @Test
+        @DisplayName("V1 addValues with special float values (NaN, Infinity) succeeds")
+        void v1AddValuesWithSpecialValues() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            // Special values should pass through without range validation
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedConflicts(proto)
+                            .toBuilder()
+                            .addValues(Double.NaN)
+                            .addValues(Double.POSITIVE_INFINITY)
+                            .addValues(Double.NEGATIVE_INFINITY)
+                            .build();
+
+            assertThat(result.getValues()).hasSize(3);
+        }
+
+        @Test
+        @DisplayName("clearValues removes all elements")
+        void clearValuesRemovesAll() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedConflicts.newBuilder()
+                            .addValues(1.0)
+                            .addValues(2.0)
+                            .setBatchId("BATCH")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedConflicts(proto)
+                            .toBuilder()
+                            .clearValues()
+                            .build();
+
+            assertThat(result.getValues()).isEmpty();
         }
     }
 
@@ -389,6 +555,159 @@ class RepeatedConflictBuilderTest {
                             .clearTexts()
                             .build();
             assertThat(cleared.getTexts()).isEmpty();
+        }
+    }
+
+    // ==================== SIGNED_UNSIGNED: repeated int32 vs uint32 ====================
+
+    @Nested
+    @DisplayName("SIGNED_UNSIGNED: repeated int32 vs uint32 (counters field)")
+    class SignedUnsignedRepeatedBuilderTest {
+
+        @Test
+        @DisplayName("V1 addCounters with int-range values succeeds")
+        void v1AddCountersWithIntRangeSucceeds() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .addCounters(100L)
+                            .addCounters(200L)
+                            .addCounters(-100L)  // V1 supports negative
+                            .build();
+
+            assertThat(result.getCounters()).containsExactly(100L, 200L, -100L);
+        }
+
+        @Test
+        @DisplayName("V2 addCounters with unsigned values succeeds")
+        void v2AddCountersWithUnsignedValues() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .setBatchId("BATCH-V2")
+                            .build();
+
+            // V2 uses uint32, can represent 0 to 4294967295
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .addCounters(0L)
+                            .addCounters(100L)
+                            .addCounters(0xFFFFFFFFL)  // Max uint32
+                            .build();
+
+            assertThat(result.getCounters()).containsExactly(0L, 100L, 0xFFFFFFFFL);
+        }
+
+        @Test
+        @DisplayName("V2 addCounters with negative value throws (uint32 requires >= 0)")
+        void v2AddCountersWithNegativeThrows() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .setBatchId("BATCH-V2")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedSignedUnsignedConflicts(proto).toBuilder();
+
+            // Negative values not allowed in V2 (uint32)
+            assertThatThrownBy(() -> builder.addCounters(-1L).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds uint32 range");
+        }
+
+        @Test
+        @DisplayName("V2 addCounters with value exceeding uint32 max throws")
+        void v2AddCountersExceedingMaxThrows() {
+            space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v2.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .setBatchId("BATCH-V2")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts.Builder builder =
+                    new space.alnovis.protowrapper.it.model.v2.RepeatedSignedUnsignedConflicts(proto).toBuilder();
+
+            // Value exceeding uint32 range
+            assertThatThrownBy(() -> builder.addCounters(0x100000000L).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds uint32 range");
+        }
+
+        @Test
+        @DisplayName("addAllCounters and setCounters work correctly")
+        void addAllAndSetCounters() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .addCounters(10)
+                            .setBatchId("BATCH")
+                            .build();
+
+            // Test addAll
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts withAddAll =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .addAllCounters(List.of(20L, 30L))
+                            .build();
+            assertThat(withAddAll.getCounters()).containsExactly(10L, 20L, 30L);
+
+            // Test set (replaces)
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts withSet =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .setCounters(List.of(100L, 200L))
+                            .build();
+            assertThat(withSet.getCounters()).containsExactly(100L, 200L);
+
+            // Test clear
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts cleared =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .clearCounters()
+                            .build();
+            assertThat(cleared.getCounters()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("BigCounters (int64 vs uint64) work correctly")
+        void bigCountersWork() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            // V1 uses int64, supports negative values
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .addBigCounters(Long.MAX_VALUE)
+                            .addBigCounters(Long.MIN_VALUE)
+                            .addBigCounters(0L)
+                            .build();
+
+            assertThat(result.getBigCounters()).containsExactly(Long.MAX_VALUE, Long.MIN_VALUE, 0L);
+        }
+
+        @Test
+        @DisplayName("Deltas (sint32 vs int32) work correctly")
+        void deltasWork() {
+            space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts proto =
+                    space.alnovis.protowrapper.it.proto.v1.Conflicts.RepeatedSignedUnsignedConflicts.newBuilder()
+                            .setBatchId("BATCH-V1")
+                            .build();
+
+            space.alnovis.protowrapper.it.model.api.RepeatedSignedUnsignedConflicts result =
+                    new space.alnovis.protowrapper.it.model.v1.RepeatedSignedUnsignedConflicts(proto)
+                            .toBuilder()
+                            .addDeltas(-100L)
+                            .addDeltas(0L)
+                            .addDeltas(100L)
+                            .build();
+
+            assertThat(result.getDeltas()).containsExactly(-100L, 0L, 100L);
         }
     }
 

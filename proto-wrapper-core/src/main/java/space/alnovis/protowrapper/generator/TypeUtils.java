@@ -3,9 +3,11 @@ package space.alnovis.protowrapper.generator;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.MapInfo;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Utility class for type-related operations in code generation.
@@ -113,6 +115,79 @@ public final class TypeUtils {
     public static TypeName createMapTypeWithResolvedValue(MapInfo mapInfo, String resolvedValueType) {
         TypeName keyType = parseMapKeyType(mapInfo);
         TypeName valueType = parseSimpleType(resolvedValueType);
+        return createMapType(keyType, valueType);
+    }
+
+    // ==================== Well-Known Type Map Value Operations ====================
+
+    /**
+     * Parse the value type from MapInfo, converting WKT to Java types if applicable.
+     *
+     * <p>If the map value is a Well-Known Type (e.g., google.protobuf.Timestamp),
+     * returns the corresponding Java type (e.g., java.time.Instant).</p>
+     *
+     * @param mapInfo Map field information
+     * @param convertWkt Whether to convert WKT to Java types
+     * @return TypeName for the value type
+     * @since 1.3.0
+     */
+    public static TypeName parseMapValueTypeWithWkt(MapInfo mapInfo, boolean convertWkt) {
+        if (convertWkt && mapInfo.hasMessageValue()) {
+            String protoType = mapInfo.getValueProtoTypeName();
+            if (protoType != null) {
+                Optional<WellKnownTypeInfo> wkt = WellKnownTypeInfo.fromProtoType(protoType);
+                if (wkt.isPresent()) {
+                    return wkt.get().getJavaTypeName();
+                }
+            }
+        }
+        return parseSimpleType(mapInfo.getValueJavaType());
+    }
+
+    /**
+     * Check if the map value type is a Well-Known Type.
+     *
+     * @param mapInfo Map field information
+     * @return true if value is a WKT
+     * @since 1.3.0
+     */
+    public static boolean isMapValueWellKnownType(MapInfo mapInfo) {
+        if (!mapInfo.hasMessageValue()) {
+            return false;
+        }
+        String protoType = mapInfo.getValueProtoTypeName();
+        return protoType != null && WellKnownTypeInfo.isWellKnownType(protoType);
+    }
+
+    /**
+     * Get WellKnownTypeInfo for map value if it's a WKT.
+     *
+     * @param mapInfo Map field information
+     * @return Optional containing WellKnownTypeInfo, or empty if not a WKT
+     * @since 1.3.0
+     */
+    public static Optional<WellKnownTypeInfo> getMapValueWellKnownType(MapInfo mapInfo) {
+        if (!mapInfo.hasMessageValue()) {
+            return Optional.empty();
+        }
+        String protoType = mapInfo.getValueProtoTypeName();
+        if (protoType == null) {
+            return Optional.empty();
+        }
+        return WellKnownTypeInfo.fromProtoType(protoType);
+    }
+
+    /**
+     * Create a parameterized Map type from MapInfo, converting WKT values to Java types.
+     *
+     * @param mapInfo Map field information
+     * @param convertWkt Whether to convert WKT to Java types
+     * @return ParameterizedTypeName for Map&lt;K, V&gt;
+     * @since 1.3.0
+     */
+    public static TypeName createMapTypeWithWkt(MapInfo mapInfo, boolean convertWkt) {
+        TypeName keyType = parseMapKeyType(mapInfo);
+        TypeName valueType = parseMapValueTypeWithWkt(mapInfo, convertWkt);
         return createMapType(keyType, valueType);
     }
 

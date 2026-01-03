@@ -1,151 +1,169 @@
-# Release Notes - Proto Wrapper Plugin v1.3.0
+# Release Notes - Proto Wrapper Plugin v1.4.0
 
-**Release Date:** January 2, 2026
+**Release Date:** January 3, 2026
 
 ## Overview
 
-This release introduces support for Google Well-Known Types, automatically converting protobuf wrapper types, timestamps, durations, and JSON-like structures to idiomatic Java types.
+This release adds full builder support for repeated fields with type conflicts across versions. Previously, repeated fields with conflicts (like `repeated int32` in v1 vs `repeated int64` in v2) only had getter methods. Now they have complete builder support with runtime range validation.
 
 ## What's New
 
-### Google Well-Known Types Support
+### Repeated Conflict Field Builders
 
-15 Well-Known Types are now automatically converted to Java types:
-
-#### Temporal Types
+Full builder support for repeated fields with type conflicts:
 
 ```java
 // Proto definition:
-// google.protobuf.Timestamp created_at = 1;
-// google.protobuf.Duration timeout = 2;
+// v1: repeated int32 numbers = 1;
+// v2: repeated int64 numbers = 1;
 
 // Generated interface:
-Instant getCreatedAt();      // java.time.Instant
-Duration getTimeout();        // java.time.Duration
-```
+interface RepeatedConflicts {
+    List<Long> getNumbers();
 
-#### Wrapper Types (Nullable Primitives)
-
-```java
-// Proto definition:
-// google.protobuf.StringValue optional_name = 1;
-// google.protobuf.Int32Value optional_count = 2;
-
-// Generated interface:
-String getOptionalName();     // null if not set
-Integer getOptionalCount();   // null if not set
-```
-
-#### Complete Type Mapping
-
-| Proto Type | Java Type | Notes |
-|------------|-----------|-------|
-| `google.protobuf.Timestamp` | `java.time.Instant` | |
-| `google.protobuf.Duration` | `java.time.Duration` | |
-| `google.protobuf.StringValue` | `String` | nullable |
-| `google.protobuf.Int32Value` | `Integer` | nullable |
-| `google.protobuf.Int64Value` | `Long` | nullable |
-| `google.protobuf.UInt32Value` | `Long` | unsigned, nullable |
-| `google.protobuf.UInt64Value` | `Long` | unsigned, nullable |
-| `google.protobuf.BoolValue` | `Boolean` | nullable |
-| `google.protobuf.FloatValue` | `Float` | nullable |
-| `google.protobuf.DoubleValue` | `Double` | nullable |
-| `google.protobuf.BytesValue` | `byte[]` | nullable |
-| `google.protobuf.FieldMask` | `List<String>` | path list |
-| `google.protobuf.Struct` | `Map<String, Object>` | JSON-like |
-| `google.protobuf.Value` | `Object` | dynamic |
-| `google.protobuf.ListValue` | `List<Object>` | dynamic |
-
-### JSON-like Structures (Struct/Value/ListValue)
-
-Full support for dynamic JSON-like structures:
-
-```java
-// Proto definition:
-// google.protobuf.Struct metadata = 1;
-// google.protobuf.Value dynamic_field = 2;
-
-// Generated interface:
-Map<String, Object> getMetadata();
-Object getDynamicField();
-
-// Usage:
-Map<String, Object> metadata = message.getMetadata();
-String name = (String) metadata.get("name");
-Double count = (Double) metadata.get("count");
-List<?> items = (List<?>) metadata.get("items");
-```
-
-### StructConverter Utility Class
-
-When Struct/Value/ListValue fields are used, a utility class is auto-generated:
-
-```java
-// Generated in your API package
-public final class StructConverter {
-    // Struct <-> Map conversion
-    public static Map<String, Object> toMap(Struct struct);
-    public static Struct toStruct(Map<String, ?> map);
-
-    // Value <-> Object conversion
-    public static Object toObject(Value value);
-    public static Value toValue(Object obj);
-
-    // ListValue <-> List conversion
-    public static List<Object> toList(ListValue listValue);
-    public static ListValue toListValue(List<?> list);
+    interface Builder {
+        Builder addNumbers(long value);
+        Builder addAllNumbers(List<Long> values);
+        Builder setNumbers(List<Long> values);
+        Builder clearNumbers();
+    }
 }
 ```
 
-### Configuration Options
+### Supported Conflict Types
 
-Two new configuration options:
+| Conflict | v1 Type | v2 Type | Unified Type | Range Validation |
+|----------|---------|---------|--------------|------------------|
+| **WIDENING** | `repeated int32` | `repeated int64` | `List<Long>` | Yes |
+| **FLOAT_DOUBLE** | `repeated float` | `repeated double` | `List<Double>` | Yes |
+| **SIGNED_UNSIGNED** | `repeated int32` | `repeated uint32` | `List<Long>` | Yes |
+| **INT_ENUM** | `repeated int32` | `repeated SomeEnum` | `List<Integer>` | No |
+| **STRING_BYTES** | `repeated string` | `repeated bytes` | `List<String>` | No |
 
-```xml
-<!-- Maven -->
-<configuration>
-    <!-- Enable/disable WKT conversion (default: true) -->
-    <convertWellKnownTypes>true</convertWellKnownTypes>
+### Range Validation
 
-    <!-- Generate getXxxProto() methods (default: false) -->
-    <generateRawProtoAccessors>false</generateRawProtoAccessors>
-</configuration>
-```
-
-```kotlin
-// Gradle
-protoWrapper {
-    convertWellKnownTypes = true
-    generateRawProtoAccessors = false
-}
-```
-
-### Repeated Well-Known Types
-
-Lists of well-known types are also converted:
+When adding values to a version with a narrower type, runtime validation ensures values fit:
 
 ```java
-// Proto definition:
-// repeated google.protobuf.Timestamp events = 1;
+// V1 builder (int32 range):
+wrapper.toBuilder()
+    .addNumbers(100L)              // OK - within int32 range
+    .addNumbers(2_147_483_647L)    // OK - max int32
+    .addNumbers(9_999_999_999L)    // throws IllegalArgumentException
+    .build();
 
-// Generated interface:
-List<Instant> getEvents();  // List<java.time.Instant>
+// V2 builder (int64 range):
+wrapper.toBuilder()
+    .addNumbers(9_999_999_999L)    // OK - within int64 range
+    .build();
 ```
 
-### Builder Support
+Error messages are clear and actionable:
 
-Full builder support for all well-known types:
+```
+IllegalArgumentException: Value 9999999999 exceeds int32 range for v1
+IllegalArgumentException: Value 1.0E309 exceeds float range for v1
+IllegalArgumentException: Value -1 exceeds uint32 range for v2
+```
+
+### Builder Methods
+
+Four new builder methods for each repeated conflict field:
+
+| Method | Description |
+|--------|-------------|
+| `addXxx(T value)` | Add single element with validation |
+| `addAllXxx(List<T> values)` | Add multiple elements with validation |
+| `setXxx(List<T> values)` | Replace all elements with validation |
+| `clearXxx()` | Clear all elements |
+
+### Usage Examples
+
+#### Basic Usage
 
 ```java
-Event event = Event.newBuilder(ctx)
-    .setCreatedAt(Instant.now())
-    .setTimeout(Duration.ofMinutes(5))
-    .setOptionalName("test-event")
-    .setMetadata(Map.of(
-        "key1", "value1",
-        "key2", 123.45,
-        "nested", Map.of("a", "b")
-    ))
+// Create new message with repeated conflict field
+RepeatedConflicts message = RepeatedConflicts.newBuilder(ctx)
+    .addNumbers(100L)
+    .addNumbers(200L)
+    .addNumbers(300L)
+    .build();
+
+assertThat(message.getNumbers()).containsExactly(100L, 200L, 300L);
+```
+
+#### Modify Existing Message
+
+```java
+// Modify existing message
+RepeatedConflicts modified = message.toBuilder()
+    .addAllNumbers(List.of(400L, 500L))
+    .build();
+
+assertThat(modified.getNumbers()).containsExactly(100L, 200L, 300L, 400L, 500L);
+```
+
+#### Replace All Values
+
+```java
+// Replace all values
+RepeatedConflicts replaced = message.toBuilder()
+    .setNumbers(List.of(1L, 2L, 3L))
+    .build();
+
+assertThat(replaced.getNumbers()).containsExactly(1L, 2L, 3L);
+```
+
+#### Clear Values
+
+```java
+// Clear all values
+RepeatedConflicts cleared = message.toBuilder()
+    .clearNumbers()
+    .build();
+
+assertThat(cleared.getNumbers()).isEmpty();
+```
+
+### FLOAT_DOUBLE Conflicts
+
+```java
+// v1: repeated float values = 1;
+// v2: repeated double values = 2;
+
+// V1 builder validates float range:
+wrapper.toBuilder()
+    .addValues(3.14)           // OK
+    .addValues(Float.MAX_VALUE) // OK
+    .addValues(Double.MAX_VALUE) // throws - exceeds float range
+    .build();
+```
+
+### STRING_BYTES Conflicts
+
+```java
+// v1: repeated string texts = 1;
+// v2: repeated bytes texts = 2;
+
+// Both versions accept String:
+wrapper.toBuilder()
+    .addTexts("Hello")
+    .addTexts("World")
+    .build();
+
+// UTF-8 encoding is handled automatically
+```
+
+### INT_ENUM Conflicts
+
+```java
+// v1: repeated int32 codes = 1;
+// v2: repeated Status codes = 2;
+
+// Use integer values (enum ordinals):
+wrapper.toBuilder()
+    .addCodes(1)  // Status.ACTIVE
+    .addCodes(2)  // Status.INACTIVE
     .build();
 ```
 
@@ -158,14 +176,14 @@ Event event = Event.newBuilder(ctx)
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.3.0</version>
+    <version>1.4.0</version>
 </plugin>
 ```
 
 **Gradle:**
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.3.0"
+    id("space.alnovis.proto-wrapper") version "1.4.0"
 }
 ```
 
@@ -181,69 +199,90 @@ mvn clean compile
 ./gradlew clean generateProtoWrapper
 ```
 
-### 3. Update Code to Use Java Types
+### 3. Use New Builder Methods
 
-If you were using protobuf types directly, update to Java types:
+Previously skipped repeated conflict fields now have builder methods:
 
 ```java
-// Before (v1.2.0):
-Timestamp createdAt = message.getCreatedAt();
-long seconds = createdAt.getSeconds();
+// Before (v1.3.0): No builder methods for repeated conflicts
+// Compiler error: addNumbers() method not found
 
-// After (v1.3.0):
-Instant createdAt = message.getCreatedAt();
-long seconds = createdAt.getEpochSecond();
-```
-
-### 4. Disable Conversion (If Needed)
-
-If you prefer the old behavior:
-
-```xml
-<convertWellKnownTypes>false</convertWellKnownTypes>
+// After (v1.4.0): Full builder support
+message.toBuilder()
+    .addNumbers(100L)
+    .addAllNumbers(List.of(200L, 300L))
+    .build();
 ```
 
 ## Breaking Changes
 
-**Behavioral change:** Well-known type fields now return Java types instead of protobuf types by default.
+None. This release is fully backward compatible.
 
-To maintain old behavior, set `convertWellKnownTypes=false`.
+## Implementation Details
 
-## Not Supported
+### New Handler Methods
 
-### google.protobuf.Any
+- `RepeatedConflictHandler.addAbstractBuilderMethods()` - Generates abstract doXxx methods
+- `RepeatedConflictHandler.addBuilderImplMethods()` - Generates version-specific implementations
+- `RepeatedConflictHandler.addConcreteBuilderMethods()` - Generates public wrapper methods
 
-`Any` type is not supported because it requires a runtime type registry to unpack. This conflicts with our design principle of inline code with no runtime dependencies.
-
-Workaround: Use raw proto accessor with `generateRawProtoAccessors=true`:
+### Generated Code Structure
 
 ```java
-// In generated code:
-com.google.protobuf.Any getPayloadProto();
+// Interface (api package)
+interface RepeatedConflicts {
+    interface Builder {
+        Builder addNumbers(long value);
+        Builder addAllNumbers(List<Long> values);
+        Builder setNumbers(List<Long> values);
+        Builder clearNumbers();
+    }
+}
 
-// Usage:
-Any any = message.getPayloadProto();
-if (any.is(User.class)) {
-    User user = any.unpack(User.class);
+// Abstract class (api/impl package)
+abstract class AbstractRepeatedConflicts {
+    abstract class AbstractBuilder {
+        protected abstract void doAddNumbers(long value);
+        protected abstract void doAddAllNumbers(List<Long> values);
+        protected abstract void doSetNumbers(List<Long> values);
+        protected abstract void doClearNumbers();
+
+        public final Builder addNumbers(long value) {
+            doAddNumbers(value);
+            return this;
+        }
+        // ... other methods
+    }
+}
+
+// V1 Implementation (v1 package)
+class RepeatedConflicts extends AbstractRepeatedConflicts {
+    class BuilderImpl extends AbstractBuilder {
+        @Override
+        protected void doAddNumbers(long value) {
+            if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                    "Value " + value + " exceeds int32 range for v1");
+            }
+            protoBuilder.addNumbers((int) value);
+        }
+        // ... other methods
+    }
 }
 ```
 
-## Design Decisions
-
-1. **Inline conversion code** - No runtime dependencies required
-2. **StructConverter generated only when needed** - Reduces generated code size
-3. **Default enabled** - Most users expect Java types
-4. **Nullable wrappers** - Wrapper types can distinguish "not set" from default value
-
 ## Test Coverage
+
+35 comprehensive tests in `RepeatedConflictBuilderTest`:
 
 | Category | Tests | Description |
 |----------|-------|-------------|
-| WellKnownTypeInfo | 15 | All type mappings |
-| WellKnownTypeHandler | 12 | Scalar field handling |
-| RepeatedWellKnownTypeHandler | 8 | List field handling |
-| HandlerType | 13 | All handler types |
-| Integration Tests | 349+ | End-to-end scenarios |
+| WIDENING | 10 | int32/int64 with range validation |
+| FLOAT_DOUBLE | 7 | float/double with precision limits |
+| INT_ENUM | 3 | int32/enum conversion |
+| STRING_BYTES | 4 | string/bytes with UTF-8 |
+| SIGNED_UNSIGNED | 8 | signed/unsigned bounds |
+| Mixed Operations | 3 | Multiple field combinations |
 
 ## Full Changelog
 

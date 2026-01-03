@@ -1,7 +1,7 @@
 # Proto Wrapper Plugin Roadmap
 
-Version: 1.1
-Last Updated: 2026-01-02
+Version: 1.2
+Last Updated: 2026-01-03
 
 This document outlines the development roadmap for upcoming releases.
 
@@ -9,8 +9,8 @@ This document outlines the development roadmap for upcoming releases.
 
 ## Table of Contents
 
-- [Version 1.3.0](#version-130) - Well-Known Types Support
-- [Version 1.4.0](#version-140) - Repeated Conflict Field Builders
+- [Version 1.3.0](#version-130) - Well-Known Types Support (Completed)
+- [Version 1.4.0](#version-140) - Repeated Conflict Field Builders (Completed)
 - [Version 1.5.0](#version-150) - Schema Diff Tool
 - [Version 1.6.0](#version-160) - Incremental Generation
 - [Version 1.7.0](#version-170) - Parallel Generation
@@ -84,83 +84,72 @@ This document outlines the development roadmap for upcoming releases.
 
 ---
 
-## Version 1.4.0
+## Version 1.4.0 (Completed)
 
-**Target:** Jan 2026
+**Released:** January 3, 2026
 **Theme:** Repeated Conflict Field Builders
 
 ### Feature: Repeated Conflict Field Builders
 
-**Priority:** Medium
-**Complexity:** Medium
+**Status:** Completed
 
 #### Description
 
-Add builder methods for repeated fields that have type conflicts across versions.
+Builder methods (add, addAll, set, clear) for repeated fields that have type conflicts across versions.
 
-#### Current Limitation
+#### Supported Conflict Types
 
-```java
-// v1: repeated int32 numbers = 1;
-// v2: repeated int64 numbers = 1;
+| Conflict | Example | Unified Type | Range Validation |
+|----------|---------|--------------|------------------|
+| WIDENING | repeated int32 vs int64 | List<Long> | Yes (int range) |
+| FLOAT_DOUBLE | repeated float vs double | List<Double> | Yes (float range) |
+| SIGNED_UNSIGNED | repeated int32 vs uint32 | List<Long> | Yes (signed/unsigned) |
+| INT_ENUM | repeated int32 vs SomeEnum | List<Integer> | No |
+| STRING_BYTES | repeated string vs bytes | List<String> | No (UTF-8 conversion) |
 
-interface Message {
-    List<Long> getNumbers();  // Works (read)
-
-    interface Builder {
-        // NOT generated currently
-    }
-}
-```
-
-#### Target Implementation
+#### Generated Code Example
 
 ```java
-interface Message {
+interface RepeatedConflicts {
     List<Long> getNumbers();
 
     interface Builder {
         Builder addNumbers(long value);
-        Builder addAllNumbers(Iterable<Long> values);
-        Builder setNumbers(int index, long value);
+        Builder addAllNumbers(List<Long> values);
+        Builder setNumbers(List<Long> values);
         Builder clearNumbers();
+    }
+}
+
+// V1 implementation with range validation
+class RepeatedConflictsV1 {
+    class BuilderImpl {
+        @Override
+        protected void doAddNumbers(long value) {
+            if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                    "Value " + value + " exceeds int32 range for v1");
+            }
+            protoBuilder.addNumbers((int) value);
+        }
     }
 }
 ```
 
-#### Implementation Plan
+#### Implementation Details
 
-1. Update `RepeatedConflictHandler`:
-   - Add builder method generation
-   - Handle type conversion in setters
-   - Add range validation for narrowing conversions
-
-2. Generate conversion logic:
-   ```java
-   // In V1 impl builder
-   @Override
-   public Builder addNumbers(long value) {
-       if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
-           throw new IllegalArgumentException(
-               "Value " + value + " exceeds int32 range for V1");
-       }
-       protoBuilder.addNumbers((int) value);
-       return this;
-   }
-   ```
-
-3. Handle all conflict types:
-   - WIDENING: Range check for narrower version
-   - INT_ENUM: Convert to enum for enum version
-   - STRING_BYTES: UTF-8 conversion
+- `BuilderInterfaceGenerator.addRepeatedConflictBuilderMethods()` - generates interface methods
+- `RepeatedConflictHandler.addAbstractBuilderMethods()` - generates abstract doXxx methods
+- `RepeatedConflictHandler.addBuilderImplMethods()` - generates version-specific implementations
+- `RepeatedConflictHandler.addConcreteBuilderMethods()` - generates public wrapper methods
 
 #### Acceptance Criteria
 
-- [ ] All repeated conflict types have builder methods
-- [ ] Range validation with clear error messages
-- [ ] Type conversion handled correctly
-- [ ] Integration tests for all cases
-- [ ] Documentation updated
+- [x] All repeated conflict types have builder methods
+- [x] Range validation with clear error messages
+- [x] Type conversion handled correctly
+- [x] Integration tests for all cases (35 tests in RepeatedConflictBuilderTest)
+- [x] Documentation updated
 
 ### Migration Notes
 
@@ -1056,7 +1045,7 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 |---------|---------|--------|
 | 1.2.0 | Map Support, Lazy Caching, Oneof | Released (2026-01-02) |
 | 1.3.0 | Well-Known Types Support | Released (2026-01-02) |
-| 1.4.0 | Repeated Conflict Field Builders | Jan 2026 |
+| 1.4.0 | Repeated Conflict Field Builders | Released (2026-01-03) |
 | 1.5.0 | Schema Diff Tool | Feb 2026 |
 | 1.6.0 | Incremental Generation | Feb 2026 |
 | 1.7.0 | Parallel Generation | Mar 2026 |
