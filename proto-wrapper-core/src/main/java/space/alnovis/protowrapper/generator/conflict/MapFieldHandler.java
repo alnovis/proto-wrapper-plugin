@@ -6,6 +6,7 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.MapInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
@@ -14,6 +15,7 @@ import static space.alnovis.protowrapper.generator.TypeUtils.*;
 import javax.lang.model.element.Modifier;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Handler for protobuf map fields.
@@ -104,26 +106,51 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     }
 
     /**
-     * Get the appropriate map type, considering map value conflicts.
+     * Get the appropriate map type, considering map value conflicts and WKT.
      * If there's a WIDENING or INT_ENUM conflict in map values, uses the resolved type.
+     * If convertWellKnownTypes is enabled, converts WKT values to Java types.
      */
-    private TypeName getResolvedMapType(MergedField field) {
+    private TypeName getResolvedMapType(MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
         if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
             return createMapTypeWithResolvedValue(mapInfo, field.getResolvedMapValueType());
         }
-        return createMapType(mapInfo);
+        // Check for WKT map values
+        boolean convertWkt = ctx.config() != null && ctx.config().isConvertWellKnownTypes();
+        return createMapTypeWithWkt(mapInfo, convertWkt);
     }
 
     /**
-     * Get the appropriate value type, considering map value conflicts.
+     * Get the appropriate value type, considering map value conflicts and WKT.
      */
-    private TypeName getResolvedValueType(MergedField field) {
+    private TypeName getResolvedValueType(MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
         if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
             return parseSimpleType(field.getResolvedMapValueType());
         }
-        return parseSimpleType(mapInfo.getValueJavaType());
+        // Check for WKT map values
+        boolean convertWkt = ctx.config() != null && ctx.config().isConvertWellKnownTypes();
+        return parseMapValueTypeWithWkt(mapInfo, convertWkt);
+    }
+
+    /**
+     * Check if map value is a Well-Known Type that should be converted.
+     */
+    private boolean isWktMapValue(MapInfo mapInfo, ProcessingContext ctx) {
+        if (ctx.config() == null || !ctx.config().isConvertWellKnownTypes()) {
+            return false;
+        }
+        return isMapValueWellKnownType(mapInfo);
+    }
+
+    /**
+     * Get WellKnownTypeInfo for map value if applicable.
+     */
+    private Optional<WellKnownTypeInfo> getWktForMapValue(MapInfo mapInfo, ProcessingContext ctx) {
+        if (!isWktMapValue(mapInfo, ctx)) {
+            return Optional.empty();
+        }
+        return getMapValueWellKnownType(mapInfo);
     }
 
     /**
@@ -195,7 +222,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
 
     @Override
     public void addAbstractExtractMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName mapType = getResolvedMapType(field);
+        TypeName mapType = getResolvedMapType(field, ctx);
 
         // Add abstract extractXxxMap(proto) method
         builder.addMethod(MethodSpec.methodBuilder(field.getMapExtractMethodName())
@@ -209,8 +236,8 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     public void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
                                           boolean presentInVersion, ProcessingContext ctx) {
         MapInfo unifiedMapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field);
-        TypeName resolvedValueType = getResolvedValueType(field);
+        TypeName mapType = getResolvedMapType(field, ctx);
+        TypeName resolvedValueType = getResolvedValueType(field, ctx);
         String versionJavaName = CodeGenerationHelper.getVersionSpecificJavaName(field, ctx);
         boolean hasValueConflict = field.hasMapValueConflict();
 
@@ -283,8 +310,25 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                     extract.addStatement("return proto.get$LMap()", versionJavaName);
                 }
             } else {
-                // No conflict or types already match - return directly
-                extract.addStatement("return proto.get$LMap()", versionJavaName);
+                // No type conflict - check for WKT conversion
+                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                if (wktOpt.isPresent()) {
+                    // WKT map value - need to convert proto WKT to Java type
+                    WellKnownTypeInfo wkt = wktOpt.get();
+                    TypeName keyType = parseSimpleType(versionMapInfo.getKeyJavaType());
+                    extract.addStatement("$T<$T, ?> source = proto.get$LMap()",
+                            Map.class, keyType.box(), versionJavaName);
+                    extract.addStatement("$T<$T, $T> result = new $T<>(source.size())",
+                            Map.class, keyType.box(), resolvedValueType.box(),
+                            ClassName.get("java.util", "LinkedHashMap"));
+                    // Generate conversion lambda based on WKT type
+                    String conversionCode = generateWktMapValueExtraction(wkt);
+                    extract.addStatement("source.forEach((k, v) -> result.put(k, $L))", conversionCode);
+                    extract.addStatement("return result");
+                } else {
+                    // No WKT - return directly
+                    extract.addStatement("return proto.get$LMap()", versionJavaName);
+                }
             }
         } else {
             // Return empty map for missing field
@@ -295,12 +339,76 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
         builder.addMethod(extract.build());
     }
 
+    /**
+     * Generate extraction code for WKT map value.
+     */
+    private String generateWktMapValueExtraction(WellKnownTypeInfo wkt) {
+        return switch (wkt) {
+            case TIMESTAMP -> "v != null ? java.time.Instant.ofEpochSecond(((com.google.protobuf.Timestamp) v).getSeconds(), ((com.google.protobuf.Timestamp) v).getNanos()) : null";
+            case DURATION -> "v != null ? java.time.Duration.ofSeconds(((com.google.protobuf.Duration) v).getSeconds(), ((com.google.protobuf.Duration) v).getNanos()) : null";
+            case STRING_VALUE -> "v != null ? ((com.google.protobuf.StringValue) v).getValue() : null";
+            case INT32_VALUE -> "v != null ? ((com.google.protobuf.Int32Value) v).getValue() : null";
+            case INT64_VALUE -> "v != null ? ((com.google.protobuf.Int64Value) v).getValue() : null";
+            case UINT32_VALUE -> "v != null ? Integer.toUnsignedLong(((com.google.protobuf.UInt32Value) v).getValue()) : null";
+            case UINT64_VALUE -> "v != null ? ((com.google.protobuf.UInt64Value) v).getValue() : null";
+            case BOOL_VALUE -> "v != null ? ((com.google.protobuf.BoolValue) v).getValue() : null";
+            case FLOAT_VALUE -> "v != null ? ((com.google.protobuf.FloatValue) v).getValue() : null";
+            case DOUBLE_VALUE -> "v != null ? ((com.google.protobuf.DoubleValue) v).getValue() : null";
+            case BYTES_VALUE -> "v != null ? ((com.google.protobuf.BytesValue) v).getValue().toByteArray() : null";
+            default -> "v"; // For complex types like Struct, Value - pass through
+        };
+    }
+
+    /**
+     * Generate building code for WKT map value (Java to proto).
+     */
+    private String generateWktMapValueBuild(WellKnownTypeInfo wkt, String valueName, String fieldName) {
+        return switch (wkt) {
+            case TIMESTAMP -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Timestamp.newBuilder()" +
+                            ".setSeconds(%s.getEpochSecond()).setNanos(%s.getNano()).build()); }",
+                    valueName, fieldName, valueName, valueName);
+            case DURATION -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Duration.newBuilder()" +
+                            ".setSeconds(%s.getSeconds()).setNanos(%s.getNano()).build()); }",
+                    valueName, fieldName, valueName, valueName);
+            case STRING_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.StringValue.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case INT32_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Int32Value.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case INT64_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Int64Value.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case UINT32_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.UInt32Value.of(%s.intValue())); }",
+                    valueName, fieldName, valueName);
+            case UINT64_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.UInt64Value.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case BOOL_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.BoolValue.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case FLOAT_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.FloatValue.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case DOUBLE_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.DoubleValue.of(%s)); }",
+                    valueName, fieldName, valueName);
+            case BYTES_VALUE -> String.format(
+                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.BytesValue.of(com.google.protobuf.ByteString.copyFrom(%s))); }",
+                    valueName, fieldName, valueName);
+            default -> String.format("protoBuilder.put%s(key, %s)", fieldName, valueName);
+        };
+    }
+
     @Override
     public void addGetterImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field);
+        TypeName mapType = getResolvedMapType(field, ctx);
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field);
+        TypeName valueType = getResolvedValueType(field, ctx);
         String capitalizedName = ctx.capitalize(field.getJavaName());
 
         // 1. getXxxMap() - delegate to extract
@@ -357,9 +465,9 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field);
+        TypeName mapType = getResolvedMapType(field, ctx);
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field);
+        TypeName valueType = getResolvedValueType(field, ctx);
         String capitalizedName = ctx.capitalize(field.getJavaName());
 
         // doPut
@@ -398,8 +506,8 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                                            TypeName builderReturnType, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field);
-        TypeName mapType = getResolvedMapType(field);
+        TypeName valueType = getResolvedValueType(field, ctx);
+        TypeName mapType = getResolvedMapType(field, ctx);
 
         // put(key, value) -> Builder
         builder.addMethod(MethodSpec.methodBuilder(field.getMapPutMethodName())
@@ -454,9 +562,9 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                        boolean presentInVersion, ProcessingContext ctx) {
         MapInfo unifiedMapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field);
+        TypeName mapType = getResolvedMapType(field, ctx);
         TypeName keyType = parseSimpleType(unifiedMapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field);
+        TypeName valueType = getResolvedValueType(field, ctx);
         String capitalizedName = ctx.capitalize(field.getJavaName());
         String versionJavaName = CodeGenerationHelper.getVersionSpecificJavaName(field, ctx);
         boolean hasValueConflict = field.hasMapValueConflict();
@@ -503,7 +611,16 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                     doPut.addStatement("protoBuilder.put$L(key, value)", versionJavaName);
                 }
             } else {
-                doPut.addStatement("protoBuilder.put$L(key, value)", versionJavaName);
+                // No type conflict - check for WKT conversion
+                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                if (wktOpt.isPresent()) {
+                    // WKT map value - need to convert Java type to proto WKT
+                    WellKnownTypeInfo wkt = wktOpt.get();
+                    String buildCode = generateWktMapValueBuild(wkt, "value", versionJavaName);
+                    doPut.addStatement(buildCode);
+                } else {
+                    doPut.addStatement("protoBuilder.put$L(key, value)", versionJavaName);
+                }
             }
         } else {
             doPut.addStatement("throw new $T($S)",
@@ -537,7 +654,14 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                     doPutAll.addStatement("protoBuilder.putAll$L(values)", versionJavaName);
                 }
             } else {
-                doPutAll.addStatement("protoBuilder.putAll$L(values)", versionJavaName);
+                // No type conflict - check for WKT conversion
+                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                if (wktOpt.isPresent()) {
+                    // WKT - delegate to doPut for each entry (for conversion)
+                    doPutAll.addStatement("values.forEach((k, v) -> $L(k, v))", field.getMapDoPutMethodName());
+                } else {
+                    doPutAll.addStatement("protoBuilder.putAll$L(values)", versionJavaName);
+                }
             }
         } else {
             doPutAll.addStatement("throw new $T($S)",
@@ -611,7 +735,22 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                     doGet.addStatement("return protoBuilder.get$LMap()", versionJavaName);
                 }
             } else {
-                doGet.addStatement("return protoBuilder.get$LMap()", versionJavaName);
+                // No type conflict - check for WKT conversion
+                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                if (wktOpt.isPresent()) {
+                    // WKT map value - need to convert proto WKT to Java type
+                    WellKnownTypeInfo wkt = wktOpt.get();
+                    doGet.addStatement("$T<$T, ?> source = protoBuilder.get$LMap()",
+                            Map.class, keyType.box(), versionJavaName);
+                    doGet.addStatement("$T<$T, $T> result = new $T<>(source.size())",
+                            Map.class, keyType.box(), valueType.box(),
+                            ClassName.get("java.util", "LinkedHashMap"));
+                    String conversionCode = generateWktMapValueExtraction(wkt);
+                    doGet.addStatement("source.forEach((k, v) -> result.put(k, $L))", conversionCode);
+                    doGet.addStatement("return result");
+                } else {
+                    doGet.addStatement("return protoBuilder.get$LMap()", versionJavaName);
+                }
             }
         } else {
             doGet.addStatement("return $T.emptyMap()", Collections.class);

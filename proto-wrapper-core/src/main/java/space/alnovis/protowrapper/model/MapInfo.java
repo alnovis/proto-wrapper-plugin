@@ -140,6 +140,16 @@ public record MapInfo(
     }
 
     /**
+     * Returns the full proto type name for the value (e.g., ".google.protobuf.Timestamp").
+     * Returns null for primitive types.
+     *
+     * @since 1.3.0
+     */
+    public String getValueProtoTypeName() {
+        return valueTypeName;
+    }
+
+    /**
      * Extracts simple type name from full protobuf type name.
      */
     public String getSimpleKeyTypeName() {

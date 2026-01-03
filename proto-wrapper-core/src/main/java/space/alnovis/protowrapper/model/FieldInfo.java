@@ -27,9 +27,10 @@ public class FieldInfo {
     private final int oneofIndex;     // -1 if not in oneof
     private final String oneofName;   // null if not in oneof
     private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
+    private final boolean supportsHasMethod; // true if proto has*() method exists for this field
 
     public FieldInfo(FieldDescriptorProto proto) {
-        this(proto, -1, null, null);
+        this(proto, -1, null, null, false);
     }
 
     /**
@@ -40,7 +41,7 @@ public class FieldInfo {
      * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
      */
     public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName) {
-        this(proto, oneofIndex, oneofName, null);
+        this(proto, oneofIndex, oneofName, null, false);
     }
 
     /**
@@ -53,6 +54,20 @@ public class FieldInfo {
      */
     public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName,
                      Map<String, DescriptorProto> mapEntries) {
+        this(proto, oneofIndex, oneofName, mapEntries, false);
+    }
+
+    /**
+     * Creates a FieldInfo with oneof information, map entry access, and proto3 flag.
+     *
+     * @param proto the field descriptor
+     * @param oneofIndex the index of the oneof this field belongs to, or -1 if not in oneof
+     * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
+     * @param mapEntries map of entry type name to entry descriptor (can be null)
+     * @param isProto3 true if this field is from a proto3 file
+     */
+    public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName,
+                     Map<String, DescriptorProto> mapEntries, boolean isProto3) {
         this.protoName = proto.getName();
         this.javaName = toJavaName(proto.getName());
         this.number = proto.getNumber();
@@ -89,6 +104,46 @@ public class FieldInfo {
         this.wellKnownType = (typeName != null && type == Type.TYPE_MESSAGE)
                 ? WellKnownTypeInfo.fromProtoType(typeName).orElse(null)
                 : null;
+
+        // Determine if has*() method is available for this field
+        // In proto3, only message types and fields in oneofs (including synthetic for optional) have has*()
+        // In proto2, all optional fields have has*()
+        this.supportsHasMethod = determineHasMethodSupport(proto, isProto3);
+    }
+
+    /**
+     * Determines if this field supports has*() method in protobuf.
+     * <p>
+     * In proto3:
+     * <ul>
+     *   <li>Message types always have has*() method</li>
+     *   <li>Fields in oneof (including synthetic oneofs for proto3 optional) have has*() method</li>
+     *   <li>Scalar fields without optional modifier do NOT have has*() method</li>
+     * </ul>
+     * In proto2:
+     * <ul>
+     *   <li>All optional fields have has*() method</li>
+     *   <li>Required fields always return true for has*()</li>
+     * </ul>
+     */
+    private static boolean determineHasMethodSupport(FieldDescriptorProto proto, boolean isProto3) {
+        // Message types always have has*() method
+        if (proto.getType() == Type.TYPE_MESSAGE) {
+            return true;
+        }
+
+        // Fields in oneof always have has*() method (including synthetic oneofs for proto3 optional)
+        if (proto.hasOneofIndex()) {
+            return true;
+        }
+
+        // In proto2, all optional fields have has*() method
+        if (!isProto3) {
+            return proto.getLabel() == Label.LABEL_OPTIONAL;
+        }
+
+        // In proto3, scalar fields without optional modifier do NOT have has*() method
+        return false;
     }
 
     // Constructor for merged fields
@@ -113,6 +168,13 @@ public class FieldInfo {
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
                      WellKnownTypeInfo wellKnownType) {
+        this(protoName, javaName, number, type, label, typeName, mapInfo, oneofIndex, oneofName, wellKnownType, true);
+    }
+
+    // Full constructor for merged fields with all info including supportsHasMethod
+    public FieldInfo(String protoName, String javaName, int number, Type type,
+                     Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
+                     WellKnownTypeInfo wellKnownType, boolean supportsHasMethod) {
         this.protoName = protoName;
         this.javaName = javaName;
         this.number = number;
@@ -130,6 +192,7 @@ public class FieldInfo {
                 : (typeName != null && type == Type.TYPE_MESSAGE
                         ? WellKnownTypeInfo.fromProtoType(typeName).orElse(null)
                         : null);
+        this.supportsHasMethod = supportsHasMethod;
     }
 
     private static String toJavaName(String protoName) {
@@ -395,6 +458,11 @@ public class FieldInfo {
     public boolean isInOneof() { return oneofIndex >= 0; }
     public WellKnownTypeInfo getWellKnownType() { return wellKnownType; }
     public boolean isWellKnownType() { return wellKnownType != null; }
+    /**
+     * Returns true if the proto has*() method is available for this field.
+     * In proto3, scalar fields without 'optional' modifier do not have has*() methods.
+     */
+    public boolean supportsHasMethod() { return supportsHasMethod; }
 
     @Override
     public boolean equals(Object o) {

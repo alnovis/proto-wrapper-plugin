@@ -14,6 +14,7 @@ import space.alnovis.protowrapper.model.MergedOneof;
 import space.alnovis.protowrapper.generator.GenerationContext;
 import space.alnovis.protowrapper.generator.GeneratorConfig;
 import space.alnovis.protowrapper.generator.TypeResolver;
+import space.alnovis.protowrapper.generator.TypeUtils;
 
 import javax.lang.model.element.Modifier;
 import java.util.stream.Collectors;
@@ -107,11 +108,11 @@ public final class BuilderInterfaceGenerator {
             return;
         }
 
-        // Skip repeated fields with type conflicts (not supported in builder yet)
+        // Handle repeated fields with type conflicts (add, addAll, set, clear)
         // Exception: REPEATED_SINGLE conflicts are handled specially below
         if (field.isRepeated() && field.hasTypeConflict()
                 && field.getConflictType() != MergedField.ConflictType.REPEATED_SINGLE) {
-            addSkippedFieldNote(builder, field, "type conflict");
+            addRepeatedConflictBuilderMethods(builder, field, resolver);
             return;
         }
 
@@ -245,12 +246,13 @@ public final class BuilderInterfaceGenerator {
     private void addMapMethods(TypeSpec.Builder builder, MergedField field, TypeResolver resolver) {
         MapInfo mapInfo = field.getMapInfo();
         TypeName keyType = parseMapKeyType(mapInfo);
-        // Use resolved type if there's a map value conflict
+        // Use resolved type if there's a map value conflict, otherwise check for WKT
         TypeName valueType;
         if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
             valueType = parseSimpleType(field.getResolvedMapValueType());
         } else {
-            valueType = parseMapValueType(mapInfo);
+            // Check for WKT map values and convert to Java types if enabled
+            valueType = parseMapValueTypeWithWkt(mapInfo, config.isConvertWellKnownTypes());
         }
         TypeName boxedKeyType = keyType.isPrimitive() ? keyType.box() : keyType;
         TypeName boxedValueType = valueType.isPrimitive() ? valueType.box() : valueType;
@@ -611,6 +613,79 @@ public final class BuilderInterfaceGenerator {
                 .returns(builderType)
                 .addJavadoc("Clear $L values.\n", field.getJavaName())
                 .build());
+    }
+
+    /**
+     * Add builder methods for repeated fields with type conflicts.
+     * Generates add, addAll, set (replace all), and clear methods.
+     *
+     * <p>Supported conflict types: WIDENING, FLOAT_DOUBLE, SIGNED_UNSIGNED, INT_ENUM, STRING_BYTES</p>
+     */
+    private void addRepeatedConflictBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                                    TypeResolver resolver) {
+        MergedField.ConflictType conflictType = field.getConflictType();
+        String capName = resolver.capitalize(field.getJavaName());
+        ClassName builderType = ClassName.get("", "Builder");
+
+        // Determine the unified element type based on conflict type
+        TypeName elementType = TypeUtils.getRepeatedConflictElementType(conflictType);
+        TypeName listType = ParameterizedTypeName.get(ClassName.get(java.util.List.class), elementType);
+
+        // Build version info for javadoc
+        String versionsStr = field.getVersionFields().entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue().getJavaType())
+                .collect(Collectors.joining(", "));
+
+        // add single element
+        builder.addMethod(MethodSpec.methodBuilder("add" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(elementType.isPrimitive() ? elementType : elementType.box(), field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Add a single $L element.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [$L]:</b> $L</p>\n", conflictType, versionsStr)
+                .addJavadoc(getConflictValidationNote(conflictType))
+                .build());
+
+        // addAll
+        builder.addMethod(MethodSpec.methodBuilder("addAll" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(listType, field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Add all $L elements.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [$L]:</b> $L</p>\n", conflictType, versionsStr)
+                .build());
+
+        // set (replace all)
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(listType, field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Replace all $L elements.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [$L]:</b> $L</p>\n", conflictType, versionsStr)
+                .build());
+
+        // clear
+        builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(builderType)
+                .addJavadoc("Clear all $L elements.\n", field.getJavaName())
+                .build());
+    }
+
+    /**
+     * Get validation note for conflict type javadoc.
+     */
+    private String getConflictValidationNote(MergedField.ConflictType conflictType) {
+        return switch (conflictType) {
+            case WIDENING -> "<p>For versions with narrower type, value is validated at runtime.</p>\n" +
+                    "@throws IllegalArgumentException if value exceeds target type range\n";
+            case FLOAT_DOUBLE -> "<p>For float versions, value is validated to be within float range.</p>\n" +
+                    "@throws IllegalArgumentException if value exceeds float range\n";
+            case SIGNED_UNSIGNED -> "<p>Values are validated based on version signedness.</p>\n";
+            case INT_ENUM -> "<p>For enum versions, value is converted using forNumber().</p>\n";
+            case STRING_BYTES -> "<p>For bytes versions, value is converted using UTF-8 encoding.</p>\n";
+            default -> "";
+        };
     }
 
     /**

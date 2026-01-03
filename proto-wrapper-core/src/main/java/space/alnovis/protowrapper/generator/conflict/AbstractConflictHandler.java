@@ -56,17 +56,30 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add a concrete has method implementation for present fields.
+     * In proto3, scalar fields without 'optional' modifier do not have has*() methods,
+     * so we return false for those fields.
      */
     protected void addHasMethodImpl(TypeSpec.Builder builder, MergedField field,
                                      String versionJavaName, ProcessingContext ctx) {
         if (field.isOptional() && !field.isRepeated()) {
-            builder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
+            FieldInfo versionField = getVersionField(field, ctx);
+            boolean supportsHas = versionField != null && versionField.supportsHasMethod();
+
+            MethodSpec.Builder method = MethodSpec.methodBuilder(field.getExtractHasMethodName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED)
                     .returns(TypeName.BOOLEAN)
-                    .addParameter(ctx.protoClassName(), "proto")
-                    .addStatement("return proto.has$L()", versionJavaName)
-                    .build());
+                    .addParameter(ctx.protoClassName(), "proto");
+
+            if (supportsHas) {
+                method.addStatement("return proto.has$L()", versionJavaName);
+            } else {
+                // Proto3 scalar field without 'optional' - no has*() method, always return false
+                method.addJavadoc("Proto3 scalar field without 'optional' modifier - has*() not available.\n");
+                method.addStatement("return false");
+            }
+
+            builder.addMethod(method.build());
         }
     }
 
@@ -122,11 +135,14 @@ public abstract sealed class AbstractConflictHandler permits
     }
 
     /**
-     * Get the field type for the current version.
+     * Get the FieldInfo for the current version.
+     * @param field the merged field
+     * @param ctx the processing context containing version info
+     * @return the FieldInfo for this version, or null if not present
      */
     protected FieldInfo getVersionField(MergedField field, ProcessingContext ctx) {
         String version = ctx.version();
-        return version != null ? field.getVersionFields().get(version) : null;
+        return version != null ? field.getFieldForVersion(version).orElse(null) : null;
     }
 
     // ========== Concrete Builder Methods (setXxx delegating to doSetXxx) ==========
