@@ -1,0 +1,55 @@
+name: Cancel Branch Cleanup
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  cancel-cleanup:
+    name: Cancel scheduled cleanup
+    if: github.event.label.name == 'keep-branch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Remove cleanup label and notify
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const branch = context.payload.pull_request.head.ref;
+
+            // Remove cleanup-scheduled label if present
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                name: 'cleanup-scheduled'
+              });
+            } catch (e) {
+              // Label not present
+            }
+
+            // Post confirmation comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `## Branch Cleanup Cancelled
+
+            | Property | Value |
+            |----------|-------|
+            | **Branch** | \`${branch}\` |
+            | **Cancelled by** | @${context.actor} |
+            | **Cancelled at** | ${new Date().toUTCString()} |
+
+            The branch will **not** be automatically deleted.
+
+            To re-enable automatic cleanup, remove the \`keep-branch\` label.
+
+            ---
+            <sub>Automated by Branch Cleanup Action</sub>`
+            });

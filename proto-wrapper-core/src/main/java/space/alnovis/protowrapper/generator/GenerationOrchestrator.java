@@ -1,8 +1,10 @@
 package space.alnovis.protowrapper.generator;
 
+import com.squareup.javapoet.JavaFile;
 import space.alnovis.protowrapper.PluginLogger;
-import space.alnovis.protowrapper.model.ConflictEnumInfo;
-import space.alnovis.protowrapper.model.MergedEnum;
+import space.alnovis.protowrapper.generator.wellknown.StructConverterGenerator;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
+import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
@@ -77,6 +79,11 @@ public class GenerationOrchestrator {
 
         if (config.isGenerateVersionContext()) {
             generatedFiles += generateVersionContext(schema, versionConfigs, protoClassNameResolver);
+        }
+
+        // Generate utility classes (StructConverter) if needed
+        if (config.isConvertWellKnownTypes()) {
+            generatedFiles += generateUtilityClasses(schema);
         }
 
         logger.info("Generated " + generatedFiles + " files total");
@@ -317,6 +324,62 @@ public class GenerationOrchestrator {
     @FunctionalInterface
     private interface ThrowingSupplier<T> {
         T get() throws IOException;
+    }
+
+    /**
+     * Generate utility classes like StructConverter if needed.
+     *
+     * @param schema Merged schema
+     * @return Number of generated files
+     * @throws IOException if generation fails
+     */
+    public int generateUtilityClasses(MergedSchema schema) throws IOException {
+        // Check if any field requires StructConverter
+        boolean needsStructConverter = requiresStructConverter(schema);
+
+        if (!needsStructConverter) {
+            logger.debug("No Struct/Value/ListValue fields found, skipping StructConverter generation");
+            return 0;
+        }
+
+        // Generate StructConverter
+        JavaFile structConverterFile = StructConverterGenerator.generate(config.getApiPackage());
+        Path outputPath = structConverterFile.writeToPath(config.getOutputDirectory());
+        logger.info("Generated utility class: " + outputPath);
+
+        return 1;
+    }
+
+    /**
+     * Check if any field in the schema requires StructConverter.
+     */
+    private boolean requiresStructConverter(MergedSchema schema) {
+        return schema.getMessages().stream()
+                .anyMatch(this::messageRequiresStructConverter);
+    }
+
+    /**
+     * Check if a message or its nested messages require StructConverter.
+     */
+    private boolean messageRequiresStructConverter(MergedMessage message) {
+        // Check fields of this message
+        for (MergedField field : message.getFieldsSorted()) {
+            if (field.isWellKnownType()) {
+                WellKnownTypeInfo wkt = field.getWellKnownType();
+                if (wkt != null && wkt.requiresUtilityClass()) {
+                    return true;
+                }
+            }
+        }
+
+        // Check nested messages recursively
+        for (MergedMessage nested : message.getNestedMessages()) {
+            if (messageRequiresStructConverter(nested)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

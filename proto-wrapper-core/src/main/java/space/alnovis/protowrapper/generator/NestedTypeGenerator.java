@@ -134,6 +134,15 @@ public final class NestedTypeGenerator {
             MethodSpec getter = methodGenerator.generateGetter(field, nested, resolver);
             builder.addMethod(getter);
 
+            // Add raw proto accessor for well-known type fields when enabled
+            if (methodGenerator.shouldGenerateRawProtoAccessor(field)) {
+                if (field.isRepeated()) {
+                    builder.addMethod(methodGenerator.generateRepeatedRawProtoAccessor(field, resolver));
+                } else {
+                    builder.addMethod(methodGenerator.generateRawProtoAccessor(field, resolver));
+                }
+            }
+
             if (field.isOptional() && !field.isRepeated()) {
                 builder.addMethod(methodGenerator.generateHasMethod(field, resolver));
             }

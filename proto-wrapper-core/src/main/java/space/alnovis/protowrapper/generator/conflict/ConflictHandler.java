@@ -25,7 +25,8 @@ import space.alnovis.protowrapper.model.MergedField;
 public sealed interface ConflictHandler permits
         IntEnumHandler, EnumEnumHandler, StringBytesHandler, WideningHandler, FloatDoubleHandler,
         SignedUnsignedHandler, RepeatedSingleHandler, PrimitiveMessageHandler,
-        RepeatedConflictHandler, MapFieldHandler, DefaultHandler {
+        RepeatedConflictHandler, MapFieldHandler, WellKnownTypeHandler, RepeatedWellKnownTypeHandler,
+        DefaultHandler {
 
     /**
      * Get the type identifier for this handler.

@@ -17,7 +17,7 @@ class HandlerTypeTest {
 
         @Test
         void allHandlerTypesExist() {
-            assertThat(HandlerType.values()).hasSize(11);
+            assertThat(HandlerType.values()).hasSize(13);
         }
 
         @Test
@@ -33,6 +33,8 @@ class HandlerTypeTest {
                     HandlerType.PRIMITIVE_MESSAGE,
                     HandlerType.REPEATED_CONFLICT,
                     HandlerType.MAP_FIELD,
+                    HandlerType.WELL_KNOWN_TYPE,
+                    HandlerType.REPEATED_WELL_KNOWN_TYPE,
                     HandlerType.DEFAULT
             );
         }
@@ -178,6 +180,16 @@ class HandlerTypeTest {
         @Test
         void defaultHandler_returnsDefaultType() {
             assertThat(DefaultHandler.INSTANCE.getHandlerType()).isEqualTo(HandlerType.DEFAULT);
+        }
+
+        @Test
+        void wellKnownTypeHandler_returnsWellKnownType() {
+            assertThat(WellKnownTypeHandler.INSTANCE.getHandlerType()).isEqualTo(HandlerType.WELL_KNOWN_TYPE);
+        }
+
+        @Test
+        void repeatedWellKnownTypeHandler_returnsRepeatedWellKnownType() {
+            assertThat(RepeatedWellKnownTypeHandler.INSTANCE.getHandlerType()).isEqualTo(HandlerType.REPEATED_WELL_KNOWN_TYPE);
         }
     }
 }
