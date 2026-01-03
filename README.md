@@ -1,5 +1,8 @@
 # Proto Wrapper Plugin
 
+[![Build Status](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml)
+[![Latest Release](https://maven-badges.sml.io/sonatype-central/space.alnovis/proto-wrapper-core/badge.svg?subject=Latest%20Release&color=blue)](https://maven-badges.sml.io/sonatype-central/space.alnovis/proto-wrapper-core/)
+
 Build plugins for generating version-agnostic Java wrapper classes from multiple protobuf schema versions.
 
 Supports both **Maven** and **Gradle** build systems.
