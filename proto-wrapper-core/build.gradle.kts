@@ -24,7 +24,7 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Публикация в Maven Local для локальной разработки
+// Publishing to Maven Local for local development
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {

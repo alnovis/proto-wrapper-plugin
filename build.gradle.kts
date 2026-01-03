@@ -5,11 +5,11 @@ plugins {
 
 allprojects {
     group = "space.alnovis"
-    version = "1.4.0"
+    version = "1.5.0"
 
     repositories {
         mavenCentral()
-        mavenLocal() // Для proto-wrapper-core из Maven при разработке
+        mavenLocal() // For proto-wrapper-core from Maven during development
     }
 }
 

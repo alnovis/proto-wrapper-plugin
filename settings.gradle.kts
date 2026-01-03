@@ -11,14 +11,18 @@ pluginManagement {
 
 rootProject.name = "proto-wrapper"
 
-// Модули для Gradle build
+// Modules for Gradle build
 include("proto-wrapper-core")
 include("proto-wrapper-gradle-plugin")
 
-// Maven-only модули НЕ включаем в Gradle build:
-// - proto-wrapper-maven-plugin (зависит от Maven Plugin API)
-// - proto-wrapper-integration-tests (Maven-специфичные тесты)
+// Maven-only modules NOT included in Gradle build:
+// - proto-wrapper-maven-plugin (depends on Maven Plugin API)
 // - examples/maven-example
 
-// Gradle example как composite build (для сборки из корня)
-includeBuild("examples/gradle-example")
+// Standalone Gradle project for integration tests
+// Uses composite build for plugin resolution
+includeBuild("proto-wrapper-integration-tests")
+
+// examples/gradle-example - built separately:
+//   cd examples/gradle-example && ./gradlew build
+// Its settings.gradle.kts uses includeBuild("../..") for plugin resolution
