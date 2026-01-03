@@ -1,15 +1,12 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
 import javax.lang.model.element.Modifier;
-import java.util.List;
 
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
 
@@ -76,11 +73,9 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
     @Override
     public void addAbstractExtractMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         WellKnownTypeInfo wkt = field.getWellKnownType();
-        TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
 
         // Add main extract method (returns List<T>)
-        addAbstractExtractMethod(builder, field, listType, ctx);
+        addAbstractExtractMethod(builder, field, wkt.getListJavaTypeName(), ctx);
     }
 
     @Override
@@ -92,17 +87,15 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
         }
 
         WellKnownTypeInfo wkt = field.getWellKnownType();
-        TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
 
-        // Generate stream-based conversion
-        String streamConversion = generateStreamConversion(wkt, versionJavaName);
+        // Generate stream-based conversion with FQN for StructConverter
+        String streamConversion = generateStreamConversion(wkt, versionJavaName, ctx.apiPackage());
 
         builder.addMethod(MethodSpec.methodBuilder(field.getExtractMethodName())
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
-                .returns(listType)
+                .returns(wkt.getListJavaTypeName())
                 .addParameter(ctx.protoClassName(), "proto")
                 .addStatement("return $L", streamConversion)
                 .build());
@@ -111,14 +104,12 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
     @Override
     public void addGetterImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         WellKnownTypeInfo wkt = field.getWellKnownType();
-        TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
 
         // Add standard getter (returns List<T>)
         MethodSpec getter = MethodSpec.methodBuilder(field.getGetterName())
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(listType)
+                .returns(wkt.getListJavaTypeName())
                 .addStatement("return $L(proto)", field.getExtractMethodName())
                 .build();
         builder.addMethod(getter);
@@ -128,7 +119,7 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         WellKnownTypeInfo wkt = field.getWellKnownType();
         TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
+        TypeName listType = wkt.getListJavaTypeName();
         String capName = ctx.capitalize(field.getJavaName());
 
         // doAdd (single element)
@@ -149,14 +140,14 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
                                        boolean presentInVersion, ProcessingContext ctx) {
         WellKnownTypeInfo wkt = field.getWellKnownType();
         TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
+        TypeName listType = wkt.getListJavaTypeName();
         String capName = ctx.capitalize(field.getJavaName());
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
 
         // doAdd (single element)
         buildDoSetImpl(builder, "doAdd" + capName, elementType, field.getJavaName(),
                 presentInVersion, m -> {
-                    String buildingCode = wkt.getBuildingCode(field.getJavaName());
+                    String buildingCode = wkt.getBuildingCode(field.getJavaName(), ctx.apiPackage());
                     m.addStatement("protoBuilder.add$L($L)", versionJavaName, buildingCode);
                 });
 
@@ -164,7 +155,7 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
         buildDoSetImpl(builder, "doAddAll" + capName, listType, field.getJavaName(),
                 presentInVersion, m -> {
                     m.addStatement("$L.forEach(e -> protoBuilder.add$L($L))",
-                            field.getJavaName(), versionJavaName, wkt.getBuildingCode("e"));
+                            field.getJavaName(), versionJavaName, wkt.getBuildingCode("e", ctx.apiPackage()));
                 });
 
         // doSet (replace all)
@@ -172,7 +163,7 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
                 presentInVersion, m -> {
                     m.addStatement("protoBuilder.clear$L()", versionJavaName);
                     m.addStatement("$L.forEach(e -> protoBuilder.add$L($L))",
-                            field.getJavaName(), versionJavaName, wkt.getBuildingCode("e"));
+                            field.getJavaName(), versionJavaName, wkt.getBuildingCode("e", ctx.apiPackage()));
                 });
 
         // doClear
@@ -183,15 +174,14 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
     public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                            TypeName builderReturnType, ProcessingContext ctx) {
         WellKnownTypeInfo wkt = field.getWellKnownType();
-        TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
 
         // Use standard repeated field builder methods
-        addRepeatedConcreteBuilderMethods(builder, field, elementType, listType, builderReturnType, ctx);
+        addRepeatedConcreteBuilderMethods(builder, field, wkt.getJavaTypeName(), wkt.getListJavaTypeName(), builderReturnType, ctx);
     }
 
-    private String generateStreamConversion(WellKnownTypeInfo wkt, String versionJavaName) {
+    private String generateStreamConversion(WellKnownTypeInfo wkt, String versionJavaName, String apiPackage) {
         // Generate stream conversion code based on WKT type
+        String structConverterFQN = apiPackage != null ? apiPackage + ".StructConverter" : "StructConverter";
         return switch (wkt) {
             case TIMESTAMP -> String.format(
                     "proto.get%sList().stream().map(t -> java.time.Instant.ofEpochSecond(t.getSeconds(), t.getNanos())).collect(java.util.stream.Collectors.toList())",
@@ -212,27 +202,25 @@ public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler 
                     "proto.get%sList().stream().map(fm -> fm.getPathsList()).collect(java.util.stream.Collectors.toList())",
                     versionJavaName);
             case STRUCT -> String.format(
-                    "proto.get%sList().stream().map(StructConverter::toMap).collect(java.util.stream.Collectors.toList())",
-                    versionJavaName);
+                    "proto.get%sList().stream().map(%s::toMap).collect(java.util.stream.Collectors.toList())",
+                    versionJavaName, structConverterFQN);
             case VALUE -> String.format(
-                    "proto.get%sList().stream().map(StructConverter::toObject).collect(java.util.stream.Collectors.toList())",
-                    versionJavaName);
+                    "proto.get%sList().stream().map(%s::toObject).collect(java.util.stream.Collectors.toList())",
+                    versionJavaName, structConverterFQN);
             case LIST_VALUE -> String.format(
-                    "proto.get%sList().stream().map(StructConverter::toList).collect(java.util.stream.Collectors.toList())",
-                    versionJavaName);
+                    "proto.get%sList().stream().map(%s::toList).collect(java.util.stream.Collectors.toList())",
+                    versionJavaName, structConverterFQN);
         };
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         WellKnownTypeInfo wkt = field.getWellKnownType();
-        TypeName elementType = wkt.getJavaTypeName();
-        TypeName listType = ParameterizedTypeName.get(ClassName.get(List.class), elementType);
 
         // Add missing extract method returning empty list
         builder.addMethod(MethodSpec.methodBuilder(field.getExtractMethodName())
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
-                .returns(listType)
+                .returns(wkt.getListJavaTypeName())
                 .addParameter(ctx.protoClassName(), "proto")
                 .addJavadoc("Field not present in this version.\n")
                 .addStatement("return java.util.Collections.emptyList()")

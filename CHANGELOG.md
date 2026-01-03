@@ -11,6 +11,91 @@ _No changes yet._
 
 ---
 
+## [1.4.0] - 2026-01-03
+
+### Added
+
+#### Repeated Conflict Field Builders
+- **Builder methods for repeated conflict fields** - Full builder support for repeated fields with type conflicts
+  - `addXxx(element)` - Add single element
+  - `addAllXxx(List)` - Add multiple elements
+  - `setXxx(List)` - Replace all elements
+  - `clearXxx()` - Clear all elements
+
+#### Supported Conflict Types for Repeated Fields
+| Conflict | Example | Unified Type | Range Validation |
+|----------|---------|--------------|------------------|
+| **WIDENING** | `repeated int32` vs `int64` | `List<Long>` | Yes (int range check) |
+| **FLOAT_DOUBLE** | `repeated float` vs `double` | `List<Double>` | Yes (float range check) |
+| **SIGNED_UNSIGNED** | `repeated int32` vs `uint32` | `List<Long>` | Yes (signed/unsigned bounds) |
+| **INT_ENUM** | `repeated int32` vs `SomeEnum` | `List<Integer>` | No |
+| **STRING_BYTES** | `repeated string` vs `bytes` | `List<String>` | No (UTF-8 conversion) |
+
+#### Range Validation
+- **Runtime validation for narrowing conversions** - Clear error messages when values exceed target type range
+  - WIDENING: `"Value 9999999999 exceeds int32 range for v1"`
+  - FLOAT_DOUBLE: `"Value 1.0E309 exceeds float range for v1"`
+  - SIGNED_UNSIGNED: `"Value -1 exceeds uint32 range for v2"`
+
+#### New Handler Methods
+- `RepeatedConflictHandler.addAbstractBuilderMethods()` - Generate abstract doXxx methods
+- `RepeatedConflictHandler.addBuilderImplMethods()` - Generate version-specific implementations
+- `RepeatedConflictHandler.addConcreteBuilderMethods()` - Generate public wrapper methods
+
+#### New Tests
+- `RepeatedConflictBuilderTest` - 35 comprehensive tests covering all conflict types:
+  - WIDENING: 10 tests with boundary values and range validation
+  - FLOAT_DOUBLE: 7 tests including special values (NaN, Infinity)
+  - INT_ENUM: 3 tests for int/enum conversion
+  - STRING_BYTES: 4 tests including Unicode support
+  - SIGNED_UNSIGNED: 8 tests for int32/uint32, int64/uint64, sint32/int32
+  - Mixed operations: 3 tests for combining multiple fields
+
+### Changed
+- `BuilderInterfaceGenerator` - Added `addRepeatedConflictBuilderMethods()` for generating interface methods
+- `FieldProcessingChain` - Integrated `RepeatedConflictHandler` for builder generation
+- `AbstractConflictHandler` - Added template methods for repeated builder patterns
+
+### Example Usage
+
+```java
+// Proto definition:
+// v1: repeated int32 numbers = 1;
+// v2: repeated int64 numbers = 1;
+
+// Generated interface:
+interface RepeatedConflicts {
+    List<Long> getNumbers();
+
+    interface Builder {
+        Builder addNumbers(long value);
+        Builder addAllNumbers(List<Long> values);
+        Builder setNumbers(List<Long> values);
+        Builder clearNumbers();
+    }
+}
+
+// Usage with V1 (range validation):
+RepeatedConflicts result = wrapper.toBuilder()
+    .addNumbers(100L)        // OK
+    .addNumbers(200L)        // OK
+    .addNumbers(9_999_999_999L)  // throws IllegalArgumentException
+    .build();
+
+// Usage with V2 (accepts full long range):
+RepeatedConflicts result = wrapper.toBuilder()
+    .addNumbers(9_999_999_999L)  // OK - V2 supports int64
+    .build();
+```
+
+### Migration Notes
+
+- No breaking changes
+- New feature is backward compatible
+- Previously skipped repeated conflict fields now have full builder support
+
+---
+
 ## [1.3.0] - 2026-01-02
 
 ### Added

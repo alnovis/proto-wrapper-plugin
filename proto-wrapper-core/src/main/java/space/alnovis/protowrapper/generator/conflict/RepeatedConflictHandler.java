@@ -5,6 +5,7 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.generator.TypeNormalizer;
+import space.alnovis.protowrapper.generator.TypeUtils;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
@@ -95,10 +96,13 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
 
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        // Repeated fields with type conflicts don't have builder methods in the interface
-        // (InterfaceGenerator skips them with "type conflict" note)
-        // And ImplClassGenerator also skips them in generateBuilderImplClass
-        // So we don't generate abstract builder methods either to maintain consistency
+        // Get unified element type based on conflict type
+        TypeName elementType = TypeUtils.getRepeatedConflictElementType(field.getConflictType());
+        TypeName listType = com.squareup.javapoet.ParameterizedTypeName.get(
+                ClassName.get(java.util.List.class), elementType);
+
+        // Use template method for repeated abstract builder methods
+        addAbstractRepeatedBuilderMethods(builder, field, elementType, listType, ctx);
     }
 
     @Override
@@ -150,17 +154,47 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
     @Override
     public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                        boolean presentInVersion, ProcessingContext ctx) {
-        // Repeated fields with type conflicts don't have builder methods
-        // ImplClassGenerator skips them in generateBuilderImplClass (line 400-403)
-        // So we don't generate impl methods either to maintain consistency
+        String version = ctx.requireVersion();
+        String capitalizedName = ctx.capitalize(field.getJavaName());
+        String versionJavaName = getVersionSpecificJavaName(field, ctx);
+        MergedField.ConflictType conflictType = field.getConflictType();
+
+        FieldInfo versionField = field.getVersionFields().get(version);
+
+        // Get unified element type based on conflict type
+        TypeName elementType = TypeUtils.getRepeatedConflictElementType(conflictType);
+        TypeName listType = com.squareup.javapoet.ParameterizedTypeName.get(
+                ClassName.get(java.util.List.class), elementType);
+
+        // doAdd - add single element
+        buildDoSetImpl(builder, "doAdd" + capitalizedName, elementType, field.getJavaName(),
+                presentInVersion, m -> addDoAddStatement(m, field, conflictType, versionField, versionJavaName, ctx));
+
+        // doAddAll - add list of elements
+        buildDoSetImpl(builder, "doAddAll" + capitalizedName, listType, field.getJavaName(),
+                presentInVersion, m -> addDoAddAllStatement(m, field, conflictType, versionField, versionJavaName, ctx));
+
+        // doSet - clear and add all
+        buildDoSetImpl(builder, "doSet" + capitalizedName, listType, field.getJavaName(),
+                presentInVersion, m -> {
+                    m.addStatement("protoBuilder.clear$L()", versionJavaName);
+                    addDoAddAllStatement(m, field, conflictType, versionField, versionJavaName, ctx);
+                });
+
+        // doClear - clear the list
+        buildDoClearImpl(builder, "doClear" + capitalizedName, presentInVersion, versionJavaName);
     }
 
     @Override
     public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                            TypeName builderReturnType, ProcessingContext ctx) {
-        // Repeated fields with type conflicts don't have builder methods in the interface
-        // (InterfaceGenerator skips them with "type conflict" note)
-        // So we don't generate concrete implementations either
+        // Get unified element type based on conflict type
+        TypeName elementType = TypeUtils.getRepeatedConflictElementType(field.getConflictType());
+        TypeName listType = com.squareup.javapoet.ParameterizedTypeName.get(
+                ClassName.get(java.util.List.class), elementType);
+
+        // Use template method for repeated concrete builder methods
+        addRepeatedConcreteBuilderMethods(builder, field, elementType, listType, builderReturnType, ctx);
     }
 
     private void addWideningExtraction(MethodSpec.Builder extract, MergedField field,
@@ -260,8 +294,20 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
 
                 if (versionElementType != null && needsNarrowingForBuilder(targetElementType, versionElementType)) {
+                    String version = ctx.requireVersion();
+                    // Add range validation for narrowing long -> int
+                    if (isNarrowingLongToInt(targetElementType, versionElementType)) {
+                        method.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                                field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+                        method.addStatement("throw new $T($S + $L + $S)",
+                                IllegalArgumentException.class,
+                                "Value ", field.getJavaName(), " exceeds int32 range for " + version);
+                        method.endControlFlow();
+                    }
                     String castType = versionElementType.toLowerCase();
-                    method.addStatement("protoBuilder.add$L(($L) $L)", versionJavaName, castType, field.getJavaName());
+                    // Use (type) (primitive) to handle boxing correctly
+                    String primitiveUnbox = TypeUtils.getPrimitiveUnboxCast(targetElementType);
+                    method.addStatement("protoBuilder.add$L(($L) $L $L)", versionJavaName, castType, primitiveUnbox, field.getJavaName());
                 } else {
                     method.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
                 }
@@ -287,6 +333,55 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                     method.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
                 }
             }
+            case SIGNED_UNSIGNED -> {
+                // Unified type is Long. Version type may be int or long depending on the proto type.
+                String versionType = versionField != null ? versionField.getJavaType() : null;
+                String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
+                boolean versionIsInt = versionElementType != null && TypeUtils.isIntType(versionElementType);
+                if (versionIsInt) {
+                    // Need to narrow Long -> int with validation
+                    // Check if version field is unsigned (uint32) - requires value >= 0
+                    boolean isUnsigned = versionField != null && versionField.getType() != null &&
+                            versionField.getType().name().contains("UINT");
+                    String version = ctx.requireVersion();
+                    if (isUnsigned) {
+                        // uint32: 0 to 4294967295
+                        method.beginControlFlow("if ($L < 0 || $L > 0xFFFFFFFFL)",
+                                field.getJavaName(), field.getJavaName());
+                    } else {
+                        // int32: -2147483648 to 2147483647
+                        method.beginControlFlow("if ($L < $T.MIN_VALUE || $L > $T.MAX_VALUE)",
+                                field.getJavaName(), Integer.class, field.getJavaName(), Integer.class);
+                    }
+                    method.addStatement("throw new $T($S + $L + $S)",
+                            IllegalArgumentException.class,
+                            "Value ", field.getJavaName(), " exceeds " + (isUnsigned ? "uint32" : "int32") + " range for " + version);
+                    method.endControlFlow();
+                    method.addStatement("protoBuilder.add$L((int) (long) $L)", versionJavaName, field.getJavaName());
+                } else {
+                    method.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
+                }
+            }
+            case FLOAT_DOUBLE -> {
+                // Unified type is Double. Version type may be float or double.
+                String versionType = versionField != null ? versionField.getJavaType() : null;
+                String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
+                boolean versionIsFloat = versionElementType != null && TypeUtils.isFloatType(versionElementType);
+                if (versionIsFloat) {
+                    // Need to narrow Double -> float with validation
+                    String version = ctx.requireVersion();
+                    method.beginControlFlow("if ($T.isFinite($L) && ($L < -$T.MAX_VALUE || $L > $T.MAX_VALUE))",
+                            Double.class, field.getJavaName(),
+                            field.getJavaName(), Float.class, field.getJavaName(), Float.class);
+                    method.addStatement("throw new $T($S + $L + $S)",
+                            IllegalArgumentException.class,
+                            "Value ", field.getJavaName(), " exceeds float range for " + version);
+                    method.endControlFlow();
+                    method.addStatement("protoBuilder.add$L((float) (double) $L)", versionJavaName, field.getJavaName());
+                } else {
+                    method.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
+                }
+            }
             default -> method.addStatement("protoBuilder.add$L($L)", versionJavaName, field.getJavaName());
         }
     }
@@ -302,9 +397,22 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
 
                 if (versionElementType != null && needsNarrowingForBuilder(targetElementType, versionElementType)) {
+                    String version = ctx.requireVersion();
                     String castType = versionElementType.toLowerCase();
-                    method.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) e))",
-                            field.getJavaName(), versionJavaName, castType);
+                    // Add range validation for narrowing long -> int in addAll
+                    if (isNarrowingLongToInt(targetElementType, versionElementType)) {
+                        method.addStatement("$L.forEach(e -> { " +
+                                "if (e < $T.MIN_VALUE || e > $T.MAX_VALUE) " +
+                                "throw new $T($S + e + $S); " +
+                                "protoBuilder.add$L(($L) (long) e); })",
+                                field.getJavaName(), Integer.class, Integer.class,
+                                IllegalArgumentException.class,
+                                "Value ", " exceeds int32 range for " + version,
+                                versionJavaName, castType);
+                    } else {
+                        method.addStatement("$L.forEach(e -> protoBuilder.add$L(($L) e))",
+                                field.getJavaName(), versionJavaName, castType);
+                    }
                 } else {
                     method.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
                 }
@@ -330,6 +438,57 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                     method.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
                 }
             }
+            case SIGNED_UNSIGNED -> {
+                // Unified type is Long. Version type may be int or long depending on the proto type.
+                String versionType = versionField != null ? versionField.getJavaType() : null;
+                String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
+                boolean versionIsInt = versionElementType != null && TypeUtils.isIntType(versionElementType);
+                if (versionIsInt) {
+                    boolean isUnsigned = versionField != null && versionField.getType() != null &&
+                            versionField.getType().name().contains("UINT");
+                    String version = ctx.requireVersion();
+                    if (isUnsigned) {
+                        method.addStatement("$L.forEach(e -> { " +
+                                "if (e < 0 || e > 0xFFFFFFFFL) " +
+                                "throw new $T($S + e + $S); " +
+                                "protoBuilder.add$L((int) (long) e); })",
+                                field.getJavaName(),
+                                IllegalArgumentException.class,
+                                "Value ", " exceeds uint32 range for " + version,
+                                versionJavaName);
+                    } else {
+                        method.addStatement("$L.forEach(e -> { " +
+                                "if (e < $T.MIN_VALUE || e > $T.MAX_VALUE) " +
+                                "throw new $T($S + e + $S); " +
+                                "protoBuilder.add$L((int) (long) e); })",
+                                field.getJavaName(), Integer.class, Integer.class,
+                                IllegalArgumentException.class,
+                                "Value ", " exceeds int32 range for " + version,
+                                versionJavaName);
+                    }
+                } else {
+                    method.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
+                }
+            }
+            case FLOAT_DOUBLE -> {
+                // Unified type is Double. Version type may be float or double.
+                String versionType = versionField != null ? versionField.getJavaType() : null;
+                String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
+                boolean versionIsFloat = versionElementType != null && TypeUtils.isFloatType(versionElementType);
+                if (versionIsFloat) {
+                    String version = ctx.requireVersion();
+                    method.addStatement("$L.forEach(e -> { " +
+                            "if ($T.isFinite(e) && (e < -$T.MAX_VALUE || e > $T.MAX_VALUE)) " +
+                            "throw new $T($S + e + $S); " +
+                            "protoBuilder.add$L((float) (double) e); })",
+                            field.getJavaName(), Double.class, Float.class, Float.class,
+                            IllegalArgumentException.class,
+                            "Value ", " exceeds float range for " + version,
+                            versionJavaName);
+                } else {
+                    method.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
+                }
+            }
             default -> method.addStatement("protoBuilder.addAll$L($L)", versionJavaName, field.getJavaName());
         }
     }
@@ -337,6 +496,13 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
     private boolean needsNarrowingForBuilder(String widerType, String narrowerType) {
         // When building, we may need to narrow from long back to int
         return TypeNormalizer.isWideningConversion(narrowerType, widerType);
+    }
+
+    /**
+     * Check if this is a long to int narrowing that needs range validation.
+     */
+    private boolean isNarrowingLongToInt(String targetElementType, String versionElementType) {
+        return TypeUtils.isLongType(targetElementType) && TypeUtils.isIntType(versionElementType);
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {

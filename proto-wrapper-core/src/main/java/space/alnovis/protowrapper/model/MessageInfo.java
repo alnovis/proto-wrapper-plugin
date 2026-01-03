@@ -22,21 +22,27 @@ public class MessageInfo {
     private final List<EnumInfo> nestedEnums;
     private final List<OneofInfo> oneofGroups;
     private final boolean isMapEntry;
+    private final boolean isProto3;
 
     public MessageInfo(DescriptorProto proto, String packageName) {
-        this(proto, packageName, packageName + "." + proto.getName(), null);
+        this(proto, packageName, packageName + "." + proto.getName(), null, false);
     }
 
     public MessageInfo(DescriptorProto proto, String packageName, String sourceFileName) {
-        this(proto, packageName, packageName + "." + proto.getName(), sourceFileName);
+        this(proto, packageName, packageName + "." + proto.getName(), sourceFileName, false);
     }
 
-    private MessageInfo(DescriptorProto proto, String packageName, String fullName, String sourceFileName) {
+    public MessageInfo(DescriptorProto proto, String packageName, String sourceFileName, boolean isProto3) {
+        this(proto, packageName, packageName + "." + proto.getName(), sourceFileName, isProto3);
+    }
+
+    private MessageInfo(DescriptorProto proto, String packageName, String fullName, String sourceFileName, boolean isProto3) {
         this.name = proto.getName();
         this.fullName = fullName;
         this.packageName = packageName;
         this.sourceFileName = sourceFileName;
         this.isMapEntry = proto.getOptions().getMapEntry();
+        this.isProto3 = isProto3;
 
         // Extract oneof groups first (needed for field creation)
         this.oneofGroups = extractOneofGroups(proto);
@@ -46,12 +52,12 @@ public class MessageInfo {
                 .filter(nested -> nested.getOptions().getMapEntry())
                 .collect(Collectors.toMap(DescriptorProto::getName, Function.identity()));
 
-        // Create fields with oneof information and map entries
-        this.fields = createFieldsWithOneofInfo(proto, this.oneofGroups, mapEntries);
+        // Create fields with oneof information, map entries, and proto3 flag
+        this.fields = createFieldsWithOneofInfo(proto, this.oneofGroups, mapEntries, isProto3);
 
         this.nestedMessages = proto.getNestedTypeList().stream()
                 .filter(nested -> !nested.getOptions().getMapEntry()) // Skip map entries
-                .map(nested -> new MessageInfo(nested, packageName, fullName + "." + nested.getName(), sourceFileName))
+                .map(nested -> new MessageInfo(nested, packageName, fullName + "." + nested.getName(), sourceFileName, isProto3))
                 .toList();
 
         this.nestedEnums = proto.getEnumTypeList().stream()
@@ -119,10 +125,10 @@ public class MessageInfo {
     }
 
     /**
-     * Creates FieldInfo objects with oneof information and map entry access.
+     * Creates FieldInfo objects with oneof information, map entry access, and proto3 flag.
      */
     private static List<FieldInfo> createFieldsWithOneofInfo(DescriptorProto proto, List<OneofInfo> oneofGroups,
-                                                              Map<String, DescriptorProto> mapEntries) {
+                                                              Map<String, DescriptorProto> mapEntries, boolean isProto3) {
         // Build a map from field number to oneof info
         Map<Integer, OneofInfo> fieldToOneof = new HashMap<>();
         for (OneofInfo oneof : oneofGroups) {
@@ -135,9 +141,9 @@ public class MessageInfo {
         for (FieldDescriptorProto fieldProto : proto.getFieldList()) {
             OneofInfo oneof = fieldToOneof.get(fieldProto.getNumber());
             if (oneof != null) {
-                result.add(new FieldInfo(fieldProto, oneof.getIndex(), oneof.getProtoName(), mapEntries));
+                result.add(new FieldInfo(fieldProto, oneof.getIndex(), oneof.getProtoName(), mapEntries, isProto3));
             } else {
-                result.add(new FieldInfo(fieldProto, -1, null, mapEntries));
+                result.add(new FieldInfo(fieldProto, -1, null, mapEntries, isProto3));
             }
         }
         return result;
@@ -163,6 +169,7 @@ public class MessageInfo {
         this.nestedEnums = new ArrayList<>(nestedEnums);
         this.oneofGroups = new ArrayList<>(oneofGroups);
         this.isMapEntry = false;
+        this.isProto3 = false; // Merged messages don't have syntax info
     }
 
     /**
@@ -286,6 +293,7 @@ public class MessageInfo {
     public List<EnumInfo> getNestedEnums() { return Collections.unmodifiableList(nestedEnums); }
     public List<OneofInfo> getOneofGroups() { return Collections.unmodifiableList(oneofGroups); }
     public boolean isMapEntry() { return isMapEntry; }
+    public boolean isProto3() { return isProto3; }
 
     /**
      * Check if this message has any oneof groups.

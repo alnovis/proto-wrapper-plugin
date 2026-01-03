@@ -118,65 +118,27 @@ public enum WellKnownTypeInfo {
 
     /**
      * google.protobuf.StringValue -> String (nullable)
+     * <p>Uses default wrapper type implementation.</p>
      */
     STRING_VALUE(
             ".google.protobuf.StringValue",
             "google.protobuf.StringValue",
             ClassName.get(String.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.StringValue.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.StringValue.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "StringValue"
+    ),
 
     /**
      * google.protobuf.Int32Value -> Integer (nullable)
+     * <p>Uses default wrapper type implementation.</p>
      */
     INT32_VALUE(
             ".google.protobuf.Int32Value",
             "google.protobuf.Int32Value",
             ClassName.get(Integer.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.Int32Value.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.Int32Value.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "Int32Value"
+    ),
 
     /**
      * google.protobuf.UInt32Value -> Long (nullable, unsigned)
@@ -211,158 +173,63 @@ public enum WellKnownTypeInfo {
 
     /**
      * google.protobuf.UInt64Value -> Long (nullable, unsigned treated as signed)
+     * <p>Uses default wrapper type implementation.</p>
      */
     UINT64_VALUE(
             ".google.protobuf.UInt64Value",
             "google.protobuf.UInt64Value",
             ClassName.get(Long.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.UInt64Value.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.UInt64Value.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "UInt64Value"
+    ),
 
     /**
      * google.protobuf.Int64Value -> Long (nullable)
+     * <p>Uses default wrapper type implementation.</p>
      */
     INT64_VALUE(
             ".google.protobuf.Int64Value",
             "google.protobuf.Int64Value",
             ClassName.get(Long.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.Int64Value.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.Int64Value.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "Int64Value"
+    ),
 
     /**
      * google.protobuf.BoolValue -> Boolean (nullable)
+     * <p>Uses default wrapper type implementation.</p>
      */
     BOOL_VALUE(
             ".google.protobuf.BoolValue",
             "google.protobuf.BoolValue",
             ClassName.get(Boolean.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.BoolValue.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.BoolValue.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "BoolValue"
+    ),
 
     /**
      * google.protobuf.FloatValue -> Float (nullable)
+     * <p>Uses default wrapper type implementation.</p>
      */
     FLOAT_VALUE(
             ".google.protobuf.FloatValue",
             "google.protobuf.FloatValue",
             ClassName.get(Float.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.FloatValue.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.FloatValue.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "FloatValue"
+    ),
 
     /**
      * google.protobuf.DoubleValue -> Double (nullable)
+     * <p>Uses default wrapper type implementation.</p>
      */
     DOUBLE_VALUE(
             ".google.protobuf.DoubleValue",
             "google.protobuf.DoubleValue",
             ClassName.get(Double.class),
-            "null"
-    ) {
-        @Override
-        public String getExtractionCode(String protoGetter, String hasCheck) {
-            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
-        }
-
-        @Override
-        public String getBuildingCode(String value) {
-            return String.format(
-                    "%s != null ? com.google.protobuf.DoubleValue.of(%s) : null",
-                    value, value
-            );
-        }
-
-        @Override
-        public String getBuilderSetterCode(String builderVar, String setterName, String value) {
-            return String.format(
-                    "if (%s != null) { %s.set%s(com.google.protobuf.DoubleValue.of(%s)); }",
-                    value, builderVar, setterName, value
-            );
-        }
-    },
+            "null",
+            "DoubleValue"
+    ),
 
     /**
      * google.protobuf.BytesValue -> byte[] (nullable)
@@ -546,6 +413,7 @@ public enum WellKnownTypeInfo {
     private final String protoTypeShort;   // without leading dot: "google.protobuf.Timestamp"
     private final TypeName javaTypeName;
     private final String defaultValue;
+    private final String wrapperProtoClass; // Simple wrapper class name (e.g., "StringValue"), null for non-wrapper types
 
     private static final Map<String, WellKnownTypeInfo> BY_PROTO_TYPE = new HashMap<>();
 
@@ -556,12 +424,24 @@ public enum WellKnownTypeInfo {
         }
     }
 
+    /**
+     * Constructor for non-wrapper types (TIMESTAMP, DURATION, FIELD_MASK, STRUCT, VALUE, LIST_VALUE).
+     */
     WellKnownTypeInfo(String protoTypeFull, String protoTypeShort,
                       TypeName javaTypeName, String defaultValue) {
+        this(protoTypeFull, protoTypeShort, javaTypeName, defaultValue, null);
+    }
+
+    /**
+     * Constructor for wrapper types with standard getValue()/of() pattern.
+     */
+    WellKnownTypeInfo(String protoTypeFull, String protoTypeShort,
+                      TypeName javaTypeName, String defaultValue, String wrapperProtoClass) {
         this.protoTypeFull = protoTypeFull;
         this.protoTypeShort = protoTypeShort;
         this.javaTypeName = javaTypeName;
         this.defaultValue = defaultValue;
+        this.wrapperProtoClass = wrapperProtoClass;
     }
 
     /**
@@ -592,6 +472,17 @@ public enum WellKnownTypeInfo {
     }
 
     /**
+     * Get the JavaPoet TypeName for a List of this well-known type.
+     * <p>Convenience method for repeated fields to avoid duplicating
+     * {@code ParameterizedTypeName.get(List.class, elementType)} everywhere.</p>
+     *
+     * @return List type name, e.g., {@code List<Instant>} for TIMESTAMP
+     */
+    public TypeName getListJavaTypeName() {
+        return ParameterizedTypeName.get(ClassName.get(java.util.List.class), javaTypeName);
+    }
+
+    /**
      * Get the simple Java type name as string.
      *
      * @return Simple type name, e.g., "Instant", "Duration", "String"
@@ -614,30 +505,104 @@ public enum WellKnownTypeInfo {
 
     /**
      * Generate extraction code that converts proto type to Java type.
+     * <p>Default implementation for wrapper types using getValue() pattern.</p>
      *
      * @param protoGetter Expression to get the proto value, e.g., "proto.getCreatedAt()"
      * @param hasCheck    Expression to check if field has value, e.g., "proto.hasCreatedAt()"
      * @return Code snippet for extraction
      */
-    public abstract String getExtractionCode(String protoGetter, String hasCheck);
+    public String getExtractionCode(String protoGetter, String hasCheck) {
+        if (wrapperProtoClass != null) {
+            return String.format("%s ? %s.getValue() : null", hasCheck, protoGetter);
+        }
+        throw new UnsupportedOperationException("getExtractionCode must be overridden for " + name());
+    }
+
+    /**
+     * Generate extraction code with fully qualified StructConverter reference.
+     *
+     * @param protoGetter Expression to get the proto value
+     * @param hasCheck    Expression to check if field has value
+     * @param apiPackage  API package containing StructConverter
+     * @return Code snippet for extraction with FQN StructConverter
+     */
+    public String getExtractionCode(String protoGetter, String hasCheck, String apiPackage) {
+        return applyApiPackage(getExtractionCode(protoGetter, hasCheck), apiPackage);
+    }
 
     /**
      * Generate building code that converts Java type to proto type.
+     * <p>Default implementation for wrapper types using XxxValue.of() pattern.</p>
      *
      * @param value Variable name holding the Java value
      * @return Code snippet for building proto value
      */
-    public abstract String getBuildingCode(String value);
+    public String getBuildingCode(String value) {
+        if (wrapperProtoClass != null) {
+            return String.format(
+                    "%s != null ? com.google.protobuf.%s.of(%s) : null",
+                    value, wrapperProtoClass, value
+            );
+        }
+        throw new UnsupportedOperationException("getBuildingCode must be overridden for " + name());
+    }
+
+    /**
+     * Generate building code with fully qualified StructConverter reference.
+     *
+     * @param value      Variable name holding the Java value
+     * @param apiPackage API package containing StructConverter
+     * @return Code snippet for building proto value with FQN StructConverter
+     */
+    public String getBuildingCode(String value, String apiPackage) {
+        return applyApiPackage(getBuildingCode(value), apiPackage);
+    }
 
     /**
      * Generate builder setter code that sets the proto field from Java value.
+     * <p>Default implementation for wrapper types using XxxValue.of() pattern.</p>
      *
      * @param builderVar Variable name of the proto builder
      * @param setterName Name of the setter method (capitalized field name)
      * @param value      Variable name holding the Java value
      * @return Code snippet for setting builder field
      */
-    public abstract String getBuilderSetterCode(String builderVar, String setterName, String value);
+    public String getBuilderSetterCode(String builderVar, String setterName, String value) {
+        if (wrapperProtoClass != null) {
+            return String.format(
+                    "if (%s != null) { %s.set%s(com.google.protobuf.%s.of(%s)); }",
+                    value, builderVar, setterName, wrapperProtoClass, value
+            );
+        }
+        throw new UnsupportedOperationException("getBuilderSetterCode must be overridden for " + name());
+    }
+
+    /**
+     * Generate builder setter code with fully qualified StructConverter reference.
+     *
+     * @param builderVar Variable name of the proto builder
+     * @param setterName Name of the setter method (capitalized field name)
+     * @param value      Variable name holding the Java value
+     * @param apiPackage API package containing StructConverter
+     * @return Code snippet for setting builder field with FQN StructConverter
+     */
+    public String getBuilderSetterCode(String builderVar, String setterName, String value, String apiPackage) {
+        return applyApiPackage(getBuilderSetterCode(builderVar, setterName, value), apiPackage);
+    }
+
+    /**
+     * Apply API package prefix to StructConverter references in code.
+     *
+     * @param code       Code that may contain StructConverter references
+     * @param apiPackage API package containing StructConverter, or null
+     * @return Code with StructConverter replaced by FQN if applicable
+     */
+    private String applyApiPackage(String code, String apiPackage) {
+        if (requiresUtilityClass() && apiPackage != null) {
+            return code.replace("StructConverter", apiPackage + ".StructConverter");
+        }
+        return code;
+    }
 
     /**
      * Check if a proto type is a well-known type.

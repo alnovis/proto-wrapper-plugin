@@ -107,9 +107,12 @@ public class ProtoAnalyzer {
                 continue;
             }
 
+            // Determine if this is proto3 syntax
+            boolean isProto3 = "proto3".equals(fileProto.getSyntax());
+
             // Process top-level messages
             for (DescriptorProto messageProto : fileProto.getMessageTypeList()) {
-                MessageInfo messageInfo = new MessageInfo(messageProto, packageName, sourceFileName);
+                MessageInfo messageInfo = new MessageInfo(messageProto, packageName, sourceFileName, isProto3);
                 if (!messageInfo.isMapEntry()) {
                     schema.addMessage(messageInfo);
                 }

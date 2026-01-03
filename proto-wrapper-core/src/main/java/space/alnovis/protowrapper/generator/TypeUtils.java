@@ -3,9 +3,11 @@ package space.alnovis.protowrapper.generator;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.MapInfo;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Utility class for type-related operations in code generation.
@@ -116,6 +118,79 @@ public final class TypeUtils {
         return createMapType(keyType, valueType);
     }
 
+    // ==================== Well-Known Type Map Value Operations ====================
+
+    /**
+     * Parse the value type from MapInfo, converting WKT to Java types if applicable.
+     *
+     * <p>If the map value is a Well-Known Type (e.g., google.protobuf.Timestamp),
+     * returns the corresponding Java type (e.g., java.time.Instant).</p>
+     *
+     * @param mapInfo Map field information
+     * @param convertWkt Whether to convert WKT to Java types
+     * @return TypeName for the value type
+     * @since 1.3.0
+     */
+    public static TypeName parseMapValueTypeWithWkt(MapInfo mapInfo, boolean convertWkt) {
+        if (convertWkt && mapInfo.hasMessageValue()) {
+            String protoType = mapInfo.getValueProtoTypeName();
+            if (protoType != null) {
+                Optional<WellKnownTypeInfo> wkt = WellKnownTypeInfo.fromProtoType(protoType);
+                if (wkt.isPresent()) {
+                    return wkt.get().getJavaTypeName();
+                }
+            }
+        }
+        return parseSimpleType(mapInfo.getValueJavaType());
+    }
+
+    /**
+     * Check if the map value type is a Well-Known Type.
+     *
+     * @param mapInfo Map field information
+     * @return true if value is a WKT
+     * @since 1.3.0
+     */
+    public static boolean isMapValueWellKnownType(MapInfo mapInfo) {
+        if (!mapInfo.hasMessageValue()) {
+            return false;
+        }
+        String protoType = mapInfo.getValueProtoTypeName();
+        return protoType != null && WellKnownTypeInfo.isWellKnownType(protoType);
+    }
+
+    /**
+     * Get WellKnownTypeInfo for map value if it's a WKT.
+     *
+     * @param mapInfo Map field information
+     * @return Optional containing WellKnownTypeInfo, or empty if not a WKT
+     * @since 1.3.0
+     */
+    public static Optional<WellKnownTypeInfo> getMapValueWellKnownType(MapInfo mapInfo) {
+        if (!mapInfo.hasMessageValue()) {
+            return Optional.empty();
+        }
+        String protoType = mapInfo.getValueProtoTypeName();
+        if (protoType == null) {
+            return Optional.empty();
+        }
+        return WellKnownTypeInfo.fromProtoType(protoType);
+    }
+
+    /**
+     * Create a parameterized Map type from MapInfo, converting WKT values to Java types.
+     *
+     * @param mapInfo Map field information
+     * @param convertWkt Whether to convert WKT to Java types
+     * @return ParameterizedTypeName for Map&lt;K, V&gt;
+     * @since 1.3.0
+     */
+    public static TypeName createMapTypeWithWkt(MapInfo mapInfo, boolean convertWkt) {
+        TypeName keyType = parseMapKeyType(mapInfo);
+        TypeName valueType = parseMapValueTypeWithWkt(mapInfo, convertWkt);
+        return createMapType(keyType, valueType);
+    }
+
     // ==================== List Type Operations ====================
 
     /**
@@ -175,5 +250,62 @@ public final class TypeUtils {
             case "int", "long", "double", "float", "boolean", "byte", "short", "char" -> true;
             default -> false;
         };
+    }
+
+    // ==================== Repeated Conflict Type Resolution ====================
+
+    /**
+     * Get the unified element type for a repeated field with type conflict.
+     *
+     * @param conflictType The type of conflict
+     * @return TypeName for the unified element type (always boxed)
+     */
+    public static TypeName getRepeatedConflictElementType(space.alnovis.protowrapper.model.MergedField.ConflictType conflictType) {
+        return switch (conflictType) {
+            case WIDENING -> TypeName.LONG.box();
+            case FLOAT_DOUBLE -> TypeName.DOUBLE.box();
+            case SIGNED_UNSIGNED -> TypeName.LONG.box();
+            case INT_ENUM -> TypeName.INT.box();
+            case STRING_BYTES -> ClassName.get(String.class);
+            default -> ClassName.get(Object.class);
+        };
+    }
+
+    /**
+     * Get primitive unbox cast for boxed types.
+     * E.g., for "Long" returns "(long)" to unbox before further casting.
+     *
+     * @param boxedType Boxed type name (e.g., "Long", "Double")
+     * @return Cast string or empty if not applicable
+     */
+    public static String getPrimitiveUnboxCast(String boxedType) {
+        return switch (boxedType) {
+            case "Long" -> "(long)";
+            case "Integer" -> "(int)";
+            case "Double" -> "(double)";
+            case "Float" -> "(float)";
+            default -> "";
+        };
+    }
+
+    /**
+     * Check if a type is int/Integer.
+     */
+    public static boolean isIntType(String elementType) {
+        return "Integer".equals(elementType) || "int".equals(elementType);
+    }
+
+    /**
+     * Check if a type is float/Float.
+     */
+    public static boolean isFloatType(String elementType) {
+        return "Float".equals(elementType) || "float".equals(elementType);
+    }
+
+    /**
+     * Check if a type is long/Long.
+     */
+    public static boolean isLongType(String elementType) {
+        return "Long".equals(elementType) || "long".equals(elementType);
     }
 }

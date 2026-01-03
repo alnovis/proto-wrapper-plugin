@@ -102,7 +102,7 @@ public final class WellKnownTypeHandler extends AbstractConflictHandler implemen
         // Add extraction method with inline conversion
         String protoGetter = "proto.get" + versionJavaName + "()";
         String hasCheck = "proto.has" + versionJavaName + "()";
-        String extractionCode = wkt.getExtractionCode(protoGetter, hasCheck);
+        String extractionCode = wkt.getExtractionCode(protoGetter, hasCheck, ctx.apiPackage());
 
         builder.addMethod(MethodSpec.methodBuilder(field.getExtractMethodName())
                 .addAnnotation(Override.class)
@@ -149,8 +149,8 @@ public final class WellKnownTypeHandler extends AbstractConflictHandler implemen
         // doSet implementation
         buildDoSetImpl(builder, field.getDoSetMethodName(), javaType, field.getJavaName(),
                 presentInVersion, m -> {
-                    // Generate inline building code
-                    String setterCode = wkt.getBuilderSetterCode("protoBuilder", versionJavaName, field.getJavaName());
+                    // Generate inline building code with FQN for StructConverter
+                    String setterCode = wkt.getBuilderSetterCode("protoBuilder", versionJavaName, field.getJavaName(), ctx.apiPackage());
                     m.addCode(setterCode + "\n");
                 });
 

@@ -120,18 +120,19 @@ interface SensorReading {
 
 ## Repeated Fields with Type Conflicts
 
-**Status:** Read-only (v1.0.6+)
+**Status:** Full builder support (v1.4.0+)
 
-Repeated fields with type conflicts are fully readable but not settable via the unified builder.
+Repeated fields with type conflicts have complete support including builder methods with runtime range validation.
 
-### Supported Read Operations
+### Supported Operations
 
-| Conflict Type | Example | Unified Type |
-|--------------|---------|--------------|
-| `WIDENING` | `repeated int32` → `repeated int64` | `List<Long>` |
-| `WIDENING` | `repeated float` → `repeated double` | `List<Double>` |
-| `INT_ENUM` | `repeated int32` → `repeated SomeEnum` | `List<Integer>` |
-| `STRING_BYTES` | `repeated string` → `repeated bytes` | `List<String>` |
+| Conflict Type | Example | Unified Type | Range Validation |
+|--------------|---------|--------------|------------------|
+| `WIDENING` | `repeated int32` → `repeated int64` | `List<Long>` | Yes |
+| `FLOAT_DOUBLE` | `repeated float` → `repeated double` | `List<Double>` | Yes |
+| `SIGNED_UNSIGNED` | `repeated int32` → `repeated uint32` | `List<Long>` | Yes |
+| `INT_ENUM` | `repeated int32` → `repeated SomeEnum` | `List<Integer>` | No |
+| `STRING_BYTES` | `repeated string` → `repeated bytes` | `List<String>` | No |
 
 ### Example
 
@@ -142,27 +143,30 @@ interface RepeatedConflicts {
     List<String> getTexts();    // string in v1, bytes in v2 → UTF-8 conversion
     List<Double> getValues();   // float in v1, double in v2 → widened elements
 
-    // Builder - repeated conflict fields NOT available
+    // Builder - full support in v1.4.0+
     interface Builder {
-        // Note: setNumbers, setCodes, setTexts, setValues are NOT generated
-        // Use typed proto builder for direct access
+        Builder addNumbers(long value);
+        Builder addAllNumbers(List<Long> values);
+        Builder setNumbers(List<Long> values);
+        Builder clearNumbers();
+        // Same pattern for codes, texts, values
     }
 }
 ```
 
-### Accessing Repeated Conflict Fields for Modification
+### Range Validation
 
-Use the typed proto builder directly:
+When using builders with narrowing versions, values are validated at runtime:
 
 ```java
-// For V2 version
-var v2 = (RepeatedConflictsV2) wrapper;
-var modified = new RepeatedConflictsV2(
-    v2.getTypedProto().toBuilder()
-        .addNumbers(12345L)
-        .addCodes(CodeEnum.CODE_SUCCESS)
-        .build()
-);
+// V1 builder (int32 range):
+wrapper.toBuilder()
+    .addNumbers(100L)              // OK - within int32 range
+    .addNumbers(9_999_999_999L)    // throws IllegalArgumentException
+    .build();
+
+// Error message:
+// "Value 9999999999 exceeds int32 range for v1"
 ```
 
 ---
@@ -260,15 +264,23 @@ public NewFeature getNewFeatureIfAvailable(VersionContext ctx, Message proto) {
 - **Description:** Deeply nested message hierarchies with conflicts may require manual configuration
 
 ### 6. Well-Known Types (google.protobuf.*)
-- **Status:** Treated as regular messages
-- **Description:** Types like `Timestamp`, `Duration`, `Any`, `Struct` are not handled specially
-- **Workaround:** Access via `getTypedProto()` and use protobuf utilities:
+- **Status:** Full support for 15 types (v1.3.0+)
+- **Description:** Google Well-Known Types are automatically converted to idiomatic Java types
+- **Supported Types:**
+  - `Timestamp` → `java.time.Instant`
+  - `Duration` → `java.time.Duration`
+  - Wrapper types (`StringValue`, `Int32Value`, etc.) → nullable Java primitives
+  - `Struct` → `Map<String, Object>`
+  - `Value` → `Object`
+  - `ListValue` → `List<Object>`
+  - `FieldMask` → `List<String>`
+- **Not Supported:** `google.protobuf.Any` (requires runtime type registry)
+- **Configuration:** Set `convertWellKnownTypes=false` to disable conversion
 
 ```java
-// For Timestamp
-var v1 = (MyMessageV1) wrapper;
-Timestamp ts = v1.getTypedProto().getCreatedAt();
-Instant instant = Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos());
+// Proto: google.protobuf.Timestamp created_at = 1;
+// Generated:
+Instant getCreatedAt();  // Automatic conversion to java.time.Instant
 ```
 
 ### 7. Field Number Conflicts
@@ -376,17 +388,6 @@ For performance-critical code with millions of messages, consider:
 
 ## Workarounds
 
-### For Repeated Conflict Fields in Builders
-
-Use the typed proto builder:
-
-```java
-var v2 = (MyMessageV2) wrapper;
-var protoBuilder = v2.getTypedProto().toBuilder();
-protoBuilder.addRepeatedField(value);
-MyMessage modified = new MyMessageV2(protoBuilder.build());
-```
-
 ### For PRIMITIVE_MESSAGE Conflicts
 
 Access via typed proto:
@@ -406,20 +407,6 @@ Serialize and parse:
 byte[] bytes = v1Wrapper.toBytes();
 V2Proto proto = V2Proto.parseFrom(bytes);
 MyMessageV2 v2Wrapper = new MyMessageV2(proto);
-```
-
-### For Well-Known Types
-
-Use protobuf utilities:
-
-```java
-// Timestamp → Instant
-Timestamp ts = ((MyMessageV1) wrapper).getTypedProto().getTimestamp();
-Instant instant = Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos());
-
-// Duration → java.time.Duration
-Duration d = ((MyMessageV1) wrapper).getTypedProto().getDuration();
-java.time.Duration duration = java.time.Duration.ofSeconds(d.getSeconds(), d.getNanos());
 ```
 
 ---

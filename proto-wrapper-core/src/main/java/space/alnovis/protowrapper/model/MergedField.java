@@ -403,6 +403,15 @@ public class MergedField {
     }
 
     /**
+     * Get the FieldInfo for a specific version.
+     * @param version Version identifier
+     * @return Optional containing the FieldInfo for that version, or empty if not present
+     */
+    public Optional<FieldInfo> getFieldForVersion(String version) {
+        return Optional.ofNullable(versionFields.get(version));
+    }
+
+    /**
      * Get the conflict type for this field.
      * @return The type of conflict, or NONE if no conflict
      */
