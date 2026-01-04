@@ -1,0 +1,37 @@
+syntax = "proto3";
+package test;
+
+// Scenario: Complex changes - messages, fields, enums together
+enum Priority {
+    PRIORITY_UNSPECIFIED = 0;
+    PRIORITY_LOW = 1;
+    PRIORITY_MEDIUM = 2;
+    PRIORITY_HIGH = 3;
+}
+
+message Order {
+    int64 id = 1;
+    string customer_name = 2;
+    repeated Item items = 3;
+    Priority priority = 4;
+    string notes = 5;         // Will be removed
+    Address address = 6;
+}
+
+message Item {
+    int64 id = 1;
+    string name = 2;
+    int32 quantity = 3;
+    double price = 4;
+}
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string zip = 3;
+}
+
+// Will be removed
+message DeprecatedMessage {
+    string old_field = 1;
+}

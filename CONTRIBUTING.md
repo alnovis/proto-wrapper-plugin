@@ -18,13 +18,17 @@ Thank you for considering contributing to Proto Wrapper Plugin! This document pr
 
 - Java 17 or higher
 - Maven 3.8+
+- Gradle 8.5+ (or use included wrapper)
 - Protocol Buffers compiler (`protoc`) installed and in PATH
-- (Optional) Gradle 8.5+ for Gradle plugin development
 
 ### Building the Project
 
+The project uses a dual-build system: Maven for core and Maven plugin, Gradle for Gradle plugin.
+
+#### Maven Build
+
 ```bash
-# Build all modules
+# Build all Maven modules (core + Maven plugin)
 mvn clean install
 
 # Build without tests
@@ -34,17 +38,53 @@ mvn clean install -DskipTests
 mvn clean install -pl proto-wrapper-core
 ```
 
-### Running Tests
+#### Gradle Build
 
 ```bash
-# Run all tests
+# Build Gradle modules (core + Gradle plugin)
+./gradlew build
+
+# Build without tests
+./gradlew build -x test
+
+# Publish to local Maven repository
+./gradlew publishToMavenLocal
+```
+
+### Running Tests
+
+#### Maven Tests
+
+```bash
+# Run all unit tests
 mvn test
 
-# Run integration tests only
-mvn verify -pl proto-wrapper-integration-tests
+# Run Maven integration tests
+mvn verify -pl proto-wrapper-maven-integration-tests
 
 # Run specific test class
 mvn test -Dtest=VersionMergerTest
+```
+
+#### Gradle Tests
+
+```bash
+# Run unit tests
+./gradlew test
+
+# Run Gradle integration tests (requires publishToMavenLocal first)
+./gradlew publishToMavenLocal
+cd proto-wrapper-gradle-integration-tests
+gradle test --no-daemon
+```
+
+#### Full Test Suite
+
+```bash
+# Run all tests (Maven + Gradle)
+mvn clean install
+./gradlew build publishToMavenLocal
+cd proto-wrapper-gradle-integration-tests && gradle test --no-daemon
 ```
 
 ---
@@ -126,10 +166,25 @@ The project uses several design patterns. When contributing, follow existing pat
 ### Test Structure
 
 ```
-proto-wrapper-core/src/test/java/          # Unit tests
-proto-wrapper-integration-tests/src/test/  # Integration tests
-proto-wrapper-integration-tests/proto/     # Test proto files
+proto-wrapper-core/src/test/java/                    # Unit tests
+proto-wrapper-maven-integration-tests/src/test/      # Maven integration tests
+proto-wrapper-gradle-integration-tests/src/test/     # Gradle integration tests (standalone project)
+
+test-protos/scenarios/                               # Shared test proto files
+├── generation/                                      # Proto files for code generation tests
+│   ├── v1/
+│   └── v2/
+└── diff/                                            # Proto files for Schema Diff tests
+    ├── 01-simple-add/
+    ├── 02-simple-remove/
+    ├── 03-field-changes/
+    ├── 04-enum-changes/
+    ├── 05-complex-changes/
+    └── 06-no-changes/
 ```
+
+Note: Gradle integration tests use a "Publish First, Test Second" pattern. The plugin
+must be published to mavenLocal before running the tests.
 
 ### Writing Tests
 
@@ -196,21 +251,30 @@ void shouldDetectIntEnumConflict() {
 
 ```
 proto-wrapper-plugin/
-├── proto-wrapper-core/           # Core library
+├── proto-wrapper-core/                    # Core library (Maven + Gradle)
 │   └── src/main/java/space/alnovis/protowrapper/
-│       ├── analyzer/             # Proto file parsing
-│       ├── exception/            # Exception hierarchy
-│       ├── generator/            # Code generation
-│       │   ├── builder/          # Builder interface generation
-│       │   ├── conflict/         # Type conflict handling
-│       │   ├── oneof/            # Oneof field support
-│       │   └── visitor/          # Message traversal
-│       ├── merger/               # Version schema merging
-│       └── model/                # Domain model classes
-├── proto-wrapper-maven-plugin/   # Maven plugin
-├── proto-wrapper-gradle-plugin/  # Gradle plugin (Kotlin)
-├── proto-wrapper-integration-tests/  # Integration tests
-└── docs/                         # Documentation
+│       ├── analyzer/                      # Proto file parsing
+│       ├── diff/                          # Schema Diff functionality (v1.5.0+)
+│       ├── exception/                     # Exception hierarchy
+│       ├── generator/                     # Code generation
+│       │   ├── builder/                   # Builder interface generation
+│       │   ├── conflict/                  # Type conflict handling
+│       │   ├── oneof/                     # Oneof field support
+│       │   └── visitor/                   # Message traversal
+│       ├── merger/                        # Version schema merging
+│       └── model/                         # Domain model classes
+├── proto-wrapper-maven-plugin/            # Maven plugin
+├── proto-wrapper-gradle-plugin/           # Gradle plugin (Kotlin)
+├── proto-wrapper-maven-integration-tests/ # Maven integration tests
+├── proto-wrapper-gradle-integration-tests/# Gradle integration tests (standalone)
+├── test-protos/                           # Shared test proto files
+│   └── scenarios/
+│       ├── generation/                    # Code generation test scenarios
+│       └── diff/                          # Schema Diff test scenarios
+├── examples/
+│   ├── maven-example/                     # Example Maven project
+│   └── gradle-example/                    # Example Gradle project
+└── docs/                                  # Documentation
 ```
 
 ### Key Classes

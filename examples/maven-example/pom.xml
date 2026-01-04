@@ -7,13 +7,13 @@
     <parent>
         <groupId>space.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
-        <version>1.4.0</version>
+        <version>1.5.0</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <groupId>com.example</groupId>
     <artifactId>proto-wrapper-example</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <packaging>jar</packaging>
 
     <name>Proto Wrapper Example</name>

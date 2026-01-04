@@ -9,6 +9,8 @@ import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import java.util.Map;
 import java.util.Objects;
 
+import static space.alnovis.protowrapper.model.ProtoSyntax.PROTO2;
+
 /**
  * Represents information about a protobuf field.
  */
@@ -30,7 +32,7 @@ public class FieldInfo {
     private final boolean supportsHasMethod; // true if proto has*() method exists for this field
 
     public FieldInfo(FieldDescriptorProto proto) {
-        this(proto, -1, null, null, false);
+        this(proto, -1, null, null, PROTO2);
     }
 
     /**
@@ -41,7 +43,7 @@ public class FieldInfo {
      * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
      */
     public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName) {
-        this(proto, oneofIndex, oneofName, null, false);
+        this(proto, oneofIndex, oneofName, null, PROTO2);
     }
 
     /**
@@ -54,20 +56,20 @@ public class FieldInfo {
      */
     public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName,
                      Map<String, DescriptorProto> mapEntries) {
-        this(proto, oneofIndex, oneofName, mapEntries, false);
+        this(proto, oneofIndex, oneofName, mapEntries, PROTO2);
     }
 
     /**
-     * Creates a FieldInfo with oneof information, map entry access, and proto3 flag.
+     * Creates a FieldInfo with oneof information, map entry access, and syntax info.
      *
      * @param proto the field descriptor
      * @param oneofIndex the index of the oneof this field belongs to, or -1 if not in oneof
      * @param oneofName the name of the oneof this field belongs to, or null if not in oneof
      * @param mapEntries map of entry type name to entry descriptor (can be null)
-     * @param isProto3 true if this field is from a proto3 file
+     * @param syntax the proto syntax version (PROTO2 or PROTO3)
      */
     public FieldInfo(FieldDescriptorProto proto, int oneofIndex, String oneofName,
-                     Map<String, DescriptorProto> mapEntries, boolean isProto3) {
+                     Map<String, DescriptorProto> mapEntries, ProtoSyntax syntax) {
         this.protoName = proto.getName();
         this.javaName = toJavaName(proto.getName());
         this.number = proto.getNumber();
@@ -108,7 +110,7 @@ public class FieldInfo {
         // Determine if has*() method is available for this field
         // In proto3, only message types and fields in oneofs (including synthetic for optional) have has*()
         // In proto2, all optional fields have has*()
-        this.supportsHasMethod = determineHasMethodSupport(proto, isProto3);
+        this.supportsHasMethod = determineHasMethodSupport(proto, syntax);
     }
 
     /**
@@ -126,7 +128,7 @@ public class FieldInfo {
      *   <li>Required fields always return true for has*()</li>
      * </ul>
      */
-    private static boolean determineHasMethodSupport(FieldDescriptorProto proto, boolean isProto3) {
+    private static boolean determineHasMethodSupport(FieldDescriptorProto proto, ProtoSyntax syntax) {
         // Message types always have has*() method
         if (proto.getType() == Type.TYPE_MESSAGE) {
             return true;
@@ -138,7 +140,7 @@ public class FieldInfo {
         }
 
         // In proto2, all optional fields have has*() method
-        if (!isProto3) {
+        if (!syntax.isProto3()) {
             return proto.getLabel() == Label.LABEL_OPTIONAL;
         }
 

@@ -21,6 +21,7 @@ dependencies {
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
     testImplementation("org.assertj:assertj-core:3.24.2")
     testImplementation(gradleTestKit())
 }
@@ -103,7 +104,35 @@ publishing {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("slow")
+    }
+}
+
+// Slow tests (TestKit-based) - run separately with parallel execution
+tasks.register<Test>("slowTest") {
+    description = "Run slow TestKit-based tests"
+    group = "verification"
+
+    useJUnitPlatform {
+        includeTags("slow")
+    }
+
+    // Parallel execution for TestKit tests
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+
+    // Each test gets its own forked JVM (required for TestKit isolation)
+    forkEvery = 1
+
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+}
+
+// Run all tests including slow ones
+tasks.register("allTests") {
+    description = "Run all tests including slow TestKit tests"
+    group = "verification"
+    dependsOn("test", "slowTest")
 }
 
 // Print dependency mode on configuration

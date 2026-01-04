@@ -9,8 +9,8 @@ import org.gradle.api.tasks.Optional
 import javax.inject.Inject
 
 /**
- * Конфигурация версии protobuf схемы.
- * Используется в DSL:
+ * Configuration for a protobuf schema version.
+ * Used in DSL:
  * ```
  * protoWrapper {
  *     versions {
@@ -31,20 +31,20 @@ abstract class VersionConfig @Inject constructor(private val name: String) : Nam
     override fun getName(): String = name
 
     /**
-     * Директория с .proto файлами для этой версии (относительно protoRoot)
+     * Directory containing .proto files for this version (relative to protoRoot).
      */
     @get:Input
     abstract val protoDir: Property<String>
 
     /**
-     * Кастомное имя версии (по умолчанию используется name с заглавной буквы)
+     * Custom version name (defaults to name with first letter uppercased).
      */
     @get:Input
     @get:Optional
     abstract val versionName: Property<String>
 
     /**
-     * Список .proto файлов для исключения из обработки
+     * List of .proto files to exclude from processing.
      */
     @get:Input
     @get:Optional

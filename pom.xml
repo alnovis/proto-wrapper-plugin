@@ -6,7 +6,7 @@
 
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-parent</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <packaging>pom</packaging>
 
     <!-- ==================== Project Info ==================== -->
@@ -56,7 +56,7 @@
         <module>proto-wrapper-core</module>
         <module>proto-wrapper-maven-plugin</module>
         <!-- Integration tests with comprehensive conflict coverage -->
-        <module>proto-wrapper-integration-tests</module>
+        <module>proto-wrapper-maven-integration-tests</module>
         <!-- Simple example/demo project -->
         <module>examples/maven-example</module>
     </modules>
@@ -76,6 +76,7 @@
         <javapoet.version>1.13.0</javapoet.version>
         <junit.version>5.10.0</junit.version>
         <assertj.version>3.24.2</assertj.version>
+        <picocli.version>4.7.5</picocli.version>
 
         <!-- Plugin versions -->
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
@@ -137,6 +138,13 @@
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj.version}</version>
+            </dependency>
+
+            <!-- CLI framework -->
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

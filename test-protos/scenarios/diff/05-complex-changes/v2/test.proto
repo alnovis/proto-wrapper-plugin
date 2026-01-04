@@ -1,0 +1,47 @@
+syntax = "proto3";
+package test;
+
+// Scenario: Complex changes - messages, fields, enums together
+enum Priority {
+    PRIORITY_UNSPECIFIED = 0;
+    PRIORITY_LOW = 1;
+    PRIORITY_MEDIUM = 2;
+    PRIORITY_HIGH = 3;
+    PRIORITY_URGENT = 4;     // New value
+}
+
+message Order {
+    int64 id = 1;
+    string customer_name = 2;
+    repeated Item items = 3;
+    Priority priority = 4;
+    // notes removed
+    Address address = 6;
+    string tracking_number = 7;  // New field
+    int64 created_at = 8;        // New field
+}
+
+message Item {
+    int64 id = 1;
+    string name = 2;
+    int32 quantity = 3;
+    double price = 4;
+    string sku = 5;              // New field
+}
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string zip = 3;
+    string country = 4;          // New field
+}
+
+// DeprecatedMessage removed
+
+// New message added
+message Shipment {
+    int64 id = 1;
+    int64 order_id = 2;
+    string carrier = 3;
+    string tracking_number = 4;
+}

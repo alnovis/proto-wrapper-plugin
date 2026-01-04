@@ -113,14 +113,14 @@ jobs:
             mvn install -B -N
             mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
 
-      - name: Run Integration Tests
+      - name: Run Maven Integration Tests
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
-            cd proto-wrapper-integration-tests
+            cd proto-wrapper-maven-integration-tests
             mvn verify -B
 
       - name: Run Maven Example
@@ -133,6 +133,11 @@ jobs:
             cd examples/maven-example
             mvn verify -B
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
       - name: Run Gradle tests
         uses: nick-fields/retry@v3
         with:
@@ -141,7 +146,7 @@ jobs:
           retry_wait_seconds: 30
           command: |
             chmod +x gradlew
-            ./gradlew test --no-daemon
+            ./gradlew build --no-daemon
 
   # Publish Maven modules to Maven Central
   publish-maven:
@@ -284,6 +289,11 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
 
       - name: Configure Gradle repositories
         run: |

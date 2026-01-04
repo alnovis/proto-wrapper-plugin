@@ -1,5 +1,7 @@
 package space.alnovis.protowrapper.generator;
 
+import space.alnovis.protowrapper.model.ProtoSyntax;
+
 import java.nio.file.Path;
 import java.util.*;
 
@@ -73,7 +75,7 @@ public class GeneratorConfig {
     private boolean generateVersionContext = true;
     private boolean includeVersionSuffix = true;
     private boolean generateBuilders = false;
-    private int protobufMajorVersion = 3; // 2 for protobuf 2.x, 3 for protobuf 3.x
+    private ProtoSyntax defaultSyntax = ProtoSyntax.AUTO; // AUTO means detect from .proto files
     private boolean convertWellKnownTypes = true;
     private boolean generateRawProtoAccessors = false;
 
@@ -107,9 +109,28 @@ public class GeneratorConfig {
     public boolean isGenerateVersionContext() { return generateVersionContext; }
     public boolean isIncludeVersionSuffix() { return includeVersionSuffix; }
     public boolean isGenerateBuilders() { return generateBuilders; }
-    public int getProtobufMajorVersion() { return protobufMajorVersion; }
-    public boolean isProtobuf2() { return protobufMajorVersion == 2; }
-    public boolean isProtobuf3() { return protobufMajorVersion >= 3; }
+    public ProtoSyntax getDefaultSyntax() { return defaultSyntax; }
+
+    /**
+     * @deprecated Use {@link #getDefaultSyntax()} instead
+     */
+    @Deprecated
+    public int getProtobufMajorVersion() {
+        return defaultSyntax.isProto2() ? 2 : 3;
+    }
+
+    /**
+     * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto2() isProto2()} instead
+     */
+    @Deprecated
+    public boolean isProtobuf2() { return defaultSyntax.isProto2(); }
+
+    /**
+     * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto3() isProto3()} instead
+     */
+    @Deprecated
+    public boolean isProtobuf3() { return defaultSyntax.isProto3() || defaultSyntax.isAuto(); }
+
     public boolean isConvertWellKnownTypes() { return convertWellKnownTypes; }
     public boolean isGenerateRawProtoAccessors() { return generateRawProtoAccessors; }
 
@@ -194,11 +215,20 @@ public class GeneratorConfig {
             return this;
         }
 
+        public Builder defaultSyntax(ProtoSyntax syntax) {
+            config.defaultSyntax = syntax;
+            return this;
+        }
+
+        /**
+         * @deprecated Use {@link #defaultSyntax(ProtoSyntax)} instead
+         */
+        @Deprecated
         public Builder protobufMajorVersion(int version) {
             if (version < 2 || version > 3) {
                 throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);
             }
-            config.protobufMajorVersion = version;
+            config.defaultSyntax = ProtoSyntax.fromMajorVersion(version);
             return this;
         }
 
