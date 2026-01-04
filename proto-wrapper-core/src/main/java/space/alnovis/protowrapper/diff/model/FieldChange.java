@@ -112,14 +112,26 @@ public record FieldChange(
     /**
      * Check if int <-> enum conversion is compatible.
      * This is a common pattern and generally safe.
+     * All integer types (signed/unsigned, 32/64-bit) are compatible with enums.
      */
     private boolean isIntEnumCompatible(Type t1, Type t2) {
-        boolean t1IsInt = t1 == Type.TYPE_INT32 || t1 == Type.TYPE_INT64;
-        boolean t2IsInt = t2 == Type.TYPE_INT32 || t2 == Type.TYPE_INT64;
+        boolean t1IsInt = isIntegerType(t1);
+        boolean t2IsInt = isIntegerType(t2);
         boolean t1IsEnum = t1 == Type.TYPE_ENUM;
         boolean t2IsEnum = t2 == Type.TYPE_ENUM;
 
         return (t1IsInt && t2IsEnum) || (t1IsEnum && t2IsInt);
+    }
+
+    /**
+     * Check if type is any integer type (32-bit or 64-bit, signed or unsigned).
+     */
+    private boolean isIntegerType(Type t) {
+        return t == Type.TYPE_INT32 || t == Type.TYPE_INT64 ||
+               t == Type.TYPE_UINT32 || t == Type.TYPE_UINT64 ||
+               t == Type.TYPE_SINT32 || t == Type.TYPE_SINT64 ||
+               t == Type.TYPE_FIXED32 || t == Type.TYPE_FIXED64 ||
+               t == Type.TYPE_SFIXED32 || t == Type.TYPE_SFIXED64;
     }
 
     /**
@@ -144,18 +156,159 @@ public record FieldChange(
      * Returns a compatibility description if this is a type change.
      */
     public String getCompatibilityNote() {
-        if (changeType != ChangeType.TYPE_CHANGED) {
+        if (changeType != ChangeType.TYPE_CHANGED && changeType != ChangeType.LABEL_CHANGED) {
             return null;
         }
 
-        if (isCompatibleTypeChange()) {
-            if (isIntEnumCompatible(v1Field.getType(), v2Field.getType())) {
-                return "Compatible via INT_ENUM conversion";
-            }
-            return "Compatible widening conversion";
+        TypeConflictType conflict = getTypeConflictType();
+        return conflict.getPluginNote();
+    }
+
+    /**
+     * Determines the type of conflict for this field change.
+     * This matches the conflict detection logic in VersionMerger.
+     */
+    public TypeConflictType getTypeConflictType() {
+        if (v1Field == null || v2Field == null) {
+            return TypeConflictType.NONE;
         }
 
-        return "Incompatible type change";
+        // Check for repeated/singular conflict first
+        if (v1Field.isRepeated() != v2Field.isRepeated()) {
+            return TypeConflictType.REPEATED_SINGLE;
+        }
+
+        // Check for optional/required conflict
+        if (v1Field.isOptional() != v2Field.isOptional()) {
+            // Only return OPTIONAL_REQUIRED if there's no type change
+            if (v1Field.getJavaType().equals(v2Field.getJavaType())) {
+                return TypeConflictType.OPTIONAL_REQUIRED;
+            }
+        }
+
+        Type t1 = v1Field.getType();
+        Type t2 = v2Field.getType();
+
+        // Same proto type - check if it's message/enum with different names
+        if (t1 == t2) {
+            if (t1 == Type.TYPE_ENUM && !v1Field.getJavaType().equals(v2Field.getJavaType())) {
+                return TypeConflictType.ENUM_ENUM;
+            }
+            return TypeConflictType.NONE;
+        }
+
+        // int ↔ enum conflict
+        if (isIntEnumCompatible(t1, t2)) {
+            return TypeConflictType.INT_ENUM;
+        }
+
+        // Signed/unsigned conflict (int32 ↔ uint32, etc.)
+        if (isSignedUnsignedConflict(t1, t2)) {
+            return TypeConflictType.SIGNED_UNSIGNED;
+        }
+
+        // Integer widening (int32 → int64)
+        if (isWideningConversion(t1, t2)) {
+            return TypeConflictType.WIDENING;
+        }
+
+        // Integer narrowing (int64 → int32)
+        if (isNarrowingConversion(t1, t2)) {
+            return TypeConflictType.NARROWING;
+        }
+
+        // Float/double conversion
+        if (isFloatDoubleConversion(t1, t2)) {
+            return TypeConflictType.FLOAT_DOUBLE;
+        }
+
+        // String ↔ bytes
+        if (isStringBytesConflict(t1, t2)) {
+            return TypeConflictType.STRING_BYTES;
+        }
+
+        // Primitive ↔ message
+        if (isPrimitiveMessageConflict(t1, t2)) {
+            return TypeConflictType.PRIMITIVE_MESSAGE;
+        }
+
+        return TypeConflictType.INCOMPATIBLE;
+    }
+
+    /**
+     * Check for signed/unsigned integer conflict.
+     */
+    private boolean isSignedUnsignedConflict(Type t1, Type t2) {
+        Set<Type> signed32 = Set.of(Type.TYPE_INT32, Type.TYPE_SINT32, Type.TYPE_SFIXED32);
+        Set<Type> unsigned32 = Set.of(Type.TYPE_UINT32, Type.TYPE_FIXED32);
+        Set<Type> signed64 = Set.of(Type.TYPE_INT64, Type.TYPE_SINT64, Type.TYPE_SFIXED64);
+        Set<Type> unsigned64 = Set.of(Type.TYPE_UINT64, Type.TYPE_FIXED64);
+
+        // 32-bit signed ↔ unsigned
+        if ((signed32.contains(t1) && unsigned32.contains(t2)) ||
+            (unsigned32.contains(t1) && signed32.contains(t2))) {
+            return true;
+        }
+
+        // 64-bit signed ↔ unsigned
+        if ((signed64.contains(t1) && unsigned64.contains(t2)) ||
+            (unsigned64.contains(t1) && signed64.contains(t2))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check for widening conversion (int32 → int64, uint32 → uint64).
+     */
+    private boolean isWideningConversion(Type from, Type to) {
+        Set<Type> int32Types = Set.of(Type.TYPE_INT32, Type.TYPE_SINT32, Type.TYPE_SFIXED32,
+                                       Type.TYPE_UINT32, Type.TYPE_FIXED32);
+        Set<Type> int64Types = Set.of(Type.TYPE_INT64, Type.TYPE_SINT64, Type.TYPE_SFIXED64,
+                                       Type.TYPE_UINT64, Type.TYPE_FIXED64);
+
+        return int32Types.contains(from) && int64Types.contains(to);
+    }
+
+    /**
+     * Check for narrowing conversion (int64 → int32).
+     */
+    private boolean isNarrowingConversion(Type from, Type to) {
+        Set<Type> int32Types = Set.of(Type.TYPE_INT32, Type.TYPE_SINT32, Type.TYPE_SFIXED32,
+                                       Type.TYPE_UINT32, Type.TYPE_FIXED32);
+        Set<Type> int64Types = Set.of(Type.TYPE_INT64, Type.TYPE_SINT64, Type.TYPE_SFIXED64,
+                                       Type.TYPE_UINT64, Type.TYPE_FIXED64);
+
+        return int64Types.contains(from) && int32Types.contains(to);
+    }
+
+    /**
+     * Check for float ↔ double conversion.
+     */
+    private boolean isFloatDoubleConversion(Type t1, Type t2) {
+        return (t1 == Type.TYPE_FLOAT && t2 == Type.TYPE_DOUBLE) ||
+               (t1 == Type.TYPE_DOUBLE && t2 == Type.TYPE_FLOAT);
+    }
+
+    /**
+     * Check for string ↔ bytes conflict.
+     */
+    private boolean isStringBytesConflict(Type t1, Type t2) {
+        return (t1 == Type.TYPE_STRING && t2 == Type.TYPE_BYTES) ||
+               (t1 == Type.TYPE_BYTES && t2 == Type.TYPE_STRING);
+    }
+
+    /**
+     * Check for primitive ↔ message conflict.
+     */
+    private boolean isPrimitiveMessageConflict(Type t1, Type t2) {
+        boolean t1Primitive = t1 != Type.TYPE_MESSAGE && t1 != Type.TYPE_ENUM;
+        boolean t2Primitive = t2 != Type.TYPE_MESSAGE && t2 != Type.TYPE_ENUM;
+        boolean t1Message = t1 == Type.TYPE_MESSAGE;
+        boolean t2Message = t2 == Type.TYPE_MESSAGE;
+
+        return (t1Primitive && t2Message) || (t1Message && t2Primitive);
     }
 
     /**

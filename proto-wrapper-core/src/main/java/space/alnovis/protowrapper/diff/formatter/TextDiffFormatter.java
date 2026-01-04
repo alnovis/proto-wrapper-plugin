@@ -38,8 +38,8 @@ public class TextDiffFormatter implements DiffFormatter {
 
         formatEnums(diff, sb);
 
-        // Breaking changes section
-        if (diff.hasBreakingChanges()) {
+        // Breaking changes section - show if there are any changes (errors, warnings, or info)
+        if (!diff.getBreakingChanges().isEmpty()) {
             sb.append(SEPARATOR).append("\n");
             sb.append("BREAKING CHANGES\n");
             sb.append(SEPARATOR).append("\n\n");
@@ -235,9 +235,11 @@ public class TextDiffFormatter implements DiffFormatter {
             .filter(BreakingChange::isError).toList();
         List<BreakingChange> warnings = changes.stream()
             .filter(BreakingChange::isWarning).toList();
+        List<BreakingChange> infos = changes.stream()
+            .filter(bc -> bc.severity() == BreakingChange.Severity.INFO).toList();
 
         if (!errors.isEmpty()) {
-            sb.append("ERRORS (").append(errors.size()).append("):\n");
+            sb.append("ERRORS (").append(errors.size()).append(") - Incompatible changes:\n");
             for (BreakingChange bc : errors) {
                 sb.append("  [ERROR] ").append(bc.type()).append(": ")
                   .append(bc.entityPath());
@@ -252,12 +254,28 @@ public class TextDiffFormatter implements DiffFormatter {
         }
 
         if (!warnings.isEmpty()) {
-            sb.append("WARNINGS (").append(warnings.size()).append("):\n");
+            sb.append("WARNINGS (").append(warnings.size()).append(") - May require attention:\n");
             for (BreakingChange bc : warnings) {
                 sb.append("  [WARN] ").append(bc.type()).append(": ")
                   .append(bc.entityPath());
                 if (bc.description() != null) {
                     sb.append(" - ").append(bc.description());
+                }
+                sb.append("\n");
+            }
+            sb.append("\n");
+        }
+
+        if (!infos.isEmpty()) {
+            sb.append("PLUGIN-HANDLED (").append(infos.size()).append(") - Automatically converted by proto-wrapper:\n");
+            for (BreakingChange bc : infos) {
+                sb.append("  [INFO] ").append(bc.type()).append(": ")
+                  .append(bc.entityPath());
+                if (bc.v1Value() != null && bc.v2Value() != null) {
+                    sb.append(" (").append(bc.v1Value()).append(" -> ").append(bc.v2Value()).append(")");
+                }
+                if (bc.description() != null) {
+                    sb.append("\n         ").append(bc.description());
                 }
                 sb.append("\n");
             }
@@ -276,8 +294,14 @@ public class TextDiffFormatter implements DiffFormatter {
           .append(" modified, -").append(summary.removedEnums())
           .append(" removed\n");
 
-        sb.append("Breaking:  ").append(summary.errorCount())
+        sb.append("Changes:   ").append(summary.errorCount())
           .append(" errors, ").append(summary.warningCount())
-          .append(" warnings\n");
+          .append(" warnings, ").append(summary.infoCount())
+          .append(" plugin-handled\n");
+
+        if (summary.infoCount() > 0) {
+            sb.append("\nNote: Plugin-handled changes are type conversions that proto-wrapper\n");
+            sb.append("      automatically handles via unified accessor methods.\n");
+        }
     }
 }

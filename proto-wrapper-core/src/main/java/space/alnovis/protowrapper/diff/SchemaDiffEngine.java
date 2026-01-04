@@ -195,13 +195,12 @@ public class SchemaDiffEngine {
 
     /**
      * Checks if two fields have the same type.
+     * Uses the same logic as VersionMerger: compare Java types (simple names for message/enum).
      */
     private boolean isSameType(FieldInfo f1, FieldInfo f2) {
-        if (f1.getType() != f2.getType()) {
-            return false;
-        }
-        // For message/enum types, also check type name
-        return Objects.equals(f1.getTypeName(), f2.getTypeName());
+        // Compare using Java types which extract simple names for MESSAGE/ENUM types
+        // This matches the behavior of VersionMerger in the main plugin
+        return Objects.equals(f1.getJavaType(), f2.getJavaType());
     }
 
     // ========== Nested Message Comparison ==========

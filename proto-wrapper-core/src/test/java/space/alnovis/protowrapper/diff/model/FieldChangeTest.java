@@ -171,36 +171,36 @@ class FieldChangeTest {
     }
 
     @Test
-    void getCompatibilityNote_returnsCompatibleWidening_forWideningChange() {
+    void getCompatibilityNote_returnsPluginWider_forWideningChange() {
         FieldInfo v1 = createField("field", 1, Type.TYPE_INT32, Label.LABEL_OPTIONAL);
         FieldInfo v2 = createField("field", 1, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
         FieldChange change = new FieldChange(
             1, "field", ChangeType.TYPE_CHANGED, v1, v2, List.of()
         );
 
-        assertEquals("Compatible widening conversion", change.getCompatibilityNote());
+        assertEquals("Plugin uses wider type (long)", change.getCompatibilityNote());
     }
 
     @Test
-    void getCompatibilityNote_returnsIntEnumCompatible_forIntEnumChange() {
+    void getCompatibilityNote_returnsPluginIntEnum_forIntEnumChange() {
         FieldInfo v1 = createField("field", 1, Type.TYPE_INT32, Label.LABEL_OPTIONAL);
         FieldInfo v2 = createField("field", 1, Type.TYPE_ENUM, Label.LABEL_OPTIONAL);
         FieldChange change = new FieldChange(
             1, "field", ChangeType.TYPE_CHANGED, v1, v2, List.of()
         );
 
-        assertEquals("Compatible via INT_ENUM conversion", change.getCompatibilityNote());
+        assertEquals("Plugin uses int type with enum helper methods", change.getCompatibilityNote());
     }
 
     @Test
-    void getCompatibilityNote_returnsIncompatible_forIncompatibleChange() {
+    void getCompatibilityNote_returnsManualConversion_forStringBytesChange() {
         FieldInfo v1 = createField("field", 1, Type.TYPE_STRING, Label.LABEL_OPTIONAL);
         FieldInfo v2 = createField("field", 1, Type.TYPE_BYTES, Label.LABEL_OPTIONAL);
         FieldChange change = new FieldChange(
             1, "field", ChangeType.TYPE_CHANGED, v1, v2, List.of()
         );
 
-        assertEquals("Incompatible type change", change.getCompatibilityNote());
+        assertEquals("Requires getBytes()/new String() conversion", change.getCompatibilityNote());
     }
 
     @Test

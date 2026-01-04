@@ -13,6 +13,8 @@ message User {
     UserStatus status = 4;
     repeated string tags = 5;
     Address address = 6;
+    // This field will have incompatible type change in v2 (string -> int32 = ERROR)
+    string username = 10;
 }
 
 message Address {
