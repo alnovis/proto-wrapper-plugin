@@ -7,7 +7,9 @@ import space.alnovis.protowrapper.diff.formatter.JsonDiffFormatter;
 import space.alnovis.protowrapper.diff.formatter.MarkdownDiffFormatter;
 import space.alnovis.protowrapper.diff.formatter.TextDiffFormatter;
 import space.alnovis.protowrapper.diff.model.*;
+import space.alnovis.protowrapper.merger.VersionMerger;
 import space.alnovis.protowrapper.model.EnumInfo;
+import space.alnovis.protowrapper.model.MergedSchema;
 import space.alnovis.protowrapper.model.MessageInfo;
 
 import java.io.IOException;
@@ -72,11 +74,27 @@ public class SchemaDiff {
     /**
      * Compare two version schemas.
      *
+     * <p>Uses the VersionMerger infrastructure for consistent conflict detection
+     * across the plugin.</p>
+     *
      * @param v1 Source version schema
      * @param v2 Target version schema
      * @return SchemaDiff containing all differences
      */
     public static SchemaDiff compare(VersionSchema v1, VersionSchema v2) {
+        return compareViaMerger(v1, v2);
+    }
+
+    /**
+     * Compare two version schemas using legacy SchemaDiffEngine.
+     *
+     * @param v1 Source version schema
+     * @param v2 Target version schema
+     * @return SchemaDiff containing all differences
+     * @deprecated Use {@link #compare(VersionSchema, VersionSchema)} which uses unified conflict detection
+     */
+    @Deprecated(since = "1.6.0", forRemoval = true)
+    public static SchemaDiff compareLegacy(VersionSchema v1, VersionSchema v2) {
         return new SchemaDiffEngine().compare(v1, v2);
     }
 
@@ -107,6 +125,53 @@ public class SchemaDiff {
         VersionSchema v1 = analyzer.analyze(v1Dir, v1Name);
         VersionSchema v2 = analyzer.analyze(v2Dir, v2Name);
         return compare(v1, v2);
+    }
+
+    /**
+     * Compare two version schemas using the VersionMerger infrastructure.
+     *
+     * <p>This method uses the same conflict detection logic as the code generator,
+     * ensuring consistent classification of type conflicts across the plugin.</p>
+     *
+     * @param v1 Source version schema
+     * @param v2 Target version schema
+     * @return SchemaDiff containing all differences
+     */
+    public static SchemaDiff compareViaMerger(VersionSchema v1, VersionSchema v2) {
+        // Use VersionMerger to merge both schemas - this applies consistent conflict detection
+        MergedSchema merged = new VersionMerger().merge(List.of(v1, v2));
+
+        // Use the adapter to convert MergedSchema to SchemaDiff
+        return MergedSchemaDiffAdapter.toSchemaDiff(merged, v1.getVersion(), v2.getVersion());
+    }
+
+    /**
+     * Compare two proto directories using the VersionMerger infrastructure.
+     *
+     * @param v1Dir  Directory containing source version proto files
+     * @param v2Dir  Directory containing target version proto files
+     * @return SchemaDiff containing all differences
+     * @throws IOException if directories cannot be read
+     */
+    public static SchemaDiff compareViaMerger(Path v1Dir, Path v2Dir) throws IOException {
+        return compareViaMerger(v1Dir, v2Dir, "v1", "v2");
+    }
+
+    /**
+     * Compare two proto directories using the VersionMerger infrastructure.
+     *
+     * @param v1Dir   Directory containing source version proto files
+     * @param v2Dir   Directory containing target version proto files
+     * @param v1Name  Name for source version
+     * @param v2Name  Name for target version
+     * @return SchemaDiff containing all differences
+     * @throws IOException if directories cannot be read
+     */
+    public static SchemaDiff compareViaMerger(Path v1Dir, Path v2Dir, String v1Name, String v2Name) throws IOException {
+        ProtoAnalyzer analyzer = new ProtoAnalyzer();
+        VersionSchema v1 = analyzer.analyze(v1Dir, v1Name);
+        VersionSchema v2 = analyzer.analyze(v2Dir, v2Name);
+        return compareViaMerger(v1, v2);
     }
 
     // ========== Query Methods ==========
