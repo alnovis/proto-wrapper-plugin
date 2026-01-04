@@ -1,34 +1,84 @@
-# Release Notes - Proto Wrapper Plugin v1.5.1
+# Release Notes - Proto Wrapper Plugin v1.5.2
 
 **Release Date:** January 4, 2026
 
 ## Overview
 
-Version 1.5.1 is a patch release that fixes the breaking change classification in the Schema Diff Tool. PRIMITIVE_MESSAGE type conflicts are now correctly classified as plugin-handled (INFO) instead of incompatible (ERROR).
+Version 1.5.2 is a refactoring release that unifies the conflict detection architecture. The DiffTool now uses the same `VersionMerger` infrastructure as the code generator, ensuring consistent conflict classification across the entire plugin.
 
-## Bug Fix
+## Architecture Improvements
 
-### PRIMITIVE_MESSAGE Classification
+### Unified Conflict Detection
 
-The diff tool was incorrectly classifying primitive-to-message type conflicts (e.g., `uint32` → `ParentTicket`) as ERROR. The plugin actually handles these conflicts by generating dual accessors:
+Previously, the plugin had two parallel systems for analyzing type conflicts:
+1. **Generator** - Used `MergedField.ConflictType` for code generation
+2. **DiffTool** - Used `TypeConflictType` with duplicated logic
 
-- `getXxx()` - Returns primitive value (works in primitive versions)
-- `getXxxMessage()` - Returns message wrapper (works in message versions)
-- `supportsXxx()` - Returns true for primitive versions
-- `supportsXxxMessage()` - Returns true for message versions
+Now both systems use a single source of truth: `MergedField.ConflictType` with enhanced capabilities.
 
-**Before (v1.5.0):**
+### MergedField.ConflictType Enhancements
+
+The `ConflictType` enum now includes:
+
+```java
+public enum ConflictType {
+    NONE(Handling.NATIVE, "Types are identical"),
+    INT_ENUM(Handling.CONVERTED, "Plugin uses int type with enum helper methods"),
+    PRIMITIVE_MESSAGE(Handling.CONVERTED, "Plugin generates getXxx() and getXxxMessage() accessors"),
+    INCOMPATIBLE(Handling.INCOMPATIBLE, "Incompatible type change"),
+    // ... other types
+
+    public enum Handling { NATIVE, CONVERTED, MANUAL, WARNING, INCOMPATIBLE }
+    public enum Severity { INFO, WARNING, ERROR }
+
+    public Handling getHandling() { ... }
+    public Severity getSeverity() { ... }
+    public boolean isPluginHandled() { ... }
+    public String getPluginNote() { ... }
+}
 ```
-Changes: 1 error, 1 warning, 32 plugin-handled
-[ERROR] FIELD_TYPE_INCOMPATIBLE: TicketRequest.shiftDocumentNumber (uint32 -> ParentTicket)
+
+### New Adapter Class
+
+`MergedSchemaDiffAdapter` converts `MergedSchema` to `SchemaDiff`, bridging the gap between the generator infrastructure and the diff reporting system.
+
+## API Changes
+
+### New Methods
+
+```java
+// Explicit use of VersionMerger infrastructure
+SchemaDiff.compareViaMerger(v1, v2);
+SchemaDiff.compareViaMerger(v1Dir, v2Dir, "v1", "v2");
+
+// ConflictType methods
+conflictType.getHandling();     // NATIVE, CONVERTED, MANUAL, WARNING, INCOMPATIBLE
+conflictType.getSeverity();     // INFO, WARNING, ERROR
+conflictType.isPluginHandled(); // true for NATIVE or CONVERTED
+conflictType.getPluginNote();   // Human-readable description
 ```
 
-**After (v1.5.1):**
-```
-Changes: 0 errors, 1 warning, 33 plugin-handled
-[INFO] FIELD_TYPE_CONVERTED: TicketRequest.shiftDocumentNumber (uint32 -> ParentTicket)
-       PRIMITIVE_MESSAGE: Plugin generates getXxx() and getXxxMessage() accessors
-```
+### Deprecated (will be removed in v2.0)
+
+- `SchemaDiff.compareLegacy()` - Use `compare()` instead
+- `TypeConflictType` - Use `MergedField.ConflictType` instead
+- `SchemaDiffEngine` - Replaced by `VersionMerger` + `MergedSchemaDiffAdapter`
+- `BreakingChangeDetector` - Logic moved to `MergedSchemaDiffAdapter`
+
+## Benefits
+
+1. **Consistency** - Same conflict classification in both code generation and diff reports
+2. **Maintainability** - Changes to conflict handling only need to be made in one place
+3. **Reduced code** - Eliminated ~180 lines of duplicated logic
+4. **Accuracy** - Breaking change severity is always consistent
+
+---
+
+# Previous Releases
+
+## v1.5.1 - PRIMITIVE_MESSAGE Fix
+
+Fixed the breaking change classification for PRIMITIVE_MESSAGE conflicts. Now correctly classified as INFO (plugin-handled) instead of ERROR.
 
 ---
 
