@@ -11,6 +11,60 @@ _No changes yet._
 
 ---
 
+## [1.5.2] - 2026-01-04
+
+### Changed
+
+#### Unified Conflict Detection Architecture
+- **Single source of truth for type conflicts** - DiffTool now uses the same `VersionMerger` infrastructure as the code generator, ensuring consistent conflict classification across the plugin.
+
+### Added
+
+#### MergedField.ConflictType Enhancements
+- **Handling enum** - New nested enum indicating how the plugin handles each conflict type:
+  - `NATIVE` - No special handling needed
+  - `CONVERTED` - Plugin automatically converts between types
+  - `MANUAL` - Conversion requires manual code
+  - `WARNING` - Works but may have issues (data loss)
+  - `INCOMPATIBLE` - Types are fundamentally incompatible
+
+- **Severity enum** - New nested enum for breaking change detection:
+  - `INFO` - Plugin handles automatically
+  - `WARNING` - May require attention
+  - `ERROR` - Breaking change that plugin cannot handle
+
+- **New methods on ConflictType**:
+  - `getHandling()` - Returns the handling strategy
+  - `getPluginNote()` - Returns human-readable description
+  - `isPluginHandled()` - Returns true if NATIVE or CONVERTED
+  - `isBreaking()` - Returns true if INCOMPATIBLE
+  - `isWarning()` - Returns true if WARNING or MANUAL
+  - `getSeverity()` - Returns INFO/WARNING/ERROR based on handling
+
+#### MergedSchemaDiffAdapter
+- **New adapter class** - Converts `MergedSchema` to `SchemaDiff` using the unified conflict detection
+- Enables consistent breaking change classification between code generation and diff reports
+
+#### SchemaDiff API
+- **`compareViaMerger()` methods** - Explicitly use VersionMerger infrastructure
+- **`compare()` now uses unified infrastructure** - Default comparison uses the same logic as code generator
+
+### Deprecated
+
+- **`SchemaDiff.compareLegacy()`** - Use `compare()` instead (will be removed in v2.0)
+- **`TypeConflictType`** - Use `MergedField.ConflictType` instead (will be removed in v2.0)
+- **`SchemaDiffEngine`** - Replaced by `VersionMerger` + `MergedSchemaDiffAdapter` (will be removed in v2.0)
+- **`BreakingChangeDetector`** - Logic moved to `MergedSchemaDiffAdapter` (will be removed in v2.0)
+
+### Technical Details
+
+The refactoring eliminates ~180 lines of duplicated code and ensures that:
+1. Both DiffTool and code generator use the same conflict detection logic
+2. Changes to conflict handling only need to be made in one place
+3. Breaking change severity is consistent across all plugin features
+
+---
+
 ## [1.5.1] - 2026-01-04
 
 ### Fixed

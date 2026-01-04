@@ -27,32 +27,136 @@ public class MergedField {
 
     /**
      * Type of conflict between field types across versions.
+     *
+     * <p>Each conflict type has an associated {@link Handling} that indicates
+     * how the proto-wrapper plugin handles the conflict, and a {@link Severity}
+     * for breaking change detection.</p>
      */
     public enum ConflictType {
         /** No type conflict - same type in all versions */
-        NONE,
-        /** int ↔ enum conflict (convertible via getValue/forNumber) */
-        INT_ENUM,
-        /** enum ↔ enum conflict (different enum types, use int accessor) */
-        ENUM_ENUM,
-        /** Integer type widening: int32 → int64 (safe conversion to long) */
-        WIDENING,
-        /** Float type widening: float → double (safe conversion to double) */
-        FLOAT_DOUBLE,
-        /** Signed/unsigned conflict: int32 ↔ uint32, sint32, etc. (use long for safety) */
-        SIGNED_UNSIGNED,
-        /** Repeated ↔ singular conflict: repeated T ↔ T (unified as List) */
-        REPEATED_SINGLE,
-        /** Type narrowing: long → int, double → int (lossy conversion) */
-        NARROWING,
-        /** string ↔ bytes conflict (convertible via getBytes/new String) */
-        STRING_BYTES,
-        /** Primitive to message: int → SomeMessage (not convertible) */
-        PRIMITIVE_MESSAGE,
-        /** Optional ↔ required conflict: field is optional in some versions, required in others */
-        OPTIONAL_REQUIRED,
-        /** Other incompatible types: string ↔ int, etc. (not convertible) */
-        INCOMPATIBLE;
+        NONE(Handling.NATIVE, "Types are identical"),
+
+        /** int ↔ enum conflict (plugin uses int with enum helper methods) */
+        INT_ENUM(Handling.CONVERTED, "Plugin uses int type with enum helper methods"),
+
+        /** enum ↔ enum conflict (different enum types, plugin uses int) */
+        ENUM_ENUM(Handling.CONVERTED, "Plugin uses int type for unified access"),
+
+        /** Integer type widening: int32 → int64 (plugin uses long) */
+        WIDENING(Handling.CONVERTED, "Plugin uses wider type (long)"),
+
+        /** Float type widening: float → double (plugin uses double) */
+        FLOAT_DOUBLE(Handling.CONVERTED, "Plugin uses double type"),
+
+        /** Signed/unsigned conflict: int32 ↔ uint32 (plugin uses long for safety) */
+        SIGNED_UNSIGNED(Handling.CONVERTED, "Plugin uses long type for unsigned safety"),
+
+        /** Repeated ↔ singular conflict (plugin uses List for both) */
+        REPEATED_SINGLE(Handling.CONVERTED, "Plugin uses List<T> for unified access"),
+
+        /** Type narrowing: long → int (potential data loss) */
+        NARROWING(Handling.WARNING, "Potential data loss on narrowing conversion"),
+
+        /** string ↔ bytes conflict (requires manual conversion) */
+        STRING_BYTES(Handling.MANUAL, "Requires getBytes()/new String() conversion"),
+
+        /** Primitive to message conflict (plugin generates dual accessors) */
+        PRIMITIVE_MESSAGE(Handling.CONVERTED, "Plugin generates getXxx() and getXxxMessage() accessors"),
+
+        /** Optional ↔ required conflict (plugin handles via hasX() methods) */
+        OPTIONAL_REQUIRED(Handling.NATIVE, "Plugin provides hasX() method for checking"),
+
+        /** Other incompatible types (not convertible) */
+        INCOMPATIBLE(Handling.INCOMPATIBLE, "Incompatible type change");
+
+        /**
+         * How the plugin handles this type of conflict.
+         */
+        public enum Handling {
+            /** No special handling needed - types are compatible */
+            NATIVE,
+            /** Plugin automatically converts between types */
+            CONVERTED,
+            /** Conversion possible but requires manual code */
+            MANUAL,
+            /** Works but may have issues (data loss, etc.) */
+            WARNING,
+            /** Types are fundamentally incompatible */
+            INCOMPATIBLE
+        }
+
+        /**
+         * Severity level for breaking change detection.
+         */
+        public enum Severity {
+            /** Informational - plugin handles automatically */
+            INFO,
+            /** Warning - may require attention */
+            WARNING,
+            /** Error - breaking change that plugin cannot handle */
+            ERROR
+        }
+
+        private final Handling handling;
+        private final String pluginNote;
+
+        ConflictType(Handling handling, String pluginNote) {
+            this.handling = handling;
+            this.pluginNote = pluginNote;
+        }
+
+        /**
+         * Returns how the plugin handles this conflict type.
+         * @return the handling strategy
+         */
+        public Handling getHandling() {
+            return handling;
+        }
+
+        /**
+         * Returns a note about how the plugin handles this conflict.
+         * @return human-readable description
+         */
+        public String getPluginNote() {
+            return pluginNote;
+        }
+
+        /**
+         * Returns true if the plugin can automatically handle this conflict.
+         * @return true if NATIVE or CONVERTED handling
+         */
+        public boolean isPluginHandled() {
+            return handling == Handling.NATIVE || handling == Handling.CONVERTED;
+        }
+
+        /**
+         * Returns true if this conflict is a breaking change.
+         * Plugin-handled conflicts are not considered breaking.
+         * @return true if INCOMPATIBLE handling
+         */
+        public boolean isBreaking() {
+            return handling == Handling.INCOMPATIBLE;
+        }
+
+        /**
+         * Returns true if this conflict should be shown as a warning.
+         * @return true if WARNING or MANUAL handling
+         */
+        public boolean isWarning() {
+            return handling == Handling.WARNING || handling == Handling.MANUAL;
+        }
+
+        /**
+         * Returns the severity for breaking change detection.
+         * @return INFO for plugin-handled, WARNING for manual/lossy, ERROR for incompatible
+         */
+        public Severity getSeverity() {
+            return switch (handling) {
+                case NATIVE, CONVERTED -> Severity.INFO;
+                case MANUAL, WARNING -> Severity.WARNING;
+                case INCOMPATIBLE -> Severity.ERROR;
+            };
+        }
 
         /**
          * Check if this conflict type can be safely converted.
@@ -62,7 +166,7 @@ public class MergedField {
             return this == NONE || this == INT_ENUM || this == ENUM_ENUM || this == WIDENING
                     || this == FLOAT_DOUBLE || this == SIGNED_UNSIGNED
                     || this == REPEATED_SINGLE || this == STRING_BYTES
-                    || this == OPTIONAL_REQUIRED;
+                    || this == OPTIONAL_REQUIRED || this == PRIMITIVE_MESSAGE;
         }
 
         /**
