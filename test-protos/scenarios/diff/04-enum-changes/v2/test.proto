@@ -1,0 +1,17 @@
+syntax = "proto3";
+package test;
+
+// Scenario: Enum value additions and removals
+enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_INACTIVE = 2;
+    // STATUS_DELETED removed
+    STATUS_SUSPENDED = 4;    // New value added
+    STATUS_PENDING = 5;      // New value added
+}
+
+message TestMessage {
+    int64 id = 1;
+    Status status = 2;
+}

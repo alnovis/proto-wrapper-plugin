@@ -1,0 +1,10 @@
+syntax = "proto3";
+package test;
+
+// Simple scenario: Message removal
+message ExistingMessage {
+    int64 id = 1;
+    string name = 2;
+}
+
+// OldMessage removed in v2

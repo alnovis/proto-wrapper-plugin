@@ -95,14 +95,14 @@ jobs:
             echo "Installed plugins:"
             ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/
 
-      - name: Run Integration Tests
+      - name: Run Maven Integration Tests
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
-            cd proto-wrapper-integration-tests
+            cd proto-wrapper-maven-integration-tests
             mvn verify -B
 
       - name: Run Maven Example
@@ -149,12 +149,18 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
       - name: Configure Gradle repositories
         run: |
           mkdir -p ~/.gradle
           cat > ~/.gradle/init.gradle << 'EOF'
           allprojects {
             repositories {
+              mavenLocal()
               mavenCentral()
               maven {
                 url = uri("https://repo1.maven.org/maven2/")
@@ -165,6 +171,7 @@ jobs:
           settingsEvaluated { settings ->
             settings.pluginManagement {
               repositories {
+                mavenLocal()
                 gradlePluginPortal()
                 mavenCentral()
                 maven {
@@ -191,6 +198,27 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: ./gradlew build --no-daemon
+
+      - name: Run Slow TestKit Tests
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: ./gradlew :proto-wrapper-gradle-plugin:slowTest --no-daemon
+
+      - name: Publish to Maven Local
+        run: ./gradlew publishToMavenLocal --no-daemon
+
+      - name: Run Gradle Integration Tests
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd proto-wrapper-gradle-integration-tests
+            gradle test --no-daemon
 
       - name: Grant execute permission for example gradlew
         run: chmod +x examples/gradle-example/gradlew

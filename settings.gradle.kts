@@ -17,11 +17,8 @@ include("proto-wrapper-gradle-plugin")
 
 // Maven-only modules NOT included in Gradle build:
 // - proto-wrapper-maven-plugin (depends on Maven Plugin API)
+// - proto-wrapper-maven-integration-tests
 // - examples/maven-example
-
-// Standalone Gradle project for integration tests
-// Uses composite build for plugin resolution
-includeBuild("proto-wrapper-integration-tests")
 
 // examples/gradle-example - built separately:
 //   cd examples/gradle-example && ./gradlew build

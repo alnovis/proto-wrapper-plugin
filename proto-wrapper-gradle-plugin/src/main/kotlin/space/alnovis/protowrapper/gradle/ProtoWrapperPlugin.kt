@@ -14,6 +14,10 @@ class ProtoWrapperPlugin : Plugin<Project> {
             project
         )
 
+        // Register schema diff task type for ad-hoc usage
+        // Users can create their own instances with custom configuration:
+        // tasks.register<SchemaDiffTask>("diffSchemas") { ... }
+
         // Create task for generation
         val generateTask = project.tasks.register(
             "generateProtoWrappers",

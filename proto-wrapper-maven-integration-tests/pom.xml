@@ -11,10 +11,10 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>proto-wrapper-integration-tests</artifactId>
+    <artifactId>proto-wrapper-maven-integration-tests</artifactId>
     <packaging>jar</packaging>
 
-    <name>Proto Wrapper Integration Tests</name>
+    <name>Proto Wrapper Maven Integration Tests</name>
     <description>
         Comprehensive integration tests for proto-wrapper-maven-plugin covering:
         - Simple proto schemas without conflicts
@@ -79,7 +79,7 @@
                 <version>0.6.1</version>
                 <configuration>
                     <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
-                    <protoSourceRoot>${basedir}/proto</protoSourceRoot>
+                    <protoSourceRoot>${basedir}/../test-protos/scenarios/generation</protoSourceRoot>
                 </configuration>
                 <executions>
                     <execution>
@@ -117,7 +117,7 @@
                 <configuration>
                     <basePackage>space.alnovis.protowrapper.it.model</basePackage>
                     <protoPackagePattern>space.alnovis.protowrapper.it.proto.{version}</protoPackagePattern>
-                    <protoRoot>${basedir}/proto</protoRoot>
+                    <protoRoot>${basedir}/../test-protos/scenarios/generation</protoRoot>
                     <includeVersionSuffix>false</includeVersionSuffix>
                     <generateBuilders>true</generateBuilders>
                     <convertWellKnownTypes>true</convertWellKnownTypes>

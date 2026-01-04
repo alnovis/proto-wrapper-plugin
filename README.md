@@ -70,7 +70,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -111,7 +111,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.4.0"
+    id("space.alnovis.proto-wrapper") version "1.5.0"
 }
 
 protoWrapper {
@@ -522,33 +522,93 @@ See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 
 ## Development
 
-### Maven
+The project uses a dual-build system: Maven for core and Maven plugin, Gradle for Gradle plugin.
+
+### Prerequisites
+
+- Java 17 or higher
+- Maven 3.8+
+- Gradle 8.5+ (or use included wrapper)
+- Protocol Buffers compiler (`protoc`) installed and in PATH
+
+### Maven Build
 
 ```bash
-# Build
+# Build all Maven modules (core + Maven plugin)
 mvn clean install
 
-# Run tests
+# Run unit tests
 mvn test
+
+# Run Maven integration tests
+mvn verify -pl proto-wrapper-maven-integration-tests
 
 # Build without tests
 mvn install -DskipTests
+
+# Build specific module
+mvn install -pl proto-wrapper-core
 ```
 
-### Gradle
+### Gradle Build
 
 ```bash
-# Build
+# Build Gradle modules (core + Gradle plugin)
 ./gradlew build
 
-# Run tests
+# Run unit tests
 ./gradlew test
+
+# Publish to local Maven repository (required before integration tests)
+./gradlew publishToMavenLocal
+
+# Run Gradle integration tests (requires publishToMavenLocal first)
+cd proto-wrapper-gradle-integration-tests
+gradle test --no-daemon
 
 # Build without tests
 ./gradlew build -x test
+```
 
-# Publish to local Maven repository
-./gradlew publishToMavenLocal
+### Full Build (Maven + Gradle)
+
+```bash
+# Option 1: Maven first, then Gradle
+mvn clean install
+./gradlew build publishToMavenLocal
+cd proto-wrapper-gradle-integration-tests && gradle test --no-daemon
+
+# Option 2: Using Gradle tasks
+./gradlew buildAll  # Builds everything including Maven modules
+```
+
+### Project Modules
+
+| Module | Build System | Description |
+|--------|--------------|-------------|
+| `proto-wrapper-core` | Maven + Gradle | Core library (schema parsing, merging, code generation) |
+| `proto-wrapper-maven-plugin` | Maven | Maven plugin for code generation |
+| `proto-wrapper-gradle-plugin` | Gradle | Gradle plugin for code generation |
+| `proto-wrapper-maven-integration-tests` | Maven | Integration tests for Maven plugin |
+| `proto-wrapper-gradle-integration-tests` | Gradle (standalone) | Integration tests for Gradle plugin |
+| `examples/maven-example` | Maven | Example Maven project |
+| `examples/gradle-example` | Gradle | Example Gradle project |
+
+### Test Structure
+
+```
+test-protos/scenarios/           # Shared test proto files
+├── generation/                  # Proto files for generation tests
+│   ├── v1/
+│   └── v2/
+└── diff/                        # Proto files for Schema Diff tests
+    ├── 01-simple-add/
+    ├── 02-simple-remove/
+    └── ...
+
+proto-wrapper-core/src/test/                    # Core unit tests
+proto-wrapper-maven-integration-tests/src/test/ # Maven integration tests
+proto-wrapper-gradle-integration-tests/src/test/# Gradle integration tests
 ```
 
 ## See Also
