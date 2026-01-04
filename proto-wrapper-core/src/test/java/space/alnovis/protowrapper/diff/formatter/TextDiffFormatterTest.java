@@ -194,7 +194,7 @@ class TextDiffFormatterTest {
         String result = formatter.format(diff);
 
         assertTrue(result.contains("BREAKING CHANGES"));
-        assertTrue(result.contains("ERRORS (1):"));
+        assertTrue(result.contains("ERRORS (1) - Incompatible changes:"));
         assertTrue(result.contains("[ERROR] MESSAGE_REMOVED: Deleted"));
     }
 
@@ -212,7 +212,7 @@ class TextDiffFormatterTest {
 
         String result = formatter.format(diff);
 
-        assertTrue(result.contains("WARNINGS (1):"));
+        assertTrue(result.contains("WARNINGS (1) - May require attention:"));
         assertTrue(result.contains("[WARN] CARDINALITY_CHANGED: User.tags"));
     }
 
@@ -241,7 +241,7 @@ class TextDiffFormatterTest {
         assertTrue(result.contains("Messages:"));
         assertTrue(result.contains("+1 added"));
         assertTrue(result.contains("-1 removed"));
-        assertTrue(result.contains("Breaking:"));
+        assertTrue(result.contains("Changes:"));
         assertTrue(result.contains("1 errors"));
     }
 

@@ -6,122 +6,122 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Detects breaking changes in schema differences.
- * A breaking change is a modification that may cause wire format incompatibility
- * or require code changes in consumers.
+ * Detects schema changes and classifies them based on plugin handling capabilities.
+ *
+ * <p>Severity levels are based on what the proto-wrapper plugin can handle:</p>
+ * <ul>
+ *   <li><b>INFO</b> - Plugin handles automatically (removed entities, type conversions)</li>
+ *   <li><b>WARNING</b> - May need attention but plugin can handle (narrowing, semantic changes)</li>
+ *   <li><b>ERROR</b> - Plugin cannot handle (primitive ↔ message incompatibility)</li>
+ * </ul>
  */
 public class BreakingChangeDetector {
 
     /**
-     * Detects all breaking changes in the provided message and enum diffs.
+     * Detects all schema changes in the provided message and enum diffs.
      *
      * @param messageDiffs List of message differences
      * @param enumDiffs    List of enum differences
-     * @return List of detected breaking changes
+     * @return List of detected changes with appropriate severity levels
      */
     public List<BreakingChange> detectAll(List<MessageDiff> messageDiffs, List<EnumDiff> enumDiffs) {
-        List<BreakingChange> breaking = new ArrayList<>();
+        List<BreakingChange> changes = new ArrayList<>();
 
-        // Detect message-level breaking changes
         for (MessageDiff md : messageDiffs) {
-            detectMessageBreaking(md, "", breaking);
+            detectMessageChanges(md, "", changes);
         }
 
-        // Detect enum-level breaking changes
         for (EnumDiff ed : enumDiffs) {
-            detectEnumBreaking(ed, "", breaking);
+            detectEnumChanges(ed, "", changes);
         }
 
-        return breaking;
+        return changes;
     }
 
     /**
-     * Detects breaking changes in a message diff, including nested types.
-     *
-     * @param md       The message diff to analyze
-     * @param prefix   Parent path prefix (for nested messages)
-     * @param breaking List to add detected breaking changes to
+     * Detects changes in a message diff, including nested types.
      */
-    private void detectMessageBreaking(MessageDiff md, String prefix, List<BreakingChange> breaking) {
+    private void detectMessageChanges(MessageDiff md, String prefix, List<BreakingChange> changes) {
         String path = prefix.isEmpty() ? md.messageName() : prefix + "." + md.messageName();
 
-        // Message removed is breaking
+        // Message removed - plugin handles by generating code only for versions where it exists
         if (md.changeType() == ChangeType.REMOVED) {
-            breaking.add(new BreakingChange(
+            changes.add(new BreakingChange(
                 BreakingChange.Type.MESSAGE_REMOVED,
-                BreakingChange.Severity.ERROR,
+                BreakingChange.Severity.INFO,
                 path,
-                "Message removed",
+                "Plugin generates version-specific code; message available only in source version",
                 md.messageName(),
                 null
             ));
-            return; // No need to check fields if message is removed
+            return;
         }
 
-        // Check field-level breaking changes
+        // Check field-level changes
         for (FieldChange fc : md.fieldChanges()) {
-            detectFieldBreaking(fc, path, breaking);
+            detectFieldChanges(fc, path, changes);
         }
 
         // Recursively check nested messages
         for (MessageDiff nested : md.nestedMessageChanges()) {
-            detectMessageBreaking(nested, path, breaking);
+            detectMessageChanges(nested, path, changes);
         }
 
         // Check nested enums
         for (EnumDiff nested : md.nestedEnumChanges()) {
-            detectEnumBreaking(nested, path, breaking);
+            detectEnumChanges(nested, path, changes);
         }
     }
 
     /**
-     * Detects breaking changes in a field change.
+     * Detects changes in a field change.
      */
-    private void detectFieldBreaking(FieldChange fc, String messagePath, List<BreakingChange> breaking) {
+    private void detectFieldChanges(FieldChange fc, String messagePath, List<BreakingChange> changes) {
         String fieldPath = messagePath + "." + fc.fieldName();
 
         switch (fc.changeType()) {
-            case REMOVED -> breaking.add(new BreakingChange(
-                BreakingChange.Type.FIELD_REMOVED,
-                BreakingChange.Severity.ERROR,
-                fieldPath,
-                "Field removed",
-                formatFieldInfo(fc.v1Field()),
-                null
-            ));
+            case REMOVED -> {
+                // Field removed - plugin handles with hasXxx/supportsXxx methods
+                changes.add(new BreakingChange(
+                    BreakingChange.Type.FIELD_REMOVED,
+                    BreakingChange.Severity.INFO,
+                    fieldPath,
+                    "Plugin generates hasXxx()/supportsXxx() for version checking",
+                    formatFieldInfo(fc.v1Field()),
+                    null
+                ));
+            }
 
             case TYPE_CHANGED -> {
-                if (!fc.isCompatibleTypeChange()) {
-                    breaking.add(new BreakingChange(
-                        BreakingChange.Type.FIELD_TYPE_INCOMPATIBLE,
-                        BreakingChange.Severity.ERROR,
-                        fieldPath,
-                        "Incompatible type change",
-                        FieldChange.formatType(fc.v1Field()),
-                        FieldChange.formatType(fc.v2Field())
-                    ));
-                } else {
-                    // Compatible type change is just a warning
-                    breaking.add(new BreakingChange(
-                        BreakingChange.Type.FIELD_TYPE_INCOMPATIBLE,
-                        BreakingChange.Severity.WARNING,
-                        fieldPath,
-                        "Type changed (compatible: " + fc.getCompatibilityNote() + ")",
-                        FieldChange.formatType(fc.v1Field()),
-                        FieldChange.formatType(fc.v2Field())
-                    ));
-                }
+                TypeConflictType conflictType = fc.getTypeConflictType();
+                BreakingChange.Severity severity = conflictType.getSeverity();
+                BreakingChange.Type changeType = conflictType.isPluginHandled()
+                    ? BreakingChange.Type.FIELD_TYPE_CONVERTED
+                    : BreakingChange.Type.FIELD_TYPE_INCOMPATIBLE;
+
+                String description = conflictType.isPluginHandled()
+                    ? conflictType.name() + ": " + conflictType.getPluginNote()
+                    : "Incompatible type change: " + conflictType.getPluginNote();
+
+                changes.add(new BreakingChange(
+                    changeType,
+                    severity,
+                    fieldPath,
+                    description,
+                    FieldChange.formatType(fc.v1Field()),
+                    FieldChange.formatType(fc.v2Field())
+                ));
             }
 
             case LABEL_CHANGED -> {
-                // repeated <-> singular is breaking
+                // repeated <-> singular - plugin handles with REPEATED_SINGLE conflict type
                 if (fc.v1Field() != null && fc.v2Field() != null &&
                     fc.v1Field().isRepeated() != fc.v2Field().isRepeated()) {
-                    breaking.add(new BreakingChange(
+                    changes.add(new BreakingChange(
                         BreakingChange.Type.CARDINALITY_CHANGED,
-                        BreakingChange.Severity.ERROR,
+                        BreakingChange.Severity.INFO,
                         fieldPath,
-                        "Cardinality changed",
+                        "Plugin uses List<T> for unified access across versions",
                         fc.v1Field().isRepeated() ? "repeated" : "singular",
                         fc.v2Field().isRepeated() ? "repeated" : "singular"
                     ));
@@ -132,20 +132,20 @@ public class BreakingChangeDetector {
                 // Check for oneof membership changes
                 if (fc.v1Field() != null && fc.v2Field() != null) {
                     if (fc.v1Field().isInOneof() && !fc.v2Field().isInOneof()) {
-                        breaking.add(new BreakingChange(
+                        changes.add(new BreakingChange(
                             BreakingChange.Type.FIELD_MOVED_OUT_OF_ONEOF,
                             BreakingChange.Severity.WARNING,
                             fieldPath,
-                            "Field moved out of oneof",
+                            "Semantic change - field moved out of oneof",
                             "oneof " + fc.v1Field().getOneofName(),
                             "standalone field"
                         ));
                     } else if (!fc.v1Field().isInOneof() && fc.v2Field().isInOneof()) {
-                        breaking.add(new BreakingChange(
+                        changes.add(new BreakingChange(
                             BreakingChange.Type.FIELD_MOVED_INTO_ONEOF,
                             BreakingChange.Severity.WARNING,
                             fieldPath,
-                            "Field moved into oneof",
+                            "Semantic change - field moved into oneof",
                             "standalone field",
                             "oneof " + fc.v2Field().getOneofName()
                         ));
@@ -160,18 +160,18 @@ public class BreakingChangeDetector {
     }
 
     /**
-     * Detects breaking changes in an enum diff.
+     * Detects changes in an enum diff.
      */
-    private void detectEnumBreaking(EnumDiff ed, String prefix, List<BreakingChange> breaking) {
+    private void detectEnumChanges(EnumDiff ed, String prefix, List<BreakingChange> changes) {
         String path = prefix.isEmpty() ? ed.enumName() : prefix + "." + ed.enumName();
 
-        // Enum removed is breaking
+        // Enum removed - plugin handles similarly to message removal
         if (ed.changeType() == ChangeType.REMOVED) {
-            breaking.add(new BreakingChange(
+            changes.add(new BreakingChange(
                 BreakingChange.Type.ENUM_REMOVED,
-                BreakingChange.Severity.ERROR,
+                BreakingChange.Severity.INFO,
                 path,
-                "Enum removed",
+                "Plugin generates version-specific code; enum available only in source version",
                 ed.enumName(),
                 null
             ));
@@ -180,38 +180,43 @@ public class BreakingChangeDetector {
 
         // Check enum value changes
         for (EnumValueChange vc : ed.valueChanges()) {
-            detectEnumValueBreaking(vc, path, breaking);
+            detectEnumValueChanges(vc, path, changes);
         }
     }
 
     /**
-     * Detects breaking changes in enum value changes.
+     * Detects changes in enum value changes.
      */
-    private void detectEnumValueBreaking(EnumValueChange vc, String enumPath, List<BreakingChange> breaking) {
+    private void detectEnumValueChanges(EnumValueChange vc, String enumPath, List<BreakingChange> changes) {
         String valuePath = enumPath + "." + vc.valueName();
 
         switch (vc.changeType()) {
-            case VALUE_REMOVED -> breaking.add(new BreakingChange(
-                BreakingChange.Type.ENUM_VALUE_REMOVED,
-                BreakingChange.Severity.ERROR,
-                valuePath,
-                "Enum value removed",
-                vc.valueName() + " = " + vc.v1Number(),
-                null
-            ));
+            case VALUE_REMOVED -> {
+                // Enum value removed - plugin uses int values or unified enum
+                changes.add(new BreakingChange(
+                    BreakingChange.Type.ENUM_VALUE_REMOVED,
+                    BreakingChange.Severity.INFO,
+                    valuePath,
+                    "Plugin uses int accessor or unified enum for version compatibility",
+                    vc.valueName() + " = " + vc.v1Number(),
+                    null
+                ));
+            }
 
-            case VALUE_NUMBER_CHANGED -> breaking.add(new BreakingChange(
-                BreakingChange.Type.ENUM_VALUE_NUMBER_CHANGED,
-                BreakingChange.Severity.ERROR,
-                valuePath,
-                "Enum value number changed",
-                String.valueOf(vc.v1Number()),
-                String.valueOf(vc.v2Number())
-            ));
+            case VALUE_NUMBER_CHANGED -> {
+                // Enum value number changed - plugin uses int values
+                changes.add(new BreakingChange(
+                    BreakingChange.Type.ENUM_VALUE_NUMBER_CHANGED,
+                    BreakingChange.Severity.WARNING,
+                    valuePath,
+                    "Wire format change - plugin uses int for safe cross-version access",
+                    String.valueOf(vc.v1Number()),
+                    String.valueOf(vc.v2Number())
+                ));
+            }
 
             case VALUE_ADDED -> {
-                // Adding a value is not breaking by itself
-                // But we could add an INFO-level note if desired
+                // Adding a value is informational only
             }
 
             default -> {
@@ -221,7 +226,7 @@ public class BreakingChangeDetector {
     }
 
     /**
-     * Formats field info for display in breaking change messages.
+     * Formats field info for display in change messages.
      */
     private String formatFieldInfo(space.alnovis.protowrapper.model.FieldInfo field) {
         if (field == null) {

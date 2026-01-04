@@ -59,7 +59,8 @@ class SchemaDiffEngineTest {
             assertEquals(0, diff.getAddedMessages().size());
             assertEquals(1, diff.getRemovedMessages().size());
             assertEquals("OldMessage", diff.getRemovedMessages().get(0).getName());
-            assertTrue(diff.hasBreakingChanges());
+            // Message removal is now INFO level (plugin-handled), not breaking
+            assertFalse(diff.hasBreakingChanges());
         }
 
         @Test
@@ -112,7 +113,8 @@ class SchemaDiffEngineTest {
             MessageDiff msgDiff = diff.getModifiedMessages().get(0);
             assertEquals(1, msgDiff.getRemovedFields().size());
             assertEquals("field2", msgDiff.getRemovedFields().get(0).fieldName());
-            assertTrue(diff.hasBreakingChanges());
+            // Field removal is now INFO level (plugin-handled), not breaking
+            assertFalse(diff.hasBreakingChanges());
         }
 
         @Test
@@ -166,7 +168,8 @@ class SchemaDiffEngineTest {
 
             assertEquals(1, diff.getRemovedEnums().size());
             assertEquals("OldEnum", diff.getRemovedEnums().get(0).getName());
-            assertTrue(diff.hasBreakingChanges());
+            // Enum removal is now INFO level (plugin-handled), not breaking
+            assertFalse(diff.hasBreakingChanges());
         }
 
         @Test
@@ -211,10 +214,10 @@ class SchemaDiffEngineTest {
     }
 
     @Nested
-    class BreakingChangeDetection {
+    class ChangeDetection {
 
         @Test
-        void messageRemovalIsBreaking() {
+        void messageRemovalIsPluginHandled() {
             VersionSchema v1 = new VersionSchema("v1");
             VersionSchema v2 = new VersionSchema("v2");
 
@@ -222,13 +225,19 @@ class SchemaDiffEngineTest {
 
             SchemaDiff diff = engine.compare(v1, v2);
 
-            assertTrue(diff.hasBreakingChanges());
-            assertEquals(1, diff.getErrors().size());
-            assertEquals(BreakingChange.Type.MESSAGE_REMOVED, diff.getErrors().get(0).type());
+            // Message removal is INFO level (plugin-handled), not ERROR
+            assertFalse(diff.hasBreakingChanges(), "Message removal should be plugin-handled, not breaking");
+            assertEquals(0, diff.getErrors().size());
+
+            // Should be in the breaking changes list but with INFO severity
+            List<BreakingChange> all = diff.getBreakingChanges();
+            assertEquals(1, all.size());
+            assertEquals(BreakingChange.Type.MESSAGE_REMOVED, all.get(0).type());
+            assertEquals(BreakingChange.Severity.INFO, all.get(0).severity());
         }
 
         @Test
-        void fieldRemovalIsBreaking() {
+        void fieldRemovalIsPluginHandled() {
             VersionSchema v1 = new VersionSchema("v1");
             VersionSchema v2 = new VersionSchema("v2");
 
@@ -242,13 +251,18 @@ class SchemaDiffEngineTest {
 
             SchemaDiff diff = engine.compare(v1, v2);
 
-            assertTrue(diff.hasBreakingChanges());
-            List<BreakingChange> errors = diff.getErrors();
-            assertTrue(errors.stream().anyMatch(bc -> bc.type() == BreakingChange.Type.FIELD_REMOVED));
+            // Field removal is INFO level (plugin-handled), not ERROR
+            assertFalse(diff.hasBreakingChanges(), "Field removal should be plugin-handled, not breaking");
+
+            // Should be in the breaking changes list but with INFO severity
+            List<BreakingChange> all = diff.getBreakingChanges();
+            assertTrue(all.stream().anyMatch(bc ->
+                bc.type() == BreakingChange.Type.FIELD_REMOVED &&
+                bc.severity() == BreakingChange.Severity.INFO));
         }
 
         @Test
-        void enumValueRemovalIsBreaking() {
+        void enumValueRemovalIsPluginHandled() {
             VersionSchema v1 = new VersionSchema("v1");
             VersionSchema v2 = new VersionSchema("v2");
 
@@ -257,9 +271,13 @@ class SchemaDiffEngineTest {
 
             SchemaDiff diff = engine.compare(v1, v2);
 
-            assertTrue(diff.hasBreakingChanges());
-            assertTrue(diff.getErrors().stream()
-                .anyMatch(bc -> bc.type() == BreakingChange.Type.ENUM_VALUE_REMOVED));
+            // Enum value removal is INFO level (plugin-handled), not ERROR
+            assertFalse(diff.hasBreakingChanges(), "Enum value removal should be plugin-handled, not breaking");
+
+            // Should be in the breaking changes list but with INFO severity
+            assertTrue(diff.getBreakingChanges().stream()
+                .anyMatch(bc -> bc.type() == BreakingChange.Type.ENUM_VALUE_REMOVED &&
+                               bc.severity() == BreakingChange.Severity.INFO));
         }
     }
 

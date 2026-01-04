@@ -46,6 +46,12 @@ public record BreakingChange(
         FIELD_TYPE_INCOMPATIBLE,
 
         /**
+         * A field type was changed but the plugin can handle the conversion.
+         * Examples: int32 -> enum (INT_ENUM), int32 -> int64 (WIDENING), etc.
+         */
+        FIELD_TYPE_CONVERTED,
+
+        /**
          * An enum was removed from the schema.
          */
         ENUM_REMOVED,

@@ -1,8 +1,38 @@
-# Release Notes - Proto Wrapper Plugin v1.5.0
+# Release Notes - Proto Wrapper Plugin v1.5.1
 
 **Release Date:** January 4, 2026
 
 ## Overview
+
+Version 1.5.1 is a patch release that fixes the breaking change classification in the Schema Diff Tool. PRIMITIVE_MESSAGE type conflicts are now correctly classified as plugin-handled (INFO) instead of incompatible (ERROR).
+
+## Bug Fix
+
+### PRIMITIVE_MESSAGE Classification
+
+The diff tool was incorrectly classifying primitive-to-message type conflicts (e.g., `uint32` → `ParentTicket`) as ERROR. The plugin actually handles these conflicts by generating dual accessors:
+
+- `getXxx()` - Returns primitive value (works in primitive versions)
+- `getXxxMessage()` - Returns message wrapper (works in message versions)
+- `supportsXxx()` - Returns true for primitive versions
+- `supportsXxxMessage()` - Returns true for message versions
+
+**Before (v1.5.0):**
+```
+Changes: 1 error, 1 warning, 32 plugin-handled
+[ERROR] FIELD_TYPE_INCOMPATIBLE: TicketRequest.shiftDocumentNumber (uint32 -> ParentTicket)
+```
+
+**After (v1.5.1):**
+```
+Changes: 0 errors, 1 warning, 33 plugin-handled
+[INFO] FIELD_TYPE_CONVERTED: TicketRequest.shiftDocumentNumber (uint32 -> ParentTicket)
+       PRIMITIVE_MESSAGE: Plugin generates getXxx() and getXxxMessage() accessors
+```
+
+---
+
+# Schema Diff Tool (from v1.5.0)
 
 This release introduces the **Schema Diff Tool** - a comprehensive solution for comparing protobuf schemas between versions and detecting breaking changes. Available as CLI, Maven goal, and Gradle task, it integrates seamlessly with CI/CD pipelines.
 
@@ -24,27 +54,27 @@ The CLI is packaged as an executable JAR with all dependencies included.
 
 ```bash
 # Basic comparison
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2
 
 # Output formats
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=text
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=json
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=markdown
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --format=text
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --format=json
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --format=markdown
 
 # Show only breaking changes
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --breaking-only
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --breaking-only
 
 # Write to file
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
 
 # CI/CD mode: exit code 1 if breaking changes detected
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
 
 # Custom version names
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
 
 # Quiet mode
-java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 -q
+java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 -q
 ```
 
 #### CLI Options
@@ -90,7 +120,7 @@ mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dv1Name=production -Dv2Name=
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.5.0</version>
+    <version>1.5.1</version>
     <executions>
         <!-- Schema diff during verify phase -->
         <execution>
@@ -135,7 +165,7 @@ Register and configure a `SchemaDiffTask`:
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.5.0"
+    id("space.alnovis.proto-wrapper") version "1.5.1"
 }
 
 // Register diff task
@@ -321,22 +351,22 @@ System.out.println("Breaking: " + summary.errorCount() + " errors");
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.5.0</version>
+    <version>1.5.1</version>
 </plugin>
 ```
 
 **Gradle:**
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.5.0"
+    id("space.alnovis.proto-wrapper") version "1.5.1"
 }
 ```
 
 ### 2. Download CLI JAR (Optional)
 
 The CLI JAR is available as:
-- `proto-wrapper-core-1.5.0-cli.jar` in Maven build (`target/`)
-- `proto-wrapper-core-1.5.0-cli.jar` in Gradle build (`build/libs/`)
+- `proto-wrapper-core-1.5.1-cli.jar` in Maven build (`target/`)
+- `proto-wrapper-core-1.5.1-cli.jar` in Gradle build (`build/libs/`)
 
 ### 3. Add to CI/CD Pipeline
 
@@ -344,7 +374,7 @@ The CLI JAR is available as:
 ```yaml
 - name: Check Breaking Changes
   run: |
-    java -jar proto-wrapper-core-1.5.0-cli.jar diff \
+    java -jar proto-wrapper-core-1.5.1-cli.jar diff \
       proto/production proto/development \
       --fail-on-breaking \
       --output=schema-diff.md
@@ -360,7 +390,7 @@ The CLI JAR is available as:
 ```yaml
 check-schema:
   script:
-    - java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+    - java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
   artifacts:
     reports:
       junit: schema-diff.xml

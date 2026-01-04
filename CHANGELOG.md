@@ -11,6 +11,39 @@ _No changes yet._
 
 ---
 
+## [1.5.1] - 2026-01-04
+
+### Fixed
+
+#### Schema Diff Tool - Breaking Change Classification
+- **PRIMITIVE_MESSAGE conflicts now correctly classified as INFO** - The diff tool was incorrectly classifying primitive-to-message type conflicts (e.g., `uint32` → `ParentTicket`) as ERROR (incompatible). The plugin actually handles these conflicts by generating dual accessors:
+  - `getXxx()` - Returns primitive value (works in primitive versions, returns null in message versions)
+  - `getXxxMessage()` - Returns message wrapper (works in message versions, returns null in primitive versions)
+  - `supportsXxx()` - Returns true for primitive versions
+  - `supportsXxxMessage()` - Returns true for message versions
+
+### Changed
+
+- **TypeConflictType.PRIMITIVE_MESSAGE** - Changed from `Handling.INCOMPATIBLE` to `Handling.CONVERTED`
+- **Breaking change summary** - Now correctly reports 0 errors for schemas that the plugin can fully handle
+
+### Example
+
+Before fix:
+```
+Changes: 1 error, 1 warning, 32 plugin-handled
+[ERROR] FIELD_TYPE_INCOMPATIBLE: TicketRequest.shiftDocumentNumber (uint32 -> ParentTicket)
+```
+
+After fix:
+```
+Changes: 0 errors, 1 warning, 33 plugin-handled
+[INFO] FIELD_TYPE_CONVERTED: TicketRequest.shiftDocumentNumber (uint32 -> ParentTicket)
+       PRIMITIVE_MESSAGE: Plugin generates getXxx() and getXxxMessage() accessors
+```
+
+---
+
 ## [1.5.0] - 2026-01-04
 
 ### Added

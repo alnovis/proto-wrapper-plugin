@@ -200,10 +200,11 @@ public class SchemaDiff {
     // ========== Breaking Changes ==========
 
     /**
-     * Returns true if there are any breaking changes.
+     * Returns true if there are any ERROR-level breaking changes.
+     * INFO-level changes (plugin-handled) and WARNING-level changes are not considered breaking.
      */
     public boolean hasBreakingChanges() {
-        return !breakingChanges.isEmpty();
+        return breakingChanges.stream().anyMatch(BreakingChange::isError);
     }
 
     /**
@@ -259,11 +260,13 @@ public class SchemaDiff {
             .filter(bc -> bc.severity() == BreakingChange.Severity.ERROR).count();
         int warnings = (int) breakingChanges.stream()
             .filter(bc -> bc.severity() == BreakingChange.Severity.WARNING).count();
+        int infos = (int) breakingChanges.stream()
+            .filter(bc -> bc.severity() == BreakingChange.Severity.INFO).count();
 
         return new DiffSummary(
             addedMessages, removedMessages, modifiedMessages,
             addedEnums, removedEnums, modifiedEnums,
-            errors, warnings
+            errors, warnings, infos
         );
     }
 
@@ -310,7 +313,8 @@ public class SchemaDiff {
         int removedEnums,
         int modifiedEnums,
         int errorCount,
-        int warningCount
+        int warningCount,
+        int infoCount
     ) {
         /**
          * Returns true if there are any differences.
@@ -321,7 +325,7 @@ public class SchemaDiff {
         }
 
         /**
-         * Returns true if there are breaking changes.
+         * Returns true if there are breaking changes (errors only, not warnings or info).
          */
         public boolean hasBreakingChanges() {
             return errorCount > 0;
