@@ -98,6 +98,8 @@
                             </transformers>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <shadedClassifierName>cli</shadedClassifierName>
+                            <!-- Keep original pom with dependencies for maven-plugin transitive resolution -->
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
