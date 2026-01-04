@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package test.diff;
+
+option java_package = "test.diff.v2";
+option java_outer_classname = "TestProtos";
+
+// Test message for diff comparison - with changes from v1
+message User {
+    int64 id = 1;
+    string name = 2;
+    // email field removed (was 3)
+    UserStatus status = 4;
+    repeated string tags = 5;
+    Address address = 6;
+    string phone = 7;          // New field added
+    int32 age = 8;             // New field added
+}
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    // zip_code removed, replaced with postal_code
+    string postal_code = 5;    // Changed field
+}
+
+// New message added in v2
+message Profile {
+    int64 user_id = 1;
+    string bio = 2;
+    string avatar_url = 3;
+}
+
+// DeprecatedMessage removed in v2
+
+enum UserStatus {
+    USER_STATUS_UNSPECIFIED = 0;
+    USER_STATUS_ACTIVE = 1;
+    USER_STATUS_INACTIVE = 2;
+    // USER_STATUS_DELETED removed
+    USER_STATUS_SUSPENDED = 4;  // New value added
+    USER_STATUS_PENDING = 5;    // New value added
+}

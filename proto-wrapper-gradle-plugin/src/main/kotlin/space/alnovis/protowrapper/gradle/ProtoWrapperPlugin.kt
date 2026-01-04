@@ -7,14 +7,18 @@ import org.gradle.api.plugins.JavaPlugin
 class ProtoWrapperPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
-        // Создать extension для конфигурации DSL
+        // Create extension for DSL configuration
         val extension = project.extensions.create(
             "protoWrapper",
             ProtoWrapperExtension::class.java,
             project
         )
 
-        // Создать task для генерации
+        // Register schema diff task type for ad-hoc usage
+        // Users can create their own instances with custom configuration:
+        // tasks.register<SchemaDiffTask>("diffSchemas") { ... }
+
+        // Create task for generation
         val generateTask = project.tasks.register(
             "generateProtoWrappers",
             GenerateWrappersTask::class.java
@@ -22,7 +26,7 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.group = "proto-wrapper"
             task.description = "Generates version-agnostic wrapper classes from protobuf schemas"
 
-            // Связать параметры task с extension
+            // Bind task parameters to extension
             task.protoRoot.set(extension.protoRoot)
             task.outputDirectory.set(extension.outputDirectory)
             task.tempDirectory.set(extension.tempDirectory)
@@ -43,18 +47,18 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.includeMessages.set(extension.includeMessages)
             task.excludeMessages.set(extension.excludeMessages)
 
-            // Передать versions через provider
+            // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }
 
-        // Интеграция с Java plugin
+        // Integration with Java plugin
         project.plugins.withType(JavaPlugin::class.java) {
-            // Добавить generated sources в main source set
+            // Add generated sources to main source set
             project.extensions.getByType(
                 org.gradle.api.plugins.JavaPluginExtension::class.java
             ).sourceSets.getByName("main").java.srcDir(extension.outputDirectory)
 
-            // compileJava зависит от генерации
+            // compileJava depends on generation
             project.tasks.named("compileJava") {
                 it.dependsOn(generateTask)
             }

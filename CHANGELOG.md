@@ -11,6 +11,159 @@ _No changes yet._
 
 ---
 
+## [1.5.0] - 2026-01-04
+
+### Added
+
+#### Schema Diff Tool
+- **Schema comparison tool** - Compare protobuf schemas between versions and detect changes
+  - Detect added, modified, and removed messages/enums/fields
+  - Identify breaking changes that could affect wire compatibility
+  - Multiple output formats: text, JSON, Markdown
+  - CI/CD integration with exit codes
+
+#### CLI Tool
+- **Standalone CLI** - Compare schemas from command line without Maven/Gradle
+  - Packaged as executable JAR (`proto-wrapper-core-1.5.0-cli.jar`)
+  - Uses picocli for argument parsing
+  - Built with maven-shade-plugin (Maven) and shadow plugin (Gradle)
+
+```bash
+# Basic comparison
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2
+
+# Output formats
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=json
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=markdown
+
+# CI/CD mode
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+```
+
+#### CLI Options
+| Option | Description |
+|--------|-------------|
+| `--v1-name=<name>` | Name for source version (default: v1) |
+| `--v2-name=<name>` | Name for target version (default: v2) |
+| `-f, --format=<fmt>` | Output format: text, json, markdown |
+| `-o, --output=<file>` | Write output to file |
+| `-b, --breaking-only` | Show only breaking changes |
+| `--fail-on-breaking` | Exit code 1 on breaking changes |
+| `--fail-on-warning` | Treat warnings as errors |
+| `--protoc=<path>` | Path to protoc executable |
+| `-q, --quiet` | Suppress informational messages |
+
+#### Maven Goal
+- **`proto-wrapper:diff` goal** - Compare schemas in Maven builds
+  - Standalone goal (no project required): `mvn proto-wrapper:diff -Dv1=... -Dv2=...`
+  - Can be bound to lifecycle phases for automated checks
+  - Full parameter support via command line or pom.xml
+
+```bash
+# Command line usage
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DfailOnBreaking=true
+
+# pom.xml configuration
+<execution>
+    <id>check-breaking</id>
+    <phase>verify</phase>
+    <goals><goal>diff</goal></goals>
+    <configuration>
+        <v1>${basedir}/proto/production</v1>
+        <v2>${basedir}/proto/development</v2>
+        <failOnBreaking>true</failOnBreaking>
+    </configuration>
+</execution>
+```
+
+#### Gradle Task
+- **`SchemaDiffTask`** - Compare schemas in Gradle builds
+  - Register custom diff tasks with full configuration
+  - Support for all output formats and CI/CD options
+
+```kotlin
+tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
+    v1Directory.set(file("proto/v1"))
+    v2Directory.set(file("proto/v2"))
+    outputFormat.set("markdown")
+    outputFile.set(file("build/reports/schema-diff.md"))
+    failOnBreaking.set(true)
+}
+```
+
+#### Core Diff Engine
+- **`SchemaDiff`** - Main facade for schema comparison
+  - `compare(Path v1Dir, Path v2Dir)` - Compare directories
+  - `compare(VersionSchema v1, VersionSchema v2)` - Compare analyzed schemas
+  - `toText()`, `toJson()`, `toMarkdown()` - Format output
+  - `hasBreakingChanges()`, `getBreakingChanges()` - Query breaking changes
+  - `getSummary()` - Get diff statistics
+
+- **`SchemaDiffEngine`** - Core comparison logic
+  - Compares messages, enums, fields, nested types
+  - Tracks added, removed, and modified entities
+  - Detects field type changes, number changes, label changes
+
+- **`BreakingChangeDetector`** - Breaking change identification
+  - Categorizes changes by severity (ERROR, WARNING, INFO)
+  - Detects 11 types of breaking changes
+
+#### Breaking Change Types
+| Type | Severity | Description |
+|------|----------|-------------|
+| `MESSAGE_REMOVED` | ERROR | Message was removed |
+| `FIELD_REMOVED` | ERROR | Field was removed |
+| `FIELD_NUMBER_CHANGED` | ERROR | Field number changed |
+| `FIELD_TYPE_INCOMPATIBLE` | ERROR | Incompatible type change |
+| `ENUM_REMOVED` | ERROR | Enum was removed |
+| `ENUM_VALUE_REMOVED` | ERROR | Enum value removed |
+| `ENUM_VALUE_NUMBER_CHANGED` | ERROR | Enum value number changed |
+| `REQUIRED_FIELD_ADDED` | WARNING | Required field added |
+| `LABEL_CHANGED_TO_REQUIRED` | WARNING | Field changed to required |
+| `CARDINALITY_CHANGED` | WARNING | Cardinality changed |
+| `ONEOF_FIELD_MOVED` | WARNING | Field moved in/out of oneof |
+
+#### Diff Formatters
+- **`TextDiffFormatter`** - Plain text with ASCII formatting
+- **`JsonDiffFormatter`** - Structured JSON output
+- **`MarkdownDiffFormatter`** - Markdown with tables for reports
+
+#### Data Models
+- `MessageDiff` - Message-level changes with field details
+- `FieldChange` - Individual field changes with type info
+- `EnumDiff` - Enum changes with value tracking
+- `EnumValueChange` - Enum value additions/removals
+- `BreakingChange` - Breaking change with severity and context
+
+#### New Dependencies
+- **picocli 4.7.5** - CLI argument parsing framework
+- **maven-shade-plugin 3.5.1** - Executable JAR packaging (Maven)
+- **shadow plugin 8.1.1** - Executable JAR packaging (Gradle)
+
+### Changed
+
+- **proto-wrapper-core** - Added CLI entry point and executable JAR packaging
+- **Documentation** - Added comprehensive Schema Diff Tool section to README.md
+
+### Build Infrastructure
+
+- **Gradle 9.x compatibility** - Updated for latest Gradle versions
+  - Kotlin upgraded from 1.9.22 to 2.1.20
+  - Changed `kotlinOptions` to `compilerOptions` with `JvmTarget.JVM_17`
+  - Added JUnit Platform Launcher dependency
+
+- **Test optimization** - Separated slow TestKit tests
+  - Added `@Tag("slow")` for TestKit-based tests
+  - New `slowTest` task with parallel execution
+  - Regular `test` task excludes slow tests (~3 min → ~45 sec build time)
+
+- **CI workflow updates**
+  - Added explicit Gradle version (8.5) via `gradle/actions/setup-gradle@v4`
+  - Added `mavenLocal()` to Gradle init.gradle
+  - Added `slowTest` step for comprehensive CI testing
+
+---
+
 ## [1.4.0] - 2026-01-03
 
 ### Added

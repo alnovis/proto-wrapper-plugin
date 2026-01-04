@@ -30,6 +30,11 @@ Supports both **Maven** and **Gradle** build systems.
 - **Repeated conflict field builders** (v1.4.0+):
   - Full builder support for repeated fields with type conflicts
   - Runtime range validation for narrowing conversions
+- **Schema Diff Tool** (v1.5.0+):
+  - Compare proto schemas across versions
+  - Detect breaking changes automatically
+  - Multiple output formats (text, JSON, Markdown)
+  - CLI, Maven goal, and Gradle task support
 - Automatic detection of equivalent enums (nested vs top-level)
 - Supported versions info in Javadoc
 - Thread-safe immutable wrappers
@@ -70,7 +75,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -111,7 +116,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.4.0"
+    id("space.alnovis.proto-wrapper") version "1.5.0"
 }
 
 protoWrapper {
@@ -394,6 +399,322 @@ String name = event.getOptionalName();  // null if not set
 
 **Note:** `google.protobuf.Any` is not supported because it requires a runtime type registry.
 
+## Schema Diff Tool
+
+Since v1.5.0, Proto Wrapper includes a schema comparison tool that detects changes between protobuf schema versions, including breaking changes that could affect wire compatibility.
+
+### Features
+
+- Compare two proto schema directories
+- Detect added, modified, and removed messages/enums/fields
+- Identify breaking changes (field removal, type incompatibility, etc.)
+- Multiple output formats: text, JSON, Markdown
+- CI/CD integration with exit codes
+- Available as CLI, Maven goal, and Gradle task
+
+### CLI Usage
+
+The CLI is packaged as an executable JAR (`proto-wrapper-core-1.5.0-cli.jar`).
+
+```bash
+# Basic comparison
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2
+
+# Output formats
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=text
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=json
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=markdown
+
+# Show only breaking changes
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --breaking-only
+
+# Write to file
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
+
+# CI/CD mode: exit code 1 if breaking changes detected
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+
+# Custom version names
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
+
+# Quiet mode (suppress info messages)
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 -q
+
+# Custom protoc path
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --protoc=/usr/local/bin/protoc
+```
+
+#### CLI Options
+
+| Option | Description |
+|--------|-------------|
+| `--v1-name=<name>` | Name for source version (default: v1) |
+| `--v2-name=<name>` | Name for target version (default: v2) |
+| `-f, --format=<fmt>` | Output format: text, json, markdown (default: text) |
+| `-o, --output=<file>` | Write output to file instead of console |
+| `-b, --breaking-only` | Show only breaking changes |
+| `--fail-on-breaking` | Exit with code 1 if breaking changes detected |
+| `--fail-on-warning` | Treat warnings as errors |
+| `--protoc=<path>` | Path to protoc executable |
+| `-q, --quiet` | Suppress informational messages |
+| `-h, --help` | Show help message |
+| `-V, --version` | Print version information |
+
+### Maven Usage
+
+Use the `diff` goal to compare schemas:
+
+```bash
+# Basic usage
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2
+
+# With output format
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dformat=markdown
+
+# Write to file
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Doutput=target/diff-report.md
+
+# Fail on breaking changes (CI/CD)
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DfailOnBreaking=true
+
+# Show only breaking changes
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DbreakingOnly=true
+
+# Custom version names
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dv1Name=production -Dv2Name=development
+```
+
+#### Maven Configuration in pom.xml
+
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.5.0</version>
+    <executions>
+        <!-- Schema diff during verify phase -->
+        <execution>
+            <id>check-breaking-changes</id>
+            <phase>verify</phase>
+            <goals>
+                <goal>diff</goal>
+            </goals>
+            <configuration>
+                <v1>${basedir}/proto/production</v1>
+                <v2>${basedir}/proto/development</v2>
+                <v1Name>production</v1Name>
+                <v2Name>development</v2Name>
+                <outputFormat>markdown</outputFormat>
+                <outputFile>${project.build.directory}/schema-diff.md</outputFile>
+                <failOnBreaking>true</failOnBreaking>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+```
+
+#### Maven Goal Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `v1` | (required) | Directory with source (older) version proto files |
+| `v2` | (required) | Directory with target (newer) version proto files |
+| `v1Name` | `v1` | Name for source version in reports |
+| `v2Name` | `v2` | Name for target version in reports |
+| `format` | `text` | Output format: text, json, markdown |
+| `output` | (console) | Output file path |
+| `breakingOnly` | `false` | Show only breaking changes |
+| `failOnBreaking` | `false` | Fail build on breaking changes |
+| `failOnWarning` | `false` | Treat warnings as errors |
+| `protoc.path` | (from PATH) | Custom protoc executable path |
+
+### Gradle Usage
+
+Register and configure a `SchemaDiffTask`:
+
+```kotlin
+// build.gradle.kts
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.5.0"
+}
+
+// Register diff task
+tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
+    v1Directory.set(file("proto/v1"))
+    v2Directory.set(file("proto/v2"))
+    v1Name.set("v1")
+    v2Name.set("v2")
+    outputFormat.set("markdown")
+    outputFile.set(file("build/reports/schema-diff.md"))
+    failOnBreaking.set(false)
+    breakingOnly.set(false)
+}
+
+// Run as part of check
+tasks.named("check") {
+    dependsOn("diffSchemas")
+}
+```
+
+```bash
+# Run diff task
+./gradlew diffSchemas
+
+# Run with CI mode (fail on breaking)
+./gradlew diffSchemas -PfailOnBreaking=true
+```
+
+#### Gradle Task Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `v1Directory` | `DirectoryProperty` | (required) | Source version directory |
+| `v2Directory` | `DirectoryProperty` | (required) | Target version directory |
+| `v1Name` | `Property<String>` | `v1` | Name for source version |
+| `v2Name` | `Property<String>` | `v2` | Name for target version |
+| `outputFormat` | `Property<String>` | `text` | Output format: text, json, markdown |
+| `outputFile` | `RegularFileProperty` | (console) | Output file |
+| `breakingOnly` | `Property<Boolean>` | `false` | Show only breaking changes |
+| `failOnBreaking` | `Property<Boolean>` | `false` | Fail task on breaking changes |
+
+### Output Examples
+
+#### Text Format
+
+```
+Schema Comparison: v1 -> v2
+
+================================================================================
+MESSAGES
+================================================================================
+
++ ADDED: Profile (user.proto)
+    Fields:
+      - user_id: int64 (#1)
+      - bio: string (#2)
+
+~ MODIFIED: User
+    + Added field: phone (string, #7)
+    - Removed field: email (#3) [BREAKING]
+
+- REMOVED: DeprecatedMessage [BREAKING]
+
+================================================================================
+BREAKING CHANGES
+================================================================================
+
+ERRORS (2):
+  [ERROR] FIELD_REMOVED: User.email (was: string email = 3)
+  [ERROR] MESSAGE_REMOVED: DeprecatedMessage (was: DeprecatedMessage)
+
+================================================================================
+SUMMARY
+================================================================================
+
+Messages:  +1 added, ~1 modified, -1 removed
+Enums:     +0 added, ~0 modified, -0 removed
+Breaking:  2 errors, 0 warnings
+```
+
+#### JSON Format
+
+```json
+{
+  "v1": "v1",
+  "v2": "v2",
+  "summary": {
+    "addedMessages": 1,
+    "removedMessages": 1,
+    "modifiedMessages": 1,
+    "errorCount": 2,
+    "warningCount": 0
+  },
+  "messages": {
+    "added": [{"name": "Profile", "sourceFile": "user.proto"}],
+    "removed": [{"name": "DeprecatedMessage"}],
+    "modified": [{"name": "User", "fieldChanges": [...]}]
+  },
+  "breakingChanges": [
+    {"type": "FIELD_REMOVED", "severity": "ERROR", "entityPath": "User.email"},
+    {"type": "MESSAGE_REMOVED", "severity": "ERROR", "entityPath": "DeprecatedMessage"}
+  ]
+}
+```
+
+#### Markdown Format
+
+```markdown
+# Schema Comparison: v1 -> v2
+
+## Summary
+
+| Category | Added | Modified | Removed |
+|----------|-------|----------|---------|
+| Messages | 1 | 1 | 1 |
+
+**Breaking Changes:** 2 errors, 0 warnings
+
+## Breaking Changes
+
+| Severity | Type | Entity | Description |
+|----------|------|--------|-------------|
+| ERROR | FIELD_REMOVED | User.email | Field removed |
+| ERROR | MESSAGE_REMOVED | DeprecatedMessage | Message removed |
+```
+
+### Breaking Change Types
+
+| Type | Severity | Description |
+|------|----------|-------------|
+| `MESSAGE_REMOVED` | ERROR | Message was removed |
+| `FIELD_REMOVED` | ERROR | Field was removed from message |
+| `FIELD_NUMBER_CHANGED` | ERROR | Field number was changed |
+| `FIELD_TYPE_INCOMPATIBLE` | ERROR | Field type changed incompatibly |
+| `ENUM_REMOVED` | ERROR | Enum was removed |
+| `ENUM_VALUE_REMOVED` | ERROR | Enum value was removed |
+| `ENUM_VALUE_NUMBER_CHANGED` | ERROR | Enum value number changed |
+| `REQUIRED_FIELD_ADDED` | WARNING | Required field added (proto2) |
+| `LABEL_CHANGED_TO_REQUIRED` | WARNING | Field changed to required |
+| `CARDINALITY_CHANGED` | WARNING | Field cardinality changed |
+| `ONEOF_FIELD_MOVED` | WARNING | Field moved in/out of oneof |
+
+### Programmatic API
+
+```java
+import space.alnovis.protowrapper.diff.SchemaDiff;
+import space.alnovis.protowrapper.diff.model.*;
+
+// Compare schemas
+SchemaDiff diff = SchemaDiff.compare(
+    Path.of("proto/v1"),
+    Path.of("proto/v2"),
+    "production",
+    "development"
+);
+
+// Query differences
+List<MessageInfo> added = diff.getAddedMessages();
+List<MessageInfo> removed = diff.getRemovedMessages();
+List<MessageDiff> modified = diff.getModifiedMessages();
+
+// Check breaking changes
+if (diff.hasBreakingChanges()) {
+    for (BreakingChange bc : diff.getBreakingChanges()) {
+        System.err.println(bc.severity() + ": " + bc.entityPath() + " - " + bc.description());
+    }
+}
+
+// Export to different formats
+String textReport = diff.toText();
+String jsonReport = diff.toJson();
+String markdownReport = diff.toMarkdown();
+
+// Get summary
+SchemaDiff.DiffSummary summary = diff.getSummary();
+System.out.println("Added: " + summary.addedMessages() + " messages");
+System.out.println("Breaking: " + summary.errorCount() + " errors");
+```
+
 ## Generated Code Examples
 
 ### Interface
@@ -522,33 +843,93 @@ See [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for complete documentation.
 
 ## Development
 
-### Maven
+The project uses a dual-build system: Maven for core and Maven plugin, Gradle for Gradle plugin.
+
+### Prerequisites
+
+- Java 17 or higher
+- Maven 3.8+
+- Gradle 8.5+ (or use included wrapper)
+- Protocol Buffers compiler (`protoc`) installed and in PATH
+
+### Maven Build
 
 ```bash
-# Build
+# Build all Maven modules (core + Maven plugin)
 mvn clean install
 
-# Run tests
+# Run unit tests
 mvn test
+
+# Run Maven integration tests
+mvn verify -pl proto-wrapper-maven-integration-tests
 
 # Build without tests
 mvn install -DskipTests
+
+# Build specific module
+mvn install -pl proto-wrapper-core
 ```
 
-### Gradle
+### Gradle Build
 
 ```bash
-# Build
+# Build Gradle modules (core + Gradle plugin)
 ./gradlew build
 
-# Run tests
+# Run unit tests
 ./gradlew test
+
+# Publish to local Maven repository (required before integration tests)
+./gradlew publishToMavenLocal
+
+# Run Gradle integration tests (requires publishToMavenLocal first)
+cd proto-wrapper-gradle-integration-tests
+gradle test --no-daemon
 
 # Build without tests
 ./gradlew build -x test
+```
 
-# Publish to local Maven repository
-./gradlew publishToMavenLocal
+### Full Build (Maven + Gradle)
+
+```bash
+# Option 1: Maven first, then Gradle
+mvn clean install
+./gradlew build publishToMavenLocal
+cd proto-wrapper-gradle-integration-tests && gradle test --no-daemon
+
+# Option 2: Using Gradle tasks
+./gradlew buildAll  # Builds everything including Maven modules
+```
+
+### Project Modules
+
+| Module | Build System | Description |
+|--------|--------------|-------------|
+| `proto-wrapper-core` | Maven + Gradle | Core library (schema parsing, merging, code generation) |
+| `proto-wrapper-maven-plugin` | Maven | Maven plugin for code generation |
+| `proto-wrapper-gradle-plugin` | Gradle | Gradle plugin for code generation |
+| `proto-wrapper-maven-integration-tests` | Maven | Integration tests for Maven plugin |
+| `proto-wrapper-gradle-integration-tests` | Gradle (standalone) | Integration tests for Gradle plugin |
+| `examples/maven-example` | Maven | Example Maven project |
+| `examples/gradle-example` | Gradle | Example Gradle project |
+
+### Test Structure
+
+```
+test-protos/scenarios/           # Shared test proto files
+├── generation/                  # Proto files for generation tests
+│   ├── v1/
+│   └── v2/
+└── diff/                        # Proto files for Schema Diff tests
+    ├── 01-simple-add/
+    ├── 02-simple-remove/
+    └── ...
+
+proto-wrapper-core/src/test/                    # Core unit tests
+proto-wrapper-maven-integration-tests/src/test/ # Maven integration tests
+proto-wrapper-gradle-integration-tests/src/test/# Gradle integration tests
 ```
 
 ## See Also

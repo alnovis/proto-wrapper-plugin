@@ -6,6 +6,7 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
 import space.alnovis.protowrapper.model.EnumInfo;
 import space.alnovis.protowrapper.model.MessageInfo;
+import space.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -107,12 +108,12 @@ public class ProtoAnalyzer {
                 continue;
             }
 
-            // Determine if this is proto3 syntax
-            boolean isProto3 = "proto3".equals(fileProto.getSyntax());
+            // Determine proto syntax version
+            ProtoSyntax syntax = ProtoSyntax.fromSyntaxString(fileProto.getSyntax());
 
             // Process top-level messages
             for (DescriptorProto messageProto : fileProto.getMessageTypeList()) {
-                MessageInfo messageInfo = new MessageInfo(messageProto, packageName, sourceFileName, isProto3);
+                MessageInfo messageInfo = new MessageInfo(messageProto, packageName, sourceFileName, syntax);
                 if (!messageInfo.isMapEntry()) {
                     schema.addMessage(messageInfo);
                 }

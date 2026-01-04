@@ -1,7 +1,7 @@
 # Proto Wrapper Plugin Roadmap
 
-Version: 1.2
-Last Updated: 2026-01-03
+Version: 1.3
+Last Updated: 2026-01-04
 
 This document outlines the development roadmap for upcoming releases.
 
@@ -11,7 +11,7 @@ This document outlines the development roadmap for upcoming releases.
 
 - [Version 1.3.0](#version-130) - Well-Known Types Support (Completed)
 - [Version 1.4.0](#version-140) - Repeated Conflict Field Builders (Completed)
-- [Version 1.5.0](#version-150) - Schema Diff Tool
+- [Version 1.5.0](#version-150) - Schema Diff Tool (Completed)
 - [Version 1.6.0](#version-160) - Incremental Generation
 - [Version 1.7.0](#version-170) - Parallel Generation
 - [Version 1.8.0](#version-180) - Per-version Proto Syntax
@@ -158,69 +158,114 @@ class RepeatedConflictsV1 {
 
 ---
 
-## Version 1.5.0
+## Version 1.5.0 (Completed)
 
-**Target:** Feb 2026
+**Released:** January 4, 2026
 **Theme:** Schema Diff Tool
 
 ### Feature: Schema Diff Tool
 
-**Priority:** Medium
-**Complexity:** Medium
+**Status:** Completed
 
 #### Description
 
-CLI and programmatic tool to compare proto schemas across versions and generate reports.
+CLI and programmatic tool to compare proto schemas across versions and generate reports. Detects breaking changes for CI/CD integration.
 
 #### CLI Usage
 
+The CLI is packaged as an executable JAR (`proto-wrapper-core-1.5.0-cli.jar`).
+
 ```bash
-# Compare two version directories
-proto-wrapper diff proto/v1 proto/v2
+# Basic comparison
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2
 
 # Output formats
-proto-wrapper diff proto/v1 proto/v2 --format=text
-proto-wrapper diff proto/v1 proto/v2 --format=json
-proto-wrapper diff proto/v1 proto/v2 --format=markdown
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=text
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=json
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --format=markdown
 
-# Check for breaking changes
-proto-wrapper diff proto/v1 proto/v2 --breaking-only
+# Show only breaking changes
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --breaking-only
+
+# CI/CD mode (exit code 1 on breaking changes)
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+
+# Custom version names
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
+
+# Quiet mode
+java -jar proto-wrapper-core-1.5.0-cli.jar diff proto/v1 proto/v2 -q
 ```
 
-#### Output Example (Text)
+#### CLI Options
 
+| Option | Description |
+|--------|-------------|
+| `--v1-name=<name>` | Name for source version (default: v1) |
+| `--v2-name=<name>` | Name for target version (default: v2) |
+| `-f, --format=<fmt>` | Output format: text, json, markdown |
+| `-o, --output=<file>` | Write output to file |
+| `-b, --breaking-only` | Show only breaking changes |
+| `--fail-on-breaking` | Exit code 1 on breaking changes |
+| `--fail-on-warning` | Treat warnings as errors |
+| `--protoc=<path>` | Path to protoc executable |
+| `-q, --quiet` | Suppress informational messages |
+
+#### Maven Goal
+
+```bash
+# Command line usage
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dformat=markdown
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DfailOnBreaking=true
 ```
-Schema Comparison: v1 -> v2
 
-MESSAGES:
-  + Added: PaymentMethod (payment.proto:15)
-  ~ Modified: Order
-      + Added field: tracking_number (string, #10)
-      ~ Changed field: status
-          Type: int32 -> OrderStatus (enum)
-          Breaking: No (compatible via INT_ENUM)
-      - Removed field: legacy_id (#99)
-          Breaking: Yes (field removal)
-  - Removed: DeprecatedMessage
-      Breaking: Yes (message removal)
+```xml
+<!-- pom.xml configuration -->
+<execution>
+    <id>check-breaking</id>
+    <phase>verify</phase>
+    <goals><goal>diff</goal></goals>
+    <configuration>
+        <v1>${basedir}/proto/production</v1>
+        <v2>${basedir}/proto/development</v2>
+        <v1Name>production</v1Name>
+        <v2Name>development</v2Name>
+        <outputFormat>markdown</outputFormat>
+        <outputFile>${project.build.directory}/schema-diff.md</outputFile>
+        <failOnBreaking>true</failOnBreaking>
+    </configuration>
+</execution>
+```
 
-ENUMS:
-  + Added: OrderStatus
-      Values: PENDING(0), CONFIRMED(1), SHIPPED(2), DELIVERED(3)
-  ~ Modified: PaymentType
-      + Added value: CRYPTO(4)
+#### Gradle Task
 
-SUMMARY:
-  Added: 2 messages, 1 enum
-  Modified: 2 messages, 1 enum
-  Removed: 1 message
-  Breaking changes: 2
+```kotlin
+// Register diff task
+tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
+    v1Directory.set(file("proto/v1"))
+    v2Directory.set(file("proto/v2"))
+    v1Name.set("v1")
+    v2Name.set("v2")
+    outputFormat.set("markdown")
+    outputFile.set(file("build/reports/schema-diff.md"))
+    failOnBreaking.set(true)
+}
+```
+
+```bash
+./gradlew diffSchemas
 ```
 
 #### Programmatic API
 
 ```java
-SchemaDiff diff = SchemaDiff.compare(v1Schema, v2Schema);
+SchemaDiff diff = SchemaDiff.compare(
+    Path.of("proto/v1"),
+    Path.of("proto/v2"),
+    "v1",
+    "v2"
+);
 
 // Query differences
 diff.getAddedMessages();      // List<MessageInfo>
@@ -232,51 +277,56 @@ diff.hasBreakingChanges();    // boolean
 diff.getBreakingChanges();    // List<BreakingChange>
 
 // Export
-diff.toMarkdown();            // String
+diff.toText();                // String
 diff.toJson();                // String
+diff.toMarkdown();            // String
 ```
 
-#### Maven Goal
+#### Breaking Change Types
 
-```bash
-mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2
-```
+| Type | Severity | Description |
+|------|----------|-------------|
+| `MESSAGE_REMOVED` | ERROR | Message was removed |
+| `FIELD_REMOVED` | ERROR | Field was removed |
+| `FIELD_NUMBER_CHANGED` | ERROR | Field number changed |
+| `FIELD_TYPE_INCOMPATIBLE` | ERROR | Incompatible type change |
+| `ENUM_REMOVED` | ERROR | Enum was removed |
+| `ENUM_VALUE_REMOVED` | ERROR | Enum value removed |
+| `ENUM_VALUE_NUMBER_CHANGED` | ERROR | Enum value number changed |
+| `REQUIRED_FIELD_ADDED` | WARNING | Required field added |
+| `LABEL_CHANGED_TO_REQUIRED` | WARNING | Field changed to required |
+| `CARDINALITY_CHANGED` | WARNING | Cardinality changed |
+| `ONEOF_FIELD_MOVED` | WARNING | Field moved in/out of oneof |
 
-#### Gradle Task
+#### Implementation Details
 
-```bash
-./gradlew protoWrapperDiff --v1=proto/v1 --v2=proto/v2
-```
-
-#### Implementation Plan
-
-1. Create `schema-diff` submodule
-2. Implement comparison logic:
-   - Message comparison
-   - Field comparison (type, number, name)
-   - Enum comparison
-   - Breaking change detection
-3. Create output formatters:
-   - TextFormatter
-   - JsonFormatter
-   - MarkdownFormatter
-4. Add CLI entry point
-5. Add Maven/Gradle integration
+- `SchemaDiff` - Main facade for schema comparison
+- `SchemaDiffEngine` - Core comparison logic
+- `BreakingChangeDetector` - Breaking change identification
+- `TextDiffFormatter` - Plain text output
+- `JsonDiffFormatter` - JSON output
+- `MarkdownDiffFormatter` - Markdown tables
+- `SchemaDiffCli` - CLI entry point using picocli
+- `DiffMojo` - Maven goal
+- `SchemaDiffTask` - Gradle task
 
 #### Acceptance Criteria
 
-- [ ] Detect all types of changes
-- [ ] Identify breaking vs non-breaking
-- [ ] Multiple output formats
-- [ ] CLI tool
-- [ ] Maven goal
-- [ ] Gradle task
-- [ ] Programmatic API
+- [x] Detect all types of changes (added, modified, removed)
+- [x] Identify breaking vs non-breaking changes
+- [x] Multiple output formats (text, JSON, Markdown)
+- [x] CLI tool with all options
+- [x] Maven goal
+- [x] Gradle task
+- [x] Programmatic API
+- [x] CI/CD integration (exit codes)
+- [x] Integration tests
 
 ### Migration Notes
 
 - No breaking changes
 - Schema diff tool is a new optional feature
+- CLI JAR available as `proto-wrapper-core-1.5.0-cli.jar`
 
 ---
 
@@ -1041,16 +1091,16 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 
 ## Version History
 
-| Version | Feature | Target |
+| Version | Feature | Status |
 |---------|---------|--------|
 | 1.2.0 | Map Support, Lazy Caching, Oneof | Released (2026-01-02) |
 | 1.3.0 | Well-Known Types Support | Released (2026-01-02) |
 | 1.4.0 | Repeated Conflict Field Builders | Released (2026-01-03) |
-| 1.5.0 | Schema Diff Tool | Feb 2026 |
-| 1.6.0 | Incremental Generation | Feb 2026 |
-| 1.7.0 | Parallel Generation | Mar 2026 |
-| 1.8.0 | Per-version Proto Syntax | Mar 2026 |
-| 1.9.0 | Validation Annotations | Apr 2026 |
-| 1.10.0 | Kotlin Extensions | May 2026 |
-| 1.11.0 | Service/RPC Wrappers | Jun 2026 |
-| 2.0.0 | API Cleanup (Breaking) | Jul 2026 |
+| 1.5.0 | Schema Diff Tool | Released (2026-01-04) |
+| 1.6.0 | Incremental Generation | Planned (Feb 2026) |
+| 1.7.0 | Parallel Generation | Planned (Mar 2026) |
+| 1.8.0 | Per-version Proto Syntax | Planned (Mar 2026) |
+| 1.9.0 | Validation Annotations | Planned (Apr 2026) |
+| 1.10.0 | Kotlin Extensions | Planned (May 2026) |
+| 1.11.0 | Service/RPC Wrappers | Planned (Jun 2026) |
+| 2.0.0 | API Cleanup (Breaking) | Planned (Jul 2026) |

@@ -1,15 +1,15 @@
 plugins {
     base
-    kotlin("jvm") version "1.9.22" apply false
+    kotlin("jvm") version "2.1.20" apply false
 }
 
 allprojects {
     group = "space.alnovis"
-    version = "1.4.0"
+    version = "1.5.0"
 
     repositories {
         mavenCentral()
-        mavenLocal() // Для proto-wrapper-core из Maven при разработке
+        mavenLocal() // For proto-wrapper-core from Maven during development
     }
 }
 
@@ -20,30 +20,32 @@ subprojects {
     }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions {
-            jvmTarget = "17"
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
 }
 
 // Maven tasks for modules not included in Gradle build
+tasks.register<Exec>("mavenInstallParent") {
+    description = "Install parent POM to local repository"
+    group = "maven"
+    workingDir = projectDir
+    commandLine("mvn", "install", "-B", "-N")
+}
+
 tasks.register<Exec>("mavenInstall") {
     description = "Install Maven modules to local repository"
     group = "maven"
     workingDir = projectDir
-    commandLine("mvn", "install", "-B", "-N")
-    doLast {
-        exec {
-            workingDir = projectDir
-            commandLine("mvn", "install", "-B", "-pl", "proto-wrapper-core,proto-wrapper-maven-plugin", "-DskipTests")
-        }
-    }
+    commandLine("mvn", "install", "-B", "-pl", "proto-wrapper-core,proto-wrapper-maven-plugin", "-DskipTests")
+    dependsOn("mavenInstallParent")
 }
 
-tasks.register<Exec>("integrationTest") {
+tasks.register<Exec>("mavenIntegrationTest") {
     description = "Run Maven integration tests"
     group = "verification"
-    workingDir = file("proto-wrapper-integration-tests")
+    workingDir = file("proto-wrapper-maven-integration-tests")
     commandLine("mvn", "verify", "-B")
     dependsOn("mavenInstall")
 }
@@ -59,11 +61,11 @@ tasks.register<Exec>("mavenExample") {
 tasks.register("allTests") {
     description = "Run all tests (Gradle + Maven integration tests)"
     group = "verification"
-    dependsOn("test", "integrationTest")
+    dependsOn("test", "mavenIntegrationTest")
 }
 
 tasks.register("buildAll") {
     description = "Build everything (Gradle modules + Maven modules + examples)"
     group = "build"
-    dependsOn("build", "integrationTest", "mavenExample")
+    dependsOn("build", "mavenIntegrationTest", "mavenExample")
 }

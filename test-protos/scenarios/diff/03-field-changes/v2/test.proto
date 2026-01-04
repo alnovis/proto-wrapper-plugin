@@ -1,0 +1,13 @@
+syntax = "proto3";
+package test;
+
+// Scenario: Field additions, removals, type changes
+message TestMessage {
+    int64 id = 1;
+    string name = 2;
+    // email removed (was field 3)
+    string age = 4;           // Type changed from int32
+    repeated string tags = 5;
+    string phone = 6;         // New field added
+    int32 score = 7;          // New field added
+}
