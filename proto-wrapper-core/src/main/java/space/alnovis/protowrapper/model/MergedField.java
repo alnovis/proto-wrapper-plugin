@@ -173,11 +173,18 @@ public class MergedField {
          * Check if builder setters should be skipped for this conflict type.
          * For the hybrid approach, type conflicts result in skipped builder setters
          * because the unified type cannot be directly passed to version-specific proto builders.
-         * OPTIONAL_REQUIRED is an exception - the type is the same, only optionality differs.
+         *
+         * <p>Exceptions (builder setters ARE generated):</p>
+         * <ul>
+         *   <li>{@link #NONE} - no conflict, normal setters</li>
+         *   <li>{@link #OPTIONAL_REQUIRED} - same type, only optionality differs</li>
+         *   <li>{@link #PRIMITIVE_MESSAGE} - dual setters with runtime validation</li>
+         * </ul>
+         *
          * @return true if setters should not be generated
          */
         public boolean shouldSkipBuilderSetter() {
-            return this != NONE && this != OPTIONAL_REQUIRED;
+            return this != NONE && this != OPTIONAL_REQUIRED && this != PRIMITIVE_MESSAGE;
         }
     }
 
@@ -828,6 +835,61 @@ public class MergedField {
      */
     public String getDoClearMethodName() {
         return "doClear" + capitalize(javaName);
+    }
+
+    /**
+     * Get doSet method name for message value (PRIMITIVE_MESSAGE conflicts).
+     */
+    public String getDoSetMessageMethodName() {
+        return "doSet" + capitalize(javaName) + "Message";
+    }
+
+    /**
+     * Get supportsPrimitive method name for builder (PRIMITIVE_MESSAGE conflicts).
+     */
+    public String getSupportsPrimitiveMethodName() {
+        return "supportsPrimitive" + capitalize(javaName);
+    }
+
+    /**
+     * Get supportsMessage method name for builder (PRIMITIVE_MESSAGE conflicts).
+     */
+    public String getSupportsMessageMethodName() {
+        return "supportsMessage" + capitalize(javaName);
+    }
+
+    /**
+     * Check if this version of the field uses primitive type (including String/bytes).
+     * Used for PRIMITIVE_MESSAGE conflicts.
+     *
+     * @param version Version identifier
+     * @return true if the field is primitive-like in this version
+     */
+    public boolean isPrimitiveInVersion(String version) {
+        FieldInfo field = versionFields.get(version);
+        if (field == null) return false;
+        return field.isPrimitive() || isStringOrBytesType(field);
+    }
+
+    /**
+     * Check if this version of the field uses message type.
+     * Used for PRIMITIVE_MESSAGE conflicts.
+     *
+     * @param version Version identifier
+     * @return true if the field is a message type in this version
+     */
+    public boolean isMessageInVersion(String version) {
+        FieldInfo field = versionFields.get(version);
+        if (field == null) return false;
+        return field.isMessage() && !field.isPrimitive() && !isStringOrBytesType(field);
+    }
+
+    /**
+     * Check if the field is String or bytes type.
+     */
+    private boolean isStringOrBytesType(FieldInfo field) {
+        String type = field.getJavaType();
+        return "String".equals(type) || "byte[]".equals(type) || "ByteString".equals(type);
     }
 
     /**

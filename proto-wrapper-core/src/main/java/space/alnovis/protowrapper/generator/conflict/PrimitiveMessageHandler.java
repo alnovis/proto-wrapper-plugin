@@ -196,26 +196,124 @@ public final class PrimitiveMessageHandler extends AbstractConflictHandler imple
 
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        // PRIMITIVE_MESSAGE conflict fields don't have builder methods in the interface
-        // (InterfaceGenerator skips them via shouldSkipBuilderSetter)
-        // And ImplClassGenerator also skips them
-        // So we don't generate abstract builder methods either to maintain consistency
+        TypeName primitiveType = ctx.parseFieldType(field);
+        TypeName messageType = getMessageTypeForField(field, ctx);
+
+        // Abstract doSet for primitive
+        addAbstractDoSet(builder, field.getDoSetMethodName(), primitiveType, field.getJavaName());
+
+        // Abstract doSet for message
+        if (messageType != null) {
+            addAbstractDoSet(builder, field.getDoSetMessageMethodName(), messageType, field.getJavaName());
+        }
+
+        // Abstract supportsPrimitive check
+        builder.addMethod(MethodSpec.methodBuilder(field.getSupportsPrimitiveMethodName())
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(TypeName.BOOLEAN)
+                .build());
+
+        // Abstract supportsMessage check
+        builder.addMethod(MethodSpec.methodBuilder(field.getSupportsMessageMethodName())
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(TypeName.BOOLEAN)
+                .build());
+
+        // Abstract doClear
+        addAbstractDoClear(builder, field.getDoClearMethodName());
     }
 
     @Override
     public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                        boolean presentInVersion, ProcessingContext ctx) {
-        // PRIMITIVE_MESSAGE conflict fields don't have builder methods
-        // ImplClassGenerator skips them via shouldSkipBuilderSetter
-        // So we don't generate impl methods either to maintain consistency
+        String version = ctx.requireVersion();
+        FieldInfo versionField = field.getVersionFields().get(version);
+        boolean versionIsPrimitive = versionField != null && isPrimitiveOrPrimitiveLike(versionField);
+        String versionJavaName = getVersionSpecificJavaName(field, ctx);
+
+        TypeName primitiveType = ctx.parseFieldType(field);
+        TypeName messageType = getMessageTypeForField(field, ctx);
+
+        // doSet for primitive - only executes when version is primitive
+        buildDoSetImpl(builder, field.getDoSetMethodName(), primitiveType, field.getJavaName(),
+                presentInVersion && versionIsPrimitive, m -> {
+                    m.addStatement("protoBuilder.set$L($L)", versionJavaName, field.getJavaName());
+                });
+
+        // doSet for message - only executes when version is message
+        if (messageType != null) {
+            String wrapperClassName = getMessageWrapperClassName(field, ctx);
+            buildDoSetImpl(builder, field.getDoSetMessageMethodName(), messageType, field.getJavaName(),
+                    presentInVersion && !versionIsPrimitive, m -> {
+                        // Cast to version-specific impl to get typed proto
+                        m.addStatement("protoBuilder.set$L((($L) $L).getTypedProto())",
+                                versionJavaName, wrapperClassName, field.getJavaName());
+                    });
+        }
+
+        // supportsPrimitive implementation
+        builder.addMethod(MethodSpec.methodBuilder(field.getSupportsPrimitiveMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(TypeName.BOOLEAN)
+                .addStatement("return $L", presentInVersion && versionIsPrimitive)
+                .build());
+
+        // supportsMessage implementation
+        builder.addMethod(MethodSpec.methodBuilder(field.getSupportsMessageMethodName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(TypeName.BOOLEAN)
+                .addStatement("return $L", presentInVersion && !versionIsPrimitive)
+                .build());
+
+        // doClear
+        buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
     }
 
     @Override
     public void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                            TypeName builderReturnType, ProcessingContext ctx) {
-        // PRIMITIVE_MESSAGE conflict fields don't have builder methods in the interface
-        // (InterfaceGenerator skips them via shouldSkipBuilderSetter)
-        // So we don't generate concrete implementations either
+        String capName = ctx.capitalize(field.getJavaName());
+        TypeName primitiveType = ctx.parseFieldType(field);
+        TypeName messageType = getMessageTypeForField(field, ctx);
+
+        // setXxx(primitive) with validation
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addParameter(primitiveType, field.getJavaName())
+                .returns(builderReturnType)
+                .beginControlFlow("if (!$L())", field.getSupportsPrimitiveMethodName())
+                .addStatement("throw new $T($S + $S)",
+                        UnsupportedOperationException.class,
+                        "set" + capName + "() not supported in this version. ",
+                        "Use set" + capName + "Message() instead.")
+                .endControlFlow()
+                .addStatement("$L($L)", field.getDoSetMethodName(), field.getJavaName())
+                .addStatement("return this")
+                .build());
+
+        // setXxxMessage(message) with validation
+        if (messageType != null) {
+            builder.addMethod(MethodSpec.methodBuilder("set" + capName + "Message")
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                    .addParameter(messageType, field.getJavaName())
+                    .returns(builderReturnType)
+                    .beginControlFlow("if (!$L())", field.getSupportsMessageMethodName())
+                    .addStatement("throw new $T($S + $S)",
+                            UnsupportedOperationException.class,
+                            "set" + capName + "Message() not supported in this version. ",
+                            "Use set" + capName + "() instead.")
+                    .endControlFlow()
+                    .addStatement("$L($L)", field.getDoSetMessageMethodName(), field.getJavaName())
+                    .addStatement("return this")
+                    .build());
+        }
+
+        // clearXxx()
+        addConcreteClearMethod(builder, field.getJavaName(), builderReturnType, ctx);
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
