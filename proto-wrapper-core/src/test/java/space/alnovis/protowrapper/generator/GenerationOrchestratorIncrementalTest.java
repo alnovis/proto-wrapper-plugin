@@ -307,6 +307,7 @@ class GenerationOrchestratorIncrementalTest {
 
         assertThat(version).isNotNull();
         assertThat(version).isNotEmpty();
-        assertThat(version).matches("\\d+\\.\\d+\\.\\d+");
+        // Version is either semantic version (after Maven/Gradle filtering) or "unknown" (IDE/unfiltered)
+        assertThat(version).matches("\\d+\\.\\d+\\.\\d+.*|unknown");
     }
 }
