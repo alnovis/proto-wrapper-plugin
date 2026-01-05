@@ -4,6 +4,8 @@ import com.squareup.javapoet.JavaFile;
 import space.alnovis.protowrapper.PluginLogger;
 import space.alnovis.protowrapper.generator.wellknown.StructConverterGenerator;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
+import space.alnovis.protowrapper.incremental.ChangeDetector;
+import space.alnovis.protowrapper.incremental.IncrementalStateManager;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
@@ -14,6 +16,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -30,8 +33,15 @@ import java.util.stream.Collectors;
  */
 public class GenerationOrchestrator {
 
+    /**
+     * Plugin version used for cache invalidation.
+     * Update this when making changes that affect generated output.
+     */
+    private static final String PLUGIN_VERSION = "1.6.0";
+
     private final GeneratorConfig config;
     private final PluginLogger logger;
+    private IncrementalStateManager stateManager;
 
     public GenerationOrchestrator(GeneratorConfig config, PluginLogger logger) {
         this.config = config;
@@ -88,6 +98,163 @@ public class GenerationOrchestrator {
 
         logger.info("Generated " + generatedFiles + " files total");
         return generatedFiles;
+    }
+
+    /**
+     * Generate all code with incremental support.
+     *
+     * <p>This method checks if proto files have changed since the last generation.
+     * If no changes are detected, generation is skipped. If changes are detected
+     * or cache is invalid, full generation is performed.</p>
+     *
+     * @param schema Merged schema
+     * @param versionConfigs Version configurations
+     * @param protoClassNameResolver Function to resolve proto class name
+     * @param protoFiles Set of all proto file paths (absolute)
+     * @param protoRoot Root directory for proto files
+     * @return Number of generated files (0 if skipped due to no changes)
+     * @throws IOException if generation fails
+     */
+    public int generateAllIncremental(MergedSchema schema,
+                                       List<VersionConfig> versionConfigs,
+                                       ProtoClassNameResolver protoClassNameResolver,
+                                       Set<Path> protoFiles,
+                                       Path protoRoot) throws IOException {
+
+        // If incremental is disabled or force regenerate, use full generation
+        if (!config.isIncremental() || config.isForceRegenerate()) {
+            if (config.isForceRegenerate()) {
+                logger.info("Force regenerate requested, performing full generation");
+            }
+            int count = generateAll(schema, versionConfigs, protoClassNameResolver);
+            saveIncrementalState(protoFiles, protoRoot);
+            return count;
+        }
+
+        // Determine cache directory
+        Path cacheDirectory = config.getCacheDirectory();
+        if (cacheDirectory == null) {
+            cacheDirectory = config.getOutputDirectory().resolve(".proto-wrapper-cache");
+        }
+
+        // Initialize state manager
+        stateManager = new IncrementalStateManager(
+            cacheDirectory,
+            protoRoot,
+            PLUGIN_VERSION,
+            config.computeConfigHash(),
+            logger
+        );
+
+        // Load previous state
+        stateManager.loadPreviousState();
+
+        // Check for full cache invalidation
+        if (stateManager.shouldInvalidateCache()) {
+            String reason = stateManager.getInvalidationReason();
+            logger.info("Cache invalidated: " + reason);
+            stateManager.invalidateCache();
+            int count = generateAll(schema, versionConfigs, protoClassNameResolver);
+            saveStateAfterGeneration(protoFiles);
+            return count;
+        }
+
+        // Analyze changes
+        ChangeDetector.ChangeResult changes = stateManager.analyzeChanges(protoFiles);
+
+        if (!changes.hasChanges()) {
+            logger.info("No proto file changes detected, skipping generation");
+            return 0;
+        }
+
+        // Log change details
+        logChangeDetails(changes);
+
+        // For now, perform full generation when any changes detected
+        // Future enhancement: selective regeneration of affected messages only
+        int count = generateAll(schema, versionConfigs, protoClassNameResolver);
+
+        // Save new state
+        saveStateAfterGeneration(protoFiles);
+
+        return count;
+    }
+
+    /**
+     * Log details about detected changes.
+     */
+    private void logChangeDetails(ChangeDetector.ChangeResult changes) {
+        int total = changes.totalChanges();
+        logger.info("Detected " + total + " proto file change(s)");
+
+        if (!changes.added().isEmpty()) {
+            logger.debug("  Added: " + changes.added());
+        }
+        if (!changes.modified().isEmpty()) {
+            logger.debug("  Modified: " + changes.modified());
+        }
+        if (!changes.deleted().isEmpty()) {
+            logger.debug("  Deleted: " + changes.deleted());
+        }
+    }
+
+    /**
+     * Save incremental state after generation (when incremental is disabled).
+     */
+    private void saveIncrementalState(Set<Path> protoFiles, Path protoRoot) {
+        if (protoFiles == null || protoFiles.isEmpty()) {
+            return;
+        }
+
+        try {
+            Path cacheDirectory = config.getCacheDirectory();
+            if (cacheDirectory == null) {
+                cacheDirectory = config.getOutputDirectory().resolve(".proto-wrapper-cache");
+            }
+
+            IncrementalStateManager manager = new IncrementalStateManager(
+                cacheDirectory,
+                protoRoot,
+                PLUGIN_VERSION,
+                config.computeConfigHash(),
+                logger
+            );
+            manager.loadPreviousState();
+            manager.analyzeChanges(protoFiles);
+            manager.saveCurrentState();
+            logger.debug("Saved incremental state for " + protoFiles.size() + " proto files");
+        } catch (IOException e) {
+            logger.warn("Failed to save incremental state: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Save state after generation when using incremental mode.
+     */
+    private void saveStateAfterGeneration(Set<Path> protoFiles) {
+        if (stateManager == null) {
+            return;
+        }
+
+        try {
+            // Re-analyze to capture current fingerprints if not already done
+            if (stateManager.getChangeResult() == null) {
+                stateManager.analyzeChanges(protoFiles);
+            }
+            stateManager.saveCurrentState();
+            logger.debug("Saved incremental state");
+        } catch (IOException e) {
+            logger.warn("Failed to save incremental state: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get the plugin version used for cache invalidation.
+     *
+     * @return plugin version string
+     */
+    public static String getPluginVersion() {
+        return PLUGIN_VERSION;
     }
 
     /**
