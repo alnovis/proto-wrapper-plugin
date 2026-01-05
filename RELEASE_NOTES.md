@@ -1,3 +1,58 @@
+# Release Notes - Proto Wrapper Plugin v1.6.0
+
+**Release Date:** January 5, 2026
+
+## Overview
+
+Version 1.6.0 is a documentation and maintenance release that improves the README.md with Mermaid diagrams for better visualization on GitHub.
+
+## What's New
+
+### Documentation Improvements
+
+#### Mermaid Diagrams
+
+Converted ASCII art diagrams in README.md to Mermaid format:
+
+1. **Architecture Diagram** - Shows the complete code generation pipeline:
+   - Proto file parsing and analysis
+   - Schema merging with conflict detection
+   - Code generation layers (interfaces, abstract classes, implementations)
+   - Output structure
+
+2. **Conflict Handling Architecture** - Shows the handler hierarchy:
+   - ConflictHandler sealed interface
+   - AbstractConflictHandler base class
+   - Specialized handlers (Widening, IntEnum, FloatDouble, etc.)
+
+The Mermaid diagrams render natively on GitHub, making the documentation more accessible and professional.
+
+## Upgrade Guide
+
+No breaking changes. Simply update the version:
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.0</version>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.6.0"
+}
+```
+
+---
+
+# Previous Releases
+
+---
+
 # Release Notes - Proto Wrapper Plugin v1.5.2
 
 **Release Date:** January 4, 2026

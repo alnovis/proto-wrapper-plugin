@@ -75,7 +75,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.5.2</version>
+    <version>1.6.0</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -116,7 +116,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.5.2"
+    id("space.alnovis.proto-wrapper") version "1.6.0"
 }
 
 protoWrapper {
@@ -414,34 +414,34 @@ Since v1.5.0, Proto Wrapper includes a schema comparison tool that detects chang
 
 ### CLI Usage
 
-The CLI is packaged as an executable JAR (`proto-wrapper-core-1.5.2-cli.jar`).
+The CLI is packaged as an executable JAR (`proto-wrapper-core-1.6.0-cli.jar`).
 
 ```bash
 # Basic comparison
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2
 
 # Output formats
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --format=text
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --format=json
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --format=markdown
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --format=text
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --format=json
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --format=markdown
 
 # Show only breaking changes
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --breaking-only
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --breaking-only
 
 # Write to file
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
 
 # CI/CD mode: exit code 1 if breaking changes detected
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
 
 # Custom version names
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
 
 # Quiet mode (suppress info messages)
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 -q
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 -q
 
 # Custom protoc path
-java -jar proto-wrapper-core-1.5.2-cli.jar diff proto/v1 proto/v2 --protoc=/usr/local/bin/protoc
+java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --protoc=/usr/local/bin/protoc
 ```
 
 #### CLI Options
@@ -490,7 +490,7 @@ mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dv1Name=production -Dv2Name=
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.5.2</version>
+    <version>1.6.0</version>
     <executions>
         <!-- Schema diff during verify phase -->
         <execution>
@@ -535,7 +535,7 @@ Register and configure a `SchemaDiffTask`:
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.5.2"
+    id("space.alnovis.proto-wrapper") version "1.6.0"
 }
 
 // Register diff task
@@ -785,48 +785,60 @@ Order.Builder builder = ctx.newOrderBuilder();
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Proto Files                              │
-│                    v1/*.proto, v2/*.proto                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ProtocExecutor → ProtoAnalyzer → VersionMerger             │
-│         Parses proto files, merges into unified schema      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                GenerationOrchestrator                       │
-│         Coordinates all code generators                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┬───────────────┐
-              ▼               ▼               ▼               ▼
-       InterfaceGen    AbstractClassGen   ImplClassGen   VersionContextGen
-              │               │               │               │
-              └───────────────┴───────────────┴───────────────┘
-                              │
-                              ▼
-                         JavaPoet → .java files
+```mermaid
+flowchart TB
+    subgraph Input["Proto Files"]
+        P1["v1/*.proto"]
+        P2["v2/*.proto"]
+    end
+
+    subgraph Parsing["Schema Parsing & Merging"]
+        PE[ProtocExecutor]
+        PA[ProtoAnalyzer]
+        VM[VersionMerger]
+        PE --> PA --> VM
+    end
+
+    subgraph Generation["Code Generation"]
+        GO[GenerationOrchestrator]
+        IG[InterfaceGenerator]
+        AG[AbstractClassGenerator]
+        IC[ImplClassGenerator]
+        VC[VersionContextGenerator]
+        GO --> IG & AG & IC & VC
+    end
+
+    subgraph Output["Generated Code"]
+        JP[JavaPoet]
+        JF[".java files"]
+        JP --> JF
+    end
+
+    Input --> Parsing
+    Parsing --> Generation
+    IG & AG & IC & VC --> JP
 ```
 
 ### Conflict Handling Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  FieldProcessingChain                       │
-│         Dispatches fields to appropriate handlers           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-         ┌────────────────────┼────────────────────┐
-         ▼                    ▼                    ▼
-   IntEnumHandler      WideningHandler      StringBytesHandler
-         │                    │                    │
-         ▼                    ▼                    ▼
-   PrimitiveMessageHandler   DefaultHandler   RepeatedConflictHandler
+```mermaid
+flowchart TB
+    FPC["FieldProcessingChain<br/><i>Dispatches fields to appropriate handlers</i>"]
+
+    FPC --> IEH[IntEnumHandler]
+    FPC --> WH[WideningHandler]
+    FPC --> SBH[StringBytesHandler]
+    FPC --> PMH[PrimitiveMessageHandler]
+    FPC --> DH[DefaultHandler]
+    FPC --> RCH[RepeatedConflictHandler]
+
+    style FPC fill:#e1f5fe
+    style IEH fill:#fff3e0
+    style WH fill:#fff3e0
+    style SBH fill:#fff3e0
+    style PMH fill:#fff3e0
+    style DH fill:#e8f5e9
+    style RCH fill:#fff3e0
 ```
 
 ## Limitations
