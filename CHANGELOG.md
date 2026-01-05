@@ -11,6 +11,20 @@ _No changes yet._
 
 ---
 
+## [1.6.0] - 2026-01-05
+
+### Changed
+
+#### Documentation Improvements
+- **Mermaid diagrams** - Converted ASCII diagrams in README.md to Mermaid format for better rendering on GitHub:
+  - Architecture diagram showing the complete code generation pipeline
+  - Conflict Handling Architecture diagram showing handler hierarchy
+
+#### Internal
+- Version bump to 1.6.0 across all modules
+
+---
+
 ## [1.5.2] - 2026-01-04
 
 ### Changed
