@@ -834,22 +834,31 @@ flowchart TB
     end
 
     subgraph TypeHandlers["Type Conflict Handlers"]
-        IEH["<b>IntEnumHandler</b><br/><i>int ↔ enum</i>"]
-        WH["<b>WideningHandler</b><br/><i>int → long</i>"]
-        FDH["<b>FloatDoubleHandler</b><br/><i>float → double</i>"]
-        SUH["<b>SignedUnsignedHandler</b><br/><i>signed ↔ unsigned</i>"]
-        SBH["<b>StringBytesHandler</b><br/><i>string ↔ bytes</i>"]
-        PMH["<b>PrimitiveMessageHandler</b><br/><i>primitive → message</i>"]
-        EEH["<b>EnumEnumHandler</b><br/><i>enum ↔ enum</i>"]
+        direction TB
+        subgraph TypeRow1[" "]
+            direction LR
+            IEH["<b>IntEnumHandler</b><br/><i>int ↔ enum</i>"]
+            WH["<b>WideningHandler</b><br/><i>int → long</i>"]
+            FDH["<b>FloatDoubleHandler</b><br/><i>float → double</i>"]
+            SUH["<b>SignedUnsignedHandler</b><br/><i>signed ↔ unsigned</i>"]
+        end
+        subgraph TypeRow2[" "]
+            direction LR
+            SBH["<b>StringBytesHandler</b><br/><i>string ↔ bytes</i>"]
+            PMH["<b>PrimitiveMessageHandler</b><br/><i>primitive → message</i>"]
+            EEH["<b>EnumEnumHandler</b><br/><i>enum ↔ enum</i>"]
+        end
     end
 
     subgraph CollectionHandlers["Collection Handlers"]
+        direction LR
         RCH["<b>RepeatedConflictHandler</b><br/><i>repeated with conflicts</i>"]
         RSH["<b>RepeatedSingleHandler</b><br/><i>repeated ↔ singular</i>"]
         MFH["<b>MapFieldHandler</b><br/><i>map fields</i>"]
     end
 
     subgraph WKTHandlers["Well-Known Type Handlers"]
+        direction LR
         WKTH["<b>WellKnownTypeHandler</b><br/><i>Timestamp, Duration...</i>"]
         RWKTH["<b>RepeatedWellKnownTypeHandler</b><br/><i>repeated WKT fields</i>"]
     end
@@ -859,7 +868,8 @@ flowchart TB
     end
 
     FPC --> CH
-    ACH --> IEH & WH & FDH & SUH & SBH & PMH & EEH
+    ACH --> IEH & WH & FDH & SUH
+    ACH --> SBH & PMH & EEH
     ACH --> RCH & RSH & MFH
     ACH --> WKTH & RWKTH
     ACH --> DH
