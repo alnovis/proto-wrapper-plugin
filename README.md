@@ -864,22 +864,22 @@ flowchart TB
     ACH --> WKTH & RWKTH
     ACH --> DH
 
-    style FPC fill:#e3f2fd,stroke:#1976d2
-    style CH fill:#f3e5f5,stroke:#7b1fa2
-    style ACH fill:#ede7f6,stroke:#512da8
-    style IEH fill:#fff8e1,stroke:#f9a825
-    style WH fill:#fff8e1,stroke:#f9a825
-    style FDH fill:#fff8e1,stroke:#f9a825
-    style SUH fill:#fff8e1,stroke:#f9a825
-    style SBH fill:#fff8e1,stroke:#f9a825
-    style PMH fill:#fff8e1,stroke:#f9a825
-    style EEH fill:#fff8e1,stroke:#f9a825
-    style RCH fill:#e0f7fa,stroke:#00838f
-    style RSH fill:#e0f7fa,stroke:#00838f
-    style MFH fill:#e0f7fa,stroke:#00838f
-    style WKTH fill:#fce4ec,stroke:#c2185b
-    style RWKTH fill:#fce4ec,stroke:#c2185b
-    style DH fill:#e8f5e9,stroke:#388e3c
+    style FPC fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
+    style CH fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    style ACH fill:#ede7f6,stroke:#512da8,color:#311b92
+    style IEH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style WH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style FDH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style SUH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style SBH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style PMH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style EEH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style RCH fill:#e0f7fa,stroke:#00838f,color:#004d40
+    style RSH fill:#e0f7fa,stroke:#00838f,color:#004d40
+    style MFH fill:#e0f7fa,stroke:#00838f,color:#004d40
+    style WKTH fill:#fce4ec,stroke:#c2185b,color:#880e4f
+    style RWKTH fill:#fce4ec,stroke:#c2185b,color:#880e4f
+    style DH fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
 ```
 
 ## Limitations
