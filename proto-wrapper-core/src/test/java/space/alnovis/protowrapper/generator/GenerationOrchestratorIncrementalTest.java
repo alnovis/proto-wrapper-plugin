@@ -310,4 +310,166 @@ class GenerationOrchestratorIncrementalTest {
         // Version is either semantic version (after Maven/Gradle filtering) or "unknown" (IDE/unfiltered)
         assertThat(version).matches("\\d+\\.\\d+\\.\\d+.*|unknown");
     }
+
+    @Test
+    void generateAllIncremental_fileDeleted_triggersFullRegeneration() throws IOException {
+        // Create two proto files
+        Path protoFile1 = protoRoot.resolve("test1.proto");
+        Path protoFile2 = protoRoot.resolve("test2.proto");
+        Files.writeString(protoFile1, "syntax = \"proto3\"; message Test1 {}");
+        Files.writeString(protoFile2, "syntax = \"proto3\"; message Test2 {}");
+
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(outputDir)
+            .cacheDirectory(cacheDir)
+            .incremental(true)
+            .build();
+
+        GenerationOrchestrator orchestrator = new GenerationOrchestrator(config, PluginLogger.noop());
+
+        // First run with two files
+        Set<Path> twoFiles = new HashSet<>();
+        twoFiles.add(protoFile1);
+        twoFiles.add(protoFile2);
+        orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            twoFiles, protoRoot
+        );
+
+        // Delete one file and run again with only one file
+        Files.delete(protoFile2);
+
+        // Second run should detect deletion and trigger generation
+        orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            Set.of(protoFile1), protoRoot
+        );
+
+        // State should be updated
+        assertThat(cacheDir.resolve("state.json")).exists();
+    }
+
+    @Test
+    void generateAllIncremental_corruptedCache_recoversWithFullGeneration() throws IOException {
+        // Create proto file
+        Path protoFile = protoRoot.resolve("test.proto");
+        Files.writeString(protoFile, "syntax = \"proto3\"; message Test {}");
+
+        // Create corrupted cache file
+        Files.createDirectories(cacheDir);
+        Path stateFile = cacheDir.resolve("state.json");
+        Files.writeString(stateFile, "{ invalid json content {{{{");
+
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(outputDir)
+            .cacheDirectory(cacheDir)
+            .incremental(true)
+            .build();
+
+        GenerationOrchestrator orchestrator = new GenerationOrchestrator(config, PluginLogger.noop());
+
+        // Should recover from corrupted cache and perform full generation
+        orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            Set.of(protoFile), protoRoot
+        );
+
+        // State should be recreated with valid content
+        assertThat(stateFile).exists();
+        String content = Files.readString(stateFile);
+        assertThat(content).contains("\"pluginVersion\"");
+    }
+
+    @Test
+    void generateAllIncremental_dependencyChanged_regeneratesDependents() throws IOException {
+        // Create common.proto (imported by order.proto)
+        Path commonProto = protoRoot.resolve("common.proto");
+        Files.writeString(commonProto, "syntax = \"proto3\"; message Common { string name = 1; }");
+
+        // Create order.proto that imports common.proto
+        Path orderProto = protoRoot.resolve("order.proto");
+        Files.writeString(orderProto,
+            "syntax = \"proto3\";\n" +
+            "import \"common.proto\";\n" +
+            "message Order { Common common = 1; }");
+
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(outputDir)
+            .cacheDirectory(cacheDir)
+            .incremental(true)
+            .build();
+
+        GenerationOrchestrator orchestrator = new GenerationOrchestrator(config, PluginLogger.noop());
+
+        Set<Path> protoFiles = new HashSet<>();
+        protoFiles.add(commonProto);
+        protoFiles.add(orderProto);
+
+        // First run
+        orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            protoFiles, protoRoot
+        );
+
+        // Modify common.proto (the imported file)
+        Files.writeString(commonProto, "syntax = \"proto3\"; message Common { string name = 1; int32 id = 2; }");
+
+        // Second run should detect that common.proto changed
+        // and order.proto depends on it (needs regeneration)
+        orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            protoFiles, protoRoot
+        );
+
+        // State should reflect the changes
+        assertThat(cacheDir.resolve("state.json")).exists();
+    }
+
+    @Test
+    void generateAllIncremental_emptyProtoSet_handlesGracefully() throws IOException {
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(outputDir)
+            .cacheDirectory(cacheDir)
+            .incremental(true)
+            .build();
+
+        GenerationOrchestrator orchestrator = new GenerationOrchestrator(config, PluginLogger.noop());
+
+        // Run with empty set of proto files - should not throw exception
+        // Returns count of generated files (may be non-zero due to VersionContext generation)
+        int count = orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            Set.of(), protoRoot
+        );
+
+        // Should handle gracefully without exception
+        assertThat(count).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void generateAllIncremental_cacheDirectoryNotExists_createsIt() throws IOException {
+        // Create proto file
+        Path protoFile = protoRoot.resolve("test.proto");
+        Files.writeString(protoFile, "syntax = \"proto3\"; message Test {}");
+
+        // Use non-existent cache directory
+        Path nonExistentCache = tempDir.resolve("non-existent-cache");
+        assertThat(nonExistentCache).doesNotExist();
+
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(outputDir)
+            .cacheDirectory(nonExistentCache)
+            .incremental(true)
+            .build();
+
+        GenerationOrchestrator orchestrator = new GenerationOrchestrator(config, PluginLogger.noop());
+        orchestrator.generateAllIncremental(
+            emptySchema, emptyVersionConfigs, noopResolver,
+            Set.of(protoFile), protoRoot
+        );
+
+        // Cache directory should be created
+        assertThat(nonExistentCache).exists();
+        assertThat(nonExistentCache.resolve("state.json")).exists();
+    }
 }

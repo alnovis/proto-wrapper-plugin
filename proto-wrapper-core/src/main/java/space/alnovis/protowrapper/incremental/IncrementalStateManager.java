@@ -21,6 +21,9 @@ import java.util.Set;
  *   <li>Handles cache invalidation</li>
  * </ul>
  *
+ * <p>Thread safety: This class uses file locking via {@link CacheLock}
+ * to ensure safe concurrent access from multiple build processes.
+ *
  * <p>Typical usage:
  * <pre>
  * IncrementalStateManager manager = new IncrementalStateManager(...);
@@ -40,6 +43,8 @@ import java.util.Set;
  *
  * manager.saveCurrentState();
  * </pre>
+ *
+ * @see CacheLock
  */
 public class IncrementalStateManager {
 
@@ -81,17 +86,22 @@ public class IncrementalStateManager {
     /**
      * Load previous state from cache.
      *
-     * @throws IOException if cache cannot be read
+     * <p>This method acquires a file lock to ensure thread-safe access
+     * when multiple builds run concurrently.
+     *
+     * @throws IOException if cache cannot be read or lock cannot be acquired
      */
     public void loadPreviousState() throws IOException {
-        Path stateFile = cacheDirectory.resolve(STATE_FILE);
-        previousState = IncrementalState.readFrom(stateFile);
-        stateLoaded = true;
+        try (CacheLock lock = CacheLock.acquire(cacheDirectory)) {
+            Path stateFile = cacheDirectory.resolve(STATE_FILE);
+            previousState = IncrementalState.readFrom(stateFile);
+            stateLoaded = true;
 
-        if (!previousState.isEmpty()) {
-            logger.info("Loaded incremental state from " + previousState.lastGeneration());
-        } else {
-            logger.info("No previous incremental state found");
+            if (!previousState.isEmpty()) {
+                logger.info("Loaded incremental state from " + previousState.lastGeneration());
+            } else {
+                logger.info("No previous incremental state found");
+            }
         }
     }
 
@@ -249,8 +259,11 @@ public class IncrementalStateManager {
     /**
      * Save current state after successful generation with generated files info.
      *
+     * <p>This method acquires a file lock to ensure thread-safe access
+     * when multiple builds run concurrently.
+     *
      * @param generatedFiles map of generated file paths to their info, or null
-     * @throws IOException if state cannot be saved
+     * @throws IOException if state cannot be saved or lock cannot be acquired
      */
     public void saveCurrentState(Map<String, GeneratedFileInfo> generatedFiles) throws IOException {
         ensureAnalysisDone();
@@ -263,21 +276,28 @@ public class IncrementalStateManager {
             generatedFiles
         );
 
-        Path stateFile = cacheDirectory.resolve(STATE_FILE);
-        newState.writeTo(stateFile);
+        try (CacheLock lock = CacheLock.acquire(cacheDirectory)) {
+            Path stateFile = cacheDirectory.resolve(STATE_FILE);
+            newState.writeTo(stateFile);
+        }
 
-        logger.info("Saved incremental state to " + stateFile);
+        logger.info("Saved incremental state to " + cacheDirectory.resolve(STATE_FILE));
     }
 
     /**
      * Invalidate cache completely.
      *
-     * @throws IOException if cache cannot be deleted
+     * <p>This method acquires a file lock to ensure thread-safe access
+     * when multiple builds run concurrently.
+     *
+     * @throws IOException if cache cannot be deleted or lock cannot be acquired
      */
     public void invalidateCache() throws IOException {
-        Path stateFile = cacheDirectory.resolve(STATE_FILE);
-        if (Files.exists(stateFile)) {
-            Files.delete(stateFile);
+        try (CacheLock lock = CacheLock.acquire(cacheDirectory)) {
+            Path stateFile = cacheDirectory.resolve(STATE_FILE);
+            if (Files.exists(stateFile)) {
+                Files.delete(stateFile);
+            }
         }
         previousState = IncrementalState.empty();
         logger.info("Cache invalidated");

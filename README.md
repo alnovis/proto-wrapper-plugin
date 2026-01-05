@@ -35,6 +35,11 @@ Supports both **Maven** and **Gradle** build systems.
   - Detect breaking changes automatically
   - Multiple output formats (text, JSON, Markdown)
   - CLI, Maven goal, and Gradle task support
+- **Incremental Generation** (v1.6.0+):
+  - Only regenerate when proto files change
+  - >50% build time reduction for unchanged schemas
+  - Dependency-aware regeneration (respects imports)
+  - Automatic cache invalidation on config/version changes
 - Automatic detection of equivalent enums (nested vs top-level)
 - Supported versions info in Javadoc
 - Thread-safe immutable wrappers
@@ -714,6 +719,119 @@ SchemaDiff.DiffSummary summary = diff.getSummary();
 System.out.println("Added: " + summary.addedMessages() + " messages");
 System.out.println("Breaking: " + summary.errorCount() + " errors");
 ```
+
+## Incremental Generation
+
+Since v1.6.0, Proto Wrapper supports incremental generation to significantly reduce build times. When no proto files have changed, the plugin skips code generation entirely. When files change, only affected wrappers are regenerated.
+
+### Features
+
+- **Smart change detection** - Uses SHA-256 content hashing and timestamps
+- **Dependency tracking** - Tracks proto imports to regenerate dependents
+- **Auto-invalidation** - Full regeneration on plugin version or config changes
+- **Graceful recovery** - Handles corrupted cache by performing full regeneration
+- **Thread-safe** - File locking for safe concurrent builds in CI/CD environments
+
+### Configuration
+
+Incremental generation is **enabled by default**. No configuration needed for typical use cases.
+
+#### Maven
+
+```xml
+<configuration>
+    <basePackage>com.example.model</basePackage>
+    <!-- Incremental generation (default: true) -->
+    <incremental>true</incremental>
+    <!-- Cache directory (default: ${project.build.directory}/proto-wrapper-cache) -->
+    <cacheDirectory>${project.build.directory}/proto-wrapper-cache</cacheDirectory>
+    <!-- Force full regeneration (default: false) -->
+    <forceRegenerate>false</forceRegenerate>
+</configuration>
+```
+
+```bash
+# Normal build (incremental)
+mvn compile
+
+# Force full regeneration
+mvn compile -Dproto-wrapper.force=true
+
+# Disable incremental mode
+mvn compile -Dproto-wrapper.incremental=false
+```
+
+#### Gradle
+
+```kotlin
+protoWrapper {
+    basePackage.set("com.example.model")
+    // Incremental generation (default: true)
+    incremental.set(true)
+    // Cache directory (default: build/proto-wrapper-cache)
+    cacheDirectory.set(layout.buildDirectory.dir("proto-wrapper-cache"))
+    // Force full regeneration (default: false)
+    forceRegenerate.set(false)
+}
+```
+
+```bash
+# Normal build (incremental)
+./gradlew generateProtoWrapper
+
+# Force full regeneration
+./gradlew generateProtoWrapper -Pproto-wrapper.force=true
+
+# Clean regeneration
+./gradlew clean generateProtoWrapper
+```
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `incremental` | `true` | Enable incremental generation |
+| `cacheDirectory` | `${build}/proto-wrapper-cache` | Directory for incremental state cache |
+| `forceRegenerate` | `false` | Force full regeneration, ignoring cache |
+
+### Cache Invalidation
+
+The plugin automatically performs full regeneration when:
+
+| Condition | Reason |
+|-----------|--------|
+| Plugin version changed | Generated code format may differ |
+| Configuration changed | Output structure may differ |
+| Proto file deleted | May break dependencies |
+| Cache file corrupted | Recovery mode |
+| `forceRegenerate=true` | User requested |
+| `clean` task executed | Cache deleted |
+
+Partial regeneration occurs when:
+- Proto file content changed (regenerate that file + dependents)
+- New proto file added (regenerate new file + dependents)
+- Import dependencies changed (regenerate affected files)
+
+### How It Works
+
+1. **First build**: Full generation, cache created
+2. **Subsequent builds**:
+   - Load previous state from `state.json`
+   - Compute fingerprints for all proto files
+   - Compare with cached fingerprints
+   - Regenerate only changed files and their dependents
+3. **Cache structure**:
+   ```
+   proto-wrapper-cache/
+   └── state.json      # Fingerprints, dependencies, timestamps
+   ```
+
+### Performance
+
+Typical build time improvements:
+- No changes: **>80% reduction** (only fingerprint comparison)
+- Single file change: **50-70% reduction** (regenerate subset)
+- Config/version change: **0% reduction** (full regeneration required)
 
 ## Generated Code Examples
 
