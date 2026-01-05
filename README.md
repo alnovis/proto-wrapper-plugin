@@ -80,7 +80,7 @@ cd proto-wrapper-plugin
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.0</version>
+    <version>1.6.1</version>
     <configuration>
         <basePackage>com.mycompany.myapp.model</basePackage>
         <protoRoot>${basedir}/src/main/proto</protoRoot>
@@ -121,7 +121,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.0"
+    id("space.alnovis.proto-wrapper") version "1.6.1"
 }
 
 protoWrapper {
@@ -419,34 +419,34 @@ Since v1.5.0, Proto Wrapper includes a schema comparison tool that detects chang
 
 ### CLI Usage
 
-The CLI is packaged as an executable JAR (`proto-wrapper-core-1.6.0-cli.jar`).
+The CLI is packaged as an executable JAR (`proto-wrapper-core-1.6.1-cli.jar`).
 
 ```bash
 # Basic comparison
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2
 
 # Output formats
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --format=text
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --format=json
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --format=markdown
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --format=text
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --format=json
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --format=markdown
 
 # Show only breaking changes
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --breaking-only
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --breaking-only
 
 # Write to file
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
 
 # CI/CD mode: exit code 1 if breaking changes detected
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
 
 # Custom version names
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
 
 # Quiet mode (suppress info messages)
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 -q
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 -q
 
 # Custom protoc path
-java -jar proto-wrapper-core-1.6.0-cli.jar diff proto/v1 proto/v2 --protoc=/usr/local/bin/protoc
+java -jar proto-wrapper-core-1.6.1-cli.jar diff proto/v1 proto/v2 --protoc=/usr/local/bin/protoc
 ```
 
 #### CLI Options
@@ -495,7 +495,7 @@ mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dv1Name=production -Dv2Name=
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.0</version>
+    <version>1.6.1</version>
     <executions>
         <!-- Schema diff during verify phase -->
         <execution>
@@ -540,7 +540,7 @@ Register and configure a `SchemaDiffTask`:
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.0"
+    id("space.alnovis.proto-wrapper") version "1.6.1"
 }
 
 // Register diff task

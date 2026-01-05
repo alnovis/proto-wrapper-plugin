@@ -26,7 +26,19 @@ dependencies {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Exclude benchmark tests from regular test runs (CI performance is unpredictable)
+        excludeTags("benchmark")
+    }
+}
+
+// Separate task to run benchmark tests manually
+tasks.register<Test>("benchmarkTest") {
+    useJUnitPlatform {
+        includeTags("benchmark")
+    }
+    description = "Run performance benchmark tests"
+    group = "verification"
 }
 
 // Resource filtering for version.properties (similar to Maven resource filtering)

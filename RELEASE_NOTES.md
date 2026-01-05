@@ -1,3 +1,54 @@
+# Release Notes - Proto Wrapper Plugin v1.6.1
+
+**Release Date:** January 5, 2026
+
+## Overview
+
+Version 1.6.1 is a patch release that fixes CI/CD stability issues and adds comprehensive tests for the Gradle plugin and Maven integration.
+
+## What's New
+
+### CI/CD Fixes
+
+- **Exclude benchmark tests from Gradle** - The `IncrementalGenerationBenchmark` test is now excluded from regular test runs in Gradle (already excluded in Maven)
+  - Benchmark tests are sensitive to VM performance and fail on GitHub Actions runners
+  - Added separate `benchmarkTest` task for manual execution: `./gradlew :proto-wrapper-core:benchmarkTest`
+
+### New Tests
+
+#### Gradle Plugin Tests (48 total)
+- `ProtoWrapperPluginTest` - 23 unit tests
+- `GenerateWrappersTaskTest` - 25 functional tests with TestKit
+
+#### Maven Integration Tests
+- `IncrementalGenerationIntegrationTest` - 7 tests for incremental generation scenarios
+
+## Upgrade Guide
+
+Simply update the version:
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.1</version>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.6.1"
+}
+```
+
+## Breaking Changes
+
+None. Fully backward compatible with v1.6.0.
+
+---
+
 # Release Notes - Proto Wrapper Plugin v1.6.0
 
 **Release Date:** January 5, 2026
