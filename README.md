@@ -822,56 +822,50 @@ flowchart TB
 ### Conflict Handling Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Orchestration["Orchestration"]
-        FPC["<b>FieldProcessingChain</b><br/><i>Dispatches fields to handlers</i>"]
+flowchart LR
+    subgraph Orchestration[" "]
+        FPC["<b>FieldProcessingChain</b>"]
     end
 
-    subgraph Hierarchy["Handler Hierarchy"]
+    subgraph Hierarchy[" "]
+        direction TB
         CH{{"<b>ConflictHandler</b><br/><i>sealed interface</i>"}}
-        ACH["<b>AbstractConflictHandler</b><br/><i>sealed abstract class</i>"]
+        ACH["<b>AbstractConflictHandler</b><br/><i>sealed class</i>"]
         CH -.-> ACH
     end
 
-    subgraph TypeHandlers["Type Conflict Handlers"]
+    subgraph TypeHandlers["Type Conflicts"]
         direction TB
-        subgraph TypeRow1[" "]
-            direction LR
-            IEH["<b>IntEnumHandler</b><br/><i>int ↔ enum</i>"]
-            WH["<b>WideningHandler</b><br/><i>int → long</i>"]
-            FDH["<b>FloatDoubleHandler</b><br/><i>float → double</i>"]
-            SUH["<b>SignedUnsignedHandler</b><br/><i>signed ↔ unsigned</i>"]
-        end
-        subgraph TypeRow2[" "]
-            direction LR
-            SBH["<b>StringBytesHandler</b><br/><i>string ↔ bytes</i>"]
-            PMH["<b>PrimitiveMessageHandler</b><br/><i>primitive → message</i>"]
-            EEH["<b>EnumEnumHandler</b><br/><i>enum ↔ enum</i>"]
-        end
+        IEH["<b>IntEnum</b><br/><i>int ↔ enum</i>"]
+        WH["<b>Widening</b><br/><i>int → long</i>"]
+        FDH["<b>FloatDouble</b><br/><i>float → double</i>"]
+        SUH["<b>SignedUnsigned</b><br/><i>signed ↔ unsigned</i>"]
+        SBH["<b>StringBytes</b><br/><i>string ↔ bytes</i>"]
+        PMH["<b>PrimitiveMessage</b><br/><i>primitive → message</i>"]
+        EEH["<b>EnumEnum</b><br/><i>enum ↔ enum</i>"]
     end
 
-    subgraph CollectionHandlers["Collection Handlers"]
-        direction LR
-        RCH["<b>RepeatedConflictHandler</b><br/><i>repeated with conflicts</i>"]
-        RSH["<b>RepeatedSingleHandler</b><br/><i>repeated ↔ singular</i>"]
-        MFH["<b>MapFieldHandler</b><br/><i>map fields</i>"]
+    subgraph CollectionHandlers["Collections"]
+        direction TB
+        RCH["<b>RepeatedConflict</b><br/><i>repeated + conflict</i>"]
+        RSH["<b>RepeatedSingle</b><br/><i>repeated ↔ singular</i>"]
+        MFH["<b>MapField</b><br/><i>map fields</i>"]
     end
 
-    subgraph WKTHandlers["Well-Known Type Handlers"]
-        direction LR
-        WKTH["<b>WellKnownTypeHandler</b><br/><i>Timestamp, Duration...</i>"]
-        RWKTH["<b>RepeatedWellKnownTypeHandler</b><br/><i>repeated WKT fields</i>"]
+    subgraph WKTHandlers["Well-Known Types"]
+        direction TB
+        WKTH["<b>WellKnownType</b><br/><i>Timestamp, Duration</i>"]
+        RWKTH["<b>RepeatedWKT</b><br/><i>repeated WKT</i>"]
     end
 
-    subgraph Fallback["Fallback"]
-        DH["<b>DefaultHandler</b><br/><i>no conflict</i>"]
+    subgraph Fallback[" "]
+        DH["<b>Default</b><br/><i>no conflict</i>"]
     end
 
     FPC --> CH
-    ACH --> IEH & WH & FDH & SUH
-    ACH --> SBH & PMH & EEH
-    ACH --> RCH & RSH & MFH
-    ACH --> WKTH & RWKTH
+    ACH --> TypeHandlers
+    ACH --> CollectionHandlers
+    ACH --> WKTHandlers
     ACH --> DH
 
     style FPC fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
