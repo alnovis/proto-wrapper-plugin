@@ -823,22 +823,63 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    FPC["FieldProcessingChain<br/><i>Dispatches fields to appropriate handlers</i>"]
+    subgraph Orchestration["Orchestration"]
+        FPC["<b>FieldProcessingChain</b><br/><i>Dispatches fields to handlers</i>"]
+    end
 
-    FPC --> IEH[IntEnumHandler]
-    FPC --> WH[WideningHandler]
-    FPC --> SBH[StringBytesHandler]
-    FPC --> PMH[PrimitiveMessageHandler]
-    FPC --> DH[DefaultHandler]
-    FPC --> RCH[RepeatedConflictHandler]
+    subgraph Hierarchy["Handler Hierarchy"]
+        CH{{"<b>ConflictHandler</b><br/><i>sealed interface</i>"}}
+        ACH["<b>AbstractConflictHandler</b><br/><i>sealed abstract class</i>"]
+        CH -.-> ACH
+    end
 
-    style FPC fill:#e1f5fe
-    style IEH fill:#fff3e0
-    style WH fill:#fff3e0
-    style SBH fill:#fff3e0
-    style PMH fill:#fff3e0
-    style DH fill:#e8f5e9
-    style RCH fill:#fff3e0
+    subgraph TypeHandlers["Type Conflict Handlers"]
+        IEH["<b>IntEnumHandler</b><br/><i>int ↔ enum</i>"]
+        WH["<b>WideningHandler</b><br/><i>int → long</i>"]
+        FDH["<b>FloatDoubleHandler</b><br/><i>float → double</i>"]
+        SUH["<b>SignedUnsignedHandler</b><br/><i>signed ↔ unsigned</i>"]
+        SBH["<b>StringBytesHandler</b><br/><i>string ↔ bytes</i>"]
+        PMH["<b>PrimitiveMessageHandler</b><br/><i>primitive → message</i>"]
+        EEH["<b>EnumEnumHandler</b><br/><i>enum ↔ enum</i>"]
+    end
+
+    subgraph CollectionHandlers["Collection Handlers"]
+        RCH["<b>RepeatedConflictHandler</b><br/><i>repeated with conflicts</i>"]
+        RSH["<b>RepeatedSingleHandler</b><br/><i>repeated ↔ singular</i>"]
+        MFH["<b>MapFieldHandler</b><br/><i>map fields</i>"]
+    end
+
+    subgraph WKTHandlers["Well-Known Type Handlers"]
+        WKTH["<b>WellKnownTypeHandler</b><br/><i>Timestamp, Duration...</i>"]
+        RWKTH["<b>RepeatedWellKnownTypeHandler</b><br/><i>repeated WKT fields</i>"]
+    end
+
+    subgraph Fallback["Fallback"]
+        DH["<b>DefaultHandler</b><br/><i>no conflict</i>"]
+    end
+
+    FPC --> CH
+    ACH --> IEH & WH & FDH & SUH & SBH & PMH & EEH
+    ACH --> RCH & RSH & MFH
+    ACH --> WKTH & RWKTH
+    ACH --> DH
+
+    style FPC fill:#e3f2fd,stroke:#1976d2
+    style CH fill:#f3e5f5,stroke:#7b1fa2
+    style ACH fill:#ede7f6,stroke:#512da8
+    style IEH fill:#fff8e1,stroke:#f9a825
+    style WH fill:#fff8e1,stroke:#f9a825
+    style FDH fill:#fff8e1,stroke:#f9a825
+    style SUH fill:#fff8e1,stroke:#f9a825
+    style SBH fill:#fff8e1,stroke:#f9a825
+    style PMH fill:#fff8e1,stroke:#f9a825
+    style EEH fill:#fff8e1,stroke:#f9a825
+    style RCH fill:#e0f7fa,stroke:#00838f
+    style RSH fill:#e0f7fa,stroke:#00838f
+    style MFH fill:#e0f7fa,stroke:#00838f
+    style WKTH fill:#fce4ec,stroke:#c2185b
+    style RWKTH fill:#fce4ec,stroke:#c2185b
+    style DH fill:#e8f5e9,stroke:#388e3c
 ```
 
 ## Limitations
