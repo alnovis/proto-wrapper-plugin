@@ -29,6 +29,17 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// Resource filtering for version.properties (similar to Maven resource filtering)
+tasks.processResources {
+    filesMatching("version.properties") {
+        expand(
+            "projectVersion" to project.version,
+            "projectGroupId" to project.group,
+            "projectArtifactId" to project.name
+        )
+    }
+}
+
 // CLI executable JAR
 tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
     archiveClassifier.set("cli")

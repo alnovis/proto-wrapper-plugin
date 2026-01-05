@@ -3,6 +3,8 @@ package space.alnovis.protowrapper.generator;
 import space.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
@@ -85,6 +87,11 @@ public class GeneratorConfig {
     private Map<String, String> customTypeMappings = new HashMap<>();
     private Map<String, String> fieldNameOverrides = new HashMap<>();
 
+    // Incremental generation settings
+    private boolean incremental = true;
+    private Path cacheDirectory;
+    private boolean forceRegenerate = false;
+
     // Builder pattern
     public static Builder builder() {
         return new Builder();
@@ -134,6 +141,11 @@ public class GeneratorConfig {
     public boolean isConvertWellKnownTypes() { return convertWellKnownTypes; }
     public boolean isGenerateRawProtoAccessors() { return generateRawProtoAccessors; }
 
+    // Incremental generation getters
+    public boolean isIncremental() { return incremental; }
+    public Path getCacheDirectory() { return cacheDirectory; }
+    public boolean isForceRegenerate() { return forceRegenerate; }
+
     /**
      * Get the implementation class name for a message in a specific version.
      * @param messageName Simple message name (e.g., "Money")
@@ -160,6 +172,44 @@ public class GeneratorConfig {
 
     public String getFieldNameOverride(String messageName, String fieldName) {
         return fieldNameOverrides.get(messageName + "." + fieldName);
+    }
+
+    /**
+     * Compute hash of configuration for cache invalidation.
+     * Changes in these settings invalidate the cache.
+     *
+     * @return 16-character hex string representing configuration hash
+     */
+    public String computeConfigHash() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(apiPackage).append("|");
+        sb.append(implPackagePattern).append("|");
+        sb.append(protoPackagePattern).append("|");
+        sb.append(abstractClassPackage).append("|");
+        sb.append(generateInterfaces).append("|");
+        sb.append(generateAbstractClasses).append("|");
+        sb.append(generateImplClasses).append("|");
+        sb.append(generateVersionContext).append("|");
+        sb.append(generateBuilders).append("|");
+        sb.append(includeVersionSuffix).append("|");
+        sb.append(convertWellKnownTypes).append("|");
+        sb.append(generateRawProtoAccessors).append("|");
+        sb.append(defaultSyntax).append("|");
+        // Include custom mappings
+        sb.append(customTypeMappings.toString()).append("|");
+        sb.append(fieldNameOverrides.toString()).append("|");
+        // Include message filters
+        sb.append(includedMessages.toString()).append("|");
+        sb.append(excludedMessages.toString());
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash).substring(0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            // Fallback to simple hashCode (should never happen as SHA-256 is always available)
+            return String.format("%016x", sb.toString().hashCode());
+        }
     }
 
     public static class Builder {
@@ -259,6 +309,44 @@ public class GeneratorConfig {
 
         public Builder fieldNameOverride(String messageName, String fieldName, String javaName) {
             config.fieldNameOverrides.put(messageName + "." + fieldName, javaName);
+            return this;
+        }
+
+        /**
+         * Enable or disable incremental generation.
+         * When enabled, only changed proto files and their dependents are regenerated.
+         * Default: true
+         *
+         * @param incremental true to enable incremental generation
+         * @return this builder
+         */
+        public Builder incremental(boolean incremental) {
+            config.incremental = incremental;
+            return this;
+        }
+
+        /**
+         * Set the cache directory for incremental generation state.
+         * If not set, a default directory will be used (output directory + ".proto-wrapper-cache").
+         *
+         * @param cacheDirectory path to cache directory
+         * @return this builder
+         */
+        public Builder cacheDirectory(Path cacheDirectory) {
+            config.cacheDirectory = cacheDirectory;
+            return this;
+        }
+
+        /**
+         * Force full regeneration even when incremental mode is enabled.
+         * This invalidates the cache and regenerates all files.
+         * Default: false
+         *
+         * @param forceRegenerate true to force full regeneration
+         * @return this builder
+         */
+        public Builder forceRegenerate(boolean forceRegenerate) {
+            config.forceRegenerate = forceRegenerate;
             return this;
         }
 

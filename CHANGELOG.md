@@ -13,6 +13,132 @@ _No changes yet._
 
 ## [1.6.0] - 2026-01-05
 
+### Added
+
+#### Incremental Generation
+- **Smart change detection** - Only regenerate wrapper classes when source proto files change, significantly reducing build times for large projects
+  - >50% build time reduction when no changes detected
+  - Correct regeneration on any proto file change
+  - Support for dependencies between proto files (imports)
+
+#### New Configuration Options
+| Option | Default | Description |
+|--------|---------|-------------|
+| `incremental` | `true` | Enable incremental generation |
+| `cacheDirectory` | `${build}/proto-wrapper-cache` | Directory for incremental state cache |
+| `forceRegenerate` | `false` | Force full regeneration, ignoring cache |
+
+#### Maven Plugin
+```xml
+<configuration>
+    <basePackage>com.example.model</basePackage>
+    <!-- Incremental generation (enabled by default) -->
+    <incremental>true</incremental>
+    <cacheDirectory>${project.build.directory}/proto-wrapper-cache</cacheDirectory>
+    <!-- Force full regeneration if needed -->
+    <!-- <forceRegenerate>true</forceRegenerate> -->
+</configuration>
+```
+
+```bash
+# Normal build (incremental)
+mvn compile
+
+# Force full regeneration
+mvn compile -Dproto-wrapper.force=true
+
+# Disable incremental
+mvn compile -Dproto-wrapper.incremental=false
+```
+
+#### Gradle Plugin
+```kotlin
+protoWrapper {
+    basePackage.set("com.example.model")
+    // Incremental generation (enabled by default)
+    incremental.set(true)
+    cacheDirectory.set(layout.buildDirectory.dir("proto-wrapper-cache"))
+    // Force full regeneration if needed
+    // forceRegenerate.set(true)
+}
+```
+
+```bash
+# Normal build (incremental)
+./gradlew generateProtoWrapper
+
+# Force full regeneration
+./gradlew generateProtoWrapper -Pproto-wrapper.force=true
+
+# Clean and regenerate
+./gradlew clean generateProtoWrapper
+```
+
+#### Cache File Format
+State is persisted to JSON in cache directory (`state.json`):
+```json
+{
+  "pluginVersion": "1.6.0",
+  "configHash": "a1b2c3d4e5f67890",
+  "lastGeneration": "2026-01-05T10:30:00.000Z",
+  "protoFingerprints": {
+    "v1/order.proto": {
+      "relativePath": "v1/order.proto",
+      "contentHash": "sha256:abc123...",
+      "lastModified": 1707990000000,
+      "fileSize": 2048
+    }
+  },
+  "protoDependencies": {
+    "v1/order.proto": ["v1/common.proto"]
+  },
+  "generatedFiles": {
+    "com/example/model/api/Order.java": {
+      "contentHash": "sha256:ghi789...",
+      "lastModified": 1707990500000,
+      "sourceProtos": ["v1/order.proto", "v2/order.proto"]
+    }
+  }
+}
+```
+
+#### Cache Invalidation Rules
+| Condition | Action | Reason |
+|-----------|--------|--------|
+| Plugin version changed | Full regeneration | Generated code format may differ |
+| Config hash changed | Full regeneration | Output structure may differ |
+| Proto file modified | Regenerate affected | Content changed |
+| Proto file added | Regenerate + dependents | New messages |
+| Proto file deleted | Full regeneration | May break dependencies |
+| Imported file changed | Regenerate dependents | Transitive change |
+| `clean` executed | Full regeneration | Cache deleted |
+| `--force` flag | Full regeneration | User requested |
+| Cache corrupted | Full regeneration | Recovery |
+
+#### Thread-Safe Concurrent Builds
+- **File locking** - Uses Java's `FileLock` API to prevent concurrent builds from corrupting cache
+- **Automatic lock acquisition** - Lock acquired before reading/writing state file
+- **Configurable timeout** - Default 30-second timeout for lock acquisition
+- **Graceful handling** - If lock cannot be acquired, build fails with clear error message
+
+#### New Core Classes
+```
+proto-wrapper-core/src/main/java/space/alnovis/protowrapper/incremental/
+├── FileFingerprint.java          # File hash + timestamp for change detection
+├── IncrementalState.java         # Persistent state model (record)
+├── IncrementalStateManager.java  # Cache state management
+├── ProtoDependencyGraph.java     # Proto import dependency graph
+├── ChangeDetector.java           # Change detection logic
+├── GeneratedFileInfo.java        # Generated file tracking
+├── CacheLock.java                # File locking for thread safety
+└── package-info.java
+```
+
+#### PluginVersion Utility
+- **Runtime version access** - `PluginVersion.get()` returns current plugin version
+- **Maven/Gradle compatible** - Uses resource filtering for version injection
+- Used for cache invalidation on plugin updates
+
 ### Changed
 
 #### Documentation Improvements
@@ -22,6 +148,8 @@ _No changes yet._
 
 #### Internal
 - Version bump to 1.6.0 across all modules
+- `GeneratorConfig` - Added incremental generation fields and `computeConfigHash()` method
+- `GenerationOrchestrator` - Integrated incremental generation with automatic fallback to full generation
 
 ---
 

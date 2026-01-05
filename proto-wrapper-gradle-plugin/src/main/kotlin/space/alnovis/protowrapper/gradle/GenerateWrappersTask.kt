@@ -21,7 +21,10 @@ import space.alnovis.protowrapper.model.MergedField
 import space.alnovis.protowrapper.model.MergedMessage
 import space.alnovis.protowrapper.model.MergedSchema
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.*
+import kotlin.io.path.extension
 
 /**
  * Gradle task that generates version-agnostic wrapper classes from protobuf schemas.
@@ -207,6 +210,30 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Nested
     abstract val versions: ListProperty<VersionConfig>
 
+    // ============ Incremental Generation Properties (since 1.6.0) ============
+
+    /**
+     * Enable incremental generation.
+     * When enabled, only regenerates when proto files change.
+     * Default: true
+     */
+    @get:Input
+    abstract val incremental: Property<Boolean>
+
+    /**
+     * Directory for incremental generation cache.
+     * Stores state between builds to detect changes.
+     */
+    @get:OutputDirectory
+    abstract val cacheDirectory: DirectoryProperty
+
+    /**
+     * Force full regeneration, ignoring cache.
+     * Default: false
+     */
+    @get:Input
+    abstract val forceRegenerate: Property<Boolean>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -280,12 +307,18 @@ abstract class GenerateWrappersTask : DefaultTask() {
             val orchestrator = GenerationOrchestrator(generatorConfig, pluginLogger)
 
             val versionConfigs = versions.get().map { GradleVersionConfigAdapter(it) }
-            val generatedFiles = orchestrator.generateAll(
+            val protoFiles = collectAllProtoFiles()
+            val protoRootPath = protoRoot.get().asFile.toPath()
+
+            val generatedFiles = orchestrator.generateAllIncremental(
                 mergedSchema,
-                versionConfigs
-            ) { message, versionCfg ->
-                getProtoClassName(message, versionCfg as GradleVersionConfigAdapter)
-            }
+                versionConfigs,
+                { message, versionCfg ->
+                    getProtoClassName(message, versionCfg as GradleVersionConfigAdapter)
+                },
+                protoFiles,
+                protoRootPath
+            )
 
             pluginLogger.info("Generated $generatedFiles files in ${outputDirectory.get().asFile}")
 
@@ -499,6 +532,10 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .protobufMajorVersion(protobufMajorVersion.get())
             .convertWellKnownTypes(convertWellKnownTypes.get())
             .generateRawProtoAccessors(generateRawProtoAccessors.get())
+            // Incremental generation settings
+            .incremental(incremental.get())
+            .cacheDirectory(cacheDirectory.get().asFile.toPath())
+            .forceRegenerate(forceRegenerate.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)
@@ -597,6 +634,49 @@ abstract class GenerateWrappersTask : DefaultTask() {
 
         for (nested in message.nestedMessages) {
             collectConflicts(nested, counts, examples)
+        }
+    }
+
+    /**
+     * Collects all proto files from all version directories.
+     *
+     * @return Set of paths to all proto files
+     */
+    private fun collectAllProtoFiles(): Set<Path> {
+        val protoFiles = mutableSetOf<Path>()
+        for (versionConfig in versions.get()) {
+            val versionData = versionDataCache[versionConfig.name] ?: continue
+            val protoDir = versionData.resolvedProtoDir.toPath()
+            val excludePatterns = versionConfig.excludeProtos.orNull ?: emptyList()
+
+            Files.walk(protoDir).use { stream ->
+                stream.filter { path ->
+                    Files.isRegularFile(path) &&
+                    path.extension == "proto" &&
+                    !isExcluded(path, protoDir, excludePatterns)
+                }.forEach { protoFiles.add(it) }
+            }
+        }
+        return protoFiles
+    }
+
+    /**
+     * Checks if a proto file matches any exclude pattern.
+     *
+     * @param file Path to the file to check
+     * @param baseDir Base directory for relative path resolution
+     * @param excludePatterns List of patterns to match against
+     * @return true if the file should be excluded
+     */
+    private fun isExcluded(file: Path, baseDir: Path, excludePatterns: List<String>): Boolean {
+        if (excludePatterns.isEmpty()) return false
+        val relativePath = baseDir.relativize(file).toString().replace('\\', '/')
+        return excludePatterns.any { pattern ->
+            val regex = pattern
+                .replace(".", "\\.")
+                .replace("**", ".*")
+                .replace("*", "[^/]*")
+            relativePath.matches(Regex(regex))
         }
     }
 
