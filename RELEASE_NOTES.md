@@ -4,32 +4,180 @@
 
 ## Overview
 
-Version 1.6.0 is a documentation and maintenance release that improves the README.md with Mermaid diagrams for better visualization on GitHub.
+Version 1.6.0 introduces **Incremental Generation** - a major feature that significantly reduces build times by only regenerating wrapper classes when proto files actually change. This release also adds thread-safe concurrent build support and comprehensive performance benchmarks.
 
 ## What's New
 
-### Documentation Improvements
+### Incremental Generation
 
-#### Mermaid Diagrams
+The plugin now tracks proto file changes using SHA-256 content hashing and only regenerates affected wrapper classes. This provides:
 
-Converted ASCII art diagrams in README.md to Mermaid format:
+- **>50% build time reduction** when no changes detected (benchmark shows 69.1%)
+- **Dependency-aware regeneration** - tracks proto imports to regenerate dependents
+- **Automatic cache invalidation** on plugin version or configuration changes
 
-1. **Architecture Diagram** - Shows the complete code generation pipeline:
-   - Proto file parsing and analysis
-   - Schema merging with conflict detection
-   - Code generation layers (interfaces, abstract classes, implementations)
-   - Output structure
+#### How It Works
 
-2. **Conflict Handling Architecture** - Shows the handler hierarchy:
-   - ConflictHandler sealed interface
-   - AbstractConflictHandler base class
-   - Specialized handlers (Widening, IntEnum, FloatDouble, etc.)
+```
+First Build:
+  Proto Files -> Fingerprint -> Generate All -> Save State
 
-The Mermaid diagrams render natively on GitHub, making the documentation more accessible and professional.
+Subsequent Builds:
+  Proto Files -> Compare Fingerprints -> Changed?
+    No  -> Skip Generation (fast!)
+    Yes -> Regenerate Affected Only -> Save State
+```
+
+#### Configuration
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.0</version>
+    <configuration>
+        <basePackage>com.example.model</basePackage>
+
+        <!-- Incremental generation (enabled by default) -->
+        <incremental>true</incremental>
+        <cacheDirectory>${project.build.directory}/proto-wrapper-cache</cacheDirectory>
+
+        <!-- Force full regeneration if needed -->
+        <!-- <forceRegenerate>true</forceRegenerate> -->
+    </configuration>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    basePackage.set("com.example.model")
+
+    // Incremental generation (enabled by default)
+    incremental.set(true)
+    cacheDirectory.set(layout.buildDirectory.dir("proto-wrapper-cache"))
+
+    // Force full regeneration if needed
+    // forceRegenerate.set(true)
+}
+```
+
+#### Command Line Options
+
+```bash
+# Maven - Force full regeneration
+mvn compile -Dproto-wrapper.force=true
+
+# Maven - Disable incremental
+mvn compile -Dproto-wrapper.incremental=false
+
+# Gradle - Force full regeneration (use --rerun-tasks or clean)
+./gradlew clean generateProtoWrappers
+```
+
+#### New Configuration Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `incremental` | `true` | Enable incremental generation |
+| `cacheDirectory` | `${build}/proto-wrapper-cache` | Directory for incremental state cache |
+| `forceRegenerate` | `false` | Force full regeneration, ignoring cache |
+
+### Thread-Safe Concurrent Builds
+
+The plugin now supports concurrent builds using file locking:
+
+- **CacheLock** mechanism prevents cache corruption during parallel builds
+- Safe for CI/CD environments with multiple concurrent jobs
+- Automatic lock acquisition with 30-second timeout
+- Graceful recovery from stale locks
+
+### Cache Invalidation Rules
+
+The cache is automatically invalidated when:
+
+| Condition | Action |
+|-----------|--------|
+| Plugin version changed | Full regeneration |
+| Configuration changed | Full regeneration |
+| Proto file modified | Regenerate affected + dependents |
+| Proto file added | Regenerate new + dependents |
+| Proto file deleted | Full regeneration |
+| Cache corrupted | Graceful recovery, full regeneration |
+| `forceRegenerate=true` | Full regeneration |
+
+### Cache State File Format
+
+The incremental state is stored in `state.json`:
+
+```json
+{
+  "pluginVersion": "1.6.0",
+  "configHash": "a1b2c3d4e5f67890",
+  "lastGeneration": "2026-01-05T10:30:00.000Z",
+  "protoFingerprints": {
+    "v1/order.proto": {
+      "relativePath": "v1/order.proto",
+      "contentHash": "sha256:abc123...",
+      "lastModified": 1707990000000,
+      "fileSize": 2048
+    }
+  },
+  "protoDependencies": {
+    "v1/order.proto": ["v1/common.proto"]
+  }
+}
+```
+
+### Performance Benchmarks
+
+Benchmark results with 22 proto files:
+
+| Scenario | Time | Improvement |
+|----------|------|-------------|
+| Full generation | 13.73 ms | - |
+| Incremental (no changes) | 4.25 ms | **69.1%** |
+| Incremental (1 file changed) | 11.53 ms | 16.0% |
+
+Run benchmarks:
+```bash
+mvn test -Dtest=IncrementalGenerationBenchmark -Dgroups=benchmark
+```
+
+## New Classes
+
+### Incremental Generation Infrastructure
+
+| Class | Description |
+|-------|-------------|
+| `CacheLock` | File locking for thread-safe cache access |
+| `ChangeDetector` | Detects changes in proto files |
+| `FileFingerprint` | SHA-256 content hash + timestamps |
+| `GeneratedFileInfo` | Tracks generated file metadata |
+| `IncrementalState` | Cache state model (JSON serializable) |
+| `IncrementalStateManager` | Coordinates incremental generation |
+| `ProtoDependencyGraph` | Tracks proto import dependencies |
+
+### Test Classes
+
+| Class | Description |
+|-------|-------------|
+| `IncrementalGenerationBenchmark` | Performance benchmarks |
+| `CacheLockTest` | Thread-safety tests |
+| `ChangeDetectorTest` | Change detection tests |
+| `FileFingerprintTest` | Fingerprint computation tests |
+| `IncrementalStateManagerTest` | State management tests |
+| `IncrementalStateTest` | State serialization tests |
+| `ProtoDependencyGraphTest` | Dependency tracking tests |
+| `GenerationOrchestratorIncrementalTest` | Integration tests |
+| `IncrementalGenerationIntegrationTest` | Maven IT tests |
+| `GenerateWrappersTaskTest` | Gradle functional tests |
+| `ProtoWrapperPluginTest` | Gradle plugin unit tests |
 
 ## Upgrade Guide
 
-No breaking changes. Simply update the version:
+### 1. Update Plugin Version
 
 **Maven:**
 ```xml
@@ -46,6 +194,55 @@ plugins {
     id("space.alnovis.proto-wrapper") version "1.6.0"
 }
 ```
+
+### 2. (Optional) Configure Cache Directory
+
+By default, the cache is stored in `${build.directory}/proto-wrapper-cache`. You can customize this:
+
+```xml
+<configuration>
+    <cacheDirectory>${project.build.directory}/my-cache</cacheDirectory>
+</configuration>
+```
+
+### 3. (Optional) Disable Incremental Generation
+
+If you encounter issues, you can disable incremental generation:
+
+```xml
+<configuration>
+    <incremental>false</incremental>
+</configuration>
+```
+
+### 4. Clean Build for First Run
+
+For the first build after upgrading, consider a clean build:
+
+```bash
+mvn clean compile
+# or
+./gradlew clean generateProtoWrappers
+```
+
+## Breaking Changes
+
+None. This release is fully backward compatible. Incremental generation is enabled by default but can be disabled if needed.
+
+## Test Coverage
+
+| Module | Tests |
+|--------|-------|
+| proto-wrapper-core | 699 |
+| proto-wrapper-gradle-plugin (unit) | 23 |
+| proto-wrapper-gradle-plugin (functional) | 25 |
+| proto-wrapper-maven-integration-tests | 7+ |
+
+## Documentation Updates
+
+- README.md - Added Incremental Generation section
+- CHANGELOG.md - Added v1.6.0 section with full details
+- Archived implementation plan to `docs/archive/`
 
 ---
 
@@ -129,439 +326,19 @@ conflictType.getPluginNote();   // Human-readable description
 
 ---
 
-# Previous Releases
-
 ## v1.5.1 - PRIMITIVE_MESSAGE Fix
 
 Fixed the breaking change classification for PRIMITIVE_MESSAGE conflicts. Now correctly classified as INFO (plugin-handled) instead of ERROR.
 
 ---
 
-# Schema Diff Tool (from v1.5.0)
+## v1.5.0 - Schema Diff Tool
 
-This release introduces the **Schema Diff Tool** - a comprehensive solution for comparing protobuf schemas between versions and detecting breaking changes. Available as CLI, Maven goal, and Gradle task, it integrates seamlessly with CI/CD pipelines.
-
-## What's New
-
-### Schema Diff Tool
-
-Compare proto schemas and detect changes including breaking changes that could affect wire compatibility.
-
-#### Three Ways to Use
-
-1. **CLI** - Standalone command-line tool
-2. **Maven** - `proto-wrapper:diff` goal
-3. **Gradle** - `SchemaDiffTask`
-
-### CLI Tool
-
-The CLI is packaged as an executable JAR with all dependencies included.
-
-```bash
-# Basic comparison
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2
-
-# Output formats
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --format=text
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --format=json
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --format=markdown
-
-# Show only breaking changes
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --breaking-only
-
-# Write to file
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --output=diff-report.md
-
-# CI/CD mode: exit code 1 if breaking changes detected
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
-
-# Custom version names
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --v1-name=production --v2-name=development
-
-# Quiet mode
-java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 -q
-```
-
-#### CLI Options
-
-| Option | Description |
-|--------|-------------|
-| `--v1-name=<name>` | Name for source version (default: v1) |
-| `--v2-name=<name>` | Name for target version (default: v2) |
-| `-f, --format=<fmt>` | Output format: text, json, markdown (default: text) |
-| `-o, --output=<file>` | Write output to file instead of console |
-| `-b, --breaking-only` | Show only breaking changes |
-| `--fail-on-breaking` | Exit with code 1 if breaking changes detected |
-| `--fail-on-warning` | Treat warnings as errors |
-| `--protoc=<path>` | Path to protoc executable |
-| `-q, --quiet` | Suppress informational messages |
-| `-h, --help` | Show help message |
-| `-V, --version` | Print version information |
-
-### Maven Goal
-
-Use the `diff` goal to compare schemas in Maven builds:
-
-```bash
-# Command line usage
-mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2
-
-# With output format
-mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dformat=markdown
-
-# Write to file
-mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Doutput=target/diff-report.md
-
-# Fail on breaking changes (CI/CD)
-mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DfailOnBreaking=true
-
-# Custom version names
-mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -Dv1Name=production -Dv2Name=development
-```
-
-#### pom.xml Configuration
-
-```xml
-<plugin>
-    <groupId>space.alnovis</groupId>
-    <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.5.1</version>
-    <executions>
-        <!-- Schema diff during verify phase -->
-        <execution>
-            <id>check-breaking-changes</id>
-            <phase>verify</phase>
-            <goals>
-                <goal>diff</goal>
-            </goals>
-            <configuration>
-                <v1>${basedir}/proto/production</v1>
-                <v2>${basedir}/proto/development</v2>
-                <v1Name>production</v1Name>
-                <v2Name>development</v2Name>
-                <outputFormat>markdown</outputFormat>
-                <outputFile>${project.build.directory}/schema-diff.md</outputFile>
-                <failOnBreaking>true</failOnBreaking>
-            </configuration>
-        </execution>
-    </executions>
-</plugin>
-```
-
-#### Maven Goal Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `v1` | (required) | Directory with source version proto files |
-| `v2` | (required) | Directory with target version proto files |
-| `v1Name` | `v1` | Name for source version in reports |
-| `v2Name` | `v2` | Name for target version in reports |
-| `format` | `text` | Output format: text, json, markdown |
-| `output` | (console) | Output file path |
-| `breakingOnly` | `false` | Show only breaking changes |
-| `failOnBreaking` | `false` | Fail build on breaking changes |
-| `failOnWarning` | `false` | Treat warnings as errors |
-| `protoc.path` | (from PATH) | Custom protoc executable path |
-
-### Gradle Task
-
-Register and configure a `SchemaDiffTask`:
-
-```kotlin
-// build.gradle.kts
-plugins {
-    id("space.alnovis.proto-wrapper") version "1.5.1"
-}
-
-// Register diff task
-tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
-    v1Directory.set(file("proto/v1"))
-    v2Directory.set(file("proto/v2"))
-    v1Name.set("v1")
-    v2Name.set("v2")
-    outputFormat.set("markdown")
-    outputFile.set(file("build/reports/schema-diff.md"))
-    failOnBreaking.set(false)
-    breakingOnly.set(false)
-}
-
-// Run as part of check
-tasks.named("check") {
-    dependsOn("diffSchemas")
-}
-```
-
-```bash
-# Run diff task
-./gradlew diffSchemas
-```
-
-#### Gradle Task Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `v1Directory` | `DirectoryProperty` | (required) | Source version directory |
-| `v2Directory` | `DirectoryProperty` | (required) | Target version directory |
-| `v1Name` | `Property<String>` | `v1` | Name for source version |
-| `v2Name` | `Property<String>` | `v2` | Name for target version |
-| `outputFormat` | `Property<String>` | `text` | Output format: text, json, markdown |
-| `outputFile` | `RegularFileProperty` | (console) | Output file |
-| `breakingOnly` | `Property<Boolean>` | `false` | Show only breaking changes |
-| `failOnBreaking` | `Property<Boolean>` | `false` | Fail task on breaking changes |
-
-### Output Formats
-
-#### Text Format
-
-```
-Schema Comparison: v1 -> v2
-
-================================================================================
-MESSAGES
-================================================================================
-
-+ ADDED: Profile (user.proto)
-    Fields:
-      - user_id: int64 (#1)
-      - bio: string (#2)
-
-~ MODIFIED: User
-    + Added field: phone (string, #7)
-    - Removed field: email (#3) [BREAKING]
-
-- REMOVED: DeprecatedMessage [BREAKING]
-
-================================================================================
-BREAKING CHANGES
-================================================================================
-
-ERRORS (2):
-  [ERROR] FIELD_REMOVED: User.email (was: string email = 3)
-  [ERROR] MESSAGE_REMOVED: DeprecatedMessage (was: DeprecatedMessage)
-
-================================================================================
-SUMMARY
-================================================================================
-
-Messages:  +1 added, ~1 modified, -1 removed
-Enums:     +0 added, ~0 modified, -0 removed
-Breaking:  2 errors, 0 warnings
-```
-
-#### JSON Format
-
-```json
-{
-  "v1": "v1",
-  "v2": "v2",
-  "summary": {
-    "addedMessages": 1,
-    "removedMessages": 1,
-    "modifiedMessages": 1,
-    "errorCount": 2,
-    "warningCount": 0
-  },
-  "messages": {
-    "added": [{"name": "Profile", "sourceFile": "user.proto"}],
-    "removed": [{"name": "DeprecatedMessage"}],
-    "modified": [{"name": "User", "fieldChanges": [...]}]
-  },
-  "breakingChanges": [
-    {"type": "FIELD_REMOVED", "severity": "ERROR", "entityPath": "User.email"},
-    {"type": "MESSAGE_REMOVED", "severity": "ERROR", "entityPath": "DeprecatedMessage"}
-  ]
-}
-```
-
-#### Markdown Format
-
-```markdown
-# Schema Comparison: v1 -> v2
-
-## Summary
-
-| Category | Added | Modified | Removed |
-|----------|-------|----------|---------|
-| Messages | 1 | 1 | 1 |
-
-**Breaking Changes:** 2 errors, 0 warnings
-
-## Breaking Changes
-
-| Severity | Type | Entity | Description |
-|----------|------|--------|-------------|
-| ERROR | FIELD_REMOVED | User.email | Field removed |
-| ERROR | MESSAGE_REMOVED | DeprecatedMessage | Message removed |
-```
-
-### Breaking Change Types
-
-| Type | Severity | Description |
-|------|----------|-------------|
-| `MESSAGE_REMOVED` | ERROR | Message was removed |
-| `FIELD_REMOVED` | ERROR | Field was removed from message |
-| `FIELD_NUMBER_CHANGED` | ERROR | Field number was changed |
-| `FIELD_TYPE_INCOMPATIBLE` | ERROR | Field type changed incompatibly |
-| `ENUM_REMOVED` | ERROR | Enum was removed |
-| `ENUM_VALUE_REMOVED` | ERROR | Enum value was removed |
-| `ENUM_VALUE_NUMBER_CHANGED` | ERROR | Enum value number changed |
-| `REQUIRED_FIELD_ADDED` | WARNING | Required field added (proto2) |
-| `LABEL_CHANGED_TO_REQUIRED` | WARNING | Field changed to required |
-| `CARDINALITY_CHANGED` | WARNING | Field cardinality changed |
-| `ONEOF_FIELD_MOVED` | WARNING | Field moved in/out of oneof |
-
-### Programmatic API
-
-```java
-import space.alnovis.protowrapper.diff.SchemaDiff;
-import space.alnovis.protowrapper.diff.model.*;
-
-// Compare schemas
-SchemaDiff diff = SchemaDiff.compare(
-    Path.of("proto/v1"),
-    Path.of("proto/v2"),
-    "production",
-    "development"
-);
-
-// Query differences
-List<MessageInfo> added = diff.getAddedMessages();
-List<MessageInfo> removed = diff.getRemovedMessages();
-List<MessageDiff> modified = diff.getModifiedMessages();
-
-// Check breaking changes
-if (diff.hasBreakingChanges()) {
-    for (BreakingChange bc : diff.getBreakingChanges()) {
-        System.err.println(bc.severity() + ": " + bc.entityPath() + " - " + bc.description());
-    }
-}
-
-// Export to different formats
-String textReport = diff.toText();
-String jsonReport = diff.toJson();
-String markdownReport = diff.toMarkdown();
-
-// Get summary
-SchemaDiff.DiffSummary summary = diff.getSummary();
-System.out.println("Added: " + summary.addedMessages() + " messages");
-System.out.println("Breaking: " + summary.errorCount() + " errors");
-```
-
-## Upgrade Guide
-
-### 1. Update Plugin Version
-
-**Maven:**
-```xml
-<plugin>
-    <groupId>space.alnovis</groupId>
-    <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.5.1</version>
-</plugin>
-```
-
-**Gradle:**
-```kotlin
-plugins {
-    id("space.alnovis.proto-wrapper") version "1.5.1"
-}
-```
-
-### 2. Download CLI JAR (Optional)
-
-The CLI JAR is available as:
-- `proto-wrapper-core-1.5.1-cli.jar` in Maven build (`target/`)
-- `proto-wrapper-core-1.5.1-cli.jar` in Gradle build (`build/libs/`)
-
-### 3. Add to CI/CD Pipeline
-
-**GitHub Actions:**
-```yaml
-- name: Check Breaking Changes
-  run: |
-    java -jar proto-wrapper-core-1.5.1-cli.jar diff \
-      proto/production proto/development \
-      --fail-on-breaking \
-      --output=schema-diff.md
-
-- name: Upload Diff Report
-  uses: actions/upload-artifact@v4
-  with:
-    name: schema-diff
-    path: schema-diff.md
-```
-
-**GitLab CI:**
-```yaml
-check-schema:
-  script:
-    - java -jar proto-wrapper-core-1.5.1-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
-  artifacts:
-    reports:
-      junit: schema-diff.xml
-```
-
-## Breaking Changes
-
-None. This release is fully backward compatible.
-
-## Build Infrastructure Improvements
-
-### Gradle 9.x Compatibility
-
-- Upgraded Kotlin from 1.9.22 to 2.1.20
-- Changed `kotlinOptions` to `compilerOptions` with `JvmTarget.JVM_17`
-- Added JUnit Platform Launcher dependency
-
-### Test Optimization
-
-- Added `@Tag("slow")` for TestKit-based tests
-- New `slowTest` task with parallel execution
-- Regular `test` task excludes slow tests
-- Build time reduced from ~3 min to ~45 sec
-
-### CI Workflow Updates
-
-- Added explicit Gradle version (8.5) via `gradle/actions/setup-gradle@v4`
-- Added `mavenLocal()` to Gradle init.gradle
-- Added `slowTest` step for comprehensive CI testing
-
-## New Dependencies
-
-- **picocli 4.7.5** - CLI argument parsing framework
-- **maven-shade-plugin 3.5.1** - Executable JAR packaging (Maven)
-- **shadow plugin 8.1.1** - Executable JAR packaging (Gradle)
-
-## Implementation Details
-
-### Core Classes
-
-| Class | Package | Description |
-|-------|---------|-------------|
-| `SchemaDiff` | `diff` | Main facade for schema comparison |
-| `SchemaDiffEngine` | `diff` | Core comparison logic |
-| `BreakingChangeDetector` | `diff.breaking` | Breaking change identification |
-| `TextDiffFormatter` | `diff.formatter` | Plain text output |
-| `JsonDiffFormatter` | `diff.formatter` | JSON output |
-| `MarkdownDiffFormatter` | `diff.formatter` | Markdown tables |
-| `SchemaDiffCli` | `cli` | CLI entry point using picocli |
-| `DiffMojo` | `mojo` | Maven goal |
-| `SchemaDiffTask` | `gradle` | Gradle task |
-
-### Data Models
-
-| Class | Description |
-|-------|-------------|
-| `MessageDiff` | Message-level changes with field details |
-| `FieldChange` | Individual field changes with type info |
-| `EnumDiff` | Enum changes with value tracking |
-| `EnumValueChange` | Enum value additions/removals |
-| `BreakingChange` | Breaking change with severity and context |
-| `ChangeType` | Enum: ADDED, REMOVED, MODIFIED, etc. |
-
-## Full Changelog
+Introduced the **Schema Diff Tool** - a comprehensive solution for comparing protobuf schemas between versions and detecting breaking changes. Available as CLI, Maven goal, and Gradle task.
 
 See [CHANGELOG.md](CHANGELOG.md) for complete version history.
+
+---
 
 ## Links
 

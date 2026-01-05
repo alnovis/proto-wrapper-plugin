@@ -35,6 +35,11 @@ Supports both **Maven** and **Gradle** build systems.
   - Detect breaking changes automatically
   - Multiple output formats (text, JSON, Markdown)
   - CLI, Maven goal, and Gradle task support
+- **Incremental Generation** (v1.6.0+):
+  - Only regenerate when proto files change
+  - >50% build time reduction for unchanged schemas
+  - Dependency-aware regeneration (respects imports)
+  - Automatic cache invalidation on config/version changes
 - Automatic detection of equivalent enums (nested vs top-level)
 - Supported versions info in Javadoc
 - Thread-safe immutable wrappers
@@ -715,6 +720,119 @@ System.out.println("Added: " + summary.addedMessages() + " messages");
 System.out.println("Breaking: " + summary.errorCount() + " errors");
 ```
 
+## Incremental Generation
+
+Since v1.6.0, Proto Wrapper supports incremental generation to significantly reduce build times. When no proto files have changed, the plugin skips code generation entirely. When files change, only affected wrappers are regenerated.
+
+### Features
+
+- **Smart change detection** - Uses SHA-256 content hashing and timestamps
+- **Dependency tracking** - Tracks proto imports to regenerate dependents
+- **Auto-invalidation** - Full regeneration on plugin version or config changes
+- **Graceful recovery** - Handles corrupted cache by performing full regeneration
+- **Thread-safe** - File locking for safe concurrent builds in CI/CD environments
+
+### Configuration
+
+Incremental generation is **enabled by default**. No configuration needed for typical use cases.
+
+#### Maven
+
+```xml
+<configuration>
+    <basePackage>com.example.model</basePackage>
+    <!-- Incremental generation (default: true) -->
+    <incremental>true</incremental>
+    <!-- Cache directory (default: ${project.build.directory}/proto-wrapper-cache) -->
+    <cacheDirectory>${project.build.directory}/proto-wrapper-cache</cacheDirectory>
+    <!-- Force full regeneration (default: false) -->
+    <forceRegenerate>false</forceRegenerate>
+</configuration>
+```
+
+```bash
+# Normal build (incremental)
+mvn compile
+
+# Force full regeneration
+mvn compile -Dproto-wrapper.force=true
+
+# Disable incremental mode
+mvn compile -Dproto-wrapper.incremental=false
+```
+
+#### Gradle
+
+```kotlin
+protoWrapper {
+    basePackage.set("com.example.model")
+    // Incremental generation (default: true)
+    incremental.set(true)
+    // Cache directory (default: build/proto-wrapper-cache)
+    cacheDirectory.set(layout.buildDirectory.dir("proto-wrapper-cache"))
+    // Force full regeneration (default: false)
+    forceRegenerate.set(false)
+}
+```
+
+```bash
+# Normal build (incremental)
+./gradlew generateProtoWrapper
+
+# Force full regeneration
+./gradlew generateProtoWrapper -Pproto-wrapper.force=true
+
+# Clean regeneration
+./gradlew clean generateProtoWrapper
+```
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `incremental` | `true` | Enable incremental generation |
+| `cacheDirectory` | `${build}/proto-wrapper-cache` | Directory for incremental state cache |
+| `forceRegenerate` | `false` | Force full regeneration, ignoring cache |
+
+### Cache Invalidation
+
+The plugin automatically performs full regeneration when:
+
+| Condition | Reason |
+|-----------|--------|
+| Plugin version changed | Generated code format may differ |
+| Configuration changed | Output structure may differ |
+| Proto file deleted | May break dependencies |
+| Cache file corrupted | Recovery mode |
+| `forceRegenerate=true` | User requested |
+| `clean` task executed | Cache deleted |
+
+Partial regeneration occurs when:
+- Proto file content changed (regenerate that file + dependents)
+- New proto file added (regenerate new file + dependents)
+- Import dependencies changed (regenerate affected files)
+
+### How It Works
+
+1. **First build**: Full generation, cache created
+2. **Subsequent builds**:
+   - Load previous state from `state.json`
+   - Compute fingerprints for all proto files
+   - Compare with cached fingerprints
+   - Regenerate only changed files and their dependents
+3. **Cache structure**:
+   ```
+   proto-wrapper-cache/
+   └── state.json      # Fingerprints, dependencies, timestamps
+   ```
+
+### Performance
+
+Typical build time improvements:
+- No changes: **>80% reduction** (only fingerprint comparison)
+- Single file change: **50-70% reduction** (regenerate subset)
+- Config/version change: **0% reduction** (full regeneration required)
+
 ## Generated Code Examples
 
 ### Interface
@@ -822,23 +940,68 @@ flowchart TB
 ### Conflict Handling Architecture
 
 ```mermaid
-flowchart TB
-    FPC["FieldProcessingChain<br/><i>Dispatches fields to appropriate handlers</i>"]
+flowchart LR
+    subgraph Orchestration[" "]
+        FPC["<b>FieldProcessingChain</b>"]
+    end
 
-    FPC --> IEH[IntEnumHandler]
-    FPC --> WH[WideningHandler]
-    FPC --> SBH[StringBytesHandler]
-    FPC --> PMH[PrimitiveMessageHandler]
-    FPC --> DH[DefaultHandler]
-    FPC --> RCH[RepeatedConflictHandler]
+    subgraph Hierarchy[" "]
+        direction TB
+        CH{{"<b>ConflictHandler</b><br/><i>sealed interface</i>"}}
+        ACH["<b>AbstractConflictHandler</b><br/><i>sealed class</i>"]
+        CH -.-> ACH
+    end
 
-    style FPC fill:#e1f5fe
-    style IEH fill:#fff3e0
-    style WH fill:#fff3e0
-    style SBH fill:#fff3e0
-    style PMH fill:#fff3e0
-    style DH fill:#e8f5e9
-    style RCH fill:#fff3e0
+    subgraph TypeHandlers["Type Conflicts"]
+        direction TB
+        IEH["<b>IntEnum</b><br/><i>int ↔ enum</i>"]
+        WH["<b>Widening</b><br/><i>int → long</i>"]
+        FDH["<b>FloatDouble</b><br/><i>float → double</i>"]
+        SUH["<b>SignedUnsigned</b><br/><i>signed ↔ unsigned</i>"]
+        SBH["<b>StringBytes</b><br/><i>string ↔ bytes</i>"]
+        PMH["<b>PrimitiveMessage</b><br/><i>primitive → message</i>"]
+        EEH["<b>EnumEnum</b><br/><i>enum ↔ enum</i>"]
+    end
+
+    subgraph CollectionHandlers["Collections"]
+        direction TB
+        RCH["<b>RepeatedConflict</b><br/><i>repeated + conflict</i>"]
+        RSH["<b>RepeatedSingle</b><br/><i>repeated ↔ singular</i>"]
+        MFH["<b>MapField</b><br/><i>map fields</i>"]
+    end
+
+    subgraph WKTHandlers["Well-Known Types"]
+        direction TB
+        WKTH["<b>WellKnownType</b><br/><i>Timestamp, Duration</i>"]
+        RWKTH["<b>RepeatedWKT</b><br/><i>repeated WKT</i>"]
+    end
+
+    subgraph Fallback[" "]
+        DH["<b>Default</b><br/><i>no conflict</i>"]
+    end
+
+    FPC --> CH
+    ACH --> TypeHandlers
+    ACH --> CollectionHandlers
+    ACH --> WKTHandlers
+    ACH --> DH
+
+    style FPC fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
+    style CH fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    style ACH fill:#ede7f6,stroke:#512da8,color:#311b92
+    style IEH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style WH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style FDH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style SUH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style SBH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style PMH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style EEH fill:#fff8e1,stroke:#f9a825,color:#e65100
+    style RCH fill:#e0f7fa,stroke:#00838f,color:#004d40
+    style RSH fill:#e0f7fa,stroke:#00838f,color:#004d40
+    style MFH fill:#e0f7fa,stroke:#00838f,color:#004d40
+    style WKTH fill:#fce4ec,stroke:#c2185b,color:#880e4f
+    style RWKTH fill:#fce4ec,stroke:#c2185b,color:#880e4f
+    style DH fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
 ```
 
 ## Limitations

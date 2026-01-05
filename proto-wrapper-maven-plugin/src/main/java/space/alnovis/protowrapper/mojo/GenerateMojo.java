@@ -19,8 +19,11 @@ import space.alnovis.protowrapper.model.MergedSchema;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Maven goal that generates version-agnostic wrapper classes from protobuf schemas.
@@ -203,6 +206,36 @@ public class GenerateMojo extends AbstractMojo {
     private boolean skip;
 
     /**
+     * Enable incremental generation.
+     * When enabled, only regenerates when proto files change.
+     * Default: true
+     *
+     * @since 1.6.0
+     */
+    @Parameter(property = "proto-wrapper.incremental", defaultValue = "true")
+    private boolean incremental;
+
+    /**
+     * Directory for incremental generation cache.
+     * Stores state between builds to detect changes.
+     *
+     * @since 1.6.0
+     */
+    @Parameter(property = "proto-wrapper.cacheDirectory",
+               defaultValue = "${project.build.directory}/proto-wrapper-cache")
+    private File cacheDirectory;
+
+    /**
+     * Force full regeneration, ignoring cache.
+     * Useful when you want to regenerate all files regardless of changes.
+     * Can be set via command line: -Dproto-wrapper.force=true
+     *
+     * @since 1.6.0
+     */
+    @Parameter(property = "proto-wrapper.force", defaultValue = "false")
+    private boolean forceRegenerate;
+
+    /**
      * Maven project.
      */
     @Parameter(defaultValue = "${project}", readonly = true)
@@ -264,17 +297,26 @@ public class GenerateMojo extends AbstractMojo {
             // Configure generators
             GeneratorConfig generatorConfig = buildGeneratorConfig();
 
+            // Collect all proto files for incremental generation
+            Set<Path> allProtoFiles = collectAllProtoFiles();
+
             // Use orchestrator for generation
             GenerationOrchestrator orchestrator = new GenerationOrchestrator(
                     generatorConfig, MavenLogger.from(getLog()));
 
-            int generatedFiles = orchestrator.generateAll(
+            int generatedFiles = orchestrator.generateAllIncremental(
                     mergedSchema,
                     new ArrayList<>(versions),
-                    this::getProtoClassName
+                    this::getProtoClassName,
+                    allProtoFiles,
+                    protoRoot.toPath()
             );
 
-            getLog().info("Generated " + generatedFiles + " files in " + outputDirectory);
+            if (generatedFiles == 0) {
+                getLog().info("No changes detected, generation skipped");
+            } else {
+                getLog().info("Generated " + generatedFiles + " files in " + outputDirectory);
+            }
 
             // Add generated sources to compile path
             project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
@@ -428,7 +470,11 @@ public class GenerateMojo extends AbstractMojo {
                 .generateBuilders(generateBuilders)
                 .protobufMajorVersion(protobufMajorVersion)
                 .convertWellKnownTypes(convertWellKnownTypes)
-                .generateRawProtoAccessors(generateRawProtoAccessors);
+                .generateRawProtoAccessors(generateRawProtoAccessors)
+                // Incremental generation settings
+                .incremental(incremental)
+                .cacheDirectory(cacheDirectory != null ? cacheDirectory.toPath() : null)
+                .forceRegenerate(forceRegenerate);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {
@@ -523,5 +569,61 @@ public class GenerateMojo extends AbstractMojo {
         for (MergedMessage nested : message.getNestedMessages()) {
             collectConflicts(nested, counts, examples);
         }
+    }
+
+    /**
+     * Collect all proto files from all version directories.
+     *
+     * @return set of all proto file paths (absolute)
+     * @throws MojoExecutionException if file collection fails
+     */
+    private Set<Path> collectAllProtoFiles() throws MojoExecutionException {
+        Set<Path> allFiles = new HashSet<>();
+
+        for (ProtoWrapperConfig versionConfig : versions) {
+            File protoDir = versionConfig.getResolvedProtoDir();
+            if (protoDir == null || !protoDir.isDirectory()) {
+                continue;
+            }
+
+            try (Stream<Path> stream = Files.walk(protoDir.toPath())) {
+                Set<Path> versionFiles = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".proto"))
+                    .filter(p -> !isExcluded(p, versionConfig.getExcludeProtos()))
+                    .collect(Collectors.toSet());
+                allFiles.addAll(versionFiles);
+            } catch (IOException e) {
+                throw new MojoExecutionException(
+                    "Failed to collect proto files from " + protoDir, e);
+            }
+        }
+
+        getLog().debug("Collected " + allFiles.size() + " proto files for incremental check");
+        return allFiles;
+    }
+
+    /**
+     * Check if a proto file matches any exclude pattern.
+     */
+    private boolean isExcluded(Path protoFile, String[] excludePatterns) {
+        if (excludePatterns == null || excludePatterns.length == 0) {
+            return false;
+        }
+
+        String fileName = protoFile.getFileName().toString();
+        String relativePath = protoFile.toString();
+
+        for (String pattern : excludePatterns) {
+            // Simple glob matching: * matches any sequence of characters
+            String regex = pattern
+                .replace(".", "\\.")
+                .replace("*", ".*");
+            if (fileName.matches(regex) || relativePath.matches(".*" + regex)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

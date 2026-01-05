@@ -45,6 +45,13 @@
         <url>https://github.com/alnovis/proto-wrapper-plugin/tree/main</url>
     </scm>
 
+    <!-- Properties for resource filtering (compatible with Gradle) -->
+    <properties>
+        <projectVersion>${project.version}</projectVersion>
+        <projectGroupId>${project.groupId}</projectGroupId>
+        <projectArtifactId>${project.artifactId}</projectArtifactId>
+    </properties>
+
     <dependencies>
         <!-- Protobuf for parsing descriptors -->
         <dependency>
@@ -78,6 +85,24 @@
     </dependencies>
 
     <build>
+        <!-- Resource filtering for version.properties -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>version.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>version.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
+
         <plugins>
             <!-- Executable JAR for CLI -->
             <plugin>

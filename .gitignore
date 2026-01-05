@@ -47,3 +47,4 @@ docs/archive/
 
 # Local integration tests (not committed - contains private proto files)
 local-integration-tests/
+/docs/PLAN_V1.6.0_INCREMENTAL_GENERATION.md
