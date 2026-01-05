@@ -11,6 +11,41 @@ _No changes yet._
 
 ---
 
+## [1.6.1] - 2026-01-05
+
+### Fixed
+
+#### CI/CD Stability
+- Exclude benchmark tests from regular Gradle test task to prevent CI failures
+  - Benchmark tests are sensitive to VM performance and fail on GitHub Actions runners
+  - Added separate `benchmarkTest` task for manual execution
+  - Mirrors Maven's surefire configuration that already excludes `@Tag("benchmark")`
+
+### Added
+
+#### Gradle Plugin Tests
+- Added `ProtoWrapperPluginTest` with 23 unit tests
+  - Plugin application, extension creation, task registration
+  - Default values verification for incremental settings
+  - Java plugin integration tests
+- Added `GenerateWrappersTaskTest` with 25 functional tests
+  - Basic generation, incremental caching, cache corruption recovery
+  - forceRegenerate behavior, custom cache directory
+
+#### Maven Integration Tests
+- Added `IncrementalGenerationIntegrationTest` with 7 tests
+  - Full generation on first run
+  - Skip generation when no changes
+  - forceRegenerate bypasses cache
+  - Config change triggers regeneration
+  - Corrupted cache recovery
+
+### Changed
+
+- Version bump to 1.6.1 across all modules
+
+---
+
 ## [1.6.0] - 2026-01-05
 
 ### Added
