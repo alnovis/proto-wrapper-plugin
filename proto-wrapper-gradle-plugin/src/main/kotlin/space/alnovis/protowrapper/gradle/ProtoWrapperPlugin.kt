@@ -47,6 +47,11 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.includeMessages.set(extension.includeMessages)
             task.excludeMessages.set(extension.excludeMessages)
 
+            // Incremental generation settings (since 1.6.0)
+            task.incremental.set(extension.incremental)
+            task.cacheDirectory.set(extension.cacheDirectory)
+            task.forceRegenerate.set(extension.forceRegenerate)
+
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }

@@ -40,6 +40,27 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     abstract val includeMessages: ListProperty<String>
     abstract val excludeMessages: ListProperty<String>
 
+    // Incremental generation (since 1.6.0)
+    /**
+     * Enable incremental generation.
+     * When enabled, only regenerates when proto files change.
+     * Default: true
+     */
+    abstract val incremental: Property<Boolean>
+
+    /**
+     * Directory for incremental generation cache.
+     * Stores state between builds to detect changes.
+     */
+    abstract val cacheDirectory: DirectoryProperty
+
+    /**
+     * Force full regeneration, ignoring cache.
+     * Useful when you want to regenerate all files regardless of changes.
+     * Default: false
+     */
+    abstract val forceRegenerate: Property<Boolean>
+
     // Versions container
     val versions: NamedDomainObjectContainer<VersionConfig> =
         project.container(VersionConfig::class.java) { name ->
@@ -67,5 +88,11 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         protobufMajorVersion.convention(3)
         convertWellKnownTypes.convention(true)
         generateRawProtoAccessors.convention(false)
+        // Incremental generation defaults
+        incremental.convention(true)
+        cacheDirectory.convention(
+            project.layout.buildDirectory.dir("proto-wrapper-cache")
+        )
+        forceRegenerate.convention(false)
     }
 }
