@@ -20,6 +20,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class IncrementalStateManagerTest {
 
+    /** Test version constant - use for tests that don't depend on actual plugin version */
+    private static final String TEST_VERSION = "1.0.0-test";
+    private static final String TEST_CONFIG = "test-config-hash";
+
     @TempDir
     Path tempDir;
 
@@ -39,7 +43,7 @@ class IncrementalStateManagerTest {
     @Test
     void loadPreviousState_loadsEmptyForFirstRun() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
 
         manager.loadPreviousState();
@@ -53,12 +57,12 @@ class IncrementalStateManagerTest {
     void loadPreviousState_loadsExistingState() throws IOException {
         // Create previous state
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config", Map.of(), Map.of(), Instant.now()
+            TEST_VERSION, TEST_CONFIG, Map.of(), Map.of(), null, Instant.now()
         );
         previous.writeTo(cacheDir.resolve("state.json"));
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -69,12 +73,12 @@ class IncrementalStateManagerTest {
     @Test
     void shouldInvalidateCache_returnsTrueForVersionChange() throws IOException {
         IncrementalState previous = new IncrementalState(
-            "1.5.0", "config", Map.of(), Map.of(), Instant.now()
+            "1.5.0", "config", Map.of(), Map.of(), null, Instant.now()
         );
         previous.writeTo(cacheDir.resolve("state.json"));
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -85,12 +89,12 @@ class IncrementalStateManagerTest {
     @Test
     void shouldInvalidateCache_returnsTrueForConfigChange() throws IOException {
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "oldConfig", Map.of(), Map.of(), Instant.now()
+            TEST_VERSION, "oldConfig", Map.of(), Map.of(), null, Instant.now()
         );
         previous.writeTo(cacheDir.resolve("state.json"));
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "newConfig", logger
+            cacheDir, protoRoot, TEST_VERSION, "newConfig", logger
         );
         manager.loadPreviousState();
 
@@ -101,7 +105,7 @@ class IncrementalStateManagerTest {
     @Test
     void analyzeChanges_detectsNewFiles() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -127,9 +131,10 @@ class IncrementalStateManagerTest {
 
         // Create previous state
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("common.proto", commonFp, "order.proto", orderFp),
             Map.of("order.proto", Set.of("common.proto")),
+            null,
             Instant.now()
         );
         previous.writeTo(cacheDir.resolve("state.json"));
@@ -138,7 +143,7 @@ class IncrementalStateManagerTest {
         Files.writeString(common, "syntax = \"proto3\"; message Common { string name = 1; }");
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -154,7 +159,7 @@ class IncrementalStateManagerTest {
         Files.writeString(file, "content");
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -175,7 +180,7 @@ class IncrementalStateManagerTest {
     @Test
     void getAffectedMessages_mapsFilesToMessages() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
 
         Map<String, Set<String>> fileToMessages = Map.of(
@@ -192,7 +197,7 @@ class IncrementalStateManagerTest {
     @Test
     void saveCurrentState_persistsState() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -207,8 +212,8 @@ class IncrementalStateManagerTest {
         assertThat(stateFile).exists();
 
         IncrementalState saved = IncrementalState.readFrom(stateFile);
-        assertThat(saved.pluginVersion()).isEqualTo("1.6.0");
-        assertThat(saved.configHash()).isEqualTo("config");
+        assertThat(saved.pluginVersion()).isEqualTo(TEST_VERSION);
+        assertThat(saved.configHash()).isEqualTo(TEST_CONFIG);
         assertThat(saved.protoFingerprints()).containsKey("test.proto");
     }
 
@@ -216,14 +221,14 @@ class IncrementalStateManagerTest {
     void invalidateCache_deletesStateFile() throws IOException {
         // Create state file
         IncrementalState state = new IncrementalState(
-            "1.6.0", "config", Map.of(), Map.of(), Instant.now()
+            TEST_VERSION, TEST_CONFIG, Map.of(), Map.of(), null, Instant.now()
         );
         Path stateFile = cacheDir.resolve("state.json");
         state.writeTo(stateFile);
         assertThat(stateFile).exists();
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
         manager.invalidateCache();
@@ -234,19 +239,19 @@ class IncrementalStateManagerTest {
     @Test
     void getters_returnCorrectValues() {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "configHash", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
 
         assertThat(manager.getCacheDirectory()).isEqualTo(cacheDir);
         assertThat(manager.getProtoRoot()).isEqualTo(protoRoot);
-        assertThat(manager.getPluginVersion()).isEqualTo("1.6.0");
-        assertThat(manager.getConfigHash()).isEqualTo("configHash");
+        assertThat(manager.getPluginVersion()).isEqualTo(TEST_VERSION);
+        assertThat(manager.getConfigHash()).isEqualTo(TEST_CONFIG);
     }
 
     @Test
     void shouldInvalidateCache_throwsIfStateNotLoaded() {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
 
         assertThatThrownBy(manager::shouldInvalidateCache)
@@ -257,7 +262,7 @@ class IncrementalStateManagerTest {
     @Test
     void saveCurrentState_throwsIfAnalysisNotDone() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -269,7 +274,7 @@ class IncrementalStateManagerTest {
     @Test
     void getDependencyGraph_returnsNullBeforeAnalysis() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -279,7 +284,7 @@ class IncrementalStateManagerTest {
     @Test
     void getDependencyGraph_returnsGraphAfterAnalysis() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -294,7 +299,7 @@ class IncrementalStateManagerTest {
     @Test
     void getChangeResult_returnsResultAfterAnalysis() throws IOException {
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 
@@ -314,15 +319,16 @@ class IncrementalStateManagerTest {
         FileFingerprint fp = FileFingerprint.compute(file, protoRoot);
 
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("test.proto", fp),
             Map.of(),
+            null,
             Instant.now()
         );
         previous.writeTo(cacheDir.resolve("state.json"));
 
         IncrementalStateManager manager = new IncrementalStateManager(
-            cacheDir, protoRoot, "1.6.0", "config", logger
+            cacheDir, protoRoot, TEST_VERSION, TEST_CONFIG, logger
         );
         manager.loadPreviousState();
 

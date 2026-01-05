@@ -243,13 +243,24 @@ public class IncrementalStateManager {
      * @throws IOException if state cannot be saved
      */
     public void saveCurrentState() throws IOException {
+        saveCurrentState(null);
+    }
+
+    /**
+     * Save current state after successful generation with generated files info.
+     *
+     * @param generatedFiles map of generated file paths to their info, or null
+     * @throws IOException if state cannot be saved
+     */
+    public void saveCurrentState(Map<String, GeneratedFileInfo> generatedFiles) throws IOException {
         ensureAnalysisDone();
 
         IncrementalState newState = previousState.withUpdates(
             pluginVersion,
             configHash,
             changeResult.currentFingerprints(),
-            dependencyGraph.getImports()
+            dependencyGraph.getImports(),
+            generatedFiles
         );
 
         Path stateFile = cacheDirectory.resolve(STATE_FILE);
@@ -333,6 +344,16 @@ public class IncrementalStateManager {
      */
     public ChangeDetector.ChangeResult getChangeResult() {
         return changeResult;
+    }
+
+    /**
+     * Get the previously generated files info.
+     *
+     * @return map of generated file paths to their info, or empty map
+     */
+    public Map<String, GeneratedFileInfo> getPreviousGeneratedFiles() {
+        ensureStateLoaded();
+        return previousState.generatedFiles();
     }
 
     private void ensureStateLoaded() {

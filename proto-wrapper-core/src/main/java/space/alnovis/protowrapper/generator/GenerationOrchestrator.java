@@ -2,6 +2,7 @@ package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.JavaFile;
 import space.alnovis.protowrapper.PluginLogger;
+import space.alnovis.protowrapper.PluginVersion;
 import space.alnovis.protowrapper.generator.wellknown.StructConverterGenerator;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.incremental.ChangeDetector;
@@ -32,12 +33,6 @@ import java.util.stream.Collectors;
  * </pre>
  */
 public class GenerationOrchestrator {
-
-    /**
-     * Plugin version used for cache invalidation.
-     * Update this when making changes that affect generated output.
-     */
-    private static final String PLUGIN_VERSION = "1.6.0";
 
     private final GeneratorConfig config;
     private final PluginLogger logger;
@@ -141,7 +136,7 @@ public class GenerationOrchestrator {
         stateManager = new IncrementalStateManager(
             cacheDirectory,
             protoRoot,
-            PLUGIN_VERSION,
+            PluginVersion.get(),
             config.computeConfigHash(),
             logger
         );
@@ -215,7 +210,7 @@ public class GenerationOrchestrator {
             IncrementalStateManager manager = new IncrementalStateManager(
                 cacheDirectory,
                 protoRoot,
-                PLUGIN_VERSION,
+                PluginVersion.get(),
                 config.computeConfigHash(),
                 logger
             );
@@ -251,10 +246,14 @@ public class GenerationOrchestrator {
     /**
      * Get the plugin version used for cache invalidation.
      *
-     * @return plugin version string
+     * <p>The version is read from {@code version.properties} which is populated
+     * by Maven resource filtering during build.</p>
+     *
+     * @return plugin version string (e.g., "1.6.0")
+     * @see PluginVersion#get()
      */
     public static String getPluginVersion() {
-        return PLUGIN_VERSION;
+        return PluginVersion.get();
     }
 
     /**

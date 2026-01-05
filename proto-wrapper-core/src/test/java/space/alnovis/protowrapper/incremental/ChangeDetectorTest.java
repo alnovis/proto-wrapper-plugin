@@ -19,6 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ChangeDetectorTest {
 
+    /** Test version constant - use for tests that don't depend on actual plugin version */
+    private static final String TEST_VERSION = "1.0.0-test";
+    private static final String TEST_CONFIG = "test-config-hash";
+
     @TempDir
     Path tempDir;
 
@@ -57,9 +61,10 @@ class ChangeDetectorTest {
 
         // Previous state with original fingerprint
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("test.proto", originalFp),
             Map.of(),
+            null,
             Instant.now()
         );
 
@@ -80,9 +85,10 @@ class ChangeDetectorTest {
         // Previous state with a file that no longer exists
         FileFingerprint deletedFp = new FileFingerprint("deleted.proto", "hash", 1000, 100);
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("deleted.proto", deletedFp),
             Map.of(),
+            null,
             Instant.now()
         );
 
@@ -106,9 +112,10 @@ class ChangeDetectorTest {
 
         // Previous state with same fingerprint
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("unchanged.proto", fp),
             Map.of(),
+            null,
             Instant.now()
         );
 
@@ -135,7 +142,7 @@ class ChangeDetectorTest {
         fingerprints.put("deleted.proto", deletedFp);
 
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config", fingerprints, Map.of(), Instant.now()
+            TEST_VERSION, TEST_CONFIG, fingerprints, Map.of(), null, Instant.now()
         );
 
         // Modify existing and add new
@@ -162,9 +169,10 @@ class ChangeDetectorTest {
         FileFingerprint modifiedFp = FileFingerprint.compute(modified, protoRoot);
 
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("modified.proto", modifiedFp),
             Map.of(),
+            null,
             Instant.now()
         );
 
@@ -199,9 +207,10 @@ class ChangeDetectorTest {
         FileFingerprint fp = FileFingerprint.compute(file, protoRoot);
 
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("test.proto", fp),
             Map.of(),
+            null,
             Instant.now()
         );
 
@@ -218,9 +227,10 @@ class ChangeDetectorTest {
         FileFingerprint fp1 = FileFingerprint.compute(file1, protoRoot);
 
         IncrementalState previous = new IncrementalState(
-            "1.6.0", "config",
+            TEST_VERSION, TEST_CONFIG,
             Map.of("file1.proto", fp1),
             Map.of(),
+            null,
             Instant.now()
         );
 
