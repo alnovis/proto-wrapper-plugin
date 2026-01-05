@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "space.alnovis"
-version = "1.5.2"
+version = "1.6.0"
 
 // Version of the plugin to test (must be published to mavenLocal first)
 val pluginVersion = version.toString()
