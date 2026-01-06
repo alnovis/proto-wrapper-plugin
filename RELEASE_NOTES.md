@@ -1,3 +1,66 @@
+# Release Notes - Proto Wrapper Plugin v1.6.3
+
+**Release Date:** January 6, 2026
+
+## Overview
+
+Version 1.6.3 is a **documentation-focused release** that significantly improves the developer experience with restructured documentation, better navigation, and new getting started guides.
+
+## What's New
+
+### Documentation Refactoring
+
+The README.md has been reduced from **1118 lines to ~250 lines**, with content split into focused documents:
+
+| Document | Description |
+|----------|-------------|
+| [Getting Started](docs/GETTING_STARTED.md) | Step-by-step tutorial (~15 min) |
+| [Configuration](docs/CONFIGURATION.md) | All Maven/Gradle options |
+| [Schema Diff](docs/SCHEMA_DIFF.md) | Schema comparison tool |
+| [Incremental Build](docs/INCREMENTAL_BUILD.md) | Build optimization |
+| [Cookbook](docs/COOKBOOK.md) | Practical examples |
+| [Known Issues](docs/KNOWN_ISSUES.md) | Limitations & workarounds |
+
+### Mermaid Diagrams
+
+Added visual diagrams to README.md and ARCHITECTURE.md:
+- Problem/Solution workflow diagrams
+- High-level architecture pipeline
+- Improved Component Diagram
+
+### CI/CD Improvements
+
+- Added Google Maven mirror to avoid rate limiting on GitHub Actions
+- Increased retry attempts from 3 to 5
+- Increased retry wait from 30s to 60s
+- Added dependency prefetch step
+
+## Upgrade Guide
+
+Simply update the version:
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.3</version>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.6.3"
+}
+```
+
+## Breaking Changes
+
+None. Fully backward compatible with v1.6.2.
+
+---
+
 # Release Notes - Proto Wrapper Plugin v1.6.2
 
 **Release Date:** January 5, 2026

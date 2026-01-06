@@ -11,6 +11,35 @@ _No changes yet._
 
 ---
 
+## [1.6.3] - 2026-01-06
+
+### Changed
+
+#### Documentation Refactoring
+- **README.md refactored** - Reduced from 1118 to ~250 lines with improved navigation
+  - Added Mermaid diagrams for Problem/Solution sections
+  - Focused on Quick Start and feature overview
+  - Better documentation hierarchy with links to detailed guides
+
+#### New Documentation Files
+- **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** - Step-by-step tutorial for beginners (~15 min)
+- **[CONFIGURATION.md](docs/CONFIGURATION.md)** - Complete Maven/Gradle configuration reference
+- **[SCHEMA_DIFF.md](docs/SCHEMA_DIFF.md)** - Schema comparison tool documentation (extracted from README)
+- **[INCREMENTAL_BUILD.md](docs/INCREMENTAL_BUILD.md)** - Build optimization guide (extracted from README)
+
+#### Architecture Documentation
+- **ARCHITECTURE.md** - Added high-level pipeline diagram, fixed Component Diagram
+
+#### CI/CD Improvements
+- Added Google Maven mirror to avoid rate limiting on GitHub Actions
+- Increased retry attempts and wait times for Gradle builds
+- Added dependency prefetch step
+
+### Deprecated
+- **VERSION_AGNOSTIC_API.md** - Moved to docs/archive/ (content merged into COOKBOOK.md)
+
+---
+
 ## [1.6.2] - 2026-01-05
 
 ### Added
