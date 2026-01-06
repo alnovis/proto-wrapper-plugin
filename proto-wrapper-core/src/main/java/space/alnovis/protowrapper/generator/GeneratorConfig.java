@@ -92,33 +92,62 @@ public class GeneratorConfig {
     private Path cacheDirectory;
     private boolean forceRegenerate = false;
 
-    // Builder pattern
+    /**
+     * Create a new builder for GeneratorConfig.
+     *
+     * @return new builder instance
+     */
     public static Builder builder() {
         return new Builder();
     }
 
-    // Getters
+    /** @return the output directory */
     public Path getOutputDirectory() { return outputDirectory; }
+    /** @return the API package */
     public String getApiPackage() { return apiPackage; }
+    /**
+     * Get the implementation package for a version.
+     *
+     * @param version the version string
+     * @return the implementation package
+     */
     public String getImplPackage(String version) {
         return implPackagePattern.replace("{version}", version);
     }
+    /**
+     * Get the proto package for a version.
+     *
+     * @param version the version string
+     * @return the proto package
+     */
     public String getProtoPackage(String version) {
         return protoPackagePattern.replace("{version}", version);
     }
+    /** @return the proto package pattern */
     public String getProtoPackagePattern() { return protoPackagePattern; }
+    /** @return the abstract class package */
     public String getAbstractClassPackage() {
         return abstractClassPackage != null ? abstractClassPackage : apiPackage + ".impl";
     }
+    /** @return true if interfaces should be generated */
     public boolean isGenerateInterfaces() { return generateInterfaces; }
+    /** @return true if abstract classes should be generated */
     public boolean isGenerateAbstractClasses() { return generateAbstractClasses; }
+    /** @return true if implementation classes should be generated */
     public boolean isGenerateImplClasses() { return generateImplClasses; }
+    /** @return true if VersionContext should be generated */
     public boolean isGenerateVersionContext() { return generateVersionContext; }
+    /** @return true if version suffix should be included */
     public boolean isIncludeVersionSuffix() { return includeVersionSuffix; }
+    /** @return true if builders should be generated */
     public boolean isGenerateBuilders() { return generateBuilders; }
+    /** @return the default proto syntax */
     public ProtoSyntax getDefaultSyntax() { return defaultSyntax; }
 
     /**
+     * Get protobuf major version.
+     *
+     * @return the protobuf major version (2 or 3)
      * @deprecated Use {@link #getDefaultSyntax()} instead
      */
     @Deprecated
@@ -127,23 +156,33 @@ public class GeneratorConfig {
     }
 
     /**
+     * Check if protobuf 2 syntax.
+     *
+     * @return true if proto2
      * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto2() isProto2()} instead
      */
     @Deprecated
     public boolean isProtobuf2() { return defaultSyntax.isProto2(); }
 
     /**
+     * Check if protobuf 3 syntax.
+     *
+     * @return true if proto3
      * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto3() isProto3()} instead
      */
     @Deprecated
     public boolean isProtobuf3() { return defaultSyntax.isProto3() || defaultSyntax.isAuto(); }
 
+    /** @return true if well-known types should be converted */
     public boolean isConvertWellKnownTypes() { return convertWellKnownTypes; }
+    /** @return true if raw proto accessors should be generated */
     public boolean isGenerateRawProtoAccessors() { return generateRawProtoAccessors; }
 
-    // Incremental generation getters
+    /** @return true if incremental generation is enabled */
     public boolean isIncremental() { return incremental; }
+    /** @return the cache directory path */
     public Path getCacheDirectory() { return cacheDirectory; }
+    /** @return true if forced regeneration is enabled */
     public boolean isForceRegenerate() { return forceRegenerate; }
 
     /**
@@ -159,6 +198,12 @@ public class GeneratorConfig {
         return messageName;
     }
 
+    /**
+     * Check if a message should be generated.
+     *
+     * @param messageName the message name
+     * @return true if the message should be generated
+     */
     public boolean shouldGenerate(String messageName) {
         if (!includedMessages.isEmpty() && !includedMessages.contains(messageName)) {
             return false;
@@ -166,10 +211,23 @@ public class GeneratorConfig {
         return !excludedMessages.contains(messageName);
     }
 
+    /**
+     * Get custom type mapping for a proto type.
+     *
+     * @param protoType the proto type name
+     * @return the Java type name, or null if no mapping
+     */
     public String getCustomTypeMapping(String protoType) {
         return customTypeMappings.get(protoType);
     }
 
+    /**
+     * Get field name override for a specific field.
+     *
+     * @param messageName the message name
+     * @param fieldName the field name
+     * @return the Java name override, or null if no override
+     */
     public String getFieldNameOverride(String messageName, String fieldName) {
         return fieldNameOverrides.get(messageName + "." + fieldName);
     }
@@ -212,65 +270,125 @@ public class GeneratorConfig {
         }
     }
 
+    /** Builder for GeneratorConfig. */
     public static class Builder {
         private final GeneratorConfig config = new GeneratorConfig();
 
+        /**
+         * Set the output directory.
+         * @param path the output directory
+         * @return this builder
+         */
         public Builder outputDirectory(Path path) {
             config.outputDirectory = path;
             return this;
         }
 
+        /**
+         * Set the API package.
+         * @param pkg the API package
+         * @return this builder
+         */
         public Builder apiPackage(String pkg) {
             config.apiPackage = pkg;
             return this;
         }
 
+        /**
+         * Set the implementation package pattern.
+         * @param pattern the implementation package pattern
+         * @return this builder
+         */
         public Builder implPackagePattern(String pattern) {
             config.implPackagePattern = pattern;
             return this;
         }
 
+        /**
+         * Set the proto package pattern.
+         * @param pattern the proto package pattern
+         * @return this builder
+         */
         public Builder protoPackagePattern(String pattern) {
             config.protoPackagePattern = pattern;
             return this;
         }
 
+        /**
+         * Set whether to generate interfaces.
+         * @param value whether to generate interfaces
+         * @return this builder
+         */
         public Builder generateInterfaces(boolean value) {
             config.generateInterfaces = value;
             return this;
         }
 
+        /**
+         * Set whether to generate abstract classes.
+         * @param value whether to generate abstract classes
+         * @return this builder
+         */
         public Builder generateAbstractClasses(boolean value) {
             config.generateAbstractClasses = value;
             return this;
         }
 
+        /**
+         * Set whether to generate implementation classes.
+         * @param value whether to generate implementation classes
+         * @return this builder
+         */
         public Builder generateImplClasses(boolean value) {
             config.generateImplClasses = value;
             return this;
         }
 
+        /**
+         * Set whether to generate VersionContext.
+         * @param value whether to generate VersionContext
+         * @return this builder
+         */
         public Builder generateVersionContext(boolean value) {
             config.generateVersionContext = value;
             return this;
         }
 
+        /**
+         * Set whether to include version suffix.
+         * @param value whether to include version suffix
+         * @return this builder
+         */
         public Builder includeVersionSuffix(boolean value) {
             config.includeVersionSuffix = value;
             return this;
         }
 
+        /**
+         * Set whether to generate builders.
+         * @param value whether to generate builders
+         * @return this builder
+         */
         public Builder generateBuilders(boolean value) {
             config.generateBuilders = value;
             return this;
         }
 
+        /**
+         * Set the default proto syntax.
+         * @param syntax the default proto syntax
+         * @return this builder
+         */
         public Builder defaultSyntax(ProtoSyntax syntax) {
             config.defaultSyntax = syntax;
             return this;
         }
 
         /**
+         * Set protobuf major version.
+         *
+         * @param version the protobuf major version (2 or 3)
+         * @return this builder
          * @deprecated Use {@link #defaultSyntax(ProtoSyntax)} instead
          */
         @Deprecated
@@ -282,31 +400,66 @@ public class GeneratorConfig {
             return this;
         }
 
+        /**
+         * Set whether to convert well-known types.
+         * @param value whether to convert well-known types
+         * @return this builder
+         */
         public Builder convertWellKnownTypes(boolean value) {
             config.convertWellKnownTypes = value;
             return this;
         }
 
+        /**
+         * Set whether to generate raw proto accessors.
+         * @param value whether to generate raw proto accessors
+         * @return this builder
+         */
         public Builder generateRawProtoAccessors(boolean value) {
             config.generateRawProtoAccessors = value;
             return this;
         }
 
+        /**
+         * Include a message in generation.
+         * @param messageName message to include
+         * @return this builder
+         */
         public Builder includeMessage(String messageName) {
             config.includedMessages.add(messageName);
             return this;
         }
 
+        /**
+         * Exclude a message from generation.
+         * @param messageName message to exclude
+         * @return this builder
+         */
         public Builder excludeMessage(String messageName) {
             config.excludedMessages.add(messageName);
             return this;
         }
 
+        /**
+         * Add custom type mapping.
+         *
+         * @param protoType the proto type
+         * @param javaType the Java type
+         * @return this builder
+         */
         public Builder customTypeMapping(String protoType, String javaType) {
             config.customTypeMappings.put(protoType, javaType);
             return this;
         }
 
+        /**
+         * Add field name override.
+         *
+         * @param messageName the message name
+         * @param fieldName the field name
+         * @param javaName the Java name
+         * @return this builder
+         */
         public Builder fieldNameOverride(String messageName, String fieldName, String javaName) {
             config.fieldNameOverrides.put(messageName + "." + fieldName, javaName);
             return this;
@@ -350,6 +503,11 @@ public class GeneratorConfig {
             return this;
         }
 
+        /**
+         * Build the GeneratorConfig.
+         *
+         * @return the built configuration
+         */
         public GeneratorConfig build() {
             Objects.requireNonNull(config.outputDirectory, "Output directory is required");
             return config;

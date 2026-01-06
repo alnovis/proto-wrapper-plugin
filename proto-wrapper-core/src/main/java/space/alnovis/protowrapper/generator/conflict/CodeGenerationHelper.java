@@ -80,6 +80,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the version-specific Java name for a field.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @return the capitalized Java name for this version
      */
     public static String getVersionSpecificJavaName(MergedField field, ProcessingContext ctx) {
         return Optional.ofNullable(ctx.version())
@@ -90,6 +94,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the wrapper class name for a message field.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @return the fully qualified wrapper class name
      */
     public static String getWrapperClassName(MergedField field, ProcessingContext ctx) {
         TypeResolver resolver = ctx.resolver();
@@ -114,6 +122,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the enum type for fromProtoValue conversion.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @return the enum type name for conversion
      */
     public static String getEnumTypeForFromProtoValue(MergedField field, ProcessingContext ctx) {
         if (!field.isEnum()) {
@@ -135,6 +147,9 @@ public final class CodeGenerationHelper {
 
     /**
      * Extract simple type name from a potentially qualified name.
+     *
+     * @param typeName the potentially qualified type name
+     * @return the simple type name without package
      */
     public static String extractSimpleTypeName(String typeName) {
         if (typeName == null) {
@@ -146,6 +161,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Generate the proto getter call for a field.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @return the proto getter call expression
      */
     public static String generateProtoGetterCall(MergedField field, ProcessingContext ctx) {
         String version = ctx.requireVersion();
@@ -198,6 +217,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Get default value for a type.
+     *
+     * @param javaType the Java type name
+     * @param resolver the type resolver
+     * @return the default value expression
      */
     public static String getDefaultValue(String javaType, TypeResolver resolver) {
         return resolver.getDefaultValue(javaType);
@@ -205,6 +228,11 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the proto type for a message field.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @param currentProtoClassName the current proto class name for context
+     * @return the fully qualified proto type name
      */
     public static String getProtoTypeForField(MergedField field, ProcessingContext ctx,
                                                String currentProtoClassName) {
@@ -247,6 +275,11 @@ public final class CodeGenerationHelper {
 
     /**
      * Find the outer class name for a message type.
+     *
+     * @param messagePath the message path
+     * @param schema the merged schema
+     * @param version the version string
+     * @return the outer class name, or null if not found
      */
     public static String findOuterClassForType(String messagePath, MergedSchema schema, String version) {
         if (schema == null || messagePath == null) {
@@ -264,6 +297,11 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the proto enum type for a field.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @param currentProtoClassName the current proto class name for context
+     * @return the fully qualified proto enum type name
      */
     public static String getProtoEnumTypeForField(MergedField field, ProcessingContext ctx,
                                                     String currentProtoClassName) {
@@ -306,6 +344,11 @@ public final class CodeGenerationHelper {
 
     /**
      * Find the outer class name for an enum type.
+     *
+     * @param enumPath the enum path
+     * @param schema the merged schema
+     * @param version the version string
+     * @return the outer class name, or null if not found
      */
     public static String findOuterClassForEnum(String enumPath, MergedSchema schema, String version) {
         if (schema == null || enumPath == null) {
@@ -326,6 +369,9 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the enum conversion method name based on protobuf version.
+     *
+     * @param config the generator configuration
+     * @return "valueOf" for proto2, "forNumber" for proto3
      */
     public static String getEnumFromIntMethod(GeneratorConfig config) {
         return config.isProtobuf2() ? "valueOf" : "forNumber";
@@ -334,6 +380,10 @@ public final class CodeGenerationHelper {
     /**
      * Get message type for PRIMITIVE_MESSAGE conflict field.
      * Handles nested types correctly (e.g., TicketRequest.ParentTicket).
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @return the message TypeName, or null if not found
      */
     public static TypeName getMessageTypeForField(MergedField field, ProcessingContext ctx) {
         return field.getVersionFields().values().stream()
@@ -361,6 +411,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Get the message wrapper class name for a PRIMITIVE_MESSAGE conflict field.
+     *
+     * @param field the merged field
+     * @param ctx the processing context
+     * @return the wrapper class name, or null if not found
      */
     public static String getMessageWrapperClassName(MergedField field, ProcessingContext ctx) {
         String version = ctx.version();
@@ -457,6 +511,14 @@ public final class CodeGenerationHelper {
      */
     @FunctionalInterface
     public interface FieldTypeAction {
+        /**
+         * Apply the action.
+         *
+         * @param method the method builder
+         * @param field the merged field
+         * @param versionJavaName the version-specific Java name
+         * @param ctx the processing context
+         */
         void apply(MethodSpec.Builder method, MergedField field,
                    String versionJavaName, ProcessingContext ctx);
     }
@@ -473,6 +535,10 @@ public final class CodeGenerationHelper {
     ) {
         /**
          * Constructor for backward compatibility (without bytesAction).
+         *
+         * @param messageAction action for message fields
+         * @param enumAction action for enum fields
+         * @param primitiveAction action for primitive fields
          */
         public FieldTypeDispatcher(FieldTypeAction messageAction, FieldTypeAction enumAction,
                                     FieldTypeAction primitiveAction) {
@@ -481,6 +547,11 @@ public final class CodeGenerationHelper {
 
         /**
          * Dispatch to the appropriate action based on field type.
+         *
+         * @param method the method builder
+         * @param field the merged field
+         * @param versionJavaName the Java name for this version
+         * @param ctx the processing context
          */
         public void dispatch(MethodSpec.Builder method, MergedField field,
                              String versionJavaName, ProcessingContext ctx) {
@@ -552,6 +623,11 @@ public final class CodeGenerationHelper {
      *
      * <p>Note: For enum fields, this generates a simple setter without null validation.
      * Use {@link #addEnumSetterWithValidation} instead for proper error messages.</p>
+     *
+     * @param field the merged field
+     * @param versionJavaName the Java name for this version
+     * @param ctx the processing context
+     * @return the setter call format string
      */
     public static String generateProtoSetterCall(MergedField field, String versionJavaName, ProcessingContext ctx) {
         if (field.isMessage()) {
@@ -571,7 +647,10 @@ public final class CodeGenerationHelper {
 
     /**
      * Check if field is a bytes type (proto bytes -> Java byte[]).
-     * Handles both scalar "byte[]" and repeated "List<byte[]>".
+     * Handles both scalar "byte[]" and repeated "List&lt;byte[]&gt;".
+     *
+     * @param field the merged field
+     * @return true if the field is a bytes type
      */
     public static boolean isBytesType(MergedField field) {
         String getterType = field.getGetterType();
@@ -626,6 +705,9 @@ public final class CodeGenerationHelper {
 
     /**
      * Check if a field is an enum type.
+     *
+     * @param field the merged field
+     * @return true if the field is an enum
      */
     public static boolean isEnumField(MergedField field) {
         return field.isEnum();

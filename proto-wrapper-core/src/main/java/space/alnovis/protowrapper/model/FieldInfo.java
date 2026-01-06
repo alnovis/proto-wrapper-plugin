@@ -31,6 +31,11 @@ public class FieldInfo {
     private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
     private final boolean supportsHasMethod; // true if proto has*() method exists for this field
 
+    /**
+     * Creates a FieldInfo from a field descriptor with default settings.
+     *
+     * @param proto the field descriptor
+     */
     public FieldInfo(FieldDescriptorProto proto) {
         this(proto, -1, null, null, PROTO2);
     }
@@ -148,32 +153,91 @@ public class FieldInfo {
         return false;
     }
 
-    // Constructor for merged fields
+    /**
+     * Constructor for merged fields.
+     *
+     * @param protoName the proto field name
+     * @param javaName the Java field name
+     * @param number the field number
+     * @param type the field type
+     * @param label the field label
+     * @param typeName the type name for message/enum types
+     */
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName) {
         this(protoName, javaName, number, type, label, typeName, null, -1, null, null);
     }
 
-    // Constructor for merged fields with oneof info
+    /**
+     * Constructor for merged fields with oneof info.
+     *
+     * @param protoName the proto field name
+     * @param javaName the Java field name
+     * @param number the field number
+     * @param type the field type
+     * @param label the field label
+     * @param typeName the type name for message/enum types
+     * @param oneofIndex the oneof index, or -1 if not in oneof
+     * @param oneofName the oneof name, or null if not in oneof
+     */
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, int oneofIndex, String oneofName) {
         this(protoName, javaName, number, type, label, typeName, null, oneofIndex, oneofName, null);
     }
 
-    // Constructor for merged fields with map info and oneof info
+    /**
+     * Constructor for merged fields with map info and oneof info.
+     *
+     * @param protoName the proto field name
+     * @param javaName the Java field name
+     * @param number the field number
+     * @param type the field type
+     * @param label the field label
+     * @param typeName the type name for message/enum types
+     * @param mapInfo the map info, or null if not a map
+     * @param oneofIndex the oneof index, or -1 if not in oneof
+     * @param oneofName the oneof name, or null if not in oneof
+     */
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName) {
         this(protoName, javaName, number, type, label, typeName, mapInfo, oneofIndex, oneofName, null);
     }
 
-    // Full constructor for merged fields with map info, oneof info, and well-known type
+    /**
+     * Full constructor for merged fields with map info, oneof info, and well-known type.
+     *
+     * @param protoName the proto field name
+     * @param javaName the Java field name
+     * @param number the field number
+     * @param type the field type
+     * @param label the field label
+     * @param typeName the type name for message/enum types
+     * @param mapInfo the map info, or null if not a map
+     * @param oneofIndex the oneof index, or -1 if not in oneof
+     * @param oneofName the oneof name, or null if not in oneof
+     * @param wellKnownType the well-known type info, or null
+     */
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
                      WellKnownTypeInfo wellKnownType) {
         this(protoName, javaName, number, type, label, typeName, mapInfo, oneofIndex, oneofName, wellKnownType, true);
     }
 
-    // Full constructor for merged fields with all info including supportsHasMethod
+    /**
+     * Full constructor for merged fields with all info including supportsHasMethod.
+     *
+     * @param protoName the proto field name
+     * @param javaName the Java field name
+     * @param number the field number
+     * @param type the field type
+     * @param label the field label
+     * @param typeName the type name for message/enum types
+     * @param mapInfo the map info, or null if not a map
+     * @param oneofIndex the oneof index, or -1 if not in oneof
+     * @param oneofName the oneof name, or null if not in oneof
+     * @param wellKnownType the well-known type info, or null
+     * @param supportsHasMethod whether the field supports has method
+     */
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
                      WellKnownTypeInfo wellKnownType, boolean supportsHasMethod) {
@@ -219,6 +283,8 @@ public class FieldInfo {
 
     /**
      * Get Java type for this field.
+     *
+     * @return the Java type string
      */
     public String getJavaType() {
         if (isMap && mapInfo != null) {
@@ -232,6 +298,8 @@ public class FieldInfo {
 
     /**
      * Get Java type for getter return type (may be boxed for optional primitives).
+     *
+     * @return the getter return type string
      */
     public String getGetterType() {
         if (isMap && mapInfo != null) {
@@ -330,6 +398,11 @@ public class FieldInfo {
         return extractSimpleTypeName(typeName);
     }
 
+    /**
+     * Check if this field is a primitive type.
+     *
+     * @return true if primitive
+     */
     public boolean isPrimitive() {
         return switch (type) {
             case TYPE_DOUBLE, TYPE_FLOAT,
@@ -340,14 +413,29 @@ public class FieldInfo {
         };
     }
 
+    /**
+     * Check if this field is a message type.
+     *
+     * @return true if message
+     */
     public boolean isMessage() {
         return type == Type.TYPE_MESSAGE;
     }
 
+    /**
+     * Check if this field is an enum type.
+     *
+     * @return true if enum
+     */
     public boolean isEnum() {
         return type == Type.TYPE_ENUM;
     }
 
+    /**
+     * Get the getter method name for this field.
+     *
+     * @return the getter method name
+     */
     public String getGetterName() {
         String prefix = type == Type.TYPE_BOOL ? "is" : "get";
         return prefix + capitalize(javaName);
@@ -357,6 +445,8 @@ public class FieldInfo {
 
     /**
      * Getter name for map field (e.g., "getItemCountsMap").
+     *
+     * @return the map getter method name
      */
     public String getMapGetterName() {
         return "get" + capitalize(javaName) + "Map";
@@ -364,6 +454,8 @@ public class FieldInfo {
 
     /**
      * Count getter name for map field (e.g., "getItemCountsCount").
+     *
+     * @return the map count method name
      */
     public String getMapCountMethodName() {
         return "get" + capitalize(javaName) + "Count";
@@ -371,6 +463,8 @@ public class FieldInfo {
 
     /**
      * Contains method name for map field (e.g., "containsItemCounts").
+     *
+     * @return the map contains method name
      */
     public String getMapContainsMethodName() {
         return "contains" + capitalize(javaName);
@@ -378,6 +472,8 @@ public class FieldInfo {
 
     /**
      * GetOrDefault method name for map field (e.g., "getItemCountsOrDefault").
+     *
+     * @return the map getOrDefault method name
      */
     public String getMapGetOrDefaultMethodName() {
         return "get" + capitalize(javaName) + "OrDefault";
@@ -385,6 +481,8 @@ public class FieldInfo {
 
     /**
      * GetOrThrow method name for map field (e.g., "getItemCountsOrThrow").
+     *
+     * @return the map getOrThrow method name
      */
     public String getMapGetOrThrowMethodName() {
         return "get" + capitalize(javaName) + "OrThrow";
@@ -392,6 +490,8 @@ public class FieldInfo {
 
     /**
      * Extract method name for map field (e.g., "extractItemCountsMap").
+     *
+     * @return the map extract method name
      */
     public String getMapExtractMethodName() {
         return "extract" + capitalize(javaName) + "Map";
@@ -401,6 +501,8 @@ public class FieldInfo {
 
     /**
      * Put method name for map builder (e.g., "putItemCounts").
+     *
+     * @return the map put method name
      */
     public String getMapPutMethodName() {
         return "put" + capitalize(javaName);
@@ -408,6 +510,8 @@ public class FieldInfo {
 
     /**
      * PutAll method name for map builder (e.g., "putAllItemCounts").
+     *
+     * @return the map putAll method name
      */
     public String getMapPutAllMethodName() {
         return "putAll" + capitalize(javaName);
@@ -415,6 +519,8 @@ public class FieldInfo {
 
     /**
      * Remove method name for map builder (e.g., "removeItemCounts").
+     *
+     * @return the map remove method name
      */
     public String getMapRemoveMethodName() {
         return "remove" + capitalize(javaName);
@@ -422,19 +528,36 @@ public class FieldInfo {
 
     /**
      * Clear method name for map builder (e.g., "clearItemCounts").
+     *
+     * @return the map clear method name
      */
     public String getMapClearMethodName() {
         return "clear" + capitalize(javaName);
     }
 
+    /**
+     * Get the has method name for this field.
+     *
+     * @return the has method name
+     */
     public String getHasMethodName() {
         return "has" + capitalize(javaName);
     }
 
+    /**
+     * Get the extract method name for this field.
+     *
+     * @return the extract method name
+     */
     public String getExtractMethodName() {
         return "extract" + capitalize(javaName);
     }
 
+    /**
+     * Get the extractHas method name for this field.
+     *
+     * @return the extractHas method name
+     */
     public String getExtractHasMethodName() {
         return "extractHas" + capitalize(javaName);
     }
@@ -444,25 +567,41 @@ public class FieldInfo {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    // Getters
+    /** @return the proto field name */
     public String getProtoName() { return protoName; }
+    /** @return the Java field name */
     public String getJavaName() { return javaName; }
+    /** @return the field number */
     public int getNumber() { return number; }
+    /** @return the field type */
     public Type getType() { return type; }
+    /** @return the field label */
     public Label getLabel() { return label; }
+    /** @return the type name for message/enum types */
     public String getTypeName() { return typeName; }
+    /** @return true if field is optional */
     public boolean isOptional() { return isOptional; }
+    /** @return true if field is repeated */
     public boolean isRepeated() { return isRepeated; }
+    /** @return true if field is a map */
     public boolean isMap() { return isMap; }
+    /** @return the map info, or null if not a map */
     public MapInfo getMapInfo() { return mapInfo; }
+    /** @return the oneof index, or -1 if not in oneof */
     public int getOneofIndex() { return oneofIndex; }
+    /** @return the oneof name, or null if not in oneof */
     public String getOneofName() { return oneofName; }
+    /** @return true if field is in a oneof */
     public boolean isInOneof() { return oneofIndex >= 0; }
+    /** @return the well-known type info, or null */
     public WellKnownTypeInfo getWellKnownType() { return wellKnownType; }
+    /** @return true if field is a well-known type */
     public boolean isWellKnownType() { return wellKnownType != null; }
     /**
      * Returns true if the proto has*() method is available for this field.
      * In proto3, scalar fields without 'optional' modifier do not have has*() methods.
+     *
+     * @return true if has method is supported
      */
     public boolean supportsHasMethod() { return supportsHasMethod; }
 

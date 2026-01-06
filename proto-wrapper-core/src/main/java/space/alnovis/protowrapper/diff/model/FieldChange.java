@@ -45,6 +45,8 @@ public record FieldChange(
 
     /**
      * Returns true if this field change is a breaking change.
+     *
+     * @return true if this is a breaking change
      */
     public boolean isBreaking() {
         return switch (changeType) {
@@ -57,6 +59,8 @@ public record FieldChange(
 
     /**
      * Returns true if this is a compatible type change (widening conversion).
+     *
+     * @return true if the type change is compatible
      */
     public boolean isCompatibleTypeChange() {
         if (v1Field == null || v2Field == null) {
@@ -154,6 +158,8 @@ public record FieldChange(
 
     /**
      * Returns a compatibility description if this is a type change.
+     *
+     * @return the compatibility note, or null if not applicable
      */
     public String getCompatibilityNote() {
         if (changeType != ChangeType.TYPE_CHANGED && changeType != ChangeType.LABEL_CHANGED) {
@@ -167,6 +173,8 @@ public record FieldChange(
     /**
      * Determines the type of conflict for this field change.
      * This matches the conflict detection logic in VersionMerger.
+     *
+     * @return the type conflict classification
      */
     public TypeConflictType getTypeConflictType() {
         if (v1Field == null || v2Field == null) {
@@ -313,6 +321,9 @@ public record FieldChange(
 
     /**
      * Format field type for display.
+     *
+     * @param field the field info to format
+     * @return human-readable type string
      */
     public static String formatType(FieldInfo field) {
         if (field == null) {
@@ -348,6 +359,8 @@ public record FieldChange(
 
     /**
      * Returns a summary of the change for display.
+     *
+     * @return human-readable summary of the field change
      */
     public String getSummary() {
         return switch (changeType) {

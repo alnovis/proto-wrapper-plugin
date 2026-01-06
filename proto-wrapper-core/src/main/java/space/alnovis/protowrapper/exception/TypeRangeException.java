@@ -20,10 +20,15 @@ package space.alnovis.protowrapper.exception;
  */
 public class TypeRangeException extends ConversionException {
 
+    /** The source type name. */
     private final String sourceType;
+    /** The target type name. */
     private final String targetType;
+    /** The value that exceeded range. */
     private final Number value;
+    /** The minimum valid value. */
     private final Number minValue;
+    /** The maximum valid value. */
     private final Number maxValue;
 
     /**

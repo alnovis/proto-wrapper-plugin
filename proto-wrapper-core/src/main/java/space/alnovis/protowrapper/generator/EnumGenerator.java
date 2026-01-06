@@ -35,6 +35,11 @@ import java.nio.file.Path;
  */
 public class EnumGenerator extends BaseGenerator<MergedEnum> {
 
+    /**
+     * Create a new EnumGenerator.
+     *
+     * @param config the generator configuration
+     */
     public EnumGenerator(GeneratorConfig config) {
         super(config);
     }

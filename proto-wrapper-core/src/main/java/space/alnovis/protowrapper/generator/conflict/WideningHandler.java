@@ -64,8 +64,10 @@ import static space.alnovis.protowrapper.generator.TypeUtils.*;
  */
 public final class WideningHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final WideningHandler INSTANCE = new WideningHandler();
 
+    /** Private constructor for singleton. */
     private WideningHandler() {
         // Singleton
     }

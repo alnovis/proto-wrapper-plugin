@@ -8,8 +8,6 @@
  * <ul>
  *   <li>{@link space.alnovis.protowrapper.merger.VersionMerger} - Merges multiple
  *       version schemas into unified {@link space.alnovis.protowrapper.model.MergedSchema}</li>
- *   <li>{@link space.alnovis.protowrapper.merger.MergerConfig} - Configuration options
- *       for the merging process</li>
  * </ul>
  *
  * <h2>Merging Process</h2>

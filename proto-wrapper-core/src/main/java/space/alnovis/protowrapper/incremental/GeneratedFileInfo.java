@@ -35,6 +35,10 @@ public record GeneratedFileInfo(
 
     /**
      * Canonical constructor with defensive copy.
+     *
+     * @param contentHash SHA-256 hash of generated file content
+     * @param lastModified file modification timestamp
+     * @param sourceProtos set of source proto file paths
      */
     public GeneratedFileInfo {
         Objects.requireNonNull(contentHash, "contentHash must not be null");

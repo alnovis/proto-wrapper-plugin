@@ -136,44 +136,96 @@ public class ProtoAnalyzer {
         private final Map<String, MessageInfo> messages;
         private final Map<String, EnumInfo> enums;
 
+        /**
+         * Create a new VersionSchema for the specified version.
+         *
+         * @param version the version identifier
+         */
         public VersionSchema(String version) {
             this.version = version;
             this.messages = new LinkedHashMap<>();
             this.enums = new LinkedHashMap<>();
         }
 
+        /**
+         * Add a message to this schema.
+         *
+         * @param message the message to add
+         */
         public void addMessage(MessageInfo message) {
             messages.put(message.getName(), message);
         }
 
+        /**
+         * Add an enum to this schema.
+         *
+         * @param enumInfo the enum to add
+         */
         public void addEnum(EnumInfo enumInfo) {
             enums.put(enumInfo.getName(), enumInfo);
         }
 
+        /**
+         * Returns the version identifier.
+         *
+         * @return the version identifier
+         */
         public String getVersion() {
             return version;
         }
 
+        /**
+         * Get a message by name.
+         *
+         * @param name the message name
+         * @return an Optional containing the message if found
+         */
         public Optional<MessageInfo> getMessage(String name) {
             return Optional.ofNullable(messages.get(name));
         }
 
+        /**
+         * Get an enum by name.
+         *
+         * @param name the enum name
+         * @return an Optional containing the enum if found
+         */
         public Optional<EnumInfo> getEnum(String name) {
             return Optional.ofNullable(enums.get(name));
         }
 
+        /**
+         * Returns all messages in this schema.
+         *
+         * @return unmodifiable collection of messages
+         */
         public Collection<MessageInfo> getMessages() {
             return Collections.unmodifiableCollection(messages.values());
         }
 
+        /**
+         * Returns all enums in this schema.
+         *
+         * @return unmodifiable collection of enums
+         */
         public Collection<EnumInfo> getEnums() {
             return Collections.unmodifiableCollection(enums.values());
         }
 
+        /**
+         * Returns all message names in this schema.
+         *
+         * @return unmodifiable set of message names
+         */
         public Set<String> getMessageNames() {
             return Collections.unmodifiableSet(messages.keySet());
         }
 
+        /**
+         * Returns all enum names in this schema.
+         *
+         * @return unmodifiable set of enum names
+         */
         public Set<String> getEnumNames() {
             return Collections.unmodifiableSet(enums.keySet());
         }
@@ -193,6 +245,8 @@ public class ProtoAnalyzer {
 
         /**
          * Get statistics about this schema.
+         *
+         * @return formatted statistics string
          */
         public String getStats() {
             int totalFields = messages.values().stream()

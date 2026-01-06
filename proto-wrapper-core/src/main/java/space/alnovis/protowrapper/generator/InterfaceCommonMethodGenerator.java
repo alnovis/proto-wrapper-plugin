@@ -31,6 +31,11 @@ public final class InterfaceCommonMethodGenerator {
 
     private final GeneratorConfig config;
 
+    /**
+     * Create a new InterfaceCommonMethodGenerator.
+     *
+     * @param config the generator configuration
+     */
     public InterfaceCommonMethodGenerator(GeneratorConfig config) {
         this.config = config;
     }

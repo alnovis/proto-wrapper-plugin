@@ -48,6 +48,11 @@ public class MergedSchemaDiffAdapter {
 
     /**
      * Static convenience method.
+     *
+     * @param merged the merged schema
+     * @param v1Name the source version name
+     * @param v2Name the target version name
+     * @return the schema diff
      */
     public static SchemaDiff toSchemaDiff(MergedSchema merged, String v1Name, String v2Name) {
         return new MergedSchemaDiffAdapter(v1Name, v2Name).adapt(merged);

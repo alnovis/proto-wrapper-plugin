@@ -33,6 +33,12 @@ public final class NestedTypeGenerator {
     private final GeneratorConfig config;
     private final InterfaceMethodGenerator methodGenerator;
 
+    /**
+     * Create a new NestedTypeGenerator.
+     *
+     * @param config the generator configuration
+     * @param methodGenerator the method generator for field methods
+     */
     public NestedTypeGenerator(GeneratorConfig config, InterfaceMethodGenerator methodGenerator) {
         this.config = config;
         this.methodGenerator = methodGenerator;

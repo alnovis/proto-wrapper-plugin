@@ -59,25 +59,29 @@ public record MapInfo(
         );
     }
 
-    // Accessor methods for compatibility with existing code
+    /** @return the proto key type */
     public Type getKeyType() {
         return keyType;
     }
 
+    /** @return the proto value type */
     public Type getValueType() {
         return valueType;
     }
 
+    /** @return the key type name for message/enum keys */
     public String getKeyTypeName() {
         return keyTypeName;
     }
 
+    /** @return the value type name for message/enum values */
     public String getValueTypeName() {
         return valueTypeName;
     }
 
     /**
      * Returns the Java type for the map key.
+     * @return the key Java type
      */
     public String getKeyJavaType() {
         return toJavaType(keyType, keyTypeName);
@@ -85,6 +89,7 @@ public record MapInfo(
 
     /**
      * Returns the Java type for the map value.
+     * @return the value Java type
      */
     public String getValueJavaType() {
         return toJavaType(valueType, valueTypeName);
@@ -92,6 +97,7 @@ public record MapInfo(
 
     /**
      * Returns the boxed Java type for the map key (for generic type parameters).
+     * @return the boxed key type
      */
     public String getKeyBoxedJavaType() {
         return boxType(getKeyJavaType());
@@ -99,6 +105,7 @@ public record MapInfo(
 
     /**
      * Returns the boxed Java type for the map value (for generic type parameters).
+     * @return the boxed value type
      */
     public String getValueBoxedJavaType() {
         return boxType(getValueJavaType());
@@ -106,6 +113,7 @@ public record MapInfo(
 
     /**
      * Returns the full Map type declaration, e.g., "Map&lt;String, Integer&gt;".
+     * @return the full Map type declaration
      */
     public String getMapJavaType() {
         return "java.util.Map<" + getKeyBoxedJavaType() + ", " + getValueBoxedJavaType() + ">";
@@ -113,6 +121,7 @@ public record MapInfo(
 
     /**
      * Checks if the value type is a message type.
+     * @return true if value is a message type
      */
     public boolean hasMessageValue() {
         return valueType == Type.TYPE_MESSAGE;
@@ -120,6 +129,7 @@ public record MapInfo(
 
     /**
      * Checks if the value type is an enum type.
+     * @return true if value is an enum type
      */
     public boolean hasEnumValue() {
         return valueType == Type.TYPE_ENUM;
@@ -127,6 +137,7 @@ public record MapInfo(
 
     /**
      * Checks if the key type is a string (most common case).
+     * @return true if key is string type
      */
     public boolean hasStringKey() {
         return keyType == Type.TYPE_STRING;
@@ -134,6 +145,7 @@ public record MapInfo(
 
     /**
      * Extracts simple type name from full protobuf type name.
+     * @return the simple value type name
      */
     public String getSimpleValueTypeName() {
         return extractSimpleTypeName(valueTypeName);
@@ -143,6 +155,7 @@ public record MapInfo(
      * Returns the full proto type name for the value (e.g., ".google.protobuf.Timestamp").
      * Returns null for primitive types.
      *
+     * @return the value proto type name
      * @since 1.3.0
      */
     public String getValueProtoTypeName() {
@@ -151,6 +164,7 @@ public record MapInfo(
 
     /**
      * Extracts simple type name from full protobuf type name.
+     * @return the simple key type name
      */
     public String getSimpleKeyTypeName() {
         return extractSimpleTypeName(keyTypeName);

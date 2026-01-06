@@ -7,6 +7,7 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
+import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MapInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
@@ -31,6 +32,11 @@ public final class BuilderInterfaceGenerator {
 
     private final GeneratorConfig config;
 
+    /**
+     * Create a new BuilderInterfaceGenerator.
+     *
+     * @param config the generator configuration
+     */
     public BuilderInterfaceGenerator(GeneratorConfig config) {
         this.config = config;
     }
@@ -159,6 +165,12 @@ public final class BuilderInterfaceGenerator {
         // Handle REPEATED_SINGLE conflicts with List<T> as unified type
         if (field.getConflictType() == MergedField.ConflictType.REPEATED_SINGLE) {
             addRepeatedSingleMethods(builder, field, resolver);
+            return;
+        }
+
+        // Handle PRIMITIVE_MESSAGE conflicts with dual setters (primitive and message) (scalar only)
+        if (!field.isRepeated() && field.getConflictType() == MergedField.ConflictType.PRIMITIVE_MESSAGE) {
+            addPrimitiveMessageMethods(builder, field, message, resolver, ctx);
             return;
         }
 
@@ -537,6 +549,109 @@ public final class BuilderInterfaceGenerator {
                 .returns(builderType)
                 .addJavadoc("Clear $L value.\n", field.getJavaName())
                 .build());
+    }
+
+    /**
+     * Add builder methods for PRIMITIVE_MESSAGE conflict field.
+     * Generates dual setters: setXxx(primitive) and setXxxMessage(Message).
+     *
+     * <p>Runtime validation throws UnsupportedOperationException if the wrong setter is called
+     * for the current version.</p>
+     */
+    private void addPrimitiveMessageMethods(TypeSpec.Builder builder, MergedField field,
+                                             MergedMessage message, TypeResolver resolver,
+                                             GenerationContext ctx) {
+        String capName = resolver.capitalize(field.getJavaName());
+        ClassName builderType = ClassName.get("", "Builder");
+
+        // Determine primitive type
+        TypeName primitiveType = resolver.parseFieldType(field, message);
+
+        // Determine message type (from message versions)
+        TypeName messageType = getMessageTypeForPrimitiveMessageField(field, resolver, ctx);
+        if (messageType == null) {
+            // Fallback - skip if can't determine message type
+            builder.addJavadoc("\n<p><b>Note:</b> {@code $L} setter not available - could not determine message type.</p>\n",
+                    field.getJavaName());
+            return;
+        }
+
+        // Build version info for javadoc
+        String primVersions = field.getVersionFields().entrySet().stream()
+                .filter(e -> field.isPrimitiveInVersion(e.getKey()))
+                .map(java.util.Map.Entry::getKey)
+                .collect(Collectors.joining(", "));
+        String msgVersions = field.getVersionFields().entrySet().stream()
+                .filter(e -> field.isMessageInVersion(e.getKey()))
+                .map(java.util.Map.Entry::getKey)
+                .collect(Collectors.joining(", "));
+
+        // Primitive setter
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(primitiveType, field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Set $L using primitive value.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [PRIMITIVE_MESSAGE]</b></p>\n")
+                .addJavadoc("<p>Supported in versions: [$L]</p>\n", primVersions)
+                .addJavadoc("<p>Throws for message versions: [$L]</p>\n", msgVersions)
+                .addJavadoc("@param $L The primitive value to set\n", field.getJavaName())
+                .addJavadoc("@return This builder\n")
+                .addJavadoc("@throws UnsupportedOperationException if current version uses message type\n")
+                .build());
+
+        // Message setter
+        builder.addMethod(MethodSpec.methodBuilder("set" + capName + "Message")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(messageType, field.getJavaName())
+                .returns(builderType)
+                .addJavadoc("Set $L using message wrapper.\n", field.getJavaName())
+                .addJavadoc("<p><b>Type conflict [PRIMITIVE_MESSAGE]</b></p>\n")
+                .addJavadoc("<p>Supported in versions: [$L]</p>\n", msgVersions)
+                .addJavadoc("<p>Throws for primitive versions: [$L]</p>\n", primVersions)
+                .addJavadoc("@param $L The message wrapper to set\n", field.getJavaName())
+                .addJavadoc("@return This builder\n")
+                .addJavadoc("@throws UnsupportedOperationException if current version uses primitive type\n")
+                .build());
+
+        // Clear method
+        builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(builderType)
+                .addJavadoc("Clear $L value.\n", field.getJavaName())
+                .build());
+    }
+
+    /**
+     * Get the message TypeName for a PRIMITIVE_MESSAGE conflict field.
+     * Handles nested types correctly (e.g., TicketRequest.ParentTicket).
+     */
+    private TypeName getMessageTypeForPrimitiveMessageField(MergedField field, TypeResolver resolver,
+                                                             GenerationContext ctx) {
+        // Find first message-type version field
+        for (java.util.Map.Entry<String, FieldInfo> entry : field.getVersionFields().entrySet()) {
+            FieldInfo versionField = entry.getValue();
+            if (versionField.isMessage() && !versionField.isPrimitive()) {
+                String typeName = versionField.getTypeName();
+                if (typeName != null && !typeName.isEmpty()) {
+                    // Resolve to wrapper type using the FieldInfo's extractNestedTypePath
+                    String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
+                    String fullTypePath = versionField.extractNestedTypePath(protoPackage);
+
+                    if (fullTypePath.contains(".")) {
+                        // Nested type: e.g., "TicketRequest.ParentTicket"
+                        String[] parts = fullTypePath.split("\\.");
+                        // First part is the outer class, rest are nested
+                        String[] nestedParts = java.util.Arrays.copyOfRange(parts, 1, parts.length);
+                        return ClassName.get(config.getApiPackage(), parts[0], nestedParts);
+                    } else {
+                        // Top-level type
+                        return ClassName.get(config.getApiPackage(), fullTypePath);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

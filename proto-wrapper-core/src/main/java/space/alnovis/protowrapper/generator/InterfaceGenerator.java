@@ -53,6 +53,11 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
     @Deprecated(forRemoval = true, since = "1.2.0")
     private TypeResolver typeResolver;
 
+    /**
+     * Create a new InterfaceGenerator.
+     *
+     * @param config the generator configuration
+     */
     public InterfaceGenerator(GeneratorConfig config) {
         super(config);
         this.methodGenerator = new InterfaceMethodGenerator(config);
@@ -227,6 +232,11 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate and write interface using context.
+     *
+     * @param message the merged message
+     * @param ctx the generation context
+     * @return the path to the generated file
+     * @throws IOException if writing fails
      */
     public Path generateAndWrite(MergedMessage message, GenerationContext ctx) throws IOException {
         JavaFile javaFile = generate(message, ctx);

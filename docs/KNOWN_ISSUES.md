@@ -29,7 +29,7 @@ When a field has different types in different schema versions, the plugin automa
 | `WIDENING` | int → long, float → double | Auto-widened to wider type | Setter with range check | Convertible |
 | `NARROWING` | long → int, double → float | Uses wider type (long/double) | Setter with range check | Handled as WIDENING |
 | `STRING_BYTES` | string ↔ bytes | `getXxx()` + `getXxxBytes()` | `setXxx(String)` | UTF-8 conversion |
-| `PRIMITIVE_MESSAGE` | int → Message | `getXxx()` + `getXxxMessage()` | **Not generated** | Returns null/default |
+| `PRIMITIVE_MESSAGE` | int → Message | `getXxx()` + `getXxxMessage()` | `setXxx()` + `setXxxMessage()` | Runtime validation (v1.6.2+) |
 | `INCOMPATIBLE` | string ↔ int, bool ↔ message | Returns default value | **Not generated** | Field treated as absent |
 
 ### NARROWING Behavior

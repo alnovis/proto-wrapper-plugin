@@ -18,7 +18,9 @@ package space.alnovis.protowrapper.exception;
  */
 public class FieldConflictException extends SchemaValidationException {
 
+    /** First conflicting type. */
     private final String type1;
+    /** Second conflicting type. */
     private final String type2;
 
     /**

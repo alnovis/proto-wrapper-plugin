@@ -25,6 +25,11 @@ import java.util.Map;
  */
 public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
+    /**
+     * Create a new VersionContextGenerator with the specified configuration.
+     *
+     * @param config the generator configuration
+     */
     public VersionContextGenerator(GeneratorConfig config) {
         super(config);
     }
@@ -215,6 +220,9 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
      * Build fully qualified ClassName for a nested message interface.
      * E.g., for TicketRequest.Item.Commodity returns ClassName representing
      * "api.package.TicketRequest.Item.Commodity"
+     *
+     * @param nested the nested message
+     * @return the fully qualified ClassName for the nested interface
      */
     private ClassName buildNestedInterfaceType(MergedMessage nested) {
         // Collect path from nested to root
@@ -240,6 +248,9 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
     /**
      * Build flattened method name for nested builder.
      * E.g., for TicketRequest.Item.Commodity returns "newTicketRequestItemCommodityBuilder"
+     *
+     * @param nested the nested message
+     * @return the builder method name
      */
     private String buildNestedBuilderMethodName(MergedMessage nested) {
         return "new" + String.join("", collectMessageHierarchyNames(nested)) + "Builder";
@@ -248,6 +259,9 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
     /**
      * Build qualified display name for nested message (for javadoc).
      * E.g., "TicketRequest.Item.Commodity"
+     *
+     * @param nested the nested message
+     * @return the qualified display name
      */
     private String buildNestedQualifiedName(MergedMessage nested) {
         return String.join(".", collectMessageHierarchyNames(nested));
@@ -255,6 +269,9 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
     /**
      * Collect message names from root to current (e.g., ["Order", "Item"] for Order.Item).
+     *
+     * @param message the message to collect hierarchy for
+     * @return list of message names from root to current
      */
     private List<String> collectMessageHierarchyNames(MergedMessage message) {
         java.util.LinkedList<String> names = new java.util.LinkedList<>();
@@ -488,6 +505,10 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
     /**
      * Generate and write VersionContext interface.
+     *
+     * @param schema the merged schema
+     * @return the path to the generated file
+     * @throws IOException if writing fails
      */
     public Path generateAndWriteInterface(MergedSchema schema) throws IOException {
         JavaFile javaFile = generateInterface(schema);
@@ -500,6 +521,12 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
     /**
      * Generate and write VersionContext implementation.
+     *
+     * @param schema the merged schema
+     * @param version the version string
+     * @param protoMappings map of message name to proto class name
+     * @return the path to the generated file
+     * @throws IOException if writing fails
      */
     public Path generateAndWriteImpl(MergedSchema schema, String version,
                                      Map<String, String> protoMappings) throws IOException {

@@ -59,6 +59,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add the main description (first sentence/paragraph).
+     *
+     * @param text the description text
+     * @return this builder
      */
     public JavaDocBuilder description(String text) {
         return addLineAt(0, text, s -> s + "\n");
@@ -66,6 +69,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add a paragraph wrapped in {@code <p>} tags.
+     *
+     * @param text the paragraph text
+     * @return this builder
      */
     public JavaDocBuilder paragraph(String text) {
         return addLine(text, s -> "<p>" + s + "</p>\n");
@@ -73,6 +79,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add raw text (no formatting).
+     *
+     * @param text the raw text
+     * @return this builder
      */
     public JavaDocBuilder text(String text) {
         return addLine(text, s -> s + "\n");
@@ -80,6 +89,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add bold text.
+     *
+     * @param text the text to make bold
+     * @return this builder
      */
     public JavaDocBuilder bold(String text) {
         return addLine(text, s -> "<b>" + s + "</b>\n");
@@ -87,6 +99,10 @@ public final class JavaDocBuilder {
 
     /**
      * Add a paragraph with bold prefix.
+     *
+     * @param prefix the bold prefix
+     * @param text the paragraph text
+     * @return this builder
      */
     public JavaDocBuilder boldParagraph(String prefix, String text) {
         return Optional.of(prefix)
@@ -100,6 +116,10 @@ public final class JavaDocBuilder {
 
     /**
      * Add type conflict documentation.
+     *
+     * @param conflictType the conflict type name
+     * @param typeInfo the type information
+     * @return this builder
      */
     public JavaDocBuilder typeConflict(String conflictType, String typeInfo) {
         return Optional.of(conflictType)
@@ -114,6 +134,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add version availability note.
+     *
+     * @param versions the versions string
+     * @return this builder
      */
     public JavaDocBuilder presentInVersions(String versions) {
         return paragraph("Present in versions: " + GeneratorUtils.nullToEmpty(versions));
@@ -121,6 +144,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add code example.
+     *
+     * @param code the code to add
+     * @return this builder
      */
     public JavaDocBuilder code(String code) {
         return addLine(code, s -> "{@code " + s + "}\n");
@@ -128,6 +154,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add a code block (pre-formatted).
+     *
+     * @param code the code block
+     * @return this builder
      */
     public JavaDocBuilder codeBlock(String code) {
         return addLine(code, s -> "<pre>\n" + s + "\n</pre>\n");
@@ -137,6 +166,10 @@ public final class JavaDocBuilder {
 
     /**
      * Add {@code @param} tag.
+     *
+     * @param name the parameter name
+     * @param description the parameter description
+     * @return this builder
      */
     public JavaDocBuilder param(String name, String description) {
         Optional.ofNullable(name)
@@ -147,6 +180,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add {@code @return} tag.
+     *
+     * @param description the return description
+     * @return this builder
      */
     public JavaDocBuilder returns(String description) {
         this.returns = Optional.ofNullable(description)
@@ -158,6 +194,10 @@ public final class JavaDocBuilder {
 
     /**
      * Add {@code @throws} tag.
+     *
+     * @param exceptionType the exception type
+     * @param description the exception description
+     * @return this builder
      */
     public JavaDocBuilder throws_(String exceptionType, String description) {
         this.throws_ = Optional.of(exceptionType)
@@ -169,6 +209,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add {@code @see} tag.
+     *
+     * @param reference the reference to add
+     * @return this builder
      */
     public JavaDocBuilder see(String reference) {
         Optional.ofNullable(reference)
@@ -179,6 +222,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add {@code @apiNote} tag.
+     *
+     * @param note the note text
+     * @return this builder
      */
     public JavaDocBuilder apiNote(String note) {
         this.apiNote = Optional.ofNullable(note)
@@ -190,6 +236,9 @@ public final class JavaDocBuilder {
 
     /**
      * Add {@code @since} tag.
+     *
+     * @param version the version string
+     * @return this builder
      */
     public JavaDocBuilder since(String version) {
         this.since = Optional.ofNullable(version)
@@ -201,6 +250,9 @@ public final class JavaDocBuilder {
 
     /**
      * Mark as deprecated.
+     *
+     * @param message the deprecation message
+     * @return this builder
      */
     public JavaDocBuilder deprecated(String message) {
         this.deprecatedMessage = Optional.ofNullable(message)
@@ -214,6 +266,8 @@ public final class JavaDocBuilder {
 
     /**
      * Build the JavaDoc as a CodeBlock.
+     *
+     * @return the built CodeBlock
      */
     public CodeBlock build() {
         CodeBlock.Builder builder = CodeBlock.builder();
@@ -248,6 +302,8 @@ public final class JavaDocBuilder {
 
     /**
      * Build as a formatted string (for testing).
+     *
+     * @return the built string
      */
     public String buildString() {
         return build().toString();
@@ -255,6 +311,8 @@ public final class JavaDocBuilder {
 
     /**
      * Check if this builder has any content.
+     *
+     * @return true if builder is empty
      */
     public boolean isEmpty() {
         return lines.isEmpty() && !hasTags();
@@ -264,6 +322,9 @@ public final class JavaDocBuilder {
 
     /**
      * Create JavaDoc for a simple getter method.
+     *
+     * @param fieldName the field name
+     * @return new builder for getter
      */
     public static JavaDocBuilder forGetter(String fieldName) {
         return create()
@@ -273,6 +334,9 @@ public final class JavaDocBuilder {
 
     /**
      * Create JavaDoc for a has-method.
+     *
+     * @param fieldName the field name
+     * @return new builder for has-method
      */
     public static JavaDocBuilder forHasMethod(String fieldName) {
         return create()
@@ -282,6 +346,10 @@ public final class JavaDocBuilder {
 
     /**
      * Create JavaDoc for a supports-method.
+     *
+     * @param fieldName the field name
+     * @param versions the versions string
+     * @return new builder for supports-method
      */
     public static JavaDocBuilder forSupportsMethod(String fieldName, String versions) {
         return create()
@@ -292,6 +360,9 @@ public final class JavaDocBuilder {
 
     /**
      * Create JavaDoc for a setter method.
+     *
+     * @param fieldName the field name
+     * @return new builder for setter
      */
     public static JavaDocBuilder forSetter(String fieldName) {
         return create()
@@ -302,6 +373,9 @@ public final class JavaDocBuilder {
 
     /**
      * Create JavaDoc for a builder build method.
+     *
+     * @param typeName the type name
+     * @return new builder for build method
      */
     public static JavaDocBuilder forBuildMethod(String typeName) {
         return create()

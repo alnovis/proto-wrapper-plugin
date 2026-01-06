@@ -24,6 +24,11 @@ public class OneofGenerator {
 
     private final GeneratorConfig config;
 
+    /**
+     * Create a new OneofGenerator.
+     *
+     * @param config the generator configuration
+     */
     public OneofGenerator(GeneratorConfig config) {
         this.config = config;
     }
@@ -114,6 +119,10 @@ public class OneofGenerator {
     /**
      * Generate discriminator method for interface.
      * E.g., PaymentMethodCase getPaymentMethodCase()
+     *
+     * @param oneof the merged oneof group
+     * @param message the merged message containing the oneof
+     * @return the generated method spec
      */
     public MethodSpec generateInterfaceCaseGetter(MergedOneof oneof, MergedMessage message) {
         ClassName caseEnumType = ClassName.get("", oneof.getCaseEnumName());
@@ -137,6 +146,10 @@ public class OneofGenerator {
 
     /**
      * Generate hasXxx() method for a oneof field in interface.
+     *
+     * @param field the merged field
+     * @param resolver the type resolver
+     * @return the generated method spec
      */
     public MethodSpec generateInterfaceFieldHasMethod(MergedField field, TypeResolver resolver) {
         String methodName = "has" + resolver.capitalize(field.getJavaName());
@@ -153,6 +166,11 @@ public class OneofGenerator {
 
     /**
      * Add abstract extractXxxCase() method to abstract class.
+     *
+     * @param oneof the merged oneof group
+     * @param message the merged message
+     * @param protoType the proto type variable name
+     * @return the generated method spec
      */
     public MethodSpec generateAbstractExtractCaseMethod(MergedOneof oneof, MergedMessage message,
                                                           TypeVariableName protoType) {
@@ -168,6 +186,10 @@ public class OneofGenerator {
 
     /**
      * Add concrete getXxxCase() method that delegates to extractXxxCase.
+     *
+     * @param oneof the merged oneof group
+     * @param message the merged message
+     * @return the generated method spec
      */
     public MethodSpec generateAbstractCaseGetter(MergedOneof oneof, MergedMessage message) {
         ClassName interfaceType = ClassName.get(config.getApiPackage(), message.getInterfaceName());
@@ -183,6 +205,9 @@ public class OneofGenerator {
 
     /**
      * Add abstract doClearXxx() method to AbstractBuilder.
+     *
+     * @param oneof the merged oneof group
+     * @return the generated method spec
      */
     public MethodSpec generateAbstractBuilderDoClear(MergedOneof oneof) {
         return MethodSpec.methodBuilder(oneof.getDoClearMethodName())
@@ -192,6 +217,10 @@ public class OneofGenerator {
 
     /**
      * Add concrete clearXxx() method to AbstractBuilder.
+     *
+     * @param oneof the merged oneof group
+     * @param builderInterfaceType the builder interface class name
+     * @return the generated method spec
      */
     public MethodSpec generateAbstractBuilderClear(MergedOneof oneof, ClassName builderInterfaceType) {
         return MethodSpec.methodBuilder(oneof.getClearMethodName())
@@ -207,6 +236,13 @@ public class OneofGenerator {
 
     /**
      * Generate extractXxxCase() implementation for version-specific impl class.
+     *
+     * @param oneof the merged oneof group
+     * @param message the merged message
+     * @param protoType the proto class name
+     * @param version the version identifier
+     * @param apiPackage the API package name
+     * @return the generated method spec
      */
     public MethodSpec generateImplExtractCaseMethod(MergedOneof oneof, MergedMessage message,
                                                       ClassName protoType, String version, String apiPackage) {
@@ -249,6 +285,10 @@ public class OneofGenerator {
 
     /**
      * Generate doClearXxx() implementation for version-specific BuilderImpl.
+     *
+     * @param oneof the merged oneof group
+     * @param version the version identifier
+     * @return the generated method spec
      */
     public MethodSpec generateImplBuilderDoClear(MergedOneof oneof, String version) {
         boolean oneofPresentInVersion = oneof.getPresentInVersions().contains(version);
@@ -272,6 +312,9 @@ public class OneofGenerator {
 
     /**
      * Convert a name to SCREAMING_SNAKE_CASE.
+     *
+     * @param name the name to convert
+     * @return the SCREAMING_SNAKE_CASE version
      */
     private static String toScreamingSnakeCase(String name) {
         StringBuilder result = new StringBuilder();

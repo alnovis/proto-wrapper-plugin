@@ -58,6 +58,7 @@ public enum OneofConflictType {
         this.description = description;
     }
 
+    /** @return the conflict type description */
     public String getDescription() {
         return description;
     }

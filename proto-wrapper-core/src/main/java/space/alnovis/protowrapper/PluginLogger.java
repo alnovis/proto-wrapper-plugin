@@ -13,27 +13,37 @@ public interface PluginLogger {
 
     /**
      * Log informational message.
+     *
+     * @param message the message to log
      */
     void info(String message);
 
     /**
      * Log warning message.
+     *
+     * @param message the message to log
      */
     void warn(String message);
 
     /**
      * Log debug message.
+     *
+     * @param message the message to log
      */
     void debug(String message);
 
     /**
      * Log error message.
+     *
+     * @param message the message to log
      */
     void error(String message);
 
     /**
      * Creates a logger that outputs to System.out/System.err.
      * Useful for standalone usage and testing.
+     *
+     * @return a console-based logger
      */
     static PluginLogger console() {
         return new PluginLogger() {
@@ -62,6 +72,9 @@ public interface PluginLogger {
     /**
      * Creates a logger from a simple Consumer (for backward compatibility).
      * All messages go to the same consumer.
+     *
+     * @param consumer the consumer to receive log messages
+     * @return a consumer-based logger
      */
     static PluginLogger fromConsumer(Consumer<String> consumer) {
         return new PluginLogger() {
@@ -90,6 +103,8 @@ public interface PluginLogger {
     /**
      * Creates a no-op logger that discards all messages.
      * Useful for testing or when logging is not needed.
+     *
+     * @return a no-op logger
      */
     static PluginLogger noop() {
         return new PluginLogger() {

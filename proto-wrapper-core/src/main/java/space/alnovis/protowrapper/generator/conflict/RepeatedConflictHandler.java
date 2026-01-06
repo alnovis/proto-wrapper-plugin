@@ -70,8 +70,10 @@ import static space.alnovis.protowrapper.generator.TypeUtils.*;
  */
 public final class RepeatedConflictHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final RepeatedConflictHandler INSTANCE = new RepeatedConflictHandler();
 
+    /** Private constructor for singleton. */
     private RepeatedConflictHandler() {
         // Singleton
     }

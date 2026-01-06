@@ -38,6 +38,11 @@ import java.nio.file.Path;
  */
 public class ConflictEnumGenerator extends BaseGenerator<ConflictEnumInfo> {
 
+    /**
+     * Create a new ConflictEnumGenerator.
+     *
+     * @param config the generator configuration
+     */
     public ConflictEnumGenerator(GeneratorConfig config) {
         super(config);
     }

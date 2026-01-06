@@ -20,6 +20,7 @@ import java.io.IOException;
  */
 public abstract class BaseGenerator<T> implements CodeGenerator<T> {
 
+    /** The generator configuration. */
     protected final GeneratorConfig config;
 
     /**

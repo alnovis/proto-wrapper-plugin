@@ -19,6 +19,7 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  *
  * <h2>Supported Conversions</h2>
  * <table>
+ *   <caption>Repeated Well-Known Type Conversions</caption>
  *   <tr><th>Proto Type</th><th>Java Type</th></tr>
  *   <tr><td>repeated google.protobuf.Timestamp</td><td>List&lt;Instant&gt;</td></tr>
  *   <tr><td>repeated google.protobuf.Duration</td><td>List&lt;Duration&gt;</td></tr>
@@ -51,8 +52,10 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class RepeatedWellKnownTypeHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final RepeatedWellKnownTypeHandler INSTANCE = new RepeatedWellKnownTypeHandler();
 
+    /** Private constructor for singleton. */
     private RepeatedWellKnownTypeHandler() {
         // Singleton
     }

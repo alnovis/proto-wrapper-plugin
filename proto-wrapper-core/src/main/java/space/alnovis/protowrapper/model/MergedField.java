@@ -173,11 +173,18 @@ public class MergedField {
          * Check if builder setters should be skipped for this conflict type.
          * For the hybrid approach, type conflicts result in skipped builder setters
          * because the unified type cannot be directly passed to version-specific proto builders.
-         * OPTIONAL_REQUIRED is an exception - the type is the same, only optionality differs.
+         *
+         * <p>Exceptions (builder setters ARE generated):</p>
+         * <ul>
+         *   <li>{@link #NONE} - no conflict, normal setters</li>
+         *   <li>{@link #OPTIONAL_REQUIRED} - same type, only optionality differs</li>
+         *   <li>{@link #PRIMITIVE_MESSAGE} - dual setters with runtime validation</li>
+         * </ul>
+         *
          * @return true if setters should not be generated
          */
         public boolean shouldSkipBuilderSetter() {
-            return this != NONE && this != OPTIONAL_REQUIRED;
+            return this != NONE && this != OPTIONAL_REQUIRED && this != PRIMITIVE_MESSAGE;
         }
     }
 
@@ -406,50 +413,62 @@ public class MergedField {
         }
     }
 
+    /** @return the proto field name */
     public String getName() {
         return name;
     }
 
+    /** @return the Java field name */
     public String getJavaName() {
         return javaName;
     }
 
+    /** @return the proto field number */
     public int getNumber() {
         return number;
     }
 
+    /** @return the Java type string */
     public String getJavaType() {
         return javaType;
     }
 
+    /** @return the getter return type */
     public String getGetterType() {
         return getterType;
     }
 
+    /** @return true if the field is optional */
     public boolean isOptional() {
         return optional;
     }
 
+    /** @return true if the field is repeated */
     public boolean isRepeated() {
         return repeated;
     }
 
+    /** @return true if the field is a primitive type */
     public boolean isPrimitive() {
         return primitive;
     }
 
+    /** @return true if the field is a message type */
     public boolean isMessage() {
         return message;
     }
 
+    /** @return true if the field is an enum type */
     public boolean isEnum() {
         return isEnum;
     }
 
+    /** @return true if the field is a map type */
     public boolean isMap() {
         return isMap;
     }
 
+    /** @return the map info, or null if not a map */
     public MapInfo getMapInfo() {
         return mapInfo;
     }
@@ -498,10 +517,12 @@ public class MergedField {
         return resolvedMapValueType;
     }
 
+    /** @return the set of versions where this field is present */
     public Set<String> getPresentInVersions() {
         return Collections.unmodifiableSet(presentInVersions);
     }
 
+    /** @return the map of version to FieldInfo */
     public Map<String, FieldInfo> getVersionFields() {
         return Collections.unmodifiableMap(versionFields);
     }
@@ -673,21 +694,26 @@ public class MergedField {
         return firstField.getTypeName();
     }
 
+    /** @return the getter method name */
     public String getGetterName() {
         String prefix = javaType.equals("boolean") || javaType.equals("Boolean") ? "is" : "get";
         return prefix + capitalize(javaName);
     }
 
+    /** @return the extract method name */
     public String getExtractMethodName() {
         return "extract" + capitalize(javaName);
     }
 
+    /** @return the extract-has method name */
     public String getExtractHasMethodName() {
         return "extractHas" + capitalize(javaName);
     }
 
     /**
      * Get extract method name for enum value (INT_ENUM conflicts).
+     *
+     * @return the extract enum method name
      */
     public String getExtractEnumMethodName() {
         return "extract" + capitalize(javaName) + "Enum";
@@ -695,6 +721,8 @@ public class MergedField {
 
     /**
      * Get extract method name for bytes value (STRING_BYTES conflicts).
+     *
+     * @return the extract bytes method name
      */
     public String getExtractBytesMethodName() {
         return "extract" + capitalize(javaName) + "Bytes";
@@ -702,6 +730,8 @@ public class MergedField {
 
     /**
      * Get extract method name for message value (PRIMITIVE_MESSAGE conflicts).
+     *
+     * @return the extract message method name
      */
     public String getExtractMessageMethodName() {
         return "extract" + capitalize(javaName) + "Message";
@@ -711,6 +741,7 @@ public class MergedField {
 
     /**
      * Getter name for map field (e.g., "getItemCountsMap").
+     * @return the map getter method name
      */
     public String getMapGetterName() {
         return "get" + capitalize(javaName) + "Map";
@@ -718,6 +749,7 @@ public class MergedField {
 
     /**
      * Count getter name for map field (e.g., "getItemCountsCount").
+     * @return the map count method name
      */
     public String getMapCountMethodName() {
         return "get" + capitalize(javaName) + "Count";
@@ -725,6 +757,7 @@ public class MergedField {
 
     /**
      * Contains method name for map field (e.g., "containsItemCounts").
+     * @return the map contains method name
      */
     public String getMapContainsMethodName() {
         return "contains" + capitalize(javaName);
@@ -732,6 +765,7 @@ public class MergedField {
 
     /**
      * GetOrDefault method name for map field (e.g., "getItemCountsOrDefault").
+     * @return the map getOrDefault method name
      */
     public String getMapGetOrDefaultMethodName() {
         return "get" + capitalize(javaName) + "OrDefault";
@@ -739,6 +773,7 @@ public class MergedField {
 
     /**
      * GetOrThrow method name for map field (e.g., "getItemCountsOrThrow").
+     * @return the map getOrThrow method name
      */
     public String getMapGetOrThrowMethodName() {
         return "get" + capitalize(javaName) + "OrThrow";
@@ -746,6 +781,7 @@ public class MergedField {
 
     /**
      * Extract method name for map field (e.g., "extractItemCountsMap").
+     * @return the map extract method name
      */
     public String getMapExtractMethodName() {
         return "extract" + capitalize(javaName) + "Map";
@@ -753,6 +789,7 @@ public class MergedField {
 
     /**
      * Put method name for map builder (e.g., "putItemCounts").
+     * @return the map put method name
      */
     public String getMapPutMethodName() {
         return "put" + capitalize(javaName);
@@ -760,6 +797,7 @@ public class MergedField {
 
     /**
      * PutAll method name for map builder (e.g., "putAllItemCounts").
+     * @return the map putAll method name
      */
     public String getMapPutAllMethodName() {
         return "putAll" + capitalize(javaName);
@@ -767,6 +805,7 @@ public class MergedField {
 
     /**
      * Remove method name for map builder (e.g., "removeItemCounts").
+     * @return the map remove method name
      */
     public String getMapRemoveMethodName() {
         return "remove" + capitalize(javaName);
@@ -774,6 +813,7 @@ public class MergedField {
 
     /**
      * Clear method name for map builder (e.g., "clearItemCounts").
+     * @return the map clear method name
      */
     public String getMapClearMethodName() {
         return "clear" + capitalize(javaName);
@@ -781,6 +821,7 @@ public class MergedField {
 
     /**
      * DoSet method name for map builder (e.g., "doPutItemCounts").
+     * @return the map doPut method name
      */
     public String getMapDoPutMethodName() {
         return "doPut" + capitalize(javaName);
@@ -788,6 +829,7 @@ public class MergedField {
 
     /**
      * DoPutAll method name for map builder (e.g., "doPutAllItemCounts").
+     * @return the map doPutAll method name
      */
     public String getMapDoPutAllMethodName() {
         return "doPutAll" + capitalize(javaName);
@@ -795,6 +837,7 @@ public class MergedField {
 
     /**
      * DoRemove method name for map builder (e.g., "doRemoveItemCounts").
+     * @return the map doRemove method name
      */
     public String getMapDoRemoveMethodName() {
         return "doRemove" + capitalize(javaName);
@@ -802,6 +845,7 @@ public class MergedField {
 
     /**
      * DoClear method name for map builder (e.g., "doClearItemCounts").
+     * @return the map doClear method name
      */
     public String getMapDoClearMethodName() {
         return "doClear" + capitalize(javaName);
@@ -809,6 +853,7 @@ public class MergedField {
 
     /**
      * Do-get method name for map builder (e.g., "doGetItemCountsMap").
+     * @return the map doGet method name
      */
     public String getMapDoGetMethodName() {
         return "doGet" + capitalize(javaName) + "Map";
@@ -818,6 +863,7 @@ public class MergedField {
 
     /**
      * Get doSet method name for builder.
+     * @return the doSet method name
      */
     public String getDoSetMethodName() {
         return "doSet" + capitalize(javaName);
@@ -825,13 +871,73 @@ public class MergedField {
 
     /**
      * Get doClear method name for builder.
+     * @return the doClear method name
      */
     public String getDoClearMethodName() {
         return "doClear" + capitalize(javaName);
     }
 
     /**
+     * Get doSet method name for message value (PRIMITIVE_MESSAGE conflicts).
+     * @return the doSetMessage method name
+     */
+    public String getDoSetMessageMethodName() {
+        return "doSet" + capitalize(javaName) + "Message";
+    }
+
+    /**
+     * Get supportsPrimitive method name for builder (PRIMITIVE_MESSAGE conflicts).
+     * @return the supportsPrimitive method name
+     */
+    public String getSupportsPrimitiveMethodName() {
+        return "supportsPrimitive" + capitalize(javaName);
+    }
+
+    /**
+     * Get supportsMessage method name for builder (PRIMITIVE_MESSAGE conflicts).
+     * @return the supportsMessage method name
+     */
+    public String getSupportsMessageMethodName() {
+        return "supportsMessage" + capitalize(javaName);
+    }
+
+    /**
+     * Check if this version of the field uses primitive type (including String/bytes).
+     * Used for PRIMITIVE_MESSAGE conflicts.
+     *
+     * @param version Version identifier
+     * @return true if the field is primitive-like in this version
+     */
+    public boolean isPrimitiveInVersion(String version) {
+        FieldInfo field = versionFields.get(version);
+        if (field == null) return false;
+        return field.isPrimitive() || isStringOrBytesType(field);
+    }
+
+    /**
+     * Check if this version of the field uses message type.
+     * Used for PRIMITIVE_MESSAGE conflicts.
+     *
+     * @param version Version identifier
+     * @return true if the field is a message type in this version
+     */
+    public boolean isMessageInVersion(String version) {
+        FieldInfo field = versionFields.get(version);
+        if (field == null) return false;
+        return field.isMessage() && !field.isPrimitive() && !isStringOrBytesType(field);
+    }
+
+    /**
+     * Check if the field is String or bytes type.
+     */
+    private boolean isStringOrBytesType(FieldInfo field) {
+        String type = field.getJavaType();
+        return "String".equals(type) || "byte[]".equals(type) || "ByteString".equals(type);
+    }
+
+    /**
      * Get doAdd method name for repeated field builder.
+     * @return the doAdd method name
      */
     public String getDoAddMethodName() {
         return "doAdd" + capitalize(javaName);
@@ -839,6 +945,7 @@ public class MergedField {
 
     /**
      * Get doAddAll method name for repeated field builder.
+     * @return the doAddAll method name
      */
     public String getDoAddAllMethodName() {
         return "doAddAll" + capitalize(javaName);
@@ -846,6 +953,7 @@ public class MergedField {
 
     /**
      * Get setter method name for builder interface.
+     * @return the setter method name
      */
     public String getSetterMethodName() {
         return "set" + capitalize(javaName);
@@ -853,6 +961,7 @@ public class MergedField {
 
     /**
      * Get clear method name for builder interface.
+     * @return the clear method name
      */
     public String getClearMethodName() {
         return "clear" + capitalize(javaName);
@@ -860,6 +969,7 @@ public class MergedField {
 
     /**
      * Get add method name for repeated field builder interface.
+     * @return the add method name
      */
     public String getAddMethodName() {
         return "add" + capitalize(javaName);
@@ -867,6 +977,7 @@ public class MergedField {
 
     /**
      * Get addAll method name for repeated field builder interface.
+     * @return the addAll method name
      */
     public String getAddAllMethodName() {
         return "addAll" + capitalize(javaName);
@@ -874,6 +985,7 @@ public class MergedField {
 
     /**
      * Get has method name for optional fields.
+     * @return the has method name
      */
     public String getHasMethodName() {
         return "has" + capitalize(javaName);
@@ -881,6 +993,7 @@ public class MergedField {
 
     /**
      * Get supports method name for version-specific fields.
+     * @return the supports method name
      */
     public String getSupportsMethodName() {
         return "supports" + capitalize(javaName);
@@ -888,6 +1001,7 @@ public class MergedField {
 
     /**
      * Get the capitalized java name (useful for building method names).
+     * @return the capitalized name
      */
     public String getCapitalizedName() {
         return capitalize(javaName);
@@ -895,6 +1009,7 @@ public class MergedField {
 
     /**
      * Whether this field needs has-check pattern (optional primitive).
+     * @return true if needs has-check
      */
     public boolean needsHasCheck() {
         return optional && primitive;
@@ -902,6 +1017,8 @@ public class MergedField {
 
     /**
      * Whether this field exists in all versions.
+     * @param allVersions all available versions
+     * @return true if field exists in all versions
      */
     public boolean isUniversal(Set<String> allVersions) {
         return presentInVersions.containsAll(allVersions);

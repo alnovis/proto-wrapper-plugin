@@ -19,7 +19,9 @@ import java.util.Set;
  */
 public class VersionNotSupportedException extends ProtoWrapperException {
 
+    /** The requested (unsupported) version. */
     private final String requestedVersion;
+    /** The set of supported versions. */
     private final Set<String> supportedVersions;
 
     /**
