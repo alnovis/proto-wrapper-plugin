@@ -436,12 +436,21 @@ Set `protobufMajorVersion` parameter in plugin configuration:
 ## Reporting Issues
 
 If you encounter issues not documented here, please report them at:
-https://github.com/anthropics/proto-wrapper-plugin/issues
+https://github.com/alnovis/proto-wrapper-plugin/issues
 
 Include:
 - Plugin version
 - Protobuf version
 - Relevant proto file snippets
 - Error messages
-- Maven configuration
+- Maven/Gradle configuration
+
+---
+
+## See Also
+
+- [Getting Started](GETTING_STARTED.md) - Setup and basic usage
+- [Configuration](CONFIGURATION.md) - All plugin options
+- [Cookbook](COOKBOOK.md) - Practical examples
+- [Schema Diff](SCHEMA_DIFF.md) - Compare schema versions
 

@@ -1,11 +1,13 @@
 # Proto Wrapper Plugin Cookbook
 
-A practical guide to using proto-wrapper-maven-plugin with detailed examples.
+A practical guide with detailed examples for common Proto Wrapper use cases.
+
+**Prerequisites:** Complete the [Getting Started](GETTING_STARTED.md) guide first.
+
+---
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
-- [Plugin Configuration](#plugin-configuration)
 - [Type Conflict Handling](#type-conflict-handling)
 - [Generation Modes](#generation-modes)
 - [Oneof Field Handling](#oneof-field-handling)
@@ -15,155 +17,14 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 
 ---
 
-## Quick Start
+## Related Documentation
 
-### Step 1: Add the plugin to pom.xml
-
-```xml
-<plugin>
-    <groupId>space.alnovis</groupId>
-    <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.2</version>
-    <configuration>
-        <basePackage>com.mycompany.model</basePackage>
-        <protoPackagePattern>com.mycompany.proto.{version}</protoPackagePattern>
-        <protoRoot>${basedir}/src/main/proto</protoRoot>
-        <versions>
-            <version><protoDir>v1</protoDir></version>
-            <version><protoDir>v2</protoDir></version>
-        </versions>
-    </configuration>
-    <executions>
-        <execution>
-            <goals><goal>generate</goal></goals>
-        </execution>
-    </executions>
-</plugin>
-```
-
-### Step 2: Organize proto files
-
-```
-src/main/proto/
-├── v1/
-│   ├── common.proto
-│   └── order.proto
-└── v2/
-    ├── common.proto
-    └── order.proto
-```
-
-### Step 3: Generate code
-
-```bash
-mvn generate-sources
-```
-
-### Step 4: Use the API
-
-```java
-// Determine version and wrap proto
-int version = determineVersion(protoBytes);
-VersionContext ctx = VersionContext.forVersion(version);
-
-Order order = ctx.wrapOrder(OrderProto.parseFrom(protoBytes));
-
-// Use version-agnostic API
-DateTime dateTime = order.getDateTime();
-List<OrderItem> items = order.getItems();
-PaymentType payment = order.getPaymentType();
-
-// Serialize back
-byte[] outputBytes = order.toBytes();
-```
-
----
-
-## Plugin Configuration
-
-### Minimal Configuration
-
-```xml
-<configuration>
-    <basePackage>com.example.model</basePackage>
-    <protoPackagePattern>com.example.proto.{version}</protoPackagePattern>
-    <protoRoot>${basedir}/proto</protoRoot>
-    <versions>
-        <version><protoDir>v1</protoDir></version>
-        <version><protoDir>v2</protoDir></version>
-    </versions>
-</configuration>
-```
-
-### Full Configuration
-
-```xml
-<configuration>
-    <!-- Base package (required) -->
-    <basePackage>com.example.model</basePackage>
-
-    <!-- Proto package pattern (required) -->
-    <protoPackagePattern>com.example.proto.{version}</protoPackagePattern>
-
-    <!-- Root directory with proto files (required) -->
-    <protoRoot>${basedir}/proto</protoRoot>
-
-    <!-- Output directory (default: target/generated-sources/proto-wrapper) -->
-    <outputDirectory>${project.build.directory}/generated-sources/proto-wrapper</outputDirectory>
-
-    <!-- Generate Builder interfaces (default: false) -->
-    <generateBuilders>true</generateBuilders>
-
-    <!-- Version suffix in class names: MoneyV1 vs Money (default: true) -->
-    <includeVersionSuffix>true</includeVersionSuffix>
-
-    <!-- Protobuf version: 2 or 3 (default: 3) -->
-    <protobufMajorVersion>3</protobufMajorVersion>
-
-    <!-- Generation flags (all true by default) -->
-    <generateInterfaces>true</generateInterfaces>
-    <generateAbstractClasses>true</generateAbstractClasses>
-    <generateImplClasses>true</generateImplClasses>
-    <generateVersionContext>true</generateVersionContext>
-
-    <!-- Message filtering -->
-    <includeMessages>
-        <message>Order</message>
-        <message>Customer</message>
-    </includeMessages>
-    <excludeMessages>
-        <message>InternalMessage</message>
-    </excludeMessages>
-
-    <!-- Version configurations -->
-    <versions>
-        <version>
-            <protoDir>v1</protoDir>
-            <name>V1</name>
-            <excludeProtos>
-                <excludeProto>internal.proto</excludeProto>
-            </excludeProtos>
-        </version>
-        <version>
-            <protoDir>v2</protoDir>
-        </version>
-    </versions>
-</configuration>
-```
-
-### Derived Packages
-
-When `basePackage` is set, other packages are computed automatically:
-
-| Parameter | Value |
-|----------|-------|
-| `apiPackage` | `{basePackage}.api` |
-| `implPackagePattern` | `{basePackage}.{version}` |
-
-Result for `basePackage=com.example.model`:
-- Interfaces: `com.example.model.api`
-- V1 implementations: `com.example.model.v1`
-- V2 implementations: `com.example.model.v2`
+| Document | Description |
+|----------|-------------|
+| [Getting Started](GETTING_STARTED.md) | Step-by-step setup tutorial |
+| [Configuration](CONFIGURATION.md) | All plugin options |
+| [Schema Diff](SCHEMA_DIFF.md) | Compare schema versions |
+| [Known Issues](KNOWN_ISSUES.md) | Limitations and workarounds |
 
 ---
 
@@ -1170,5 +1031,7 @@ The plugin auto-detects equivalent enums.
 
 ## See Also
 
-- [VERSION_AGNOSTIC_API.md](VERSION_AGNOSTIC_API.md) - Detailed Version-Agnostic API description
-- [KNOWN_ISSUES.md](KNOWN_ISSUES.md) - Known limitations
+- [Getting Started](GETTING_STARTED.md) - Step-by-step setup tutorial
+- [Configuration](CONFIGURATION.md) - All plugin options
+- [Known Issues](KNOWN_ISSUES.md) - Known limitations
+- [API Reference](API_REFERENCE.md) - Generated code API reference
