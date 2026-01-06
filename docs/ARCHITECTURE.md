@@ -1,11 +1,45 @@
 # Proto Wrapper Plugin Architecture
 
-Version: 1.2.0
-Last Updated: 2025-12-31
+Version: 1.6.3
+Last Updated: 2025-01-06
 
 ## Overview
 
 Proto Wrapper Plugin generates version-agnostic Java wrapper classes from multiple protobuf schema versions. This document describes the internal architecture, design patterns, and code organization.
+
+```mermaid
+flowchart TB
+    subgraph Input["Proto Files"]
+        P1["v1/*.proto"]
+        P2["v2/*.proto"]
+    end
+
+    subgraph Parsing["Schema Parsing & Merging"]
+        PE[ProtocExecutor]
+        PA[ProtoAnalyzer]
+        VM[VersionMerger]
+        PE --> PA --> VM
+    end
+
+    subgraph Generation["Code Generation"]
+        GO[GenerationOrchestrator]
+        IG[InterfaceGenerator]
+        AG[AbstractClassGenerator]
+        IC[ImplClassGenerator]
+        VC[VersionContextGenerator]
+        GO --> IG & AG & IC & VC
+    end
+
+    subgraph Output["Generated Code"]
+        JP[JavaPoet]
+        JF[".java files"]
+        JP --> JF
+    end
+
+    Input --> Parsing
+    Parsing --> Generation
+    IG & AG & IC & VC --> JP
+```
 
 ---
 
@@ -473,11 +507,13 @@ flowchart TB
 
     subgraph Generation ["3. Generation"]
         GO[Orchestrator]
+        FPC[ConflictHandlers]
         IG[InterfaceGen]
         AG[AbstractGen]
         ICG[ImplGen]
         VCG[ContextGen]
-        FPC[ConflictHandlers]
+        GO --> IG & AG & ICG & VCG
+        IG & AG & ICG --> FPC
     end
 
     subgraph Output ["4. Generated Code"]
@@ -490,15 +526,7 @@ flowchart TB
     Plugins --> Analysis
     Analysis --> Merging
     Merging --> Generation
-    MS --> GO
-    GO --> IG
-    GO --> AG
-    GO --> ICG
-    GO --> VCG
-    IG --> FPC
-    AG --> FPC
-    ICG --> FPC
-    FPC --> Output
+    Generation --> Output
 ```
 
 ---
@@ -591,3 +619,12 @@ flowchart TB
 2. Implement `generate()` and `generateAndWrite()` methods
 3. Add to `GenerationOrchestrator.generateAll()`
 4. Add configuration flag to `GeneratorConfig` if needed
+
+---
+
+## See Also
+
+- [Getting Started](GETTING_STARTED.md) - Setup and basic usage
+- [Configuration](CONFIGURATION.md) - All plugin options
+- [Cookbook](COOKBOOK.md) - Practical examples
+- [API Reference](API_REFERENCE.md) - Generated code API reference

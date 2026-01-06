@@ -153,6 +153,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.5'
+          cache-read-only: false
+          cache-write-only: false
 
       - name: Configure Gradle repositories
         run: |
@@ -162,8 +164,14 @@ jobs:
             repositories {
               mavenLocal()
               mavenCentral()
+              // Multiple mirrors to avoid rate limiting
               maven {
                 url = uri("https://repo1.maven.org/maven2/")
+                name = "MavenCentral1"
+              }
+              maven {
+                url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+                name = "GoogleMirror"
               }
               gradlePluginPortal()
             }
@@ -176,6 +184,11 @@ jobs:
                 mavenCentral()
                 maven {
                   url = uri("https://repo1.maven.org/maven2/")
+                  name = "MavenCentral1"
+                }
+                maven {
+                  url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+                  name = "GoogleMirror"
                 }
               }
             }
@@ -191,20 +204,23 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Download dependencies
+        run: ./gradlew dependencies --no-daemon || true
+
       - name: Build with Gradle
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 30
+          max_attempts: 5
+          retry_wait_seconds: 60
           command: ./gradlew build --no-daemon
 
       - name: Run Slow TestKit Tests
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
+          timeout_minutes: 15
+          max_attempts: 5
+          retry_wait_seconds: 60
           command: ./gradlew :proto-wrapper-gradle-plugin:slowTest --no-daemon
 
       - name: Publish to Maven Local
@@ -214,8 +230,8 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 30
+          max_attempts: 5
+          retry_wait_seconds: 60
           command: |
             cd proto-wrapper-gradle-integration-tests
             gradle test --no-daemon
@@ -226,9 +242,9 @@ jobs:
       - name: Build Gradle Example
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
+          timeout_minutes: 15
+          max_attempts: 5
+          retry_wait_seconds: 60
           command: |
             cd examples/gradle-example
             ./gradlew build --no-daemon
