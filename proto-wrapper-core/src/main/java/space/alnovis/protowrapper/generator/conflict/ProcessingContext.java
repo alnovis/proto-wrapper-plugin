@@ -28,6 +28,12 @@ public record ProcessingContext(
 ) {
     /**
      * Create a context for implementation class generation.
+     *
+     * @param message the message being processed
+     * @param protoType the proto class name
+     * @param genCtx the generation context
+     * @param config the generator configuration
+     * @return the processing context
      */
     public static ProcessingContext forImpl(MergedMessage message, ClassName protoType,
                                              GenerationContext genCtx, GeneratorConfig config) {
@@ -36,6 +42,12 @@ public record ProcessingContext(
 
     /**
      * Create a context for abstract class generation.
+     *
+     * @param message the message being processed
+     * @param protoType the proto type variable name
+     * @param genCtx the generation context
+     * @param config the generator configuration
+     * @return the processing context
      */
     public static ProcessingContext forAbstract(MergedMessage message, TypeVariableName protoType,
                                                  GenerationContext genCtx, GeneratorConfig config) {
@@ -44,6 +56,8 @@ public record ProcessingContext(
 
     /**
      * Get the type resolver from the generation context.
+     *
+     * @return the type resolver
      */
     public TypeResolver resolver() {
         return genCtx.getTypeResolver();
@@ -51,6 +65,8 @@ public record ProcessingContext(
 
     /**
      * Get the merged schema from the generation context.
+     *
+     * @return the merged schema
      */
     public MergedSchema schema() {
         return genCtx.getSchema();
@@ -58,6 +74,8 @@ public record ProcessingContext(
 
     /**
      * Get the current version (if set).
+     *
+     * @return the current version, or null if not set
      */
     public String version() {
         return genCtx.getCurrentVersion();
@@ -65,6 +83,9 @@ public record ProcessingContext(
 
     /**
      * Get the current version, throwing if not set.
+     *
+     * @return the current version
+     * @throws IllegalStateException if version is not set
      */
     public String requireVersion() {
         return genCtx.requireVersion();
@@ -72,6 +93,8 @@ public record ProcessingContext(
 
     /**
      * Get the API package name.
+     *
+     * @return the API package name
      */
     public String apiPackage() {
         return genCtx.getApiPackage();
@@ -79,6 +102,8 @@ public record ProcessingContext(
 
     /**
      * Get the implementation package name.
+     *
+     * @return the implementation package name
      */
     public String implPackage() {
         return genCtx.getImplPackage();
@@ -86,6 +111,8 @@ public record ProcessingContext(
 
     /**
      * Get the version number for the current version.
+     *
+     * @return the version number
      */
     public int versionNumber() {
         return genCtx.getVersionNumber();
@@ -93,6 +120,8 @@ public record ProcessingContext(
 
     /**
      * Check if the proto type is a concrete ClassName (for impl classes).
+     *
+     * @return true if proto type is a concrete ClassName
      */
     public boolean isConcreteType() {
         return protoType instanceof ClassName;
@@ -100,6 +129,8 @@ public record ProcessingContext(
 
     /**
      * Get the proto type as a ClassName.
+     *
+     * @return the proto type as a ClassName
      * @throws ClassCastException if protoType is not a ClassName
      */
     public ClassName protoClassName() {
@@ -108,6 +139,8 @@ public record ProcessingContext(
 
     /**
      * Get the proto type as a TypeVariableName.
+     *
+     * @return the proto type as a TypeVariableName
      * @throws ClassCastException if protoType is not a TypeVariableName
      */
     public TypeVariableName protoTypeVariable() {
@@ -116,6 +149,9 @@ public record ProcessingContext(
 
     /**
      * Capitalize a string (first letter uppercase).
+     *
+     * @param s the string to capitalize
+     * @return the capitalized string
      */
     public String capitalize(String s) {
         return resolver().capitalize(s);
@@ -123,6 +159,9 @@ public record ProcessingContext(
 
     /**
      * Parse the field type using the resolver.
+     *
+     * @param field the field to parse
+     * @return the parsed TypeName
      */
     public TypeName parseFieldType(space.alnovis.protowrapper.model.MergedField field) {
         return resolver().parseFieldType(field, message);
@@ -130,6 +169,9 @@ public record ProcessingContext(
 
     /**
      * Get the implementation class name for a message.
+     *
+     * @param messageName the message name
+     * @return the implementation class name
      */
     public String getImplClassName(String messageName) {
         return genCtx.getImplClassName(messageName);

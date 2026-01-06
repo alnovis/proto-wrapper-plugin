@@ -23,9 +23,13 @@ import java.util.Set;
  */
 public class EnumValueNotSupportedException extends ConversionException {
 
+    /** The enum type name. */
     private final String enumTypeName;
+    /** The invalid enum value name. */
     private final String enumValue;
+    /** The enum value number. */
     private final int enumNumber;
+    /** Valid values for the target version. */
     private final Set<String> validValues;
 
     /**

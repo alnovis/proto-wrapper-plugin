@@ -82,6 +82,9 @@ public final class TypeNormalizer {
 
     /**
      * Check if type is an integer type (int/Integer/int32/uint32).
+     *
+     * @param type the type to check
+     * @return true if type is an integer type
      */
     public static boolean isIntType(String type) {
         return "int".equals(type) || "Integer".equals(type)
@@ -90,6 +93,9 @@ public final class TypeNormalizer {
 
     /**
      * Check if type is a long type (long/Long/int64/uint64).
+     *
+     * @param type the type to check
+     * @return true if type is a long type
      */
     public static boolean isLongType(String type) {
         return "long".equals(type) || "Long".equals(type)
@@ -98,6 +104,9 @@ public final class TypeNormalizer {
 
     /**
      * Check if type is a float type (float/Float).
+     *
+     * @param type the type to check
+     * @return true if type is a float type
      */
     public static boolean isFloatType(String type) {
         return "float".equals(type) || "Float".equals(type);
@@ -105,6 +114,9 @@ public final class TypeNormalizer {
 
     /**
      * Check if type is a double type (double/Double).
+     *
+     * @param type the type to check
+     * @return true if type is a double type
      */
     public static boolean isDoubleType(String type) {
         return "double".equals(type) || "Double".equals(type);
@@ -112,6 +124,9 @@ public final class TypeNormalizer {
 
     /**
      * Check if type is any floating point type (float or double).
+     *
+     * @param type the type to check
+     * @return true if type is a floating point type
      */
     public static boolean isFloatingPointType(String type) {
         return isFloatType(type) || isDoubleType(type);
@@ -119,6 +134,9 @@ public final class TypeNormalizer {
 
     /**
      * Check if type is any numeric type.
+     *
+     * @param type the type to check
+     * @return true if type is a numeric type
      */
     public static boolean isNumericType(String type) {
         return isIntType(type) || isLongType(type) || isFloatingPointType(type);

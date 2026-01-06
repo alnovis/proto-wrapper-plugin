@@ -26,18 +26,37 @@ public class VersionMerger {
     private final MergerConfig config;
     private final PluginLogger logger;
 
+    /**
+     * Create a new VersionMerger with default configuration.
+     */
     public VersionMerger() {
         this(new MergerConfig(), PluginLogger.console());
     }
 
+    /**
+     * Create a new VersionMerger with the specified configuration.
+     *
+     * @param config the merger configuration
+     */
     public VersionMerger(MergerConfig config) {
         this(config, PluginLogger.console());
     }
 
+    /**
+     * Create a new VersionMerger with the specified logger.
+     *
+     * @param logger the logger to use
+     */
     public VersionMerger(PluginLogger logger) {
         this(new MergerConfig(), logger);
     }
 
+    /**
+     * Create a new VersionMerger with the specified configuration and logger.
+     *
+     * @param config the merger configuration
+     * @param logger the logger to use
+     */
     public VersionMerger(MergerConfig config, PluginLogger logger) {
         this.config = config;
         this.logger = logger;
@@ -1119,6 +1138,7 @@ public class VersionMerger {
          *
          * @param protoName Original proto name
          * @param javaName Desired Java name
+         * @return this configuration for method chaining
          */
         public MergerConfig addFieldNameMapping(String protoName, String javaName) {
             fieldNameMappings.put(protoName, javaName);
@@ -1130,6 +1150,7 @@ public class VersionMerger {
          *
          * @param fieldName Field name
          * @param resolvedType Type to use when conflict occurs
+         * @return this configuration for method chaining
          */
         public MergerConfig addTypeConflictResolution(String fieldName, String resolvedType) {
             typeConflictResolutions.put(fieldName, resolvedType);
@@ -1140,6 +1161,7 @@ public class VersionMerger {
          * Exclude a message from generation.
          *
          * @param messageName Message name or pattern
+         * @return this configuration for method chaining
          */
         public MergerConfig excludeMessage(String messageName) {
             excludedMessages.add(messageName);
@@ -1150,24 +1172,52 @@ public class VersionMerger {
          * Exclude a field from generation.
          *
          * @param fieldName Field name (format: "MessageName.fieldName")
+         * @return this configuration for method chaining
          */
         public MergerConfig excludeField(String fieldName) {
             excludedFields.add(fieldName);
             return this;
         }
 
+        /**
+         * Get the Java name mapping for a proto field name.
+         *
+         * @param protoName the proto field name
+         * @return the mapped Java name, or null if no mapping exists
+         */
         public String getJavaName(String protoName) {
             return fieldNameMappings.getOrDefault(protoName, null);
         }
 
+        /**
+         * Resolve a type conflict for a field.
+         *
+         * @param fieldName the field name
+         * @param type1 the first type
+         * @param type2 the second type
+         * @return the resolved type, or null if no resolution configured
+         */
         public String resolveTypeConflict(String fieldName, String type1, String type2) {
             return typeConflictResolutions.get(fieldName);
         }
 
+        /**
+         * Check if a message is excluded from generation.
+         *
+         * @param messageName the message name to check
+         * @return true if the message is excluded
+         */
         public boolean isMessageExcluded(String messageName) {
             return excludedMessages.contains(messageName);
         }
 
+        /**
+         * Check if a field is excluded from generation.
+         *
+         * @param messageName the message name
+         * @param fieldName the field name
+         * @return true if the field is excluded
+         */
         public boolean isFieldExcluded(String messageName, String fieldName) {
             return excludedFields.contains(messageName + "." + fieldName);
         }

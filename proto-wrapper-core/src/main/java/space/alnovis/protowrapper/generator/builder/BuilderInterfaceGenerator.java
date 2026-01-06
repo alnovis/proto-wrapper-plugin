@@ -32,6 +32,11 @@ public final class BuilderInterfaceGenerator {
 
     private final GeneratorConfig config;
 
+    /**
+     * Create a new BuilderInterfaceGenerator.
+     *
+     * @param config the generator configuration
+     */
     public BuilderInterfaceGenerator(GeneratorConfig config) {
         this.config = config;
     }

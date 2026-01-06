@@ -83,6 +83,9 @@ public class OneofInfo {
 
     /**
      * Converts a proto name (snake_case) to PascalCase.
+     *
+     * @param protoName the proto name to convert
+     * @return the PascalCase name
      */
     private static String toPascalCase(String protoName) {
         StringBuilder result = new StringBuilder();
@@ -100,6 +103,8 @@ public class OneofInfo {
 
     /**
      * Returns the proto name of this oneof (e.g., "payment_method").
+     *
+     * @return the proto name
      */
     public String getProtoName() {
         return protoName;
@@ -107,6 +112,8 @@ public class OneofInfo {
 
     /**
      * Returns the Java-style name (e.g., "PaymentMethod").
+     *
+     * @return the Java-style name
      */
     public String getJavaName() {
         return javaName;
@@ -114,6 +121,8 @@ public class OneofInfo {
 
     /**
      * Returns the 0-based index of this oneof in the containing message.
+     *
+     * @return the 0-based index
      */
     public int getIndex() {
         return index;
@@ -121,6 +130,8 @@ public class OneofInfo {
 
     /**
      * Returns the field numbers of fields in this oneof.
+     *
+     * @return list of field numbers
      */
     public List<Integer> getFieldNumbers() {
         return fieldNumbers;
@@ -129,6 +140,8 @@ public class OneofInfo {
     /**
      * Returns the fields in this oneof.
      * May be empty if fields were not provided during construction.
+     *
+     * @return list of fields
      */
     public List<FieldInfo> getFields() {
         return fields;
@@ -137,6 +150,8 @@ public class OneofInfo {
     /**
      * Returns the name of the Case enum for this oneof.
      * E.g., for oneof "method" returns "MethodCase".
+     *
+     * @return the Case enum name
      */
     public String getCaseEnumName() {
         return javaName + "Case";
@@ -145,6 +160,8 @@ public class OneofInfo {
     /**
      * Returns the getter name for the case discriminator.
      * E.g., for oneof "method" returns "getMethodCase".
+     *
+     * @return the case getter method name
      */
     public String getCaseGetterName() {
         return "get" + javaName + "Case";
@@ -153,6 +170,8 @@ public class OneofInfo {
     /**
      * Returns the clear method name for the entire oneof.
      * E.g., for oneof "method" returns "clearMethod".
+     *
+     * @return the clear method name
      */
     public String getClearMethodName() {
         return "clear" + javaName;
@@ -161,6 +180,8 @@ public class OneofInfo {
     /**
      * Returns the extract method name for the case discriminator.
      * E.g., for oneof "method" returns "extractMethodCase".
+     *
+     * @return the extract case method name
      */
     public String getExtractCaseMethodName() {
         return "extract" + javaName + "Case";
@@ -169,6 +190,8 @@ public class OneofInfo {
     /**
      * Returns the "NOT_SET" constant name for the Case enum.
      * E.g., for oneof "method" returns "METHOD_NOT_SET".
+     *
+     * @return the NOT_SET constant name
      */
     public String getNotSetConstantName() {
         return toScreamingSnakeCase(protoName) + "_NOT_SET";
@@ -176,6 +199,9 @@ public class OneofInfo {
 
     /**
      * Converts a proto name to SCREAMING_SNAKE_CASE.
+     *
+     * @param protoName the proto name to convert
+     * @return the SCREAMING_SNAKE_CASE name
      */
     private static String toScreamingSnakeCase(String protoName) {
         return protoName.toUpperCase();
@@ -183,6 +209,9 @@ public class OneofInfo {
 
     /**
      * Checks if a field number belongs to this oneof.
+     *
+     * @param fieldNumber the field number to check
+     * @return true if the field number is in this oneof
      */
     public boolean containsField(int fieldNumber) {
         return fieldNumbers.contains(fieldNumber);

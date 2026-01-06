@@ -99,6 +99,8 @@ public final class ErrorContext {
 
     /**
      * Returns the message type name (e.g., "Order", "Person").
+     *
+     * @return the message type name
      */
     public String getMessageType() {
         return messageType;
@@ -106,6 +108,8 @@ public final class ErrorContext {
 
     /**
      * Returns the full field path (e.g., "Order.items[].product.name").
+     *
+     * @return the field path
      */
     public String getFieldPath() {
         return fieldPath;
@@ -113,6 +117,8 @@ public final class ErrorContext {
 
     /**
      * Returns the protocol version (e.g., "v203").
+     *
+     * @return the protocol version
      */
     public String getVersion() {
         return version;
@@ -120,6 +126,8 @@ public final class ErrorContext {
 
     /**
      * Returns the field name without path.
+     *
+     * @return the field name
      */
     public String getFieldName() {
         return fieldName;
@@ -127,6 +135,8 @@ public final class ErrorContext {
 
     /**
      * Returns the protobuf field number.
+     *
+     * @return the field number
      */
     public Integer getFieldNumber() {
         return fieldNumber;
@@ -134,6 +144,8 @@ public final class ErrorContext {
 
     /**
      * Returns the set of available/supported versions.
+     *
+     * @return the available versions set
      */
     public Set<String> getAvailableVersions() {
         return availableVersions;
@@ -141,6 +153,8 @@ public final class ErrorContext {
 
     /**
      * Returns additional context details.
+     *
+     * @return the additional details map
      */
     public Map<String, Object> getAdditionalDetails() {
         return additionalDetails;
@@ -218,41 +232,90 @@ public final class ErrorContext {
         private Builder() {
         }
 
+        /**
+         * Set the message type.
+         *
+         * @param messageType the message type name
+         * @return this builder
+         */
         public Builder messageType(String messageType) {
             this.messageType = messageType;
             return this;
         }
 
+        /**
+         * Set the field path.
+         *
+         * @param fieldPath the field path
+         * @return this builder
+         */
         public Builder fieldPath(String fieldPath) {
             this.fieldPath = fieldPath;
             return this;
         }
 
+        /**
+         * Set the version.
+         *
+         * @param version the protocol version
+         * @return this builder
+         */
         public Builder version(String version) {
             this.version = version;
             return this;
         }
 
+        /**
+         * Set the field name.
+         *
+         * @param fieldName the field name
+         * @return this builder
+         */
         public Builder fieldName(String fieldName) {
             this.fieldName = fieldName;
             return this;
         }
 
+        /**
+         * Set the field number.
+         *
+         * @param fieldNumber the protobuf field number
+         * @return this builder
+         */
         public Builder fieldNumber(Integer fieldNumber) {
             this.fieldNumber = fieldNumber;
             return this;
         }
 
+        /**
+         * Set the available versions.
+         *
+         * @param versions the set of available versions
+         * @return this builder
+         */
         public Builder availableVersions(Set<String> versions) {
             this.availableVersions = versions;
             return this;
         }
 
+        /**
+         * Set the available versions from a list.
+         *
+         * @param versions the list of available versions
+         * @return this builder
+         */
         public Builder availableVersions(List<String> versions) {
             this.availableVersions = versions != null ? Set.copyOf(versions) : null;
             return this;
         }
 
+        /**
+         * Add an additional detail.
+         *
+         * @param key the detail key
+         * @param value the detail value
+         * @return this builder
+         */
         public Builder addDetail(String key, Object value) {
             if (this.additionalDetails == null) {
                 this.additionalDetails = new LinkedHashMap<>();
@@ -261,6 +324,11 @@ public final class ErrorContext {
             return this;
         }
 
+        /**
+         * Build the ErrorContext.
+         *
+         * @return the built ErrorContext
+         */
         public ErrorContext build() {
             return new ErrorContext(this);
         }

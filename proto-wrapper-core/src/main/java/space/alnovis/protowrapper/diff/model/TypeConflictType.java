@@ -68,6 +68,8 @@ public enum TypeConflictType {
 
     /**
      * Returns how the plugin handles this conflict type.
+     *
+     * @return the handling type
      */
     public Handling getHandling() {
         return handling;
@@ -75,6 +77,8 @@ public enum TypeConflictType {
 
     /**
      * Returns a note about how the plugin handles this conflict.
+     *
+     * @return the plugin note
      */
     public String getPluginNote() {
         return pluginNote;
@@ -82,6 +86,8 @@ public enum TypeConflictType {
 
     /**
      * Returns true if the plugin can automatically handle this conflict.
+     *
+     * @return true if plugin-handled
      */
     public boolean isPluginHandled() {
         return handling == Handling.NATIVE || handling == Handling.CONVERTED;
@@ -90,6 +96,8 @@ public enum TypeConflictType {
     /**
      * Returns true if this conflict is a breaking change.
      * Plugin-handled conflicts are not considered breaking.
+     *
+     * @return true if breaking
      */
     public boolean isBreaking() {
         return handling == Handling.INCOMPATIBLE;
@@ -97,6 +105,8 @@ public enum TypeConflictType {
 
     /**
      * Returns true if this conflict should be shown as a warning.
+     *
+     * @return true if warning
      */
     public boolean isWarning() {
         return handling == Handling.WARNING || handling == Handling.MANUAL;
@@ -104,6 +114,8 @@ public enum TypeConflictType {
 
     /**
      * Returns the severity for breaking change detection.
+     *
+     * @return the severity level
      */
     public BreakingChange.Severity getSeverity() {
         return switch (handling) {

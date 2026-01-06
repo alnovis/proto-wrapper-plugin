@@ -32,6 +32,11 @@ public record FileFingerprint(
 
     /**
      * Canonical constructor with validation.
+     *
+     * @param relativePath relative path from proto root
+     * @param contentHash SHA-256 hash of file content
+     * @param lastModified file modification timestamp
+     * @param fileSize file size in bytes
      */
     public FileFingerprint {
         Objects.requireNonNull(relativePath, "relativePath must not be null");

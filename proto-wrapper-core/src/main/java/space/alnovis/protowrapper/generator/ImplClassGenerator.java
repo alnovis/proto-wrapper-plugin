@@ -53,6 +53,11 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
     @Deprecated(forRemoval = true, since = "1.2.0")
     private TypeResolver typeResolver;
 
+    /**
+     * Create a new ImplClassGenerator.
+     *
+     * @param config the generator configuration
+     */
     public ImplClassGenerator(GeneratorConfig config) {
         super(config);
     }
@@ -480,6 +485,12 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
     /**
      * Generate and write implementation class using context.
+     *
+     * @param message the merged message
+     * @param protoClassName the proto class name
+     * @param ctx the generation context
+     * @return the path to the generated file
+     * @throws IOException if writing fails
      */
     public Path generateAndWrite(MergedMessage message, String protoClassName, GenerationContext ctx) throws IOException {
         JavaFile javaFile = generate(message, protoClassName, ctx);

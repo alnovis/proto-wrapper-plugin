@@ -57,8 +57,10 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class RepeatedSingleHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final RepeatedSingleHandler INSTANCE = new RepeatedSingleHandler();
 
+    /** Private constructor for singleton. */
     private RepeatedSingleHandler() {
         // Singleton
     }

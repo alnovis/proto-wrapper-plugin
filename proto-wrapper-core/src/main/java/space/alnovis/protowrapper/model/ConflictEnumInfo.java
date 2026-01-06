@@ -97,14 +97,17 @@ public class ConflictEnumInfo {
         return result;
     }
 
+    /** @return the original field name */
     public String getFieldName() {
         return fieldName;
     }
 
+    /** @return the generated enum name */
     public String getEnumName() {
         return enumName;
     }
 
+    /** @return the parent message name */
     public String getMessageName() {
         return messageName;
     }

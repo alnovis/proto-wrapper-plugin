@@ -17,6 +17,10 @@ public record EnumValueChange(
 
     /**
      * Creates a change record for an added enum value.
+     *
+     * @param name the enum value name
+     * @param number the enum value number
+     * @return new EnumValueChange for the addition
      */
     public static EnumValueChange added(String name, int number) {
         return new EnumValueChange(name, ChangeType.VALUE_ADDED, null, number);
@@ -24,6 +28,10 @@ public record EnumValueChange(
 
     /**
      * Creates a change record for a removed enum value.
+     *
+     * @param name the enum value name
+     * @param number the enum value number
+     * @return new EnumValueChange for the removal
      */
     public static EnumValueChange removed(String name, int number) {
         return new EnumValueChange(name, ChangeType.VALUE_REMOVED, number, null);
@@ -31,6 +39,11 @@ public record EnumValueChange(
 
     /**
      * Creates a change record for a changed enum value number.
+     *
+     * @param name the enum value name
+     * @param oldNumber the old enum value number
+     * @param newNumber the new enum value number
+     * @return new EnumValueChange for the number change
      */
     public static EnumValueChange numberChanged(String name, int oldNumber, int newNumber) {
         return new EnumValueChange(name, ChangeType.VALUE_NUMBER_CHANGED, oldNumber, newNumber);
@@ -39,6 +52,8 @@ public record EnumValueChange(
     /**
      * Returns true if this enum value change is a breaking change.
      * Removing a value or changing its number is breaking.
+     *
+     * @return true if this is a breaking change
      */
     public boolean isBreaking() {
         return changeType == ChangeType.VALUE_REMOVED ||
@@ -47,6 +62,8 @@ public record EnumValueChange(
 
     /**
      * Returns a summary of the change for display.
+     *
+     * @return human-readable summary of the change
      */
     public String getSummary() {
         return switch (changeType) {

@@ -36,7 +36,9 @@ package space.alnovis.protowrapper.exception;
  */
 public class ProtoWrapperException extends RuntimeException {
 
+    /** The error code. */
     private final ErrorCode errorCode;
+    /** The error context. */
     private final ErrorContext context;
 
     /**
@@ -147,6 +149,10 @@ public class ProtoWrapperException extends RuntimeException {
 
     /**
      * Formats the exception message with error code prefix.
+     *
+     * @param code the error code
+     * @param message the message
+     * @return the formatted message
      */
     private static String formatMessage(ErrorCode code, String message) {
         return String.format("[%s] %s", code.getCode(), message);
@@ -154,6 +160,11 @@ public class ProtoWrapperException extends RuntimeException {
 
     /**
      * Formats the exception message with error code and context location.
+     *
+     * @param code the error code
+     * @param message the message
+     * @param context the error context
+     * @return the formatted message
      */
     private static String formatMessage(ErrorCode code, String message, ErrorContext context) {
         if (context == null) {

@@ -36,6 +36,8 @@ public final class ConflictReporter {
     ) {
         /**
          * Get a summary string.
+         *
+         * @return summary string of conflicts
          */
         public String toSummary() {
             if (conflictFields == 0) {
@@ -51,6 +53,8 @@ public final class ConflictReporter {
 
         /**
          * Get a detailed string with all conflict information.
+         *
+         * @return detailed string with all conflicts
          */
         public String toDetailedString() {
             if (conflictFields == 0) {
@@ -86,6 +90,11 @@ public final class ConflictReporter {
             return String.format("%s.%s: %s", messagePath, fieldName, conflictType);
         }
 
+        /**
+         * Get a detailed string representation.
+         *
+         * @return detailed string with version types
+         */
         public String toDetailedString() {
             String versions = versionTypes.entrySet().stream()
                     .map(e -> e.getKey() + "=" + e.getValue())

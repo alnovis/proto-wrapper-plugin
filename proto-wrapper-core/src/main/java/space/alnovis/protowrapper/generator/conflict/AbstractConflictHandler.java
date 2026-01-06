@@ -31,6 +31,10 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add an abstract extractHas method for optional fields.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param ctx the processing context
      */
     protected void addAbstractHasMethod(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         if (field.isOptional() && !field.isRepeated()) {
@@ -44,6 +48,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add an abstract extract method.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param returnType the return type for the extract method
+     * @param ctx the processing context
      */
     protected void addAbstractExtractMethod(TypeSpec.Builder builder, MergedField field,
                                              TypeName returnType, ProcessingContext ctx) {
@@ -58,6 +67,11 @@ public abstract sealed class AbstractConflictHandler permits
      * Add a concrete has method implementation for present fields.
      * In proto3, scalar fields without 'optional' modifier do not have has*() methods,
      * so we return false for those fields.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param versionJavaName the Java name for this version
+     * @param ctx the processing context
      */
     protected void addHasMethodImpl(TypeSpec.Builder builder, MergedField field,
                                      String versionJavaName, ProcessingContext ctx) {
@@ -85,6 +99,10 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add a concrete has method implementation returning false (field not present).
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param ctx the processing context
      */
     protected void addMissingHasMethodImpl(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         if (field.isOptional() && !field.isRepeated()) {
@@ -101,6 +119,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add a getter implementation that delegates to extract methods.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param returnType the return type for the getter
+     * @param ctx the processing context
      */
     protected void addStandardGetterImpl(TypeSpec.Builder builder, MergedField field,
                                           TypeName returnType, ProcessingContext ctx) {
@@ -121,6 +144,10 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add has method implementation to abstract class.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param ctx the processing context
      */
     protected void addHasMethodToAbstract(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         if (field.isOptional() && !field.isRepeated()) {
@@ -150,6 +177,13 @@ public abstract sealed class AbstractConflictHandler permits
     /**
      * Add standard concrete builder methods for a repeated field.
      * Generates: addXxx, addAllXxx, setXxx (replace all), clearXxx
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param singleElementType the type of a single list element
+     * @param listType the type of the list parameter
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
      */
     protected void addRepeatedConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                                       TypeName singleElementType, TypeName listType,
@@ -199,6 +233,12 @@ public abstract sealed class AbstractConflictHandler permits
     /**
      * Add standard concrete builder methods for a scalar field.
      * Generates: setXxx, clearXxx (if optional)
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param fieldType the type of the field
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
      */
     protected void addScalarConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                                     TypeName fieldType, TypeName builderReturnType,
@@ -256,6 +296,14 @@ public abstract sealed class AbstractConflictHandler permits
     /**
      * Build a doSet implementation method that throws when field not present.
      * Use this for setter operations where silently ignoring would be confusing.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
+     * @param paramType the type of the method parameter
+     * @param paramName the name of the method parameter
+     * @param presentInVersion whether the field is present in the current version
+     * @param field the merged field definition
+     * @param bodyBuilder consumer that builds the method body when field is present
      */
     protected void buildDoSetImplOrThrow(TypeSpec.Builder builder, String methodName,
                                           TypeName paramType, String paramName,
@@ -272,6 +320,13 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Build a doSet implementation with simple protoBuilder.setXxx call.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
+     * @param paramType the type of the method parameter
+     * @param paramName the name of the method parameter
+     * @param presentInVersion whether the field is present in the current version
+     * @param versionJavaName the Java name for this version
      */
     protected void buildSimpleDoSetImpl(TypeSpec.Builder builder, String methodName,
                                          TypeName paramType, String paramName,
@@ -282,6 +337,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Build a doClear implementation method with version-conditional clear.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
+     * @param presentInVersion whether the field is present in the current version
+     * @param versionJavaName the Java name for this version
      */
     protected void buildDoClearImpl(TypeSpec.Builder builder, String methodName,
                                      boolean presentInVersion, String versionJavaName) {
@@ -295,6 +355,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Build a doClear implementation for a field using field's method name.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param field the merged field definition
+     * @param presentInVersion whether the field is present in the current version
+     * @param versionJavaName the Java name for this version
      */
     protected void buildDoClearImplForField(TypeSpec.Builder builder, MergedField field,
                                              boolean presentInVersion, String versionJavaName) {
@@ -305,6 +370,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add an abstract doSet method to the builder.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
+     * @param paramType the type of the method parameter
+     * @param paramName the name of the method parameter
      */
     protected void addAbstractDoSet(TypeSpec.Builder builder, String methodName, TypeName paramType, String paramName) {
         builder.addMethod(MethodSpec.methodBuilder(methodName)
@@ -315,6 +385,9 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add an abstract doClear method to the builder.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
      */
     protected void addAbstractDoClear(TypeSpec.Builder builder, String methodName) {
         builder.addMethod(MethodSpec.methodBuilder(methodName)
@@ -324,6 +397,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add abstract doSet and optionally doClear for a scalar field.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param fieldType the type of the field
+     * @param ctx the processing context
      */
     protected void addAbstractScalarBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                                     TypeName fieldType, ProcessingContext ctx) {
@@ -340,6 +418,12 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Add abstract doAdd, doAddAll, doSet, doClear for a repeated field.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param singleElementType the type of a single list element
+     * @param listType the type of the list parameter
+     * @param ctx the processing context
      */
     protected void addAbstractRepeatedBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                                       TypeName singleElementType, TypeName listType,
@@ -363,6 +447,12 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Build a concrete setXxx method that delegates to doSetXxx.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param fieldName the name of the field
+     * @param paramType the type of the method parameter
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
      */
     protected void addConcreteSetMethod(TypeSpec.Builder builder, String fieldName,
                                          TypeName paramType, TypeName builderReturnType,
@@ -380,6 +470,11 @@ public abstract sealed class AbstractConflictHandler permits
 
     /**
      * Build a concrete clearXxx method that delegates to doClearXxx.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param fieldName the name of the field
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
      */
     protected void addConcreteClearMethod(TypeSpec.Builder builder, String fieldName,
                                            TypeName builderReturnType, ProcessingContext ctx) {

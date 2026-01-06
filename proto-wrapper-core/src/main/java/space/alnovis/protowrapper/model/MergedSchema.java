@@ -18,6 +18,11 @@ public class MergedSchema {
     // Maps "MessageName.fieldName" -> ConflictEnumInfo
     private final Map<String, ConflictEnumInfo> conflictEnums;
 
+    /**
+     * Create a new MergedSchema.
+     *
+     * @param versions the list of version identifiers
+     */
     public MergedSchema(List<String> versions) {
         this.versions = new ArrayList<>(versions);
         this.messages = new LinkedHashMap<>();
@@ -55,35 +60,62 @@ public class MergedSchema {
 
     /**
      * Get all equivalent enum mappings.
+     *
+     * @return unmodifiable map of nested path to top-level enum name
      */
     public Map<String, String> getEquivalentEnumMappings() {
         return Collections.unmodifiableMap(equivalentEnumMappings);
     }
 
+    /**
+     * Add a message to this schema.
+     *
+     * @param message the message to add
+     */
     public void addMessage(MergedMessage message) {
         messages.put(message.getName(), message);
     }
 
+    /**
+     * Add an enum to this schema.
+     *
+     * @param enumInfo the enum to add
+     */
     public void addEnum(MergedEnum enumInfo) {
         enums.put(enumInfo.getName(), enumInfo);
     }
 
+    /**
+     * Get a message by name.
+     *
+     * @param name the message name
+     * @return the message if found
+     */
     public Optional<MergedMessage> getMessage(String name) {
         return Optional.ofNullable(messages.get(name));
     }
 
+    /**
+     * Get an enum by name.
+     *
+     * @param name the enum name
+     * @return the enum if found
+     */
     public Optional<MergedEnum> getEnum(String name) {
         return Optional.ofNullable(enums.get(name));
     }
 
+    /** @return unmodifiable list of version identifiers */
     public List<String> getVersions() {
         return Collections.unmodifiableList(versions);
     }
 
+    /** @return unmodifiable collection of all messages */
     public Collection<MergedMessage> getMessages() {
         return Collections.unmodifiableCollection(messages.values());
     }
 
+    /** @return unmodifiable collection of all enums */
     public Collection<MergedEnum> getEnums() {
         return Collections.unmodifiableCollection(enums.values());
     }

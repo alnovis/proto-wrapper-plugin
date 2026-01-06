@@ -63,8 +63,10 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class StringBytesHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final StringBytesHandler INSTANCE = new StringBytesHandler();
 
+    /** Private constructor for singleton. */
     private StringBytesHandler() {
         // Singleton
     }

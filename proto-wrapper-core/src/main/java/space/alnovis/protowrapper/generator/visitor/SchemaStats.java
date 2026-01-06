@@ -58,6 +58,8 @@ public record SchemaStats(
 
     /**
      * Get count of fields with conflicts (any type except NONE).
+     *
+     * @return count of fields with conflicts
      */
     public int conflictFieldCount() {
         return conflictCounts.entrySet().stream()
@@ -68,6 +70,9 @@ public record SchemaStats(
 
     /**
      * Get count of fields with a specific conflict type.
+     *
+     * @param type the conflict type to count
+     * @return count of fields with the specified conflict type
      */
     public int getConflictCount(MergedField.ConflictType type) {
         return conflictCounts.getOrDefault(type, 0);

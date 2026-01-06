@@ -24,22 +24,31 @@ import java.util.Set;
  */
 public enum JavaTypeMapping {
 
-    // Primitives
+    /** Primitive int type. */
     INT("int", TypeName.INT, "Integer", "0"),
+    /** Primitive long type. */
     LONG("long", TypeName.LONG, "Long", "0L"),
+    /** Primitive double type. */
     DOUBLE("double", TypeName.DOUBLE, "Double", "0.0"),
+    /** Primitive float type. */
     FLOAT("float", TypeName.FLOAT, "Float", "0.0f"),
+    /** Primitive boolean type. */
     BOOLEAN("boolean", TypeName.BOOLEAN, "Boolean", "false"),
 
-    // Boxed types
+    /** Boxed Integer type. */
     INTEGER_BOXED("Integer", ClassName.get(Integer.class), "Integer", "null"),
+    /** Boxed Long type. */
     LONG_BOXED("Long", ClassName.get(Long.class), "Long", "null"),
+    /** Boxed Double type. */
     DOUBLE_BOXED("Double", ClassName.get(Double.class), "Double", "null"),
+    /** Boxed Float type. */
     FLOAT_BOXED("Float", ClassName.get(Float.class), "Float", "null"),
+    /** Boxed Boolean type. */
     BOOLEAN_BOXED("Boolean", ClassName.get(Boolean.class), "Boolean", "null"),
 
-    // Special types
+    /** String type. */
     STRING("String", ClassName.get(String.class), "String", "null"),
+    /** Byte array type. */
     BYTE_ARRAY("byte[]", ArrayTypeName.of(TypeName.BYTE), "byte[]", "null");
 
     private final String name;

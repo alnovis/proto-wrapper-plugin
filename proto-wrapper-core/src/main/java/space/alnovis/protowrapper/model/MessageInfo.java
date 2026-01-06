@@ -26,14 +26,35 @@ public class MessageInfo {
     private final boolean isMapEntry;
     private final ProtoSyntax syntax;
 
+    /**
+     * Create a MessageInfo from a protobuf descriptor.
+     *
+     * @param proto the message descriptor
+     * @param packageName the Java package name
+     */
     public MessageInfo(DescriptorProto proto, String packageName) {
         this(proto, packageName, packageName + "." + proto.getName(), null, PROTO2);
     }
 
+    /**
+     * Create a MessageInfo from a protobuf descriptor with source file.
+     *
+     * @param proto the message descriptor
+     * @param packageName the Java package name
+     * @param sourceFileName the source proto file name
+     */
     public MessageInfo(DescriptorProto proto, String packageName, String sourceFileName) {
         this(proto, packageName, packageName + "." + proto.getName(), sourceFileName, PROTO2);
     }
 
+    /**
+     * Create a MessageInfo from a protobuf descriptor with source file and syntax.
+     *
+     * @param proto the message descriptor
+     * @param packageName the Java package name
+     * @param sourceFileName the source proto file name
+     * @param syntax the proto syntax version
+     */
     public MessageInfo(DescriptorProto proto, String packageName, String sourceFileName, ProtoSyntax syntax) {
         this(proto, packageName, packageName + "." + proto.getName(), sourceFileName, syntax);
     }
@@ -70,6 +91,9 @@ public class MessageInfo {
     /**
      * Extracts oneof groups from a DescriptorProto.
      * Filters out synthetic oneofs (used for proto3 optional fields).
+     *
+     * @param proto the message descriptor
+     * @return list of oneof groups
      */
     private static List<OneofInfo> extractOneofGroups(DescriptorProto proto) {
         List<OneofDescriptorProto> oneofProtos = proto.getOneofDeclList();
@@ -107,6 +131,11 @@ public class MessageInfo {
     /**
      * Checks if a oneof is synthetic (created for proto3 optional fields).
      * Synthetic oneofs have names starting with "_" and contain exactly one optional field.
+     *
+     * @param oneofName the oneof name
+     * @param proto the message descriptor
+     * @param oneofIndex the oneof index
+     * @return true if the oneof is synthetic
      */
     private static boolean isSyntheticOneof(String oneofName, DescriptorProto proto, int oneofIndex) {
         // Synthetic oneofs start with underscore
@@ -128,6 +157,12 @@ public class MessageInfo {
 
     /**
      * Creates FieldInfo objects with oneof information, map entry access, and syntax info.
+     *
+     * @param proto the message descriptor
+     * @param oneofGroups the list of oneof groups
+     * @param mapEntries map of entry type names to their descriptors
+     * @param syntax the proto syntax version
+     * @return list of field info objects
      */
     private static List<FieldInfo> createFieldsWithOneofInfo(DescriptorProto proto, List<OneofInfo> oneofGroups,
                                                               Map<String, DescriptorProto> mapEntries, ProtoSyntax syntax) {
@@ -151,14 +186,33 @@ public class MessageInfo {
         return result;
     }
 
-    // Constructor for merged messages
+    /**
+     * Constructor for merged messages.
+     *
+     * @param name the message name
+     * @param fullName the fully qualified name
+     * @param packageName the Java package name
+     * @param fields the list of fields
+     * @param nestedMessages the list of nested messages
+     * @param nestedEnums the list of nested enums
+     */
     public MessageInfo(String name, String fullName, String packageName,
                        List<FieldInfo> fields, List<MessageInfo> nestedMessages,
                        List<EnumInfo> nestedEnums) {
         this(name, fullName, packageName, fields, nestedMessages, nestedEnums, List.of());
     }
 
-    // Constructor for merged messages with oneof groups
+    /**
+     * Constructor for merged messages with oneof groups.
+     *
+     * @param name the message name
+     * @param fullName the fully qualified name
+     * @param packageName the Java package name
+     * @param fields the list of fields
+     * @param nestedMessages the list of nested messages
+     * @param nestedEnums the list of nested enums
+     * @param oneofGroups the list of oneof groups
+     */
     public MessageInfo(String name, String fullName, String packageName,
                        List<FieldInfo> fields, List<MessageInfo> nestedMessages,
                        List<EnumInfo> nestedEnums, List<OneofInfo> oneofGroups) {
@@ -176,6 +230,8 @@ public class MessageInfo {
 
     /**
      * Get fields sorted by field number.
+     *
+     * @return list of fields sorted by number
      */
     public List<FieldInfo> getFieldsSorted() {
         return fields.stream()
@@ -185,6 +241,8 @@ public class MessageInfo {
 
     /**
      * Get required fields (non-optional, non-repeated).
+     *
+     * @return list of required fields
      */
     public List<FieldInfo> getRequiredFields() {
         return fields.stream()
@@ -194,6 +252,8 @@ public class MessageInfo {
 
     /**
      * Get optional primitive fields (need has-check pattern).
+     *
+     * @return list of optional primitive fields
      */
     public List<FieldInfo> getOptionalPrimitiveFields() {
         return fields.stream()
@@ -203,6 +263,8 @@ public class MessageInfo {
 
     /**
      * Get optional message fields.
+     *
+     * @return list of optional message fields
      */
     public List<FieldInfo> getOptionalMessageFields() {
         return fields.stream()
@@ -212,6 +274,8 @@ public class MessageInfo {
 
     /**
      * Get repeated fields (lists), excluding map fields.
+     *
+     * @return list of repeated fields
      */
     public List<FieldInfo> getRepeatedFields() {
         return fields.stream()
@@ -221,6 +285,8 @@ public class MessageInfo {
 
     /**
      * Get map fields.
+     *
+     * @return list of map fields
      */
     public List<FieldInfo> getMapFields() {
         return fields.stream()
@@ -230,6 +296,9 @@ public class MessageInfo {
 
     /**
      * Find field by name.
+     *
+     * @param name the field name
+     * @return the field if found
      */
     public Optional<FieldInfo> findField(String name) {
         return fields.stream()
@@ -239,6 +308,9 @@ public class MessageInfo {
 
     /**
      * Find field by number.
+     *
+     * @param number the field number
+     * @return the field if found
      */
     public Optional<FieldInfo> findFieldByNumber(int number) {
         return fields.stream()
@@ -248,6 +320,8 @@ public class MessageInfo {
 
     /**
      * Check if this message has nested types.
+     *
+     * @return true if there are nested types
      */
     public boolean hasNestedTypes() {
         return !nestedMessages.isEmpty() || !nestedEnums.isEmpty();
@@ -255,6 +329,8 @@ public class MessageInfo {
 
     /**
      * Get all nested messages recursively.
+     *
+     * @return list of all nested messages
      */
     public List<MessageInfo> getAllNestedMessages() {
         List<MessageInfo> result = new ArrayList<>(nestedMessages);
@@ -266,6 +342,8 @@ public class MessageInfo {
 
     /**
      * Generate interface name (e.g., "Order" -> "Order").
+     *
+     * @return the interface name
      */
     public String getInterfaceName() {
         return name;
@@ -273,6 +351,8 @@ public class MessageInfo {
 
     /**
      * Generate abstract class name (e.g., "Order" -> "AbstractOrder").
+     *
+     * @return the abstract class name
      */
     public String getAbstractClassName() {
         return "Abstract" + name;
@@ -280,26 +360,41 @@ public class MessageInfo {
 
     /**
      * Generate version-specific class name (e.g., "Order", "v1" -> "OrderV1").
+     *
+     * @param version the version identifier
+     * @return the version-specific class name
      */
     public String getVersionClassName(String version) {
         return name + version.toUpperCase();
     }
 
-    // Getters
+    /** @return the message name */
     public String getName() { return name; }
+    /** @return the fully qualified name */
     public String getFullName() { return fullName; }
+    /** @return the Java package name */
     public String getPackageName() { return packageName; }
+    /** @return the source proto file name */
     public String getSourceFileName() { return sourceFileName; }
+    /** @return unmodifiable list of fields */
     public List<FieldInfo> getFields() { return Collections.unmodifiableList(fields); }
+    /** @return unmodifiable list of nested messages */
     public List<MessageInfo> getNestedMessages() { return Collections.unmodifiableList(nestedMessages); }
+    /** @return unmodifiable list of nested enums */
     public List<EnumInfo> getNestedEnums() { return Collections.unmodifiableList(nestedEnums); }
+    /** @return unmodifiable list of oneof groups */
     public List<OneofInfo> getOneofGroups() { return Collections.unmodifiableList(oneofGroups); }
+    /** @return true if this is a map entry message */
     public boolean isMapEntry() { return isMapEntry; }
+    /** @return the proto syntax version */
     public ProtoSyntax getSyntax() { return syntax; }
+    /** @return true if proto3 syntax */
     public boolean isProto3() { return syntax.isProto3(); }
 
     /**
      * Check if this message has any oneof groups.
+     *
+     * @return true if there are oneof groups
      */
     public boolean hasOneofGroups() {
         return !oneofGroups.isEmpty();
@@ -307,6 +402,9 @@ public class MessageInfo {
 
     /**
      * Find oneof group by name.
+     *
+     * @param name the oneof name
+     * @return the oneof if found
      */
     public Optional<OneofInfo> findOneofByName(String name) {
         return oneofGroups.stream()
@@ -316,6 +414,9 @@ public class MessageInfo {
 
     /**
      * Find oneof group containing a specific field.
+     *
+     * @param field the field to search for
+     * @return the oneof containing the field, if found
      */
     public Optional<OneofInfo> findOneofForField(FieldInfo field) {
         return oneofGroups.stream()
@@ -325,6 +426,9 @@ public class MessageInfo {
 
     /**
      * Get fields that are part of a specific oneof group.
+     *
+     * @param oneof the oneof group
+     * @return list of fields in the oneof
      */
     public List<FieldInfo> getFieldsInOneof(OneofInfo oneof) {
         return fields.stream()
@@ -334,6 +438,8 @@ public class MessageInfo {
 
     /**
      * Get fields that are NOT part of any oneof group.
+     *
+     * @return list of non-oneof fields
      */
     public List<FieldInfo> getNonOneofFields() {
         return fields.stream()
@@ -344,6 +450,8 @@ public class MessageInfo {
     /**
      * Get the outer class name derived from the source file name.
      * E.g., "common.proto" -> "Common", "user_request.proto" -> "UserRequest"
+     *
+     * @return the outer class name
      */
     public String getOuterClassName() {
         if (sourceFileName == null) {

@@ -23,6 +23,9 @@ public record EnumDiff(
 
     /**
      * Creates a diff for an added enum.
+     *
+     * @param enumInfo the added enum info
+     * @return the enum diff
      */
     public static EnumDiff added(EnumInfo enumInfo) {
         return new EnumDiff(
@@ -36,6 +39,9 @@ public record EnumDiff(
 
     /**
      * Creates a diff for a removed enum.
+     *
+     * @param enumInfo the removed enum info
+     * @return the enum diff
      */
     public static EnumDiff removed(EnumInfo enumInfo) {
         return new EnumDiff(
@@ -49,6 +55,11 @@ public record EnumDiff(
 
     /**
      * Creates a diff for a modified enum.
+     *
+     * @param v1 the enum in source version
+     * @param v2 the enum in target version
+     * @param changes the list of value changes
+     * @return the enum diff
      */
     public static EnumDiff modified(EnumInfo v1, EnumInfo v2, List<EnumValueChange> changes) {
         return new EnumDiff(
@@ -62,6 +73,8 @@ public record EnumDiff(
 
     /**
      * Returns the list of added enum values.
+     *
+     * @return the list of added values
      */
     public List<EnumValueChange> getAddedValues() {
         return valueChanges.stream()
@@ -71,6 +84,8 @@ public record EnumDiff(
 
     /**
      * Returns the list of removed enum values.
+     *
+     * @return the list of removed values
      */
     public List<EnumValueChange> getRemovedValues() {
         return valueChanges.stream()
@@ -80,6 +95,8 @@ public record EnumDiff(
 
     /**
      * Returns the list of values with changed numbers.
+     *
+     * @return the list of changed values
      */
     public List<EnumValueChange> getChangedValues() {
         return valueChanges.stream()
@@ -89,6 +106,8 @@ public record EnumDiff(
 
     /**
      * Returns true if this enum has breaking changes.
+     *
+     * @return true if there are breaking changes
      */
     public boolean hasBreakingChanges() {
         if (changeType == ChangeType.REMOVED) {
@@ -99,6 +118,8 @@ public record EnumDiff(
 
     /**
      * Returns a summary of the changes.
+     *
+     * @return the change summary string
      */
     public String getSummary() {
         return switch (changeType) {

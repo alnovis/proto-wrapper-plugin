@@ -20,7 +20,9 @@ import java.util.Set;
  */
 public class OneofConflictException extends SchemaValidationException {
 
+    /** The oneof name. */
     private final String oneofName;
+    /** Versions affected by the conflict. */
     private final Set<String> versionsAffected;
 
     /**

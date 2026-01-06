@@ -38,11 +38,22 @@ public class GenerationOrchestrator {
     private final PluginLogger logger;
     private IncrementalStateManager stateManager;
 
+    /**
+     * Create a new GenerationOrchestrator with the given config and logger.
+     *
+     * @param config the generator configuration
+     * @param logger the plugin logger
+     */
     public GenerationOrchestrator(GeneratorConfig config, PluginLogger logger) {
         this.config = config;
         this.logger = logger != null ? logger : PluginLogger.console();
     }
 
+    /**
+     * Create a new GenerationOrchestrator with console logging.
+     *
+     * @param config the generator configuration
+     */
     public GenerationOrchestrator(GeneratorConfig config) {
         this(config, PluginLogger.console());
     }
@@ -554,6 +565,8 @@ public class GenerationOrchestrator {
     public interface VersionConfig {
         /**
          * Get the version identifier (e.g., "v1", "v2").
+         *
+         * @return the version identifier string
          */
         String getVersionId();
     }

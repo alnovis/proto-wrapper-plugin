@@ -58,8 +58,10 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class PrimitiveMessageHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final PrimitiveMessageHandler INSTANCE = new PrimitiveMessageHandler();
 
+    /** Private constructor for singleton. */
     private PrimitiveMessageHandler() {
         // Singleton
     }

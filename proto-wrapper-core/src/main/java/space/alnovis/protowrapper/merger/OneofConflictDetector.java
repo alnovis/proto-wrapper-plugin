@@ -47,6 +47,12 @@ public class OneofConflictDetector {
 
     /**
      * Detects if oneof exists only in some versions.
+     *
+     * @param oneofName the oneof name
+     * @param messageName the message name
+     * @param versionOneofs map of version to oneof info
+     * @param allVersions all versions being merged
+     * @return list of detected conflicts
      */
     private List<OneofConflictInfo> detectPartialExistence(
             String oneofName,
@@ -74,6 +80,11 @@ public class OneofConflictDetector {
 
     /**
      * Detects different field sets in oneof across versions.
+     *
+     * @param oneofName the oneof name
+     * @param messageName the message name
+     * @param versionOneofs map of version to oneof info
+     * @return list of detected conflicts
      */
     private List<OneofConflictInfo> detectFieldSetDifferences(
             String oneofName,
@@ -145,6 +156,11 @@ public class OneofConflictDetector {
 
     /**
      * Detects type conflicts in oneof fields.
+     *
+     * @param oneofName the oneof name
+     * @param messageName the message name
+     * @param fields the merged fields in the oneof
+     * @return list of detected conflicts
      */
     private List<OneofConflictInfo> detectFieldTypeConflicts(
             String oneofName,
@@ -174,6 +190,11 @@ public class OneofConflictDetector {
 
     /**
      * Detects fields that were removed from oneof in some versions.
+     *
+     * @param oneofName the oneof name
+     * @param messageName the message name
+     * @param versionOneofs map of version to oneof info
+     * @return list of detected conflicts
      */
     private List<OneofConflictInfo> detectFieldRemoval(
             String oneofName,
@@ -435,6 +456,8 @@ public class OneofConflictDetector {
     ) {
         /**
          * Get all unique names this oneof had across versions.
+         *
+         * @return set of unique names
          */
         public Set<String> getAllNames() {
             return new LinkedHashSet<>(versionToName.values());
@@ -442,6 +465,8 @@ public class OneofConflictDetector {
 
         /**
          * Get the most common name (or first if tied).
+         *
+         * @return the most common name
          */
         public String getMostCommonName() {
             Map<String, Long> nameCounts = versionToName.values().stream()
@@ -454,6 +479,8 @@ public class OneofConflictDetector {
 
         /**
          * Create a conflict info for this renamed group.
+         *
+         * @return the conflict info
          */
         public OneofConflictInfo toConflictInfo() {
             return OneofConflictInfo.builder(OneofConflictType.RENAMED)
