@@ -22,7 +22,9 @@ import java.util.Set;
  */
 public class FieldNotAvailableException extends ConversionException {
 
+    /** The unavailable field name. */
     private final String fieldName;
+    /** Versions where the field is available. */
     private final Set<String> availableInVersions;
 
     /**

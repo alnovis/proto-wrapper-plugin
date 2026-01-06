@@ -34,6 +34,9 @@ public class ProtocExecutor {
     private final PluginLogger logger;
     private String protocPath = PROTOC_COMMAND;
 
+    /**
+     * Create a ProtocExecutor with console logging.
+     */
     public ProtocExecutor() {
         this(PluginLogger.console());
     }
@@ -48,12 +51,19 @@ public class ProtocExecutor {
         this(PluginLogger.fromConsumer(logger));
     }
 
+    /**
+     * Create a ProtocExecutor with the specified logger.
+     *
+     * @param logger the logger to use
+     */
     public ProtocExecutor(PluginLogger logger) {
         this.logger = logger;
     }
 
     /**
      * Set custom path to protoc executable.
+     *
+     * @param protocPath the path to protoc
      */
     public void setProtocPath(String protocPath) {
         this.protocPath = protocPath;
@@ -165,6 +175,10 @@ public class ProtocExecutor {
 
     /**
      * Find all .proto files in directory recursively.
+     *
+     * @param directory the directory to search
+     * @return list of proto files
+     * @throws IOException if directory cannot be read
      */
     public List<Path> findProtoFiles(Path directory) throws IOException {
         return findProtoFiles(directory, (String[]) null);
@@ -176,6 +190,7 @@ public class ProtocExecutor {
      * @param directory Directory to search
      * @param excludePatterns Glob patterns for files to exclude (e.g., "updater.proto")
      * @return List of proto files
+     * @throws IOException if directory cannot be read
      */
     public List<Path> findProtoFiles(Path directory, String[] excludePatterns) throws IOException {
         if (!Files.isDirectory(directory)) {
@@ -229,6 +244,7 @@ public class ProtocExecutor {
      * @param includePattern Glob pattern for files to include
      * @param excludePattern Glob pattern for files to exclude (nullable)
      * @return List of matching proto files
+     * @throws IOException if directory cannot be read
      */
     public List<Path> findProtoFiles(Path directory, String includePattern, String excludePattern)
             throws IOException {
@@ -322,6 +338,7 @@ public class ProtocExecutor {
      *
      * @param protoFile Proto file to analyze
      * @return Java package or null if not found
+     * @throws IOException if the file cannot be read
      */
     public String extractJavaPackage(Path protoFile) throws IOException {
         String content = Files.readString(protoFile);
@@ -342,6 +359,7 @@ public class ProtocExecutor {
      *
      * @param protoFile Proto file to analyze
      * @return Outer class name or null if not found
+     * @throws IOException if the file cannot be read
      */
     public String extractJavaOuterClassname(Path protoFile) throws IOException {
         String content = Files.readString(protoFile);
@@ -361,6 +379,7 @@ public class ProtocExecutor {
      *
      * @param protoFile Proto file to analyze
      * @return Proto package or null if not found
+     * @throws IOException if the file cannot be read
      */
     public String extractProtoPackage(Path protoFile) throws IOException {
         String content = Files.readString(protoFile);
@@ -382,6 +401,7 @@ public class ProtocExecutor {
      * @param sourceDir Directory with proto files
      * @param javaPackage Base Java package for generated classes
      * @return Map of message name to fully qualified Java class name
+     * @throws IOException if proto files cannot be read
      */
     public java.util.Map<String, String> buildProtoMappings(Path sourceDir, String javaPackage)
             throws IOException {
@@ -395,6 +415,7 @@ public class ProtocExecutor {
      * @param javaPackage Base Java package for generated classes
      * @param excludePatterns Glob patterns for files to exclude
      * @return Map of message name to fully qualified Java class name
+     * @throws IOException if proto files cannot be read
      */
     public java.util.Map<String, String> buildProtoMappings(Path sourceDir, String javaPackage, String[] excludePatterns)
             throws IOException {

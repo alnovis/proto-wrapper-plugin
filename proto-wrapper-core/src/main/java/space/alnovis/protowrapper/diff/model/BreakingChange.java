@@ -119,6 +119,8 @@ public record BreakingChange(
 
     /**
      * Returns true if this is an error-level breaking change.
+     *
+     * @return true if severity is ERROR
      */
     public boolean isError() {
         return severity == Severity.ERROR;
@@ -126,6 +128,8 @@ public record BreakingChange(
 
     /**
      * Returns true if this is a warning-level breaking change.
+     *
+     * @return true if severity is WARNING
      */
     public boolean isWarning() {
         return severity == Severity.WARNING;
@@ -133,6 +137,8 @@ public record BreakingChange(
 
     /**
      * Returns a formatted string representation for display.
+     *
+     * @return formatted display string
      */
     public String toDisplayString() {
         StringBuilder sb = new StringBuilder();

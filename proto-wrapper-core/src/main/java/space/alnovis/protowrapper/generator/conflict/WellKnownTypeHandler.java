@@ -18,6 +18,7 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  *
  * <h2>Supported Conversions</h2>
  * <table>
+ *   <caption>Well-Known Type Conversions</caption>
  *   <tr><th>Proto Type</th><th>Java Type</th></tr>
  *   <tr><td>google.protobuf.Timestamp</td><td>java.time.Instant</td></tr>
  *   <tr><td>google.protobuf.Duration</td><td>java.time.Duration</td></tr>
@@ -53,8 +54,10 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class WellKnownTypeHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final WellKnownTypeHandler INSTANCE = new WellKnownTypeHandler();
 
+    /** Private constructor for singleton. */
     private WellKnownTypeHandler() {
         // Singleton
     }

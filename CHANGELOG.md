@@ -11,6 +11,59 @@ _No changes yet._
 
 ---
 
+## [1.6.2] - 2026-01-05
+
+### Added
+
+#### PRIMITIVE_MESSAGE Builder Support
+- **Dual setters for PRIMITIVE_MESSAGE conflicts** - Full builder support for fields that change type from primitive to message across protocol versions
+  - `setXxx(primitive)` - for versions where field is primitive type (int, long, String, etc.)
+  - `setXxxMessage(Message)` - for versions where field is message type
+  - Runtime validation throws `UnsupportedOperationException` if wrong setter called for version
+  - Mirrors existing dual getter pattern (`getXxx()` / `getXxxMessage()`)
+
+#### Example Usage
+```java
+// V1 (primitive version) - use primitive setter
+Order v1 = Order.newBuilder(ctxV1)
+    .setTotal(1000L)           // Works - v1 uses int64
+    .build();
+
+// V2 (message version) - use message setter
+Order v2 = Order.newBuilder(ctxV2)
+    .setTotalMessage(Money.newBuilder(ctxV2)
+        .setAmount(1000L)
+        .setCurrency("USD")
+        .build())
+    .build();
+
+// Wrong setter throws at runtime
+Order.newBuilder(ctxV1)
+    .setTotalMessage(money);   // throws UnsupportedOperationException
+```
+
+#### New Integration Tests
+- `PrimitiveMessageBuilderTest` with 16 tests covering:
+  - V1 (primitive) builder operations
+  - V2 (message) builder operations
+  - Runtime validation (wrong setter throws)
+  - Round-trip serialization
+  - toBuilder() modifications
+
+### Changed
+
+- `MergedField.ConflictType.shouldSkipBuilderSetter()` - Now returns false for PRIMITIVE_MESSAGE
+- `BuilderInterfaceGenerator` - Added handler for PRIMITIVE_MESSAGE conflict type
+- `PrimitiveMessageHandler` - Implemented builder methods (previously empty)
+- Added helper methods to `MergedField`:
+  - `getDoSetMessageMethodName()` - for message value setter
+  - `getSupportsPrimitiveMethodName()` - for primitive type check
+  - `getSupportsMessageMethodName()` - for message type check
+  - `isPrimitiveInVersion(String)` - check if field is primitive in version
+  - `isMessageInVersion(String)` - check if field is message in version
+
+---
+
 ## [1.6.1] - 2026-01-05
 
 ### Fixed

@@ -42,6 +42,7 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class EnumEnumHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance of the enum-enum handler. */
     public static final EnumEnumHandler INSTANCE = new EnumEnumHandler();
 
     private EnumEnumHandler() {

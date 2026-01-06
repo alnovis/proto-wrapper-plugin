@@ -1,3 +1,84 @@
+# Release Notes - Proto Wrapper Plugin v1.6.2
+
+**Release Date:** January 5, 2026
+
+## Overview
+
+Version 1.6.2 adds **Builder API support for PRIMITIVE_MESSAGE conflicts** - fields that change type from primitive to message across protocol versions now have full builder support with dual setters.
+
+## What's New
+
+### PRIMITIVE_MESSAGE Builder Support
+
+Previously, fields with PRIMITIVE_MESSAGE conflicts (e.g., `int64` in v1 -> `Money` in v2) were read-only. Now they have full builder support:
+
+#### Dual Setters Pattern
+
+```java
+interface Order.Builder {
+    // For versions where field is primitive (v1)
+    Builder setTotal(long total);
+
+    // For versions where field is message (v2)
+    Builder setTotalMessage(Money total);
+
+    // Clear works for both
+    Builder clearTotal();
+}
+```
+
+#### Runtime Validation
+
+The plugin generates runtime validation to prevent using the wrong setter:
+
+```java
+// V1 (primitive version)
+Order v1 = Order.newBuilder(ctxV1)
+    .setTotal(1000L)           // OK
+    .build();
+
+Order.newBuilder(ctxV1)
+    .setTotalMessage(money);   // throws UnsupportedOperationException
+
+// V2 (message version)
+Order v2 = Order.newBuilder(ctxV2)
+    .setTotalMessage(money)    // OK
+    .build();
+
+Order.newBuilder(ctxV2)
+    .setTotal(1000L);          // throws UnsupportedOperationException
+```
+
+### New Tests
+
+- `PrimitiveMessageBuilderTest` - 16 tests covering all builder scenarios
+
+## Upgrade Guide
+
+Simply update the version:
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.2</version>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.6.2"
+}
+```
+
+## Breaking Changes
+
+None. Fully backward compatible with v1.6.1.
+
+---
+
 # Release Notes - Proto Wrapper Plugin v1.6.1
 
 **Release Date:** January 5, 2026

@@ -62,6 +62,7 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class IntEnumHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance of the int-enum handler. */
     public static final IntEnumHandler INSTANCE = new IntEnumHandler();
 
     private IntEnumHandler() {

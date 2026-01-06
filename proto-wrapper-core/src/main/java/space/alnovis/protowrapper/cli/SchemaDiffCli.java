@@ -51,6 +51,11 @@ import java.util.concurrent.Callable;
 )
 public class SchemaDiffCli implements Callable<Integer> {
 
+    /**
+     * Main entry point for the CLI.
+     *
+     * @param args command line arguments
+     */
     public static void main(String[] args) {
         int exitCode = new CommandLine(new SchemaDiffCli()).execute(args);
         System.exit(exitCode);

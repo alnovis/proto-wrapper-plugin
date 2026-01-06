@@ -23,30 +23,43 @@ public class OneofConflictInfo {
         this.details = Collections.unmodifiableMap(new LinkedHashMap<>(builder.details));
     }
 
+    /** @return the conflict type */
     public OneofConflictType getType() {
         return type;
     }
 
+    /** @return the oneof name */
     public String getOneofName() {
         return oneofName;
     }
 
+    /** @return the message name containing this oneof */
     public String getMessageName() {
         return messageName;
     }
 
+    /** @return the conflict description */
     public String getDescription() {
         return description;
     }
 
+    /** @return unmodifiable set of affected version identifiers */
     public Set<String> getAffectedVersions() {
         return affectedVersions;
     }
 
+    /** @return unmodifiable map of detail key-value pairs */
     public Map<String, Object> getDetails() {
         return details;
     }
 
+    /**
+     * Get a detail value by key.
+     *
+     * @param key the detail key
+     * @param <T> the expected value type
+     * @return the detail value, or null if not found
+     */
     @SuppressWarnings("unchecked")
     public <T> T getDetail(String key) {
         return (T) details.get(key);
@@ -54,6 +67,8 @@ public class OneofConflictInfo {
 
     /**
      * Get a formatted message for logging.
+     *
+     * @return formatted log message
      */
     public String toLogMessage() {
         StringBuilder sb = new StringBuilder();
@@ -71,6 +86,12 @@ public class OneofConflictInfo {
         return toLogMessage();
     }
 
+    /**
+     * Create a new builder for OneofConflictInfo.
+     *
+     * @param type the conflict type
+     * @return new Builder instance
+     */
     public static Builder builder(OneofConflictType type) {
         return new Builder(type);
     }
@@ -98,6 +119,9 @@ public class OneofConflictInfo {
     /** For FIELD_TYPE_CONFLICT: the MergedField.ConflictType */
     public static final String DETAIL_FIELD_CONFLICT_TYPE = "fieldConflictType";
 
+    /**
+     * Builder for constructing OneofConflictInfo instances.
+     */
     public static class Builder {
         private final OneofConflictType type;
         private String oneofName = "";
@@ -106,41 +130,88 @@ public class OneofConflictInfo {
         private final Set<String> affectedVersions = new LinkedHashSet<>();
         private final Map<String, Object> details = new LinkedHashMap<>();
 
+        /**
+         * Create a new Builder.
+         *
+         * @param type the conflict type
+         */
         private Builder(OneofConflictType type) {
             this.type = Objects.requireNonNull(type);
             this.description = type.getDescription();
         }
 
+        /**
+         * Set the oneof name.
+         *
+         * @param oneofName the oneof name
+         * @return this builder for chaining
+         */
         public Builder oneofName(String oneofName) {
             this.oneofName = oneofName;
             return this;
         }
 
+        /**
+         * Set the message name.
+         *
+         * @param messageName the message name
+         * @return this builder for chaining
+         */
         public Builder messageName(String messageName) {
             this.messageName = messageName;
             return this;
         }
 
+        /**
+         * Set the description.
+         *
+         * @param description the conflict description
+         * @return this builder for chaining
+         */
         public Builder description(String description) {
             this.description = description;
             return this;
         }
 
+        /**
+         * Add an affected version.
+         *
+         * @param version the version identifier
+         * @return this builder for chaining
+         */
         public Builder affectedVersion(String version) {
             this.affectedVersions.add(version);
             return this;
         }
 
+        /**
+         * Add multiple affected versions.
+         *
+         * @param versions the version identifiers to add
+         * @return this builder for chaining
+         */
         public Builder affectedVersions(Collection<String> versions) {
             this.affectedVersions.addAll(versions);
             return this;
         }
 
+        /**
+         * Add a detail key-value pair.
+         *
+         * @param key the detail key
+         * @param value the detail value
+         * @return this builder for chaining
+         */
         public Builder detail(String key, Object value) {
             this.details.put(key, value);
             return this;
         }
 
+        /**
+         * Build the OneofConflictInfo.
+         *
+         * @return the built instance
+         */
         public OneofConflictInfo build() {
             return new OneofConflictInfo(this);
         }

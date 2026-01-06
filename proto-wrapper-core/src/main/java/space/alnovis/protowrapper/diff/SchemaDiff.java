@@ -54,6 +54,12 @@ public class SchemaDiff {
 
     /**
      * Creates a new SchemaDiff result.
+     *
+     * @param v1Name the source version name
+     * @param v2Name the target version name
+     * @param messageDiffs the list of message differences
+     * @param enumDiffs the list of enum differences
+     * @param breakingChanges the list of breaking changes
      */
     public SchemaDiff(
             String v1Name,
@@ -178,6 +184,8 @@ public class SchemaDiff {
 
     /**
      * Returns the name of the source version.
+     *
+     * @return the source version name
      */
     public String getV1Name() {
         return v1Name;
@@ -185,6 +193,8 @@ public class SchemaDiff {
 
     /**
      * Returns the name of the target version.
+     *
+     * @return the target version name
      */
     public String getV2Name() {
         return v2Name;
@@ -192,6 +202,8 @@ public class SchemaDiff {
 
     /**
      * Returns all message diffs.
+     *
+     * @return list of message differences
      */
     public List<MessageDiff> getMessageDiffs() {
         return messageDiffs;
@@ -199,6 +211,8 @@ public class SchemaDiff {
 
     /**
      * Returns all enum diffs.
+     *
+     * @return list of enum differences
      */
     public List<EnumDiff> getEnumDiffs() {
         return enumDiffs;
@@ -206,6 +220,8 @@ public class SchemaDiff {
 
     /**
      * Returns messages that were added in the target version.
+     *
+     * @return list of added messages
      */
     public List<MessageInfo> getAddedMessages() {
         return messageDiffs.stream()
@@ -216,6 +232,8 @@ public class SchemaDiff {
 
     /**
      * Returns messages that were removed in the target version.
+     *
+     * @return list of removed messages
      */
     public List<MessageInfo> getRemovedMessages() {
         return messageDiffs.stream()
@@ -226,6 +244,8 @@ public class SchemaDiff {
 
     /**
      * Returns messages that were modified between versions.
+     *
+     * @return list of modified message diffs
      */
     public List<MessageDiff> getModifiedMessages() {
         return messageDiffs.stream()
@@ -235,6 +255,8 @@ public class SchemaDiff {
 
     /**
      * Returns enums that were added in the target version.
+     *
+     * @return list of added enums
      */
     public List<EnumInfo> getAddedEnums() {
         return enumDiffs.stream()
@@ -245,6 +267,8 @@ public class SchemaDiff {
 
     /**
      * Returns enums that were removed in the target version.
+     *
+     * @return list of removed enums
      */
     public List<EnumInfo> getRemovedEnums() {
         return enumDiffs.stream()
@@ -255,6 +279,8 @@ public class SchemaDiff {
 
     /**
      * Returns enums that were modified between versions.
+     *
+     * @return list of modified enum diffs
      */
     public List<EnumDiff> getModifiedEnums() {
         return enumDiffs.stream()
@@ -267,6 +293,8 @@ public class SchemaDiff {
     /**
      * Returns true if there are any ERROR-level breaking changes.
      * INFO-level changes (plugin-handled) and WARNING-level changes are not considered breaking.
+     *
+     * @return true if there are ERROR-level breaking changes
      */
     public boolean hasBreakingChanges() {
         return breakingChanges.stream().anyMatch(BreakingChange::isError);
@@ -274,6 +302,8 @@ public class SchemaDiff {
 
     /**
      * Returns all breaking changes.
+     *
+     * @return unmodifiable list of breaking changes
      */
     public List<BreakingChange> getBreakingChanges() {
         return Collections.unmodifiableList(breakingChanges);
@@ -281,6 +311,8 @@ public class SchemaDiff {
 
     /**
      * Returns breaking changes of ERROR severity only.
+     *
+     * @return list of ERROR-level breaking changes
      */
     public List<BreakingChange> getErrors() {
         return breakingChanges.stream()
@@ -290,6 +322,8 @@ public class SchemaDiff {
 
     /**
      * Returns breaking changes of WARNING severity only.
+     *
+     * @return list of WARNING-level breaking changes
      */
     public List<BreakingChange> getWarnings() {
         return breakingChanges.stream()
@@ -301,6 +335,8 @@ public class SchemaDiff {
 
     /**
      * Returns the diff summary.
+     *
+     * @return the diff summary
      */
     public DiffSummary getSummary() {
         return summary;
@@ -339,6 +375,8 @@ public class SchemaDiff {
 
     /**
      * Formats the diff as plain text.
+     *
+     * @return plain text representation of the diff
      */
     public String toText() {
         return new TextDiffFormatter().format(this);
@@ -346,6 +384,8 @@ public class SchemaDiff {
 
     /**
      * Formats the diff as JSON.
+     *
+     * @return JSON representation of the diff
      */
     public String toJson() {
         return new JsonDiffFormatter().format(this);
@@ -353,6 +393,8 @@ public class SchemaDiff {
 
     /**
      * Formats the diff as Markdown.
+     *
+     * @return Markdown representation of the diff
      */
     public String toMarkdown() {
         return new MarkdownDiffFormatter().format(this);
@@ -360,6 +402,9 @@ public class SchemaDiff {
 
     /**
      * Formats the diff using a custom formatter.
+     *
+     * @param formatter the formatter to use
+     * @return formatted representation of the diff
      */
     public String format(DiffFormatter formatter) {
         return formatter.format(this);
@@ -369,6 +414,16 @@ public class SchemaDiff {
 
     /**
      * Summary statistics for the schema diff.
+     *
+     * @param addedMessages count of added messages
+     * @param removedMessages count of removed messages
+     * @param modifiedMessages count of modified messages
+     * @param addedEnums count of added enums
+     * @param removedEnums count of removed enums
+     * @param modifiedEnums count of modified enums
+     * @param errorCount count of error-level breaking changes
+     * @param warningCount count of warning-level breaking changes
+     * @param infoCount count of info-level breaking changes
      */
     public record DiffSummary(
         int addedMessages,
@@ -383,6 +438,8 @@ public class SchemaDiff {
     ) {
         /**
          * Returns true if there are any differences.
+         *
+         * @return true if there are differences
          */
         public boolean hasDifferences() {
             return addedMessages > 0 || removedMessages > 0 || modifiedMessages > 0 ||
@@ -391,6 +448,8 @@ public class SchemaDiff {
 
         /**
          * Returns true if there are breaking changes (errors only, not warnings or info).
+         *
+         * @return true if there are error-level breaking changes
          */
         public boolean hasBreakingChanges() {
             return errorCount > 0;
@@ -398,6 +457,8 @@ public class SchemaDiff {
 
         /**
          * Returns total number of entity changes.
+         *
+         * @return total count of entity changes
          */
         public int totalChanges() {
             return addedMessages + removedMessages + modifiedMessages +

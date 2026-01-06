@@ -29,6 +29,12 @@ public class TypeResolver {
     private final GeneratorConfig config;
     private final MergedSchema schema;
 
+    /**
+     * Create a new TypeResolver with the specified configuration and schema.
+     *
+     * @param config the generator configuration
+     * @param schema the merged schema
+     */
     public TypeResolver(GeneratorConfig config, MergedSchema schema) {
         this.config = config;
         this.schema = schema;
@@ -292,7 +298,7 @@ public class TypeResolver {
 
     /**
      * Extract simple type name from a potentially qualified name.
-     * E.g., "java.util.List<EnumType>" -> "EnumType"
+     * E.g., {@code "java.util.List<EnumType>" -> "EnumType"}
      *
      * @param typeName Full type name
      * @return Simple type name
@@ -325,11 +331,20 @@ public class TypeResolver {
         }
     }
 
-    // Getters for config and schema
+    /**
+     * Returns the generator configuration.
+     *
+     * @return the generator configuration
+     */
     public GeneratorConfig getConfig() {
         return config;
     }
 
+    /**
+     * Returns the merged schema.
+     *
+     * @return the merged schema
+     */
     public MergedSchema getSchema() {
         return schema;
     }

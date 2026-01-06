@@ -25,6 +25,13 @@ public record BuilderImplContext(
 ) {
     /**
      * Create context for a top-level builder impl.
+     *
+     * @param message the merged message
+     * @param protoType the proto class name
+     * @param implClassName the implementation class name
+     * @param genCtx the generation context
+     * @param config the generator configuration
+     * @return new context for top-level builder
      */
     public static BuilderImplContext forTopLevel(
             MergedMessage message,
@@ -47,6 +54,14 @@ public record BuilderImplContext(
 
     /**
      * Create context for a nested builder impl.
+     *
+     * @param nested the nested merged message
+     * @param protoType the proto class name
+     * @param abstractBuilderType the abstract builder type
+     * @param implClassName the implementation class name
+     * @param genCtx the generation context
+     * @param config the generator configuration
+     * @return new context for nested builder
      */
     public static BuilderImplContext forNested(
             MergedMessage nested,
@@ -65,23 +80,48 @@ public record BuilderImplContext(
                 interfaceType, implClassName, genCtx, config);
     }
 
-    // Convenience methods
+    /**
+     * Get the version string.
+     *
+     * @return the version string
+     */
     public String version() {
         return genCtx.requireVersion();
     }
 
+    /**
+     * Get the type resolver.
+     *
+     * @return the type resolver
+     */
     public TypeResolver resolver() {
         return genCtx.getTypeResolver();
     }
 
+    /**
+     * Get the merged schema.
+     *
+     * @return the merged schema
+     */
     public MergedSchema schema() {
         return genCtx.getSchema();
     }
 
+    /**
+     * Capitalize a name.
+     *
+     * @param name the name to capitalize
+     * @return the capitalized name
+     */
     public String capitalize(String name) {
         return resolver().capitalize(name);
     }
 
+    /**
+     * Get the Builder nested interface type.
+     *
+     * @return the builder interface class name
+     */
     public ClassName builderInterfaceType() {
         return interfaceType.nestedClass("Builder");
     }

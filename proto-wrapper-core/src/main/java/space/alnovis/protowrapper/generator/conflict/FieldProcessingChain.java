@@ -54,6 +54,11 @@ public final class FieldProcessingChain {
         // Singleton
     }
 
+    /**
+     * Get the singleton instance.
+     *
+     * @return the field processing chain instance
+     */
     public static FieldProcessingChain getInstance() {
         return INSTANCE;
     }

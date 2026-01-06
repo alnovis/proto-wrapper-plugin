@@ -21,6 +21,11 @@ public class MergedMessage {
     private final Map<String, String> versionSourceFiles; // version -> source file name
     private MergedMessage parent; // Parent message for nested types
 
+    /**
+     * Create a new MergedMessage.
+     *
+     * @param name the message name
+     */
     public MergedMessage(String name) {
         this.name = name;
         this.fields = new ArrayList<>();
@@ -32,50 +37,96 @@ public class MergedMessage {
         this.parent = null;
     }
 
+    /**
+     * Add a field to this message.
+     *
+     * @param field the field to add
+     */
     public void addField(MergedField field) {
         fields.add(field);
     }
 
+    /**
+     * Add a nested message.
+     *
+     * @param nested the nested message to add
+     */
     public void addNestedMessage(MergedMessage nested) {
         nested.setParent(this);
         nestedMessages.add(nested);
     }
 
+    /**
+     * Add a nested enum.
+     *
+     * @param nestedEnum the nested enum to add
+     */
     public void addNestedEnum(MergedEnum nestedEnum) {
         nestedEnums.add(nestedEnum);
     }
 
+    /**
+     * Add a oneof group.
+     *
+     * @param oneof the oneof group to add
+     */
     public void addOneofGroup(MergedOneof oneof) {
         oneofGroups.add(oneof);
     }
 
     /**
      * Remove a nested enum (used when merging equivalent enums).
+     *
+     * @param nestedEnum the nested enum to remove
      */
     public void removeNestedEnum(MergedEnum nestedEnum) {
         nestedEnums.remove(nestedEnum);
     }
 
+    /**
+     * Set the parent message.
+     *
+     * @param parent the parent message
+     */
     public void setParent(MergedMessage parent) {
         this.parent = parent;
     }
 
+    /** @return the parent message, or null if top-level */
     public MergedMessage getParent() {
         return parent;
     }
 
+    /** @return true if this is a nested message */
     public boolean isNested() {
         return parent != null;
     }
 
+    /**
+     * Add a version where this message is present.
+     *
+     * @param version the version identifier
+     */
     public void addVersion(String version) {
         presentInVersions.add(version);
     }
 
+    /**
+     * Add source file for a version.
+     *
+     * @param version the version identifier
+     * @param sourceFileName the source proto file name
+     */
     public void addSourceFile(String version, String sourceFileName) {
         versionSourceFiles.put(version, sourceFileName);
     }
 
+    /**
+     * Get the source file for a version.
+     *
+     * @param version the version identifier
+     * @return the source file name
+     */
     public String getSourceFile(String version) {
         return versionSourceFiles.get(version);
     }
@@ -85,6 +136,9 @@ public class MergedMessage {
      * E.g., for source file "common.proto" returns "Common".
      * If the derived name conflicts with a message name, appends "OuterClass" suffix
      * (matching protobuf's behavior).
+     *
+     * @param version the version identifier
+     * @return the outer class name
      */
     public String getOuterClassName(String version) {
         String sourceFileName = versionSourceFiles.get(version);
@@ -117,28 +171,35 @@ public class MergedMessage {
                 .collect(Collectors.joining());
     }
 
+    /** @return the message name */
     public String getName() {
         return name;
     }
 
+    /** @return unmodifiable list of fields */
     public List<MergedField> getFields() {
         return Collections.unmodifiableList(fields);
     }
 
+    /** @return unmodifiable list of nested messages */
     public List<MergedMessage> getNestedMessages() {
         return Collections.unmodifiableList(nestedMessages);
     }
 
+    /** @return unmodifiable list of nested enums */
     public List<MergedEnum> getNestedEnums() {
         return Collections.unmodifiableList(nestedEnums);
     }
 
+    /** @return unmodifiable list of oneof groups */
     public List<MergedOneof> getOneofGroups() {
         return Collections.unmodifiableList(oneofGroups);
     }
 
     /**
      * Check if this message has any oneof groups.
+     *
+     * @return true if there are oneof groups
      */
     public boolean hasOneofGroups() {
         return !oneofGroups.isEmpty();
@@ -146,6 +207,9 @@ public class MergedMessage {
 
     /**
      * Find oneof group by name.
+     *
+     * @param name the oneof name
+     * @return the oneof group, or empty
      */
     public Optional<MergedOneof> findOneofByName(String name) {
         return oneofGroups.stream()
@@ -155,6 +219,9 @@ public class MergedMessage {
 
     /**
      * Find oneof group containing a specific field.
+     *
+     * @param field the field to find
+     * @return the oneof group, or empty
      */
     public Optional<MergedOneof> findOneofForField(MergedField field) {
         return oneofGroups.stream()
@@ -164,6 +231,8 @@ public class MergedMessage {
 
     /**
      * Get fields that are NOT part of any oneof group.
+     *
+     * @return list of non-oneof fields
      */
     public List<MergedField> getNonOneofFields() {
         Set<Integer> oneofFieldNumbers = oneofGroups.stream()
@@ -174,18 +243,27 @@ public class MergedMessage {
                 .toList();
     }
 
+    /** @return the set of versions where this message is present */
     public Set<String> getPresentInVersions() {
         return Collections.unmodifiableSet(presentInVersions);
     }
 
+    /** @return the interface name */
     public String getInterfaceName() {
         return name;
     }
 
+    /** @return the abstract class name */
     public String getAbstractClassName() {
         return "Abstract" + name;
     }
 
+    /**
+     * Get the version-specific class name.
+     *
+     * @param version the version identifier
+     * @return the version class name
+     */
     public String getVersionClassName(String version) {
         return name + version.substring(0, 1).toUpperCase() + version.substring(1);
     }
@@ -193,6 +271,8 @@ public class MergedMessage {
     /**
      * Get the flattened class name for nested types.
      * E.g., for Report.Section returns "ReportSection".
+     *
+     * @return the flattened name
      */
     public String getFlattenedName() {
         if (parent == null) {
@@ -204,6 +284,8 @@ public class MergedMessage {
     /**
      * Get flattened abstract class name.
      * E.g., for Report.Section returns "AbstractReportSection".
+     *
+     * @return the flattened abstract class name
      */
     public String getFlattenedAbstractClassName() {
         return "Abstract" + getFlattenedName();
@@ -212,6 +294,9 @@ public class MergedMessage {
     /**
      * Get flattened version-specific class name.
      * E.g., for Report.Section in v2 returns "ReportSectionV2".
+     *
+     * @param version the version identifier
+     * @return the flattened version class name
      */
     public String getFlattenedVersionClassName(String version) {
         return getFlattenedName() + version.substring(0, 1).toUpperCase() + version.substring(1);
@@ -220,6 +305,8 @@ public class MergedMessage {
     /**
      * Get the full qualified interface name including parent hierarchy.
      * E.g., for Tax nested in Order returns "Order.Tax"
+     *
+     * @return the qualified interface name
      */
     public String getQualifiedInterfaceName() {
         if (parent == null) {
@@ -230,6 +317,8 @@ public class MergedMessage {
 
     /**
      * Get the top-level parent message (root of the nesting hierarchy).
+     *
+     * @return the top-level message
      */
     public MergedMessage getTopLevelParent() {
         if (parent == null) {
@@ -240,6 +329,9 @@ public class MergedMessage {
 
     /**
      * Find a nested message by name (direct children only).
+     *
+     * @param nestedName the nested message name
+     * @return the nested message, or empty
      */
     public Optional<MergedMessage> findNestedMessage(String nestedName) {
         return nestedMessages.stream()
@@ -249,6 +341,9 @@ public class MergedMessage {
 
     /**
      * Find a nested message by name recursively (checks all descendants).
+     *
+     * @param nestedName the nested message name
+     * @return the nested message, or empty
      */
     public Optional<MergedMessage> findNestedMessageRecursive(String nestedName) {
         return nestedMessages.stream()
@@ -260,6 +355,9 @@ public class MergedMessage {
 
     /**
      * Find a nested enum by name (direct children only).
+     *
+     * @param enumName the enum name
+     * @return the nested enum, or empty
      */
     public Optional<MergedEnum> findNestedEnum(String enumName) {
         return nestedEnums.stream()
@@ -269,6 +367,9 @@ public class MergedMessage {
 
     /**
      * Find a nested enum by name recursively (checks all descendants).
+     *
+     * @param enumName the enum name
+     * @return the nested enum, or empty
      */
     public Optional<MergedEnum> findNestedEnumRecursive(String enumName) {
         // Check direct nested enums first, then recurse into nested messages
@@ -280,6 +381,8 @@ public class MergedMessage {
 
     /**
      * Check if this message has any nested types (messages or enums).
+     *
+     * @return true if there are nested types
      */
     public boolean hasNestedTypes() {
         return !nestedMessages.isEmpty() || !nestedEnums.isEmpty();
@@ -287,6 +390,8 @@ public class MergedMessage {
 
     /**
      * Get fields that exist in all versions.
+     *
+     * @return list of common fields
      */
     public List<MergedField> getCommonFields() {
         return fields.stream()
@@ -296,6 +401,8 @@ public class MergedMessage {
 
     /**
      * Get fields sorted by field number.
+     *
+     * @return list of fields sorted by number
      */
     public List<MergedField> getFieldsSorted() {
         return fields.stream()
@@ -305,6 +412,8 @@ public class MergedMessage {
 
     /**
      * Get map fields.
+     *
+     * @return list of map fields
      */
     public List<MergedField> getMapFields() {
         return fields.stream()
@@ -314,6 +423,8 @@ public class MergedMessage {
 
     /**
      * Get repeated fields (excluding map fields).
+     *
+     * @return list of repeated fields
      */
     public List<MergedField> getRepeatedFields() {
         return fields.stream()
@@ -323,6 +434,8 @@ public class MergedMessage {
 
     /**
      * Check if this message has any map fields.
+     *
+     * @return true if there are map fields
      */
     public boolean hasMapFields() {
         return fields.stream().anyMatch(MergedField::isMap);

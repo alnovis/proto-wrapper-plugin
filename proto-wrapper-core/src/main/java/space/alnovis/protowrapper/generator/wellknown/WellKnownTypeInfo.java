@@ -19,6 +19,7 @@ import java.util.Optional;
  *
  * <h2>Supported Types</h2>
  * <table>
+ *   <caption>Well-Known Types Mapping</caption>
  *   <tr><th>Proto Type</th><th>Java Type</th></tr>
  *   <tr><td>google.protobuf.Timestamp</td><td>java.time.Instant</td></tr>
  *   <tr><td>google.protobuf.Duration</td><td>java.time.Duration</td></tr>
@@ -668,6 +669,7 @@ public enum WellKnownTypeInfo {
     /**
      * Check if any of the types in the schema require the StructConverter utility class.
      *
+     * @param types the collection of well-known type info to check
      * @return true if StructConverter should be generated
      */
     public static boolean anyRequiresUtilityClass(java.util.Collection<WellKnownTypeInfo> types) {

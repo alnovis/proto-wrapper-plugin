@@ -290,6 +290,9 @@ public final class TypeUtils {
 
     /**
      * Check if a type is int/Integer.
+     *
+     * @param elementType the type to check
+     * @return true if type is int or Integer
      */
     public static boolean isIntType(String elementType) {
         return "Integer".equals(elementType) || "int".equals(elementType);
@@ -297,6 +300,9 @@ public final class TypeUtils {
 
     /**
      * Check if a type is float/Float.
+     *
+     * @param elementType the type to check
+     * @return true if type is float or Float
      */
     public static boolean isFloatType(String elementType) {
         return "Float".equals(elementType) || "float".equals(elementType);
@@ -304,6 +310,9 @@ public final class TypeUtils {
 
     /**
      * Check if a type is long/Long.
+     *
+     * @param elementType the type to check
+     * @return true if type is long or Long
      */
     public static boolean isLongType(String elementType) {
         return "Long".equals(elementType) || "long".equals(elementType);

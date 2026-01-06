@@ -63,6 +63,8 @@ public class MergedOneof {
 
     /**
      * Returns the proto name of this oneof (e.g., "payment_method").
+     *
+     * @return the proto name
      */
     public String getProtoName() {
         return protoName;
@@ -70,6 +72,8 @@ public class MergedOneof {
 
     /**
      * Returns the Java-style name (e.g., "PaymentMethod").
+     *
+     * @return the Java-style name
      */
     public String getJavaName() {
         return javaName;
@@ -77,6 +81,8 @@ public class MergedOneof {
 
     /**
      * Returns the name of the Case enum (e.g., "PaymentMethodCase").
+     *
+     * @return the Case enum name
      */
     public String getCaseEnumName() {
         return caseEnumName;
@@ -84,6 +90,8 @@ public class MergedOneof {
 
     /**
      * Returns the getter name for the case discriminator (e.g., "getPaymentMethodCase").
+     *
+     * @return the case getter method name
      */
     public String getCaseGetterName() {
         return "get" + javaName + "Case";
@@ -91,6 +99,8 @@ public class MergedOneof {
 
     /**
      * Returns the extract method name for the case discriminator (e.g., "extractPaymentMethodCase").
+     *
+     * @return the extract case method name
      */
     public String getExtractCaseMethodName() {
         return "extract" + javaName + "Case";
@@ -98,6 +108,8 @@ public class MergedOneof {
 
     /**
      * Returns the clear method name for the entire oneof (e.g., "clearPaymentMethod").
+     *
+     * @return the clear method name
      */
     public String getClearMethodName() {
         return "clear" + javaName;
@@ -105,6 +117,8 @@ public class MergedOneof {
 
     /**
      * Returns the abstract clear method name (e.g., "doClearPaymentMethod").
+     *
+     * @return the abstract clear method name
      */
     public String getDoClearMethodName() {
         return "doClear" + javaName;
@@ -112,6 +126,8 @@ public class MergedOneof {
 
     /**
      * Returns the "NOT_SET" constant name for the Case enum (e.g., "PAYMENT_METHOD_NOT_SET").
+     *
+     * @return the NOT_SET constant name
      */
     public String getNotSetConstantName() {
         return toScreamingSnakeCase(protoName) + "_NOT_SET";
@@ -119,6 +135,8 @@ public class MergedOneof {
 
     /**
      * Returns the versions where this oneof is present.
+     *
+     * @return unmodifiable set of version identifiers
      */
     public Set<String> getPresentInVersions() {
         return presentInVersions;
@@ -126,6 +144,9 @@ public class MergedOneof {
 
     /**
      * Returns the oneof info for a specific version.
+     *
+     * @param version the version identifier
+     * @return the OneofInfo for the version, or null if not present
      */
     public OneofInfo getOneofForVersion(String version) {
         return versionOneofs.get(version);
@@ -133,6 +154,8 @@ public class MergedOneof {
 
     /**
      * Returns the merged fields in this oneof.
+     *
+     * @return unmodifiable list of merged fields
      */
     public List<MergedField> getFields() {
         return fields;
@@ -140,6 +163,8 @@ public class MergedOneof {
 
     /**
      * Returns all field numbers across all versions.
+     *
+     * @return unmodifiable set of field numbers
      */
     public Set<Integer> getAllFieldNumbers() {
         return allFieldNumbers;
@@ -147,6 +172,8 @@ public class MergedOneof {
 
     /**
      * Returns all detected conflicts for this oneof.
+     *
+     * @return unmodifiable list of conflicts
      */
     public List<OneofConflictInfo> getConflicts() {
         return conflicts;
@@ -154,6 +181,8 @@ public class MergedOneof {
 
     /**
      * Checks if this oneof has any conflicts.
+     *
+     * @return true if there are conflicts
      */
     public boolean hasConflicts() {
         return !conflicts.isEmpty();
@@ -161,6 +190,9 @@ public class MergedOneof {
 
     /**
      * Returns conflicts of a specific type.
+     *
+     * @param type the conflict type to filter by
+     * @return list of conflicts of the specified type
      */
     public List<OneofConflictInfo> getConflictsOfType(OneofConflictType type) {
         return conflicts.stream()
@@ -170,6 +202,9 @@ public class MergedOneof {
 
     /**
      * Checks if this oneof has a specific type of conflict.
+     *
+     * @param type the conflict type to check for
+     * @return true if there is a conflict of the specified type
      */
     public boolean hasConflictOfType(OneofConflictType type) {
         return conflicts.stream().anyMatch(c -> c.getType() == type);
@@ -177,6 +212,8 @@ public class MergedOneof {
 
     /**
      * Returns names of oneofs that were merged into this one (for renamed oneofs).
+     *
+     * @return unmodifiable set of original oneof names
      */
     public Set<String> getMergedFromNames() {
         return mergedFromNames;
@@ -184,6 +221,8 @@ public class MergedOneof {
 
     /**
      * Checks if this oneof was merged from multiple differently-named oneofs.
+     *
+     * @return true if merged from multiple names
      */
     public boolean wasMergedFromMultipleNames() {
         return mergedFromNames.size() > 1;
@@ -191,6 +230,9 @@ public class MergedOneof {
 
     /**
      * Checks if a field number belongs to this oneof in any version.
+     *
+     * @param fieldNumber the field number to check
+     * @return true if the field number belongs to this oneof
      */
     public boolean containsField(int fieldNumber) {
         return allFieldNumbers.contains(fieldNumber);
@@ -198,6 +240,9 @@ public class MergedOneof {
 
     /**
      * Checks if this oneof is present in all given versions.
+     *
+     * @param allVersions the set of all versions to check against
+     * @return true if present in all versions
      */
     public boolean isUniversal(Set<String> allVersions) {
         return presentInVersions.containsAll(allVersions);
@@ -205,6 +250,8 @@ public class MergedOneof {
 
     /**
      * Checks if this oneof has different fields in different versions.
+     *
+     * @return true if field composition differs between versions
      */
     public boolean hasFieldDifferences() {
         if (versionOneofs.size() <= 1) {
@@ -224,6 +271,9 @@ public class MergedOneof {
 
     /**
      * Returns versions where this oneof is NOT present.
+     *
+     * @param allVersions the set of all versions to check against
+     * @return set of versions where this oneof is missing
      */
     public Set<String> getMissingVersions(Set<String> allVersions) {
         Set<String> missing = new LinkedHashSet<>(allVersions);
@@ -234,6 +284,8 @@ public class MergedOneof {
     /**
      * Returns a list of case enum constants for this oneof.
      * Each constant corresponds to a field in the oneof, plus NOT_SET.
+     *
+     * @return list of case constants
      */
     public List<CaseConstant> getCaseConstants() {
         List<CaseConstant> constants = new ArrayList<>();
@@ -287,12 +339,21 @@ public class MergedOneof {
 
     /**
      * Represents a case constant in the generated Case enum.
+     *
+     * @param name the constant name
+     * @param fieldNumber the field number (0 for NOT_SET)
+     * @param field the associated field, or null for NOT_SET
      */
     public record CaseConstant(
             String name,
             int fieldNumber,
-            MergedField field  // null for NOT_SET
+            MergedField field
     ) {
+        /**
+         * Checks if this is the NOT_SET constant.
+         *
+         * @return true if this represents NOT_SET
+         */
         public boolean isNotSet() {
             return field == null;
         }
@@ -309,6 +370,11 @@ public class MergedOneof {
         private final List<OneofConflictInfo> conflicts = new ArrayList<>();
         private final Set<String> mergedFromNames = new LinkedHashSet<>();
 
+        /**
+         * Create a new Builder.
+         *
+         * @param protoName the proto name of the oneof
+         */
         private Builder(String protoName) {
             this.protoName = protoName;
             this.javaName = toPascalCase(protoName);
@@ -317,6 +383,10 @@ public class MergedOneof {
 
         /**
          * Add a version's oneof info.
+         *
+         * @param version the version identifier
+         * @param oneof the oneof info for this version
+         * @return this builder for chaining
          */
         public Builder addVersionOneof(String version, OneofInfo oneof) {
             versionOneofs.put(version, oneof);
@@ -325,6 +395,9 @@ public class MergedOneof {
 
         /**
          * Add a merged field to this oneof.
+         *
+         * @param field the field to add
+         * @return this builder for chaining
          */
         public Builder addField(MergedField field) {
             fields.add(field);
@@ -333,6 +406,9 @@ public class MergedOneof {
 
         /**
          * Add multiple merged fields to this oneof.
+         *
+         * @param fieldsToAdd the fields to add
+         * @return this builder for chaining
          */
         public Builder addFields(Collection<MergedField> fieldsToAdd) {
             fields.addAll(fieldsToAdd);
@@ -341,6 +417,9 @@ public class MergedOneof {
 
         /**
          * Add a detected conflict.
+         *
+         * @param conflict the conflict info to add
+         * @return this builder for chaining
          */
         public Builder addConflict(OneofConflictInfo conflict) {
             conflicts.add(conflict);
@@ -349,6 +428,9 @@ public class MergedOneof {
 
         /**
          * Add multiple detected conflicts.
+         *
+         * @param conflictsToAdd the conflicts to add
+         * @return this builder for chaining
          */
         public Builder addConflicts(Collection<OneofConflictInfo> conflictsToAdd) {
             conflicts.addAll(conflictsToAdd);
@@ -357,6 +439,9 @@ public class MergedOneof {
 
         /**
          * Add a name that this oneof was merged from (for renamed oneofs).
+         *
+         * @param name the original oneof name
+         * @return this builder for chaining
          */
         public Builder addMergedFromName(String name) {
             mergedFromNames.add(name);
@@ -365,6 +450,8 @@ public class MergedOneof {
 
         /**
          * Get current fields (for conflict detection during build).
+         *
+         * @return unmodifiable list of fields
          */
         public List<MergedField> getFields() {
             return Collections.unmodifiableList(fields);
@@ -372,6 +459,8 @@ public class MergedOneof {
 
         /**
          * Get current version oneofs (for conflict detection during build).
+         *
+         * @return unmodifiable map of version to OneofInfo
          */
         public Map<String, OneofInfo> getVersionOneofs() {
             return Collections.unmodifiableMap(versionOneofs);
@@ -379,6 +468,9 @@ public class MergedOneof {
 
         /**
          * Build the immutable MergedOneof.
+         *
+         * @return the built MergedOneof instance
+         * @throws IllegalStateException if no version oneofs have been added
          */
         public MergedOneof build() {
             if (versionOneofs.isEmpty()) {

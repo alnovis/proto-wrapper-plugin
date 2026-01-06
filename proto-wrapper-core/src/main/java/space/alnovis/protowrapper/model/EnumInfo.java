@@ -17,10 +17,21 @@ public class EnumInfo {
     private final List<EnumValue> values;
     private final String sourceFileName;
 
+    /**
+     * Creates EnumInfo from protobuf descriptor.
+     *
+     * @param proto the enum descriptor proto
+     */
     public EnumInfo(EnumDescriptorProto proto) {
         this(proto, null);
     }
 
+    /**
+     * Creates EnumInfo from protobuf descriptor with source file name.
+     *
+     * @param proto the enum descriptor proto
+     * @param sourceFileName the source proto file name
+     */
     public EnumInfo(EnumDescriptorProto proto, String sourceFileName) {
         this.name = proto.getName();
         this.values = proto.getValueList().stream()
@@ -29,27 +40,37 @@ public class EnumInfo {
         this.sourceFileName = sourceFileName;
     }
 
-    // Constructor for merged enums
+    /**
+     * Creates EnumInfo for merged enums.
+     *
+     * @param name the enum name
+     * @param values the list of enum values
+     */
     public EnumInfo(String name, List<EnumValue> values) {
         this.name = name;
         this.values = new ArrayList<>(values);
         this.sourceFileName = null;
     }
 
+    /** @return the source proto file name */
     public String getSourceFileName() {
         return sourceFileName;
     }
 
+    /** @return the enum name */
     public String getName() {
         return name;
     }
 
+    /** @return unmodifiable list of enum values */
     public List<EnumValue> getValues() {
         return Collections.unmodifiableList(values);
     }
 
     /**
      * Get all unique value names across versions.
+     *
+     * @return list of enum value names
      */
     public List<String> getValueNames() {
         return values.stream()
@@ -99,6 +120,9 @@ public class EnumInfo {
 
         /**
          * Creates EnumValue from protobuf descriptor.
+         *
+         * @param proto the enum value descriptor proto
+         * @return new EnumValue instance
          */
         public static EnumValue fromProto(EnumValueDescriptorProto proto) {
             return new EnumValue(proto.getName(), proto.getNumber());
@@ -107,6 +131,8 @@ public class EnumInfo {
         /**
          * Convert proto enum name to Java enum name.
          * E.g., "OPERATION_BUY" -> "BUY"
+         *
+         * @return the Java-style enum name
          */
         public String getJavaName() {
             // Remove common prefixes like "OPERATION_", "PAYMENT_", etc.
@@ -118,8 +144,9 @@ public class EnumInfo {
             return result;
         }
 
-        // Accessor methods for compatibility
+        /** @return the enum value name */
         public String getName() { return name; }
+        /** @return the enum value number */
         public int getNumber() { return number; }
 
         @Override

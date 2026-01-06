@@ -70,6 +70,8 @@ public enum ChangeType {
 
     /**
      * Returns true if this change type represents an addition.
+     *
+     * @return true if this is an addition change type
      */
     public boolean isAddition() {
         return this == ADDED || this == VALUE_ADDED;
@@ -77,6 +79,8 @@ public enum ChangeType {
 
     /**
      * Returns true if this change type represents a removal.
+     *
+     * @return true if this is a removal change type
      */
     public boolean isRemoval() {
         return this == REMOVED || this == VALUE_REMOVED;
@@ -84,6 +88,8 @@ public enum ChangeType {
 
     /**
      * Returns true if this change type represents a modification.
+     *
+     * @return true if this is a modification change type
      */
     public boolean isModification() {
         return this == MODIFIED || this == TYPE_CHANGED || this == LABEL_CHANGED ||
@@ -93,6 +99,8 @@ public enum ChangeType {
 
     /**
      * Returns true if this is a potentially breaking change type.
+     *
+     * @return true if this change type is potentially breaking
      */
     public boolean isPotentiallyBreaking() {
         return this == REMOVED || this == TYPE_CHANGED || this == LABEL_CHANGED ||

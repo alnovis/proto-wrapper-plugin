@@ -61,6 +61,13 @@ public record IncrementalState(
      *
      * <p>All Map parameters are normalized: null becomes empty immutable map,
      * non-null values are defensively copied to immutable maps.</p>
+     *
+     * @param pluginVersion version of the plugin
+     * @param configHash hash of generation configuration
+     * @param protoFingerprints map of relative path to file fingerprint
+     * @param protoDependencies map of file path to set of imports
+     * @param generatedFiles map of generated file path to info
+     * @param lastGeneration timestamp of last generation
      */
     public IncrementalState {
         // Normalize null maps to empty immutable maps

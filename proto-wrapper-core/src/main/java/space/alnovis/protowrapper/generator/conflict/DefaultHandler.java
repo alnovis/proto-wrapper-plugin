@@ -71,6 +71,7 @@ import static space.alnovis.protowrapper.generator.TypeUtils.*;
  */
 public final class DefaultHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance of the default handler. */
     public static final DefaultHandler INSTANCE = new DefaultHandler();
 
     private DefaultHandler() {

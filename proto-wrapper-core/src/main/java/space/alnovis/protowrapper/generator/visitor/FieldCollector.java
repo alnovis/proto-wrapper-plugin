@@ -43,6 +43,8 @@ public final class FieldCollector {
 
         /**
          * Get the fully qualified field path (e.g., "Parent.Nested.fieldName").
+         *
+         * @return the fully qualified field path
          */
         public String getQualifiedPath() {
             StringBuilder path = new StringBuilder();

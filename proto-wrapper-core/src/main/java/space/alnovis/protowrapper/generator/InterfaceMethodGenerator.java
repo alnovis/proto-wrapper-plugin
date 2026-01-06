@@ -33,12 +33,16 @@ import static space.alnovis.protowrapper.generator.TypeUtils.*;
  *
  * @since 1.2.0
  * @see InterfaceGenerator
- * @see InterfaceUtilityGenerator
  */
 public final class InterfaceMethodGenerator {
 
     private final GeneratorConfig config;
 
+    /**
+     * Create a new InterfaceMethodGenerator.
+     *
+     * @param config the generator configuration
+     */
     public InterfaceMethodGenerator(GeneratorConfig config) {
         this.config = config;
     }

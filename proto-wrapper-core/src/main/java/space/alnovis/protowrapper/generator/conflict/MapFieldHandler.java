@@ -84,6 +84,7 @@ import java.util.Optional;
  */
 public final class MapFieldHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance of the map field handler. */
     public static final MapFieldHandler INSTANCE = new MapFieldHandler();
 
     private MapFieldHandler() {

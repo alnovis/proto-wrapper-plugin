@@ -28,7 +28,8 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  * </pre>
  *
  * <h2>Protobuf Integer Types</h2>
- * <table border="1">
+ * <table>
+ *   <caption>Integer Type Variants</caption>
  *   <tr><th>Type</th><th>Wire Format</th><th>Signedness</th><th>Java Type</th></tr>
  *   <tr><td>int32</td><td>varint</td><td>signed</td><td>int</td></tr>
  *   <tr><td>uint32</td><td>varint</td><td>unsigned</td><td>int*</td></tr>
@@ -67,8 +68,10 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class SignedUnsignedHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance. */
     public static final SignedUnsignedHandler INSTANCE = new SignedUnsignedHandler();
 
+    /** Private constructor for singleton. */
     private SignedUnsignedHandler() {
         // Singleton
     }
@@ -240,6 +243,9 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
 
     /**
      * Checks if the field type is unsigned (uint32, uint64, fixed32, fixed64).
+     *
+     * @param field the field to check
+     * @return true if the field type is unsigned
      */
     private boolean isUnsignedType(FieldInfo field) {
         if (field == null) return false;
@@ -250,6 +256,9 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
 
     /**
      * Checks if the field type is 32-bit (int32, uint32, sint32, fixed32, sfixed32).
+     *
+     * @param field the field to check
+     * @return true if the field type is 32-bit
      */
     private boolean is32BitType(FieldInfo field) {
         if (field == null) return true; // default to 32-bit if unknown

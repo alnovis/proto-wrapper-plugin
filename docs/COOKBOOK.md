@@ -23,7 +23,7 @@ A practical guide to using proto-wrapper-maven-plugin with detailed examples.
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.3.0</version>
+    <version>1.6.2</version>
     <configuration>
         <basePackage>com.mycompany.model</basePackage>
         <protoPackagePattern>com.mycompany.proto.{version}</protoPackagePattern>
@@ -382,51 +382,116 @@ message Order {
 
 ```java
 public interface Order {
-    int getShippingCost();           // Primitive value
+    // Dual getters
+    int getShippingCost();           // Primitive value (0 for message versions)
     Money getShippingCostMessage();  // Message (null for primitive versions)
 
-    // Builder NOT generated for such fields
+    interface Builder {
+        // Dual setters (v1.6.2+)
+        Builder setShippingCost(int value);        // For primitive versions
+        Builder setShippingCostMessage(Money value); // For message versions
+
+        // Runtime support checks
+        boolean supportsPrimitiveShippingCost();   // true for V1
+        boolean supportsMessageShippingCost();     // true for V2
+    }
+}
+```
+
+**Reading values**:
+
+```java
+Order order = ctx.wrapOrder(proto);
+
+// V1 (primitive)
+int cost = order.getShippingCost();              // 100
+Money costMsg = order.getShippingCostMessage();  // null
+
+// V2 (message)
+int cost = order.getShippingCost();              // 0 (default)
+Money costMsg = order.getShippingCostMessage();  // Money object
+```
+
+**Writing with Builder (v1.6.2+)**:
+
+```java
+// V1: use primitive setter
+VersionContext v1Ctx = VersionContext.forVersion(1);
+Order v1Order = Order.newBuilder(v1Ctx)
+    .setShippingCost(100)  // OK - V1 supports primitive
+    .build();
+
+// V2: use message setter
+VersionContext v2Ctx = VersionContext.forVersion(2);
+Money money = Money.newBuilder(v2Ctx)
+    .setAmount(100)
+    .setCurrency("USD")
+    .build();
+Order v2Order = Order.newBuilder(v2Ctx)
+    .setShippingCostMessage(money)  // OK - V2 supports message
+    .build();
+```
+
+**Runtime validation**:
+
+```java
+// Calling wrong setter throws UnsupportedOperationException
+Order.Builder v1Builder = Order.newBuilder(v1Ctx);
+v1Builder.setShippingCostMessage(money);  // throws UnsupportedOperationException!
+// "V1 does not support message type for field 'shippingCost'"
+
+// Check support before calling
+if (builder.supportsMessageShippingCost()) {
+    builder.setShippingCostMessage(money);
+} else {
+    builder.setShippingCost(100);
+}
+```
+
+### Repeated Fields with Conflicts (v1.4.0+)
+
+Full builder support is available for repeated fields with type conflicts:
+
+```java
+public interface RepeatedConflicts {
+    // Reading
+    List<Long> getNumbers();    // int32 → int64 (elements widened)
+    List<Integer> getCodes();   // int32 → enum (enum.getNumber())
+    List<String> getTexts();    // string → bytes (UTF-8 conversion)
+
+    interface Builder {
+        // Adding elements
+        Builder addNumbers(long value);      // Range-validated for V1
+        Builder addAllNumbers(Iterable<Long> values);
+
+        Builder addCodes(int value);         // Works for both int and enum
+        Builder addCodes(CodeEnum value);    // Enum version
+
+        Builder addTexts(String value);      // UTF-8 converted for bytes versions
+
+        // Clearing
+        Builder clearNumbers();
+        Builder clearCodes();
+        Builder clearTexts();
+    }
 }
 ```
 
 **Usage**:
 
 ```java
-Order order = ctx.wrapOrder(proto);
+RepeatedConflicts data = RepeatedConflicts.newBuilder(ctx)
+    .addNumbers(100L)
+    .addNumbers(200L)
+    .addAllNumbers(List.of(300L, 400L))
+    .addCodes(CodeEnum.VALUE_A)
+    .addTexts("hello")
+    .build();
 
-// V1
-int cost = order.getShippingCost();  // 100
-Money costMsg = order.getShippingCostMessage();  // null
-
-// V2
-int cost = order.getShippingCost();  // 0 (default)
-Money costMsg = order.getShippingCostMessage();  // Money object
-```
-
-### Repeated Fields with Conflicts
-
-For repeated fields with type conflicts, only reading is supported:
-
-```java
-public interface RepeatedConflicts {
-    List<Long> getNumbers();    // int32 → int64 (elements widened)
-    List<Integer> getCodes();   // int32 → enum (enum.getNumber())
-    List<String> getTexts();    // string → bytes (UTF-8 conversion)
-
-    // Builder methods for such fields are NOT generated
-}
-```
-
-**Workaround for writing repeated fields with conflicts**:
-
-```java
-// Direct access to typed proto builder
-var v2 = (RepeatedConflictsV2) wrapper;
-var modified = new RepeatedConflictsV2(
-    v2.getTypedProto().toBuilder()
-        .addNumbers(12345L)
-        .build()
-);
+// Range validation for narrowing (V1 int32 ← V2 int64)
+RepeatedConflicts.Builder v1Builder = RepeatedConflicts.newBuilder(v1Ctx);
+v1Builder.addNumbers(Long.MAX_VALUE);  // throws IllegalArgumentException!
+// "Value 9223372036854775807 exceeds int32 range"
 ```
 
 ---
@@ -1086,11 +1151,12 @@ This is informational. The plugin automatically handles the conflict.
 ### Builder setter not generated for a field
 
 Check the conflict type. Builder setters are not generated for:
-- `PRIMITIVE_MESSAGE` conflicts
-- `INCOMPATIBLE` conflicts
-- Repeated fields with type conflicts
+- `INCOMPATIBLE` conflicts (e.g., string ↔ int)
 
-**Workaround**: Use typed proto builder directly.
+**Note**: Since v1.4.0, repeated fields with type conflicts have full builder support.
+Since v1.6.2, `PRIMITIVE_MESSAGE` conflicts have dual setters with runtime validation.
+
+**Workaround for INCOMPATIBLE**: Use typed proto builder directly.
 
 ### Enum not found in unified API
 

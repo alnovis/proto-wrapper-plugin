@@ -55,6 +55,7 @@ import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper
  */
 public final class FloatDoubleHandler extends AbstractConflictHandler implements ConflictHandler {
 
+    /** Singleton instance of the float-double handler. */
     public static final FloatDoubleHandler INSTANCE = new FloatDoubleHandler();
 
     private FloatDoubleHandler() {
