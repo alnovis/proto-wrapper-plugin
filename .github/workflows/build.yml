@@ -325,31 +325,62 @@ jobs:
       - name: Validate Mermaid diagrams
         run: |
           echo "Validating Mermaid diagrams..."
-          ERRORS=0
 
-          # Find all markdown files with mermaid blocks
-          for file in README.md RELEASE_NOTES.md docs/ARCHITECTURE.md; do
-            if [ -f "$file" ]; then
-              echo "Checking $file..."
+          # Find all markdown files containing mermaid blocks
+          FILES_WITH_MERMAID=$(grep -rl '```mermaid' --include="*.md" . 2>/dev/null || true)
 
-              # Extract mermaid blocks and validate each one
-              grep -n '```mermaid' "$file" > /dev/null 2>&1 || continue
+          if [ -z "$FILES_WITH_MERMAID" ]; then
+            echo "No Mermaid diagrams found in any .md files"
+            exit 0
+          fi
 
-              # Count mermaid blocks
-              BLOCK_COUNT=$(grep -c '```mermaid' "$file" || echo "0")
-              echo "  Found $BLOCK_COUNT mermaid block(s)"
+          TOTAL_BLOCKS=0
+          VALID_BLOCKS=0
+          INVALID_FILES=""
 
-              # Extract each mermaid block to temp file and validate
-              awk '/```mermaid/,/```/' "$file" | grep -v '```' > /tmp/mermaid_test.mmd 2>/dev/null || true
+          for file in $FILES_WITH_MERMAID; do
+            echo "Checking $file..."
 
-              if [ -s /tmp/mermaid_test.mmd ]; then
-                if mmdc -i /tmp/mermaid_test.mmd -o /tmp/mermaid_test.svg 2>&1; then
-                  echo "  ✓ Mermaid syntax valid"
+            # Count mermaid blocks in this file
+            BLOCK_COUNT=$(grep -c '```mermaid' "$file" || echo "0")
+            echo "  Found $BLOCK_COUNT mermaid block(s)"
+            TOTAL_BLOCKS=$((TOTAL_BLOCKS + BLOCK_COUNT))
+
+            # Extract and validate each mermaid block separately
+            BLOCK_NUM=0
+            IN_BLOCK=false
+            BLOCK_CONTENT=""
+
+            while IFS= read -r line; do
+              if [[ "$line" == '```mermaid'* ]]; then
+                IN_BLOCK=true
+                BLOCK_CONTENT=""
+                BLOCK_NUM=$((BLOCK_NUM + 1))
+              elif [[ "$line" == '```'* ]] && [ "$IN_BLOCK" = true ]; then
+                IN_BLOCK=false
+                # Validate this block
+                echo "$BLOCK_CONTENT" > /tmp/mermaid_block_${BLOCK_NUM}.mmd
+                if mmdc -i /tmp/mermaid_block_${BLOCK_NUM}.mmd -o /tmp/mermaid_block_${BLOCK_NUM}.svg 2>/dev/null; then
+                  echo "  ✓ Block $BLOCK_NUM valid"
+                  VALID_BLOCKS=$((VALID_BLOCKS + 1))
                 else
-                  echo "::warning::Mermaid validation issue in $file (non-blocking)"
+                  echo "  ✗ Block $BLOCK_NUM invalid"
+                  INVALID_FILES="$INVALID_FILES $file:block$BLOCK_NUM"
                 fi
+              elif [ "$IN_BLOCK" = true ]; then
+                BLOCK_CONTENT="$BLOCK_CONTENT$line"$'\n'
               fi
-            fi
+            done < "$file"
           done
+
+          echo ""
+          echo "=== Mermaid Validation Summary ==="
+          echo "Files with diagrams: $(echo "$FILES_WITH_MERMAID" | wc -w)"
+          echo "Total blocks: $TOTAL_BLOCKS"
+          echo "Valid blocks: $VALID_BLOCKS"
+
+          if [ -n "$INVALID_FILES" ]; then
+            echo "::warning::Invalid Mermaid blocks found in:$INVALID_FILES"
+          fi
 
           echo "Mermaid validation complete."
