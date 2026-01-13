@@ -1,6 +1,7 @@
 # Proto Wrapper Plugin
 
 [![Build Status](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml)
+[![Qodana](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/code_quality.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/code_quality.yml)
 [![Maven Central](https://maven-badges.sml.io/sonatype-central/space.alnovis/proto-wrapper-core/badge.svg)](https://central.sonatype.com/artifact/space.alnovis/proto-wrapper-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 

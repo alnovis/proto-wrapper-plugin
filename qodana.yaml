@@ -1,0 +1,70 @@
+#-------------------------------------------------------------------------------
+# Qodana configuration for proto-wrapper-plugin
+# https://www.jetbrains.com/help/qodana/qodana-yaml.html
+#-------------------------------------------------------------------------------
+
+version: "1.0"
+
+# JVM linter for Java + Kotlin
+linter: jetbrains/qodana-jvm:2024.3
+
+# Project profile (inspections to run)
+profile:
+  name: qodana.recommended
+
+# Paths to include in analysis
+include:
+  - name: proto-wrapper-core/src
+  - name: proto-wrapper-maven-plugin/src
+  - name: proto-wrapper-gradle-plugin/src
+
+# Paths to exclude from analysis
+exclude:
+  - name: "**/build/**"
+  - name: "**/target/**"
+  - name: "**/generated/**"
+  - name: "**/generated-sources/**"
+  - name: "**/generated-test-sources/**"
+  - name: "examples/**"
+  - name: "proto-wrapper-golden-tests/**"
+  - name: "proto-wrapper-maven-integration-tests/**"
+  - name: "proto-wrapper-gradle-integration-tests/**"
+  - name: "local-integration-tests/**"
+  - name: "test-protos/**"
+
+# Fail CI if threshold exceeded
+failThreshold: 100
+
+# Specific inspection configurations
+inspections:
+  # Kotlin
+  - inspection: UnusedSymbol
+    severity: WARNING
+  - inspection: RedundantVisibilityModifier
+    severity: INFO
+
+  # Java
+  - inspection: unused
+    severity: WARNING
+  - inspection: SpellCheckingInspection
+    severity: INFO
+
+# License audit (check dependencies)
+licenseRules:
+  - keys:
+      - Apache-2.0
+      - MIT
+      - BSD-2-Clause
+      - BSD-3-Clause
+    allowed: true
+  - keys:
+      - GPL-2.0
+      - GPL-3.0
+      - LGPL-2.1
+      - LGPL-3.0
+    allowed: false
+
+# Bootstrap commands (build before analysis)
+bootstrap: |
+  chmod +x gradlew
+  ./gradlew classes testClasses --no-daemon
