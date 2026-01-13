@@ -37,7 +37,7 @@ public abstract sealed class AbstractConflictHandler permits
      * @param ctx the processing context
      */
     protected void addAbstractHasMethod(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        if (field.isOptional() && !field.isRepeated()) {
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
                     .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                     .returns(TypeName.BOOLEAN)
@@ -75,7 +75,7 @@ public abstract sealed class AbstractConflictHandler permits
      */
     protected void addHasMethodImpl(TypeSpec.Builder builder, MergedField field,
                                      String versionJavaName, ProcessingContext ctx) {
-        if (field.isOptional() && !field.isRepeated()) {
+        if (field.shouldGenerateHasMethod()) {
             FieldInfo versionField = getVersionField(field, ctx);
             boolean supportsHas = versionField != null && versionField.supportsHasMethod();
 
@@ -105,7 +105,7 @@ public abstract sealed class AbstractConflictHandler permits
      * @param ctx the processing context
      */
     protected void addMissingHasMethodImpl(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        if (field.isOptional() && !field.isRepeated()) {
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED)
@@ -150,7 +150,7 @@ public abstract sealed class AbstractConflictHandler permits
      * @param ctx the processing context
      */
     protected void addHasMethodToAbstract(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        if (field.isOptional() && !field.isRepeated()) {
+        if (field.shouldGenerateHasMethod()) {
             MethodSpec has = MethodSpec.methodBuilder("has" + ctx.capitalize(field.getJavaName()))
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
@@ -255,8 +255,8 @@ public abstract sealed class AbstractConflictHandler permits
                 .addStatement("return this")
                 .build());
 
-        // clear for optional
-        if (field.isOptional()) {
+        // clear for fields with has*()
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
@@ -410,8 +410,8 @@ public abstract sealed class AbstractConflictHandler permits
         // doSet
         addAbstractDoSet(builder, "doSet" + capName, fieldType, field.getJavaName());
 
-        // doClear for optional
-        if (field.isOptional()) {
+        // doClear for fields with has*()
+        if (field.shouldGenerateHasMethod()) {
             addAbstractDoClear(builder, "doClear" + capName);
         }
     }

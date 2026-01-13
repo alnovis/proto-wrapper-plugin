@@ -114,4 +114,21 @@ message AllFieldTypes {
         NestedMessage oneof_message = 62;
         TestEnum oneof_enum = 63;
     }
+
+    // =========================================================================
+    // MAP FIELDS (none should have has*() method, never null)
+    // =========================================================================
+
+    // Map with scalar key and value
+    map<string, int32> string_to_int32 = 70;
+    map<int32, string> int32_to_string = 71;
+
+    // Map with message value
+    map<string, NestedMessage> string_to_message = 72;
+
+    // Map with enum value
+    map<string, TestEnum> string_to_enum = 73;
+
+    // Map with int64 key (tests wider key types)
+    map<int64, string> int64_to_string = 74;
 }

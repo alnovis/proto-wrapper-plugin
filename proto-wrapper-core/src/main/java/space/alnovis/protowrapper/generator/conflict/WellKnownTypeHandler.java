@@ -121,8 +121,15 @@ public final class WellKnownTypeHandler extends AbstractConflictHandler implemen
         WellKnownTypeInfo wkt = field.getWellKnownType();
         TypeName javaType = wkt.getJavaTypeName();
 
-        // Add standard getter
-        addStandardGetterImpl(builder, field, javaType, ctx);
+        // WKT extraction methods already handle has-check and return appropriate defaults
+        // (empty collections for FIELD_MASK/STRUCT/LIST_VALUE, null for others)
+        // So getter should simply delegate to extract without additional has-check
+        MethodSpec.Builder getter = MethodSpec.methodBuilder(field.getGetterName())
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(javaType)
+                .addStatement("return $L(proto)", field.getExtractMethodName());
+        builder.addMethod(getter.build());
 
         // Add has method for optional fields
         addHasMethodToAbstract(builder, field, ctx);
@@ -137,7 +144,7 @@ public final class WellKnownTypeHandler extends AbstractConflictHandler implemen
         addAbstractDoSet(builder, field.getDoSetMethodName(), javaType, field.getJavaName());
 
         // doClear for optional
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             addAbstractDoClear(builder, field.getDoClearMethodName());
         }
     }
@@ -158,7 +165,7 @@ public final class WellKnownTypeHandler extends AbstractConflictHandler implemen
                 });
 
         // doClear for optional
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }
@@ -173,7 +180,7 @@ public final class WellKnownTypeHandler extends AbstractConflictHandler implemen
         addConcreteSetMethod(builder, field.getJavaName(), javaType, builderReturnType, ctx);
 
         // clearXxx for optional
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             addConcreteClearMethod(builder, field.getJavaName(), builderReturnType, ctx);
         }
     }

@@ -57,8 +57,7 @@ class Proto3GoldenTest {
 
             // Proto3 singular: value returned directly
             assertThat(msg.getSingularInt32()).isEqualTo(42);
-            // has*() always false for proto3 singular without 'optional'
-            assertThat(msg.hasSingularInt32()).isFalse();
+            // Note: Proto3 implicit scalars have NO has*() method - this is by design
         }
 
         @ParameterizedTest(name = "Version {0}")
@@ -69,7 +68,7 @@ class Proto3GoldenTest {
 
             // Proto3 default for int32 is 0
             assertThat(msg.getSingularInt32()).isEqualTo(0);
-            assertThat(msg.hasSingularInt32()).isFalse();
+            // Note: Proto3 implicit scalars have NO has*() method - this is by design
         }
 
         @ParameterizedTest(name = "Version {0}")
@@ -81,7 +80,7 @@ class Proto3GoldenTest {
                 .build();
 
             assertThat(msg.isSingularBool()).isTrue();
-            assertThat(msg.hasSingularBool()).isFalse();
+            // Note: Proto3 implicit scalars have NO has*() method - this is by design
         }
 
         @ParameterizedTest(name = "Version {0}")
@@ -92,7 +91,7 @@ class Proto3GoldenTest {
 
             // Proto3 default for bool is false
             assertThat(msg.isSingularBool()).isFalse();
-            assertThat(msg.hasSingularBool()).isFalse();
+            // Note: Proto3 implicit scalars have NO has*() method - this is by design
         }
 
         @ParameterizedTest(name = "Version {0}")
@@ -493,12 +492,13 @@ class Proto3GoldenTest {
         void oneof_unset_returnsNullOrDefault(VersionContext ctx) {
             AllFieldTypes msg = ctx.newAllFieldTypesBuilder().build();
 
-            // Oneof fields when none is set
+            // Oneof fields when none is set - ALL return null (including enum)
+            // Per CONTRACT-MATRIX.md: oneof fields are NULLABLE
             assertThat(msg.getOneofInt32()).isNull();
             assertThat(msg.hasOneofString()).isFalse();
             assertThat(msg.hasOneofMessage()).isFalse();
-            // Enum returns default value
-            assertThat(msg.getOneofEnum()).isEqualTo(TestEnum.ENUM_UNKNOWN);
+            // Enum in oneof also returns null when not active (consistent with other oneof fields)
+            assertThat(msg.getOneofEnum()).isNull();
         }
 
         @ParameterizedTest(name = "Version {0}")

@@ -145,7 +145,7 @@ public final class WideningHandler extends AbstractConflictHandler implements Co
                 });
 
         // doClear - use template method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }

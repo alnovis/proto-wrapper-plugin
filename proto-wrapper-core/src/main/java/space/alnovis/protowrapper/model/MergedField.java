@@ -470,6 +470,42 @@ public class MergedField {
         return allVersionsSupportHas;
     }
 
+    /**
+     * Returns true if has*() method should be generated in the unified API.
+     *
+     * <p>This is the canonical method to determine has*() method generation. It replaces
+     * the incorrect pattern {@code field.isOptional() && !field.isRepeated()} which fails for:</p>
+     * <ul>
+     *   <li>Proto2 required fields - isOptional() returns false, but has*() IS needed</li>
+     *   <li>Proto3 implicit scalars - isOptional() returns true, but has*() is NOT needed</li>
+     * </ul>
+     *
+     * <p>The correct logic is based on {@link FieldInfo#supportsHasMethod()} aggregated
+     * across all versions via {@link #allVersionsSupportHas()}.</p>
+     *
+     * <h3>Contract Matrix Rules:</h3>
+     * <ul>
+     *   <li>Repeated/Map fields: NEVER have has*()</li>
+     *   <li>Message fields: ALWAYS have has*()</li>
+     *   <li>Oneof fields: ALWAYS have has*()</li>
+     *   <li>Proto2 all singular: ALWAYS have has*()</li>
+     *   <li>Proto3 explicit optional: HAVE has*()</li>
+     *   <li>Proto3 implicit scalar: NO has*()</li>
+     * </ul>
+     *
+     * @return true if has*() method should be generated
+     * @see FieldInfo#supportsHasMethod()
+     * @see #allVersionsSupportHas()
+     */
+    public boolean shouldGenerateHasMethod() {
+        // Repeated and map fields never have has*() method
+        if (repeated || isMap) {
+            return false;
+        }
+        // Delegate to the aggregated version support check
+        return allVersionsSupportHas;
+    }
+
     /** @return true if the field is a message type */
     public boolean isMessage() {
         return message;
@@ -1030,6 +1066,11 @@ public class MergedField {
      * <p>Returns true if the getter should use the pattern
      * {@code extractHas*(proto) ? extract*(proto) : null} to return null when unset.</p>
      *
+     * <h3>Oneof fields</h3>
+     * <p>Oneof fields ALWAYS use has-check pattern. When a oneof field is not active
+     * (another field in the oneof is set or none is set), the getter must return null.
+     * This is consistent with proto semantics where only one field can be set at a time.</p>
+     *
      * <h3>Message fields</h3>
      * <p>Message fields return null when unset (if has*() is available).
      * Without this check, proto returns a default instance instead of null,
@@ -1047,6 +1088,10 @@ public class MergedField {
      * @return true if getter should use has-check pattern
      */
     public boolean needsHasCheck() {
+        // Oneof fields should ALWAYS return null when not active
+        if (isInOneof) {
+            return true;
+        }
         // Message fields should return null when unset (consistent with has*() returning false)
         if (message) {
             return optional && allVersionsSupportHas;

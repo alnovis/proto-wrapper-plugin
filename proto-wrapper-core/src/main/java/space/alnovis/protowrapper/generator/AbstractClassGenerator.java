@@ -576,9 +576,9 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
             String fieldName = field.getJavaName();
             String hasMethod = "has" + resolver.capitalize(fieldName) + "()";
 
-            // For optional fields, check hasXxx()
-            // For required fields, always consider them as "having value"
-            if (field.isOptional() && !field.isRepeated() && !field.isMap()) {
+            // For fields with has*() method, check hasXxx()
+            // For fields without has*() (proto3 implicit, required), always consider them as "having value"
+            if (field.shouldGenerateHasMethod()) {
                 method.beginControlFlow("if ($L && !($L))", hasMethod, versionCheck);
             } else if (field.isMap()) {
                 // For map fields, use getXxxMap()

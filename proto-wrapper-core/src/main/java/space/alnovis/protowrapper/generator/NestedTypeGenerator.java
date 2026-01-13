@@ -149,7 +149,7 @@ public final class NestedTypeGenerator {
                 }
             }
 
-            if (field.isOptional() && !field.isRepeated()) {
+            if (field.shouldGenerateHasMethod()) {
                 builder.addMethod(methodGenerator.generateHasMethod(field, resolver));
             }
 

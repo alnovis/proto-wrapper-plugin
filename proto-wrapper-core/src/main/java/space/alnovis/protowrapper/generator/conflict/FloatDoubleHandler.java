@@ -128,7 +128,7 @@ public final class FloatDoubleHandler extends AbstractConflictHandler implements
                 });
 
         // doClear - use template method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }
