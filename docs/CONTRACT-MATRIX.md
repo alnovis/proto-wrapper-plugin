@@ -24,28 +24,47 @@ The **Contract Matrix** systematizes field behavior across all combinations of:
 
 ### Decision Flow
 
+```mermaid
+flowchart TD
+    START([Field]) --> IS_REPEATED{Repeated/Map?}
+
+    IS_REPEATED -->|Yes| REPEATED_RESULT[/"hasMethod: NO<br/>nullable: NO<br/>default: [] or {}"/]
+
+    IS_REPEATED -->|No| IS_ONEOF{In oneof?}
+
+    IS_ONEOF -->|Yes| ONEOF_RESULT[/"hasMethod: YES<br/>nullable: YES<br/>default: null"/]
+
+    IS_ONEOF -->|No| IS_MESSAGE{Message type?}
+
+    IS_MESSAGE -->|Yes| MESSAGE_RESULT[/"hasMethod: YES<br/>nullable: YES<br/>default: null"/]
+
+    IS_MESSAGE -->|No| CHECK_SYNTAX{Proto syntax?}
+
+    CHECK_SYNTAX -->|Proto2| PROTO2_LABEL{Label?}
+
+    PROTO2_LABEL -->|optional| PROTO2_OPT[/"hasMethod: YES<br/>nullable: YES<br/>default: null"/]
+
+    PROTO2_LABEL -->|required| PROTO2_REQ[/"hasMethod: YES<br/>nullable: NO<br/>default: type default"/]
+
+    CHECK_SYNTAX -->|Proto3| PROTO3_OPTIONAL{Has 'optional'<br/>keyword?}
+
+    PROTO3_OPTIONAL -->|Yes| PROTO3_EXPLICIT[/"hasMethod: YES<br/>nullable: YES<br/>default: null"/]
+
+    PROTO3_OPTIONAL -->|No| PROTO3_IMPLICIT[/"hasMethod: NO<br/>nullable: NO<br/>default: type default"/]
+
+    style REPEATED_RESULT fill:#0288d1,color:#fff
+    style ONEOF_RESULT fill:#f57c00,color:#fff
+    style MESSAGE_RESULT fill:#f57c00,color:#fff
+    style PROTO2_OPT fill:#f57c00,color:#fff
+    style PROTO2_REQ fill:#388e3c,color:#fff
+    style PROTO3_EXPLICIT fill:#f57c00,color:#fff
+    style PROTO3_IMPLICIT fill:#388e3c,color:#fff
 ```
-                    ┌─────────────┐
-                    │  Is field   │
-                    │  repeated?  │
-                    └──────┬──────┘
-                           │
-              ┌────────────┴────────────┐
-              │ YES                     │ NO
-              ▼                         ▼
-    ┌─────────────────┐       ┌─────────────────┐
-    │ hasMethod: NO   │       │  Is field in    │
-    │ nullable: NO    │       │    oneof?       │
-    │ default: []     │       └────────┬────────┘
-    └─────────────────┘                │
-                           ┌───────────┴───────────┐
-                           │ YES                   │ NO
-                           ▼                       ▼
-                 ┌─────────────────┐     ┌─────────────────┐
-                 │ hasMethod: YES  │     │  Check syntax   │
-                 │ nullable: YES   │     │  and type...    │
-                 └─────────────────┘     └─────────────────┘
-```
+
+**Legend:**
+- 🟠 Orange → nullable (getter can return null)
+- 🟢 Green → non-nullable (getter never returns null)
+- 🔵 Blue → collection types (empty list/map default)
 
 ---
 
