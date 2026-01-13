@@ -3,9 +3,13 @@ package space.alnovis.protowrapper.generator.conflict;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeVariableName;
+import space.alnovis.protowrapper.contract.ContractProvider;
+import space.alnovis.protowrapper.contract.FieldMethodNames;
+import space.alnovis.protowrapper.contract.MergedFieldContract;
 import space.alnovis.protowrapper.generator.GenerationContext;
 import space.alnovis.protowrapper.generator.GeneratorConfig;
 import space.alnovis.protowrapper.generator.TypeResolver;
+import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
@@ -175,5 +179,59 @@ public record ProcessingContext(
      */
     public String getImplClassName(String messageName) {
         return genCtx.getImplClassName(messageName);
+    }
+
+    // ==================== Contract Support ====================
+
+    /**
+     * Get the contract provider singleton.
+     *
+     * @return the contract provider
+     */
+    public ContractProvider contractProvider() {
+        return ContractProvider.getInstance();
+    }
+
+    /**
+     * Get the contract for a field.
+     *
+     * <p>This is a convenience method that delegates to {@link ContractProvider}
+     * and caches contracts per message.</p>
+     *
+     * @param field the field to get contract for
+     * @return the merged field contract
+     */
+    public MergedFieldContract getContractFor(MergedField field) {
+        return contractProvider().getContract(message, field);
+    }
+
+    /**
+     * Get method names for a field.
+     *
+     * @param field the field
+     * @return the field method names
+     */
+    public FieldMethodNames getFieldNames(MergedField field) {
+        return contractProvider().getMethodNames(field);
+    }
+
+    /**
+     * Check if a field should have a has method according to its contract.
+     *
+     * @param field the field
+     * @return true if has method should be generated
+     */
+    public boolean shouldGenerateHasMethod(MergedField field) {
+        return getContractFor(field).unified().hasMethodExists();
+    }
+
+    /**
+     * Check if a field's getter should use has-check pattern.
+     *
+     * @param field the field
+     * @return true if getter should use has-check
+     */
+    public boolean shouldUseHasCheckInGetter(MergedField field) {
+        return getContractFor(field).unified().getterUsesHasCheck();
     }
 }
