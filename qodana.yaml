@@ -8,11 +8,6 @@ version: "1.0"
 # JVM linter for Java + Kotlin
 linter: jetbrains/qodana-jvm:2024.3
 
-# Explicitly set project type (required for dual Maven+Gradle projects)
-ide:
-  jvmProperties:
-    - -Dproject.open.type=Maven
-
 # Project profile (inspections to run)
 profile:
   name: qodana.recommended

@@ -44,6 +44,7 @@ jobs:
       - name: Qodana Scan
         uses: JetBrains/qodana-action@v2024.3
         with:
+          args: --property=project.open.type=Maven
           pr-mode: true
           upload-result: true
         env:
