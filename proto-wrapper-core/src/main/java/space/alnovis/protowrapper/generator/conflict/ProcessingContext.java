@@ -3,11 +3,16 @@ package space.alnovis.protowrapper.generator.conflict;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeVariableName;
+import space.alnovis.protowrapper.contract.ContractProvider;
+import space.alnovis.protowrapper.contract.FieldMethodNames;
+import space.alnovis.protowrapper.contract.MergedFieldContract;
 import space.alnovis.protowrapper.generator.GenerationContext;
 import space.alnovis.protowrapper.generator.GeneratorConfig;
 import space.alnovis.protowrapper.generator.TypeResolver;
+import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
+import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
 /**
  * Context object containing all information needed for field processing.
@@ -175,5 +180,110 @@ public record ProcessingContext(
      */
     public String getImplClassName(String messageName) {
         return genCtx.getImplClassName(messageName);
+    }
+
+    // ==================== Contract Support ====================
+
+    /**
+     * Get the contract provider singleton.
+     *
+     * @return the contract provider
+     */
+    public ContractProvider contractProvider() {
+        return ContractProvider.getInstance();
+    }
+
+    /**
+     * Get the contract for a field.
+     *
+     * <p>This is a convenience method that delegates to {@link ContractProvider}
+     * and caches contracts per message.</p>
+     *
+     * @param field the field to get contract for
+     * @return the merged field contract
+     */
+    public MergedFieldContract getContractFor(MergedField field) {
+        return contractProvider().getContract(message, field);
+    }
+
+    /**
+     * Get method names for a field.
+     *
+     * @param field the field
+     * @return the field method names
+     */
+    public FieldMethodNames getFieldNames(MergedField field) {
+        return contractProvider().getMethodNames(field);
+    }
+
+    /**
+     * Check if a field should have a has method according to its contract.
+     *
+     * @param field the field
+     * @return true if has method should be generated
+     */
+    public boolean shouldGenerateHasMethod(MergedField field) {
+        return getContractFor(field).unified().hasMethodExists();
+    }
+
+    /**
+     * Check if a field's getter should use has-check pattern.
+     *
+     * @param field the field
+     * @return true if getter should use has-check
+     */
+    public boolean shouldUseHasCheckInGetter(MergedField field) {
+        return getContractFor(field).unified().getterUsesHasCheck();
+    }
+
+    // ==================== Version Field Snapshot Support ====================
+
+    /**
+     * Create a snapshot of field info for the current version.
+     *
+     * <p>This consolidates the common pattern of looking up version-specific
+     * field information and checking for null:</p>
+     *
+     * <pre>{@code
+     * // Instead of:
+     * FieldInfo versionField = field.getVersionFields().get(ctx.requireVersion());
+     * String versionType = versionField != null ? versionField.getJavaType() : "double";
+     * boolean isEnum = versionField != null && versionField.isEnum();
+     *
+     * // Use:
+     * VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+     * String versionType = snapshot.javaTypeOr("double");
+     * boolean isEnum = snapshot.isEnum();
+     * }</pre>
+     *
+     * @param field the merged field
+     * @return snapshot of field info for the current version
+     * @throws IllegalStateException if version is not set
+     */
+    public VersionFieldSnapshot versionSnapshot(MergedField field) {
+        return VersionFieldSnapshot.of(field, requireVersion());
+    }
+
+    /**
+     * Get the version-specific Java name (capitalized) for a field.
+     *
+     * <p>Convenience method combining snapshot lookup and capitalization:</p>
+     *
+     * <pre>{@code
+     * // Instead of:
+     * String versionJavaName = ctx.versionSnapshot(field).javaNameOr(field.getJavaName());
+     * String capitalizedName = ctx.capitalize(versionJavaName);
+     *
+     * // Use:
+     * String capitalizedVersionName = ctx.versionJavaNameCapitalized(field);
+     * }</pre>
+     *
+     * @param field the merged field
+     * @return capitalized Java name for the current version
+     * @throws IllegalStateException if version is not set
+     */
+    public String versionJavaNameCapitalized(MergedField field) {
+        VersionFieldSnapshot snapshot = versionSnapshot(field);
+        return capitalize(snapshot.javaNameOr(field.getJavaName()));
     }
 }

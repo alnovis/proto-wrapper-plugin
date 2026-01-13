@@ -114,8 +114,8 @@ public final class PrimitiveMessageHandler extends AbstractConflictHandler imple
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
         TypeName primitiveType = ctx.parseFieldType(field);
 
-        // Add extractHas for optional fields
-        if (field.isOptional() && !field.isRepeated()) {
+        // Add extractHas for fields that support has*() method
+        if (field.shouldGenerateHasMethod()) {
             MethodSpec.Builder extractHas = MethodSpec.methodBuilder(field.getExtractHasMethodName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED)

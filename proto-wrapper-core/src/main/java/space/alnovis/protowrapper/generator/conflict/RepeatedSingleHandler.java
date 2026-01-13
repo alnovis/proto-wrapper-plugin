@@ -119,7 +119,7 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
         builder.addMethod(extract.build());
 
         // has method implementation
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             addHasExtractImpl(builder, field, versionField, presentInVersion, versionJavaName, isRepeatedInVersion, ctx);
         }
     }
@@ -320,7 +320,7 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
         builder.addMethod(extract);
 
         // has method returns false
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             MethodSpec hasMethod = MethodSpec.methodBuilder(field.getExtractHasMethodName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED)

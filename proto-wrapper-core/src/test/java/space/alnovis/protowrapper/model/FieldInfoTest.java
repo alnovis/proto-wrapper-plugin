@@ -172,4 +172,449 @@ class FieldInfoTest {
         assertThat(field.extractNestedTypePath(null)).isEqualTo("Item");
         assertThat(field.extractNestedTypePath("")).isEqualTo("Item");
     }
+
+    // ========================================================================
+    // Tests for supportsHasMethod() - proto2 syntax
+    // ========================================================================
+
+    @Test
+    void proto2_optionalScalarField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("optional_field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 optional scalar fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_requiredScalarField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("required_field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 required scalar fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_repeatedScalarField_shouldNotSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("repeated_field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_REPEATED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 repeated fields should NOT support has*() method")
+                .isFalse();
+    }
+
+    @Test
+    void proto2_optionalMessageField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("optional_message")
+                .setNumber(1)
+                .setType(Type.TYPE_MESSAGE)
+                .setTypeName(".example.Nested")
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 optional message fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_requiredMessageField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("required_message")
+                .setNumber(1)
+                .setType(Type.TYPE_MESSAGE)
+                .setTypeName(".example.Nested")
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 required message fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_repeatedMessageField_shouldNotSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("repeated_message")
+                .setNumber(1)
+                .setType(Type.TYPE_MESSAGE)
+                .setTypeName(".example.Nested")
+                .setLabel(Label.LABEL_REPEATED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 repeated message fields should NOT support has*() method")
+                .isFalse();
+    }
+
+    @Test
+    void proto2_optionalStringField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("address")
+                .setNumber(1)
+                .setType(Type.TYPE_STRING)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 optional string fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_requiredStringField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("address")
+                .setNumber(1)
+                .setType(Type.TYPE_STRING)
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 required string fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_optionalEnumField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("status")
+                .setNumber(1)
+                .setType(Type.TYPE_ENUM)
+                .setTypeName(".example.Status")
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 optional enum fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto2_requiredEnumField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("status")
+                .setNumber(1)
+                .setType(Type.TYPE_ENUM)
+                .setTypeName(".example.Status")
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto2 required enum fields should support has*() method")
+                .isTrue();
+    }
+
+    // ========================================================================
+    // Tests for supportsHasMethod() - proto3 syntax
+    // ========================================================================
+
+    @Test
+    void proto3_singularScalarField_shouldNotSupportHasMethod() {
+        // In proto3, singular scalar fields (without 'optional' keyword) don't have has*()
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("singular_field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL) // proto3 singular fields use LABEL_OPTIONAL but no hasXxx()
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 singular scalar fields (without 'optional' keyword) should NOT support has*() method")
+                .isFalse();
+    }
+
+    @Test
+    void proto3_repeatedScalarField_shouldNotSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("repeated_field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_REPEATED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 repeated scalar fields should NOT support has*() method")
+                .isFalse();
+    }
+
+    @Test
+    void proto3_messageField_shouldSupportHasMethod() {
+        // In proto3, message fields ALWAYS have has*() method
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("nested")
+                .setNumber(1)
+                .setType(Type.TYPE_MESSAGE)
+                .setTypeName(".example.Nested")
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 message fields should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto3_repeatedMessageField_shouldNotSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("items")
+                .setNumber(1)
+                .setType(Type.TYPE_MESSAGE)
+                .setTypeName(".example.Item")
+                .setLabel(Label.LABEL_REPEATED)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 repeated message fields should NOT support has*() method")
+                .isFalse();
+    }
+
+    @Test
+    void proto3_optionalScalarFieldInOneof_shouldSupportHasMethod() {
+        // In proto3, fields in oneof (including synthetic oneofs for 'optional' keyword) have has*()
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("optional_int")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .setOneofIndex(0) // Field is part of a oneof
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, 0, "_optional_int", null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 scalar fields in oneof should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto3_stringFieldInOneof_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("name_or_id")
+                .setNumber(1)
+                .setType(Type.TYPE_STRING)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .setOneofIndex(0)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, 0, "identifier", null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 string fields in oneof should support has*() method")
+                .isTrue();
+    }
+
+    @Test
+    void proto3_singularEnumField_shouldNotSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("status")
+                .setNumber(1)
+                .setType(Type.TYPE_ENUM)
+                .setTypeName(".example.Status")
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 singular enum fields should NOT support has*() method")
+                .isFalse();
+    }
+
+    @Test
+    void proto3_enumFieldInOneof_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("status")
+                .setNumber(1)
+                .setType(Type.TYPE_ENUM)
+                .setTypeName(".example.Status")
+                .setLabel(Label.LABEL_OPTIONAL)
+                .setOneofIndex(0)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, 0, "status_oneof", null, ProtoSyntax.PROTO3);
+
+        assertThat(field.supportsHasMethod())
+                .as("Proto3 enum fields in oneof should support has*() method")
+                .isTrue();
+    }
+
+    // ========================================================================
+    // Tests for supportsHasMethod() - all primitive types in proto2
+    // ========================================================================
+
+    @Test
+    void proto2_allRequiredPrimitiveTypes_shouldSupportHasMethod() {
+        Type[] primitiveTypes = {
+            Type.TYPE_INT32, Type.TYPE_INT64, Type.TYPE_UINT32, Type.TYPE_UINT64,
+            Type.TYPE_SINT32, Type.TYPE_SINT64, Type.TYPE_FIXED32, Type.TYPE_FIXED64,
+            Type.TYPE_SFIXED32, Type.TYPE_SFIXED64, Type.TYPE_FLOAT, Type.TYPE_DOUBLE,
+            Type.TYPE_BOOL, Type.TYPE_STRING, Type.TYPE_BYTES
+        };
+
+        for (Type type : primitiveTypes) {
+            FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                    .setName("field_" + type.name().toLowerCase())
+                    .setNumber(1)
+                    .setType(type)
+                    .setLabel(Label.LABEL_REQUIRED)
+                    .build();
+
+            FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+            assertThat(field.supportsHasMethod())
+                    .as("Proto2 required %s field should support has*() method", type.name())
+                    .isTrue();
+        }
+    }
+
+    @Test
+    void proto2_allOptionalPrimitiveTypes_shouldSupportHasMethod() {
+        Type[] primitiveTypes = {
+            Type.TYPE_INT32, Type.TYPE_INT64, Type.TYPE_UINT32, Type.TYPE_UINT64,
+            Type.TYPE_SINT32, Type.TYPE_SINT64, Type.TYPE_FIXED32, Type.TYPE_FIXED64,
+            Type.TYPE_SFIXED32, Type.TYPE_SFIXED64, Type.TYPE_FLOAT, Type.TYPE_DOUBLE,
+            Type.TYPE_BOOL, Type.TYPE_STRING, Type.TYPE_BYTES
+        };
+
+        for (Type type : primitiveTypes) {
+            FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                    .setName("field_" + type.name().toLowerCase())
+                    .setNumber(1)
+                    .setType(type)
+                    .setLabel(Label.LABEL_OPTIONAL)
+                    .build();
+
+            FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+            assertThat(field.supportsHasMethod())
+                    .as("Proto2 optional %s field should support has*() method", type.name())
+                    .isTrue();
+        }
+    }
+
+    @Test
+    void proto2_allRepeatedPrimitiveTypes_shouldNotSupportHasMethod() {
+        Type[] primitiveTypes = {
+            Type.TYPE_INT32, Type.TYPE_INT64, Type.TYPE_UINT32, Type.TYPE_UINT64,
+            Type.TYPE_SINT32, Type.TYPE_SINT64, Type.TYPE_FIXED32, Type.TYPE_FIXED64,
+            Type.TYPE_SFIXED32, Type.TYPE_SFIXED64, Type.TYPE_FLOAT, Type.TYPE_DOUBLE,
+            Type.TYPE_BOOL, Type.TYPE_STRING, Type.TYPE_BYTES
+        };
+
+        for (Type type : primitiveTypes) {
+            FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                    .setName("field_" + type.name().toLowerCase())
+                    .setNumber(1)
+                    .setType(type)
+                    .setLabel(Label.LABEL_REPEATED)
+                    .build();
+
+            FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+            assertThat(field.supportsHasMethod())
+                    .as("Proto2 repeated %s field should NOT support has*() method", type.name())
+                    .isFalse();
+        }
+    }
+
+    // ========================================================================
+    // Tests for default constructor (backwards compatibility - defaults to PROTO2)
+    // ========================================================================
+
+    @Test
+    void defaultConstructor_optionalField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        // Using default constructor (no ProtoSyntax specified - defaults to PROTO2)
+        FieldInfo field = new FieldInfo(proto);
+
+        assertThat(field.supportsHasMethod())
+                .as("Default constructor should use PROTO2 semantics for optional fields")
+                .isTrue();
+    }
+
+    @Test
+    void defaultConstructor_requiredField_shouldSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+
+        // Using default constructor (no ProtoSyntax specified - defaults to PROTO2)
+        FieldInfo field = new FieldInfo(proto);
+
+        assertThat(field.supportsHasMethod())
+                .as("Default constructor should use PROTO2 semantics for required fields")
+                .isTrue();
+    }
+
+    @Test
+    void defaultConstructor_repeatedField_shouldNotSupportHasMethod() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_REPEATED)
+                .build();
+
+        // Using default constructor (no ProtoSyntax specified - defaults to PROTO2)
+        FieldInfo field = new FieldInfo(proto);
+
+        assertThat(field.supportsHasMethod())
+                .as("Default constructor should use PROTO2 semantics for repeated fields")
+                .isFalse();
+    }
 }

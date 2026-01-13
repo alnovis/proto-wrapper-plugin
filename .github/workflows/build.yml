@@ -95,6 +95,16 @@ jobs:
             echo "Installed plugins:"
             ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/
 
+      - name: Run Golden Tests
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            cd proto-wrapper-golden-tests
+            mvn verify -B
+
       - name: Run Maven Integration Tests
         uses: nick-fields/retry@v3
         with:
@@ -279,6 +289,16 @@ jobs:
             "README.md"
             "CHANGELOG.md"
             "RELEASE_NOTES.md"
+            "CONTRIBUTING.md"
+            "docs/ARCHITECTURE.md"
+            "docs/CONTRACT-MATRIX.md"
+            "docs/GETTING_STARTED.md"
+            "docs/CONFIGURATION.md"
+            "docs/COOKBOOK.md"
+            "docs/SCHEMA_DIFF.md"
+            "docs/INCREMENTAL_BUILD.md"
+            "docs/KNOWN_ISSUES.md"
+            "docs/API_REFERENCE.md"
           )
           MISSING=0
           for file in "${FILES[@]}"; do
@@ -286,10 +306,81 @@ jobs:
               echo "::error::Missing: $file"
               MISSING=$((MISSING + 1))
             else
-              echo "OK $file"
+              echo "✓ $file"
             fi
           done
           if [ $MISSING -gt 0 ]; then
             exit 1
           fi
           echo "All documentation files present."
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mermaid-cli
+        run: npm install -g @mermaid-js/mermaid-cli
+
+      - name: Validate Mermaid diagrams
+        run: |
+          echo "Validating Mermaid diagrams..."
+
+          # Find all markdown files containing mermaid blocks
+          FILES_WITH_MERMAID=$(grep -rl '```mermaid' --include="*.md" . 2>/dev/null || true)
+
+          if [ -z "$FILES_WITH_MERMAID" ]; then
+            echo "No Mermaid diagrams found in any .md files"
+            exit 0
+          fi
+
+          TOTAL_BLOCKS=0
+          VALID_BLOCKS=0
+          INVALID_FILES=""
+
+          for file in $FILES_WITH_MERMAID; do
+            echo "Checking $file..."
+
+            # Count mermaid blocks in this file
+            BLOCK_COUNT=$(grep -c '```mermaid' "$file" || echo "0")
+            echo "  Found $BLOCK_COUNT mermaid block(s)"
+            TOTAL_BLOCKS=$((TOTAL_BLOCKS + BLOCK_COUNT))
+
+            # Extract and validate each mermaid block separately
+            BLOCK_NUM=0
+            IN_BLOCK=false
+            BLOCK_CONTENT=""
+
+            while IFS= read -r line; do
+              if [[ "$line" == '```mermaid'* ]]; then
+                IN_BLOCK=true
+                BLOCK_CONTENT=""
+                BLOCK_NUM=$((BLOCK_NUM + 1))
+              elif [[ "$line" == '```'* ]] && [ "$IN_BLOCK" = true ]; then
+                IN_BLOCK=false
+                # Validate this block
+                echo "$BLOCK_CONTENT" > /tmp/mermaid_block_${BLOCK_NUM}.mmd
+                if mmdc -i /tmp/mermaid_block_${BLOCK_NUM}.mmd -o /tmp/mermaid_block_${BLOCK_NUM}.svg 2>/dev/null; then
+                  echo "  ✓ Block $BLOCK_NUM valid"
+                  VALID_BLOCKS=$((VALID_BLOCKS + 1))
+                else
+                  echo "  ✗ Block $BLOCK_NUM invalid"
+                  INVALID_FILES="$INVALID_FILES $file:block$BLOCK_NUM"
+                fi
+              elif [ "$IN_BLOCK" = true ]; then
+                BLOCK_CONTENT="$BLOCK_CONTENT$line"$'\n'
+              fi
+            done < "$file"
+          done
+
+          echo ""
+          echo "=== Mermaid Validation Summary ==="
+          echo "Files with diagrams: $(echo "$FILES_WITH_MERMAID" | wc -w)"
+          echo "Total blocks: $TOTAL_BLOCKS"
+          echo "Valid blocks: $VALID_BLOCKS"
+
+          if [ -n "$INVALID_FILES" ]; then
+            echo "::warning::Invalid Mermaid blocks found in:$INVALID_FILES"
+          fi
+
+          echo "Mermaid validation complete."

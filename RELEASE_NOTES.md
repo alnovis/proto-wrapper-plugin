@@ -1,3 +1,205 @@
+# Release Notes - Proto Wrapper Plugin v1.6.4
+
+**Release Date:** January 13, 2026
+
+## Overview
+
+Version 1.6.4 is a **critical bug fix release** that corrects fundamental issues with getter behavior for proto3 fields and message types. These fixes ensure consistent and predictable API behavior across all protobuf syntax versions.
+
+## What's Fixed
+
+### Proto3 Singular Scalar Fields (Critical)
+
+**Problem:** Proto3 singular scalar fields (int32, bool, float, etc.) without the `optional` keyword were returning `null` even when values were set.
+
+**Root cause:** The `needsHasCheck()` method incorrectly used the has-check pattern for proto3 singular scalars, but these fields don't have `has*()` methods in proto3.
+
+**Impact:** Any proto3 schema without explicit `optional` keywords would experience incorrect behavior:
+
+```protobuf
+// Proto definition (proto3)
+syntax = "proto3";
+message Example {
+    int32 value = 1;    // No 'optional' keyword
+    bool flag = 2;
+}
+```
+
+```java
+// Before fix (incorrect)
+Example msg = builder.setValue(42).setFlag(true).build();
+wrapper.getValue();    // null (bug!)
+wrapper.getFlag();     // null (bug!)
+
+// After fix (correct)
+wrapper.getValue();    // 42
+wrapper.getFlag();     // true
+```
+
+### Message Fields Returning Default Instance
+
+**Problem:** Unset message fields returned a wrapped default instance instead of `null`, which was inconsistent with `has*()` returning `false`.
+
+**Root cause:** The `needsHasCheck()` method only applied to primitive fields, not message fields.
+
+**Impact:** Confusing API behavior where `has*()` returns `false` but `get*()` returns non-null:
+
+```java
+// Before fix (inconsistent)
+wrapper.hasNestedMessage();    // false
+wrapper.getNestedMessage();    // NestedMessage[id=0, name=""] (default instance!)
+
+// After fix (consistent)
+wrapper.hasNestedMessage();    // false
+wrapper.getNestedMessage();    // null
+```
+
+### Proto2 `required` Field Support
+
+**Problem:** Generated wrappers returned `null` for proto2 `required` fields that were properly set in the underlying proto object.
+
+**Root cause:** The `determineHasMethodSupport()` method only recognized `optional` fields as having `has*()` methods, ignoring that proto2 `required` fields also have `has*()` methods.
+
+**Impact:** Any proto2 schema using `required` fields (common in legacy protocols) would experience incorrect behavior:
+
+```protobuf
+// Proto definition (proto2)
+message ZXReportOfflineInfo {
+    required int64 offline_count = 1;  // Has has*() method!
+}
+```
+
+```java
+// Before fix (incorrect)
+ZXReportOfflineInfo info = ...;
+info.getProto().hasOfflineCount(); // true (field is set)
+wrapper.getOfflineCount();          // null (bug!)
+
+// After fix (correct)
+wrapper.getOfflineCount();          // 42 (correct value)
+```
+
+### Repeated Field Handling
+
+**Problem:** Repeated message fields incorrectly reported having `has*()` methods.
+
+**Fix:** The check for `LABEL_REPEATED` is now performed first, before any type-specific logic. Repeated fields never have `has*()` methods regardless of their type.
+
+## Architecture Improvements
+
+Version 1.6.4 also includes significant internal architecture improvements following SOLID principles.
+
+### Interface Segregation Principle (ISP) Compliance
+
+The `ConflictHandler` interface has been refactored to follow ISP:
+
+```mermaid
+flowchart LR
+    subgraph Before["❌ Before: Monolithic"]
+        CH_OLD["ConflictHandler<br/>───────────────<br/>+ addAbstractExtract()<br/>+ addExtractImpl()<br/>+ addGetterImpl()<br/>+ addAbstractBuilder()<br/>+ addBuilderImpl()<br/>+ addConcreteBuilder()"]
+    end
+
+    subgraph After["✅ After: ISP-Compliant"]
+        direction TB
+        FEH["FieldExtractionHandler<br/>───────────────<br/>+ addAbstractExtract()<br/>+ addExtractImpl()<br/>+ addGetterImpl()"]
+        FBH["FieldBuilderHandler<br/>───────────────<br/>+ addAbstractBuilder()<br/>+ addBuilderImpl()<br/>+ addConcreteBuilder()"]
+        CH_NEW["ConflictHandler<br/>«extends both»"]
+        FEH --> CH_NEW
+        FBH --> CH_NEW
+    end
+
+    Before -.->|refactor| After
+```
+
+**Benefits:**
+- Clients can depend on the narrowest interface they need
+- Read-only generators only depend on `FieldExtractionHandler`
+- Builder generators only depend on `FieldBuilderHandler`
+- Full handlers still use composite `ConflictHandler`
+
+### New Utility Classes
+
+| Class | Purpose |
+|-------|---------|
+| `MethodSpecFactory` | Centralized factory for MethodSpec.Builder creation |
+| `VersionFieldSnapshot` | Immutable record for version field lookups |
+| `ExtractMethodGenerator` | Utility for extraction method generation |
+| `BuilderMethodGenerator` | Utility for builder method generation |
+
+### New Documentation
+
+- **[CONTRACT-MATRIX.md](docs/CONTRACT-MATRIX.md)** - Comprehensive field behavior contract matrix documenting expected behavior for all field type combinations
+
+## Getter Behavior Summary
+
+| Field Type | Unset Value | Set Value |
+|------------|-------------|-----------|
+| Proto3 singular scalar (int32, bool, etc.) | `0`, `false` (default) | actual value |
+| Proto3 singular message | `null` | wrapper object |
+| Proto3 optional scalar | `null` | actual value |
+| Proto3 optional message | `null` | wrapper object |
+| Proto2 optional scalar | `null` | actual value |
+| Proto2 optional message | `null` | wrapper object |
+| Proto2 required field | actual value | actual value |
+
+## New Tests
+
+### Golden Tests Module
+
+Added new `proto-wrapper-golden-tests` module with **110 comprehensive tests**:
+
+| Category | Tests |
+|----------|-------|
+| Proto2 required fields | 20 tests |
+| Proto2 optional fields | 12 tests |
+| Proto2 repeated fields | 10 tests |
+| Proto3 singular fields | 20 tests |
+| Proto3 optional fields | 22 tests |
+| Proto3 repeated fields | 10 tests |
+| Proto3 oneof fields | 14 tests |
+| Cross-version consistency | 2 tests |
+
+### FieldInfo Tests
+
+Added 27 comprehensive tests in `FieldInfoTest` covering:
+
+| Category | Tests |
+|----------|-------|
+| Proto2 optional fields | 4 tests (scalar, message, string, enum) |
+| Proto2 required fields | 10 tests (all primitive types + message) |
+| Proto2 repeated fields | 4 tests (scalar, message, string, enum) |
+| Proto3 singular fields | 4 tests (scalar, message, oneof) |
+| Proto3 repeated fields | 4 tests (scalar, message) |
+| Proto3 optional scalars | 1 test |
+
+## Upgrade Guide
+
+Simply update the version:
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.4</version>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.6.4"
+}
+```
+
+## Breaking Changes
+
+None. Fully backward compatible with v1.6.3.
+
+**Note:** If your generated code was working around this bug with null checks, those workarounds can now be removed.
+
+---
+
 # Release Notes - Proto Wrapper Plugin v1.6.3
 
 **Release Date:** January 6, 2026
@@ -540,6 +742,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 - [GitHub Repository](https://github.com/alnovis/proto-wrapper-plugin)
 - [Documentation](README.md)
 - [API Reference](docs/API_REFERENCE.md)
+- [Contract Matrix](docs/CONTRACT-MATRIX.md) - Field behavior reference
 - [Roadmap](docs/ROADMAP.md)
 - [Cookbook](docs/COOKBOOK.md)
 - [Changelog](CHANGELOG.md)

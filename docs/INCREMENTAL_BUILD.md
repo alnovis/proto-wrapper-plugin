@@ -124,7 +124,7 @@ The `state.json` file tracks:
 
 ```json
 {
-  "pluginVersion": "1.6.3",
+  "pluginVersion": "1.6.4",
   "configHash": "a1b2c3d4...",
   "protoFiles": {
     "proto/v1/order.proto": {

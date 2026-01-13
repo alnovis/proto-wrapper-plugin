@@ -92,7 +92,7 @@ byte[] bytes = order.toBytes();
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.3</version>
+    <version>1.6.4</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -119,7 +119,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.3"
+    id("space.alnovis.proto-wrapper") version "1.6.4"
 }
 
 protoWrapper {
@@ -170,6 +170,7 @@ protoWrapper {
 | **[Getting Started](docs/GETTING_STARTED.md)** | Step-by-step tutorial (15 min) |
 | [Configuration](docs/CONFIGURATION.md) | All plugin options for Maven and Gradle |
 | [Cookbook](docs/COOKBOOK.md) | Practical examples and patterns |
+| [Contract Matrix](docs/CONTRACT-MATRIX.md) | Field behavior reference (getter/has for all types) |
 | [Schema Diff](docs/SCHEMA_DIFF.md) | Compare schemas and detect breaking changes |
 | [Incremental Build](docs/INCREMENTAL_BUILD.md) | Build optimization details |
 | [Known Issues](docs/KNOWN_ISSUES.md) | Limitations and workarounds |
@@ -222,7 +223,7 @@ Add dependency (plugins auto-download):
 <dependency>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>1.6.3</version>
+    <version>1.6.4</version>
 </dependency>
 ```
 

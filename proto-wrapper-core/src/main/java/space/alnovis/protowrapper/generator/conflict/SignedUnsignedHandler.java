@@ -132,8 +132,8 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
 
         builder.addMethod(extract.build());
 
-        // Add has method for optional fields
-        if (field.isOptional()) {
+        // Add has method for fields that support has*()
+        if (field.shouldGenerateHasMethod()) {
             addHasExtractImpl(builder, field, presentInVersion, versionJavaName, ctx);
         }
     }
@@ -187,8 +187,8 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
                     }
                 });
 
-        // doClear - use template method
-        if (field.isOptional()) {
+        // doClear - use template method (only for fields with has*())
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }
@@ -284,7 +284,7 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
         builder.addMethod(extract);
 
         // Add has method that returns false for missing fields
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             MethodSpec hasMethod = MethodSpec.methodBuilder(field.getExtractHasMethodName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED)

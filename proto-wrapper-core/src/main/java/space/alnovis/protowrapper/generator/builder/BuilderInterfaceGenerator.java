@@ -241,8 +241,8 @@ public final class BuilderInterfaceGenerator {
                 .addJavadoc("Set $L value.\n", field.getJavaName())
                 .build());
 
-        // Clear method for optional fields
-        if (field.isOptional()) {
+        // Clear method for fields with has*() support
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .returns(builderType)
@@ -389,7 +389,7 @@ public final class BuilderInterfaceGenerator {
                 .build());
 
         // clear method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .returns(builderType)
@@ -425,7 +425,7 @@ public final class BuilderInterfaceGenerator {
                 .build());
 
         // clear method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .returns(builderType)
@@ -462,7 +462,7 @@ public final class BuilderInterfaceGenerator {
                 .build());
 
         // clear method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder("clear" + resolver.capitalize(field.getJavaName()))
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .returns(builderType)
@@ -509,7 +509,7 @@ public final class BuilderInterfaceGenerator {
                 .build());
 
         // clear method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .returns(builderType)

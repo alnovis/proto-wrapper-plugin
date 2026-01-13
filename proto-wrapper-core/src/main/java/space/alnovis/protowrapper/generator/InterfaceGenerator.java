@@ -115,7 +115,7 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 }
             }
 
-            if (field.isOptional() && !field.isRepeated()) {
+            if (field.shouldGenerateHasMethod()) {
                 interfaceBuilder.addMethod(methodGenerator.generateHasMethod(field, resolver));
             }
 
