@@ -11,6 +11,57 @@ _No changes yet._
 
 ---
 
+## [1.6.4] - 2026-01-13
+
+### Fixed
+
+#### Proto3 Singular Scalar Fields
+- **Fixed proto3 singular scalars returning `null` instead of value** - Proto3 singular scalar fields (int32, bool, float, etc.) without the `optional` keyword were incorrectly returning `null` even when values were set.
+  - Root cause: `needsHasCheck()` returned `true` based only on `optional && primitive`, ignoring that proto3 singular scalars don't have `has*()` methods
+  - Fix: Added `allVersionsSupportHas` field to `MergedField` that checks if ALL versions support `has*()` method
+  - Now `needsHasCheck()` returns `false` for proto3 singular scalars, so getter returns value directly
+
+#### Message Fields Returning Default Instance
+- **Fixed message fields returning default instance instead of `null`** - Unset message fields returned a wrapped default instance, which was inconsistent with `has*()` returning `false`.
+  - Root cause: `needsHasCheck()` required `primitive` to be `true`, but message fields have `primitive = false`
+  - Fix: Extended `needsHasCheck()` to also return `true` for message fields when `allVersionsSupportHas` is `true`
+  - Now unset message fields return `null`, consistent with `has*()` returning `false`
+
+#### Proto2 `has*()` Method Support
+- **Fixed `supportsHasMethod()` for proto2 `required` fields** - Previously, the plugin only recognized `optional` fields as having `has*()` methods in proto2 syntax. This caused proto2 `required` fields to be incorrectly handled, resulting in `null` returns from getter methods when the underlying proto field was properly set.
+  - Root cause: `determineHasMethodSupport()` checked `proto.getLabel() == LABEL_OPTIONAL` instead of `proto.getLabel() != LABEL_REPEATED`
+  - In proto2, both `optional` and `required` fields have `has*()` methods; only `repeated` fields do not
+
+#### Repeated Field Handling
+- **Fixed `supportsHasMethod()` for repeated message fields** - Repeated fields should never have `has*()` methods, regardless of field type (scalar, message, enum). The check for `LABEL_REPEATED` is now performed first, before any type-specific logic.
+
+### Added
+
+#### Golden Tests Module
+- **New `proto-wrapper-golden-tests` module** - Comprehensive test suite with 110 tests covering:
+  - Proto2: required fields, optional fields, repeated fields
+  - Proto3: singular fields, optional fields, repeated fields, oneof fields
+  - Cross-version consistency tests
+  - All scalar types, message types, enum types
+
+#### Comprehensive Test Coverage
+- Added 27 new tests in `FieldInfoTest` covering all combinations of:
+  - Proto syntax: proto2, proto3
+  - Field labels: `LABEL_OPTIONAL`, `LABEL_REQUIRED`, `LABEL_REPEATED`
+  - Field types: scalar (int32, int64, bool, double, etc.), string, bytes, message, enum
+  - Special cases: oneof fields, proto3 optional scalar fields
+
+### Changed
+
+- **`FieldInfo.determineHasMethodSupport()`** - Refactored to correct order of checks:
+  1. Repeated fields (`LABEL_REPEATED`) - always return `false`
+  2. Message types - always return `true` (singular messages always have `has*()`)
+  3. Oneof fields - always return `true`
+  4. Proto2 non-repeated fields - return `true` (both optional and required)
+  5. Proto3 scalar fields - return `false` (unless optional modifier or message type)
+
+---
+
 ## [1.6.3] - 2026-01-06
 
 ### Changed

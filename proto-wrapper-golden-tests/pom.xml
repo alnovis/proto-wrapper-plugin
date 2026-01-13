@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>space.alnovis</groupId>
+        <artifactId>proto-wrapper-parent</artifactId>
+        <version>1.6.4</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>proto-wrapper-golden-tests</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Proto Wrapper Golden Tests</name>
+    <description>
+        Golden tests for proto-wrapper-plugin covering all field variations:
+        - Proto2: required, optional, repeated for all scalar/message/enum types
+        - Proto3: singular, optional, repeated, oneof for all types
+        - Cross-version consistency verification
+        - Round-trip serialization tests
+    </description>
+
+    <properties>
+        <!-- Skip publishing - this is a test module -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.install.skip>true</maven.install.skip>
+        <gpg.skip>true</gpg.skip>
+        <central.publishing.skip>true</central.publishing.skip>
+    </properties>
+
+    <dependencies>
+        <!-- Proto wrapper core (for VersionContext) -->
+        <dependency>
+            <groupId>space.alnovis</groupId>
+            <artifactId>proto-wrapper-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Protobuf runtime -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <extensions>
+            <!-- OS detection for protoc artifact -->
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
+
+        <plugins>
+            <!-- ================================================================
+                 PROTO2: Compile proto files to Java
+                 ================================================================ -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+                <configuration>
+                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+                </configuration>
+                <executions>
+                    <!-- Proto2 v1 -->
+                    <execution>
+                        <id>compile-proto2-v1</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <protoSourceRoot>${basedir}/proto/proto2</protoSourceRoot>
+                            <includes>
+                                <include>v1/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/proto2-v1</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <!-- Proto2 v2 -->
+                    <execution>
+                        <id>compile-proto2-v2</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <protoSourceRoot>${basedir}/proto/proto2</protoSourceRoot>
+                            <includes>
+                                <include>v2/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/proto2-v2</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <!-- Proto3 v1 -->
+                    <execution>
+                        <id>compile-proto3-v1</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <protoSourceRoot>${basedir}/proto/proto3</protoSourceRoot>
+                            <includes>
+                                <include>v1/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/proto3-v1</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <!-- Proto3 v2 -->
+                    <execution>
+                        <id>compile-proto3-v2</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <protoSourceRoot>${basedir}/proto/proto3</protoSourceRoot>
+                            <includes>
+                                <include>v2/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/proto3-v2</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- ================================================================
+                 Generate version-agnostic wrappers
+                 ================================================================ -->
+            <plugin>
+                <groupId>space.alnovis</groupId>
+                <artifactId>proto-wrapper-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <!-- Proto2 wrappers -->
+                    <execution>
+                        <id>generate-proto2-wrappers</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <basePackage>space.alnovis.protowrapper.golden.proto2.wrapper</basePackage>
+                            <protoPackagePattern>space.alnovis.protowrapper.golden.proto2.{version}</protoPackagePattern>
+                            <protoRoot>${basedir}/proto/proto2</protoRoot>
+                            <outputDirectory>${project.build.directory}/generated-sources/proto2-wrapper</outputDirectory>
+                            <includeVersionSuffix>false</includeVersionSuffix>
+                            <generateBuilders>true</generateBuilders>
+                            <versions>
+                                <version>
+                                    <protoDir>v1</protoDir>
+                                </version>
+                                <version>
+                                    <protoDir>v2</protoDir>
+                                </version>
+                            </versions>
+                        </configuration>
+                    </execution>
+                    <!-- Proto3 wrappers -->
+                    <execution>
+                        <id>generate-proto3-wrappers</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <basePackage>space.alnovis.protowrapper.golden.proto3.wrapper</basePackage>
+                            <protoPackagePattern>space.alnovis.protowrapper.golden.proto3.{version}</protoPackagePattern>
+                            <protoRoot>${basedir}/proto/proto3</protoRoot>
+                            <outputDirectory>${project.build.directory}/generated-sources/proto3-wrapper</outputDirectory>
+                            <includeVersionSuffix>false</includeVersionSuffix>
+                            <generateBuilders>true</generateBuilders>
+                            <versions>
+                                <version>
+                                    <protoDir>v1</protoDir>
+                                </version>
+                                <version>
+                                    <protoDir>v2</protoDir>
+                                </version>
+                            </versions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Add generated sources to compilation -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>add-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/proto2-v1</source>
+                                <source>${project.build.directory}/generated-sources/proto2-v2</source>
+                                <source>${project.build.directory}/generated-sources/proto3-v1</source>
+                                <source>${project.build.directory}/generated-sources/proto3-v2</source>
+                                <source>${project.build.directory}/generated-sources/proto2-wrapper</source>
+                                <source>${project.build.directory}/generated-sources/proto3-wrapper</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Skip publishing plugins -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>central-publishing</id>
+                        <phase>none</phase>
+                    </execution>
+                    <execution>
+                        <id>injected-central-publishing</id>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>3.1.1</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

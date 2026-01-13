@@ -1,0 +1,117 @@
+// Proto3 golden test - all field variations for v1
+// Tests: singular, optional (proto3), repeated, oneof for all types
+syntax = "proto3";
+
+package space.alnovis.protowrapper.golden.proto3.v1;
+
+option java_package = "space.alnovis.protowrapper.golden.proto3.v1";
+option java_outer_classname = "AllFields";
+
+// Nested message for testing message fields
+message NestedMessage {
+    int32 id = 1;
+    string name = 2;
+}
+
+// Enum for testing enum fields
+enum TestEnum {
+    TEST_ENUM_UNKNOWN = 0;
+    TEST_ENUM_VALUE_ONE = 1;
+    TEST_ENUM_VALUE_TWO = 2;
+    TEST_ENUM_VALUE_THREE = 3;
+}
+
+// Main test message with all field variations
+message AllFieldTypes {
+    // =========================================================================
+    // SINGULAR FIELDS (scalars: NO has*(), messages: HAS has*())
+    // =========================================================================
+
+    // Scalar types - NO has*() method in proto3
+    int32 singular_int32 = 1;
+    int64 singular_int64 = 2;
+    uint32 singular_uint32 = 3;
+    uint64 singular_uint64 = 4;
+    sint32 singular_sint32 = 5;
+    sint64 singular_sint64 = 6;
+    fixed32 singular_fixed32 = 7;
+    fixed64 singular_fixed64 = 8;
+    sfixed32 singular_sfixed32 = 9;
+    sfixed64 singular_sfixed64 = 10;
+    float singular_float = 11;
+    double singular_double = 12;
+    bool singular_bool = 13;
+    string singular_string = 14;
+    bytes singular_bytes = 15;
+
+    // Message type - HAS has*() method in proto3
+    NestedMessage singular_message = 16;
+
+    // Enum type - NO has*() method in proto3 (treated as int)
+    TestEnum singular_enum = 17;
+
+    // =========================================================================
+    // OPTIONAL FIELDS (proto3 optional - all HAVE has*() method)
+    // =========================================================================
+
+    // Scalar types with optional keyword - HAVE has*() method
+    optional int32 optional_int32 = 20;
+    optional int64 optional_int64 = 21;
+    optional uint32 optional_uint32 = 22;
+    optional uint64 optional_uint64 = 23;
+    optional sint32 optional_sint32 = 24;
+    optional sint64 optional_sint64 = 25;
+    optional fixed32 optional_fixed32 = 26;
+    optional fixed64 optional_fixed64 = 27;
+    optional sfixed32 optional_sfixed32 = 28;
+    optional sfixed64 optional_sfixed64 = 29;
+    optional float optional_float = 30;
+    optional double optional_double = 31;
+    optional bool optional_bool = 32;
+    optional string optional_string = 33;
+    optional bytes optional_bytes = 34;
+
+    // Optional message (same as singular message - has has*())
+    optional NestedMessage optional_message = 35;
+
+    // Optional enum - HAVE has*() method (unlike singular enum)
+    optional TestEnum optional_enum = 36;
+
+    // =========================================================================
+    // REPEATED FIELDS (none should have has*() method)
+    // =========================================================================
+
+    // Scalar types
+    repeated int32 repeated_int32 = 40;
+    repeated int64 repeated_int64 = 41;
+    repeated uint32 repeated_uint32 = 42;
+    repeated uint64 repeated_uint64 = 43;
+    repeated sint32 repeated_sint32 = 44;
+    repeated sint64 repeated_sint64 = 45;
+    repeated fixed32 repeated_fixed32 = 46;
+    repeated fixed64 repeated_fixed64 = 47;
+    repeated sfixed32 repeated_sfixed32 = 48;
+    repeated sfixed64 repeated_sfixed64 = 49;
+    repeated float repeated_float = 50;
+    repeated double repeated_double = 51;
+    repeated bool repeated_bool = 52;
+    repeated string repeated_string = 53;
+    repeated bytes repeated_bytes = 54;
+
+    // Message type
+    repeated NestedMessage repeated_message = 55;
+
+    // Enum type
+    repeated TestEnum repeated_enum = 56;
+
+    // =========================================================================
+    // ONEOF FIELDS (all fields in oneof HAVE has*() method)
+    // =========================================================================
+
+    oneof test_oneof {
+        int32 oneof_int32 = 60;
+        string oneof_string = 61;
+        NestedMessage oneof_message = 62;
+        TestEnum oneof_enum = 63;
+    }
+}

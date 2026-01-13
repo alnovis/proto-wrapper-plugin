@@ -1,0 +1,106 @@
+// Proto2 golden test - all field variations for v1
+// Tests: required, optional, repeated for all types
+syntax = "proto2";
+
+package space.alnovis.protowrapper.golden.proto2.v1;
+
+option java_package = "space.alnovis.protowrapper.golden.proto2.v1";
+option java_outer_classname = "AllFields";
+
+// Nested message for testing message fields
+message NestedMessage {
+    required int32 id = 1;
+    optional string name = 2;
+}
+
+// Enum for testing enum fields
+enum TestEnum {
+    UNKNOWN = 0;
+    VALUE_ONE = 1;
+    VALUE_TWO = 2;
+    VALUE_THREE = 3;
+}
+
+// Main test message with all field variations
+message AllFieldTypes {
+    // =========================================================================
+    // REQUIRED FIELDS (all should have has*() method in proto2)
+    // =========================================================================
+
+    // Scalar types
+    required int32 required_int32 = 1;
+    required int64 required_int64 = 2;
+    required uint32 required_uint32 = 3;
+    required uint64 required_uint64 = 4;
+    required sint32 required_sint32 = 5;
+    required sint64 required_sint64 = 6;
+    required fixed32 required_fixed32 = 7;
+    required fixed64 required_fixed64 = 8;
+    required sfixed32 required_sfixed32 = 9;
+    required sfixed64 required_sfixed64 = 10;
+    required float required_float = 11;
+    required double required_double = 12;
+    required bool required_bool = 13;
+    required string required_string = 14;
+    required bytes required_bytes = 15;
+
+    // Message type
+    required NestedMessage required_message = 16;
+
+    // Enum type
+    required TestEnum required_enum = 17;
+
+    // =========================================================================
+    // OPTIONAL FIELDS (all should have has*() method in proto2)
+    // =========================================================================
+
+    // Scalar types
+    optional int32 optional_int32 = 20;
+    optional int64 optional_int64 = 21;
+    optional uint32 optional_uint32 = 22;
+    optional uint64 optional_uint64 = 23;
+    optional sint32 optional_sint32 = 24;
+    optional sint64 optional_sint64 = 25;
+    optional fixed32 optional_fixed32 = 26;
+    optional fixed64 optional_fixed64 = 27;
+    optional sfixed32 optional_sfixed32 = 28;
+    optional sfixed64 optional_sfixed64 = 29;
+    optional float optional_float = 30;
+    optional double optional_double = 31;
+    optional bool optional_bool = 32;
+    optional string optional_string = 33;
+    optional bytes optional_bytes = 34;
+
+    // Message type
+    optional NestedMessage optional_message = 35;
+
+    // Enum type
+    optional TestEnum optional_enum = 36;
+
+    // =========================================================================
+    // REPEATED FIELDS (none should have has*() method)
+    // =========================================================================
+
+    // Scalar types
+    repeated int32 repeated_int32 = 40;
+    repeated int64 repeated_int64 = 41;
+    repeated uint32 repeated_uint32 = 42;
+    repeated uint64 repeated_uint64 = 43;
+    repeated sint32 repeated_sint32 = 44;
+    repeated sint64 repeated_sint64 = 45;
+    repeated fixed32 repeated_fixed32 = 46;
+    repeated fixed64 repeated_fixed64 = 47;
+    repeated sfixed32 repeated_sfixed32 = 48;
+    repeated sfixed64 repeated_sfixed64 = 49;
+    repeated float repeated_float = 50;
+    repeated double repeated_double = 51;
+    repeated bool repeated_bool = 52;
+    repeated string repeated_string = 53;
+    repeated bytes repeated_bytes = 54;
+
+    // Message type
+    repeated NestedMessage repeated_message = 55;
+
+    // Enum type
+    repeated TestEnum repeated_enum = 56;
+}
