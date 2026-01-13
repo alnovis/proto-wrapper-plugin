@@ -3,10 +3,8 @@ package space.alnovis.protowrapper.generator.conflict;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
-import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
-
-import javax.lang.model.element.Modifier;
+import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
 
@@ -113,9 +111,8 @@ public final class FloatDoubleHandler extends AbstractConflictHandler implements
         String capitalizedName = ctx.capitalize(field.getJavaName());
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
 
-        FieldInfo versionField = field.getVersionFields().get(version);
-        String versionType = versionField != null ? versionField.getJavaType() : "double";
-        boolean needsNarrowing = "float".equals(versionType) || "Float".equals(versionType);
+        VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+        boolean needsNarrowing = snapshot.needsNarrowingFromDouble();
 
         // doSet - with narrowing validation for float versions
         buildDoSetImpl(builder, "doSet" + capitalizedName, TypeName.DOUBLE, field.getJavaName(),
@@ -128,7 +125,7 @@ public final class FloatDoubleHandler extends AbstractConflictHandler implements
                 });
 
         // doClear - use template method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }

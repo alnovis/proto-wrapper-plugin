@@ -1,7 +1,7 @@
 # Proto Wrapper Plugin Architecture
 
-Version: 1.6.3
-Last Updated: 2025-01-06
+Version: 1.6.4
+Last Updated: 2026-01-13
 
 ## Overview
 
@@ -324,53 +324,80 @@ classDiagram
 - ImplClassGenerator: ImplV1.java, ImplV2.java
 - VersionContextGenerator: VersionContext.java
 
-### Conflict Handler Chain
+### Conflict Handler Chain (ISP-Compliant Design)
+
+Following the Interface Segregation Principle (ISP), the handler interface hierarchy is split into focused sub-interfaces:
 
 ```mermaid
-classDiagram
-    direction LR
+flowchart LR
+    subgraph Interfaces["ISP Interfaces"]
+        direction TB
+        FEH["FieldExtractionHandler<br/>─────────────────<br/>+ addAbstractExtractMethods()<br/>+ addExtractImplementation()<br/>+ addGetterImplementation()"]
+        FBH["FieldBuilderHandler<br/>─────────────────<br/>+ addAbstractBuilderMethods()<br/>+ addBuilderImplMethods()<br/>+ addConcreteBuilderMethods()"]
+    end
 
-    class ConflictHandler {
-        <<interface>>
-        +handles(field, ctx) boolean
-        +addAbstractExtractMethods()
-        +addExtractImplementation()
-    }
+    subgraph Composite["Composite"]
+        CH["ConflictHandler<br/>«sealed interface»"]
+    end
 
-    class AbstractConflictHandler {
-        <<abstract>>
-        #addHasExtractMethod()
-        #generateDefaultValue()
-    }
+    subgraph Base["Base Class"]
+        ACH["AbstractConflictHandler<br/>«abstract sealed»"]
+    end
 
-    class IntEnumHandler
-    class EnumEnumHandler
-    class StringBytesHandler
-    class WideningHandler
-    class FloatDoubleHandler
-    class SignedUnsignedHandler
-    class RepeatedSingleHandler
-    class PrimitiveMessageHandler
-    class MapFieldHandler
-    class DefaultHandler
+    subgraph TypeConversion["Type Conversion"]
+        direction TB
+        IEH[IntEnumHandler]
+        EEH[EnumEnumHandler]
+        SBH[StringBytesHandler]
+    end
 
-    ConflictHandler <|.. AbstractConflictHandler
-    AbstractConflictHandler <|-- IntEnumHandler
-    AbstractConflictHandler <|-- EnumEnumHandler
-    AbstractConflictHandler <|-- StringBytesHandler
-    AbstractConflictHandler <|-- WideningHandler
-    AbstractConflictHandler <|-- FloatDoubleHandler
-    AbstractConflictHandler <|-- SignedUnsignedHandler
-    AbstractConflictHandler <|-- RepeatedSingleHandler
-    AbstractConflictHandler <|-- PrimitiveMessageHandler
-    AbstractConflictHandler <|-- MapFieldHandler
-    AbstractConflictHandler <|-- DefaultHandler
+    subgraph Numeric["Numeric"]
+        direction TB
+        WH[WideningHandler]
+        FDH[FloatDoubleHandler]
+        SUH[SignedUnsignedHandler]
+    end
+
+    subgraph Structure["Structure"]
+        direction TB
+        RSH[RepeatedSingleHandler]
+        PMH[PrimitiveMessageHandler]
+        MFH[MapFieldHandler]
+        DH[DefaultHandler]
+    end
+
+    subgraph Special["Special"]
+        direction TB
+        RCH[RepeatedConflictHandler]
+        WKT[WellKnownTypeHandler]
+        RWKT[RepeatedWellKnownTypeHandler]
+    end
+
+    FEH --> CH
+    FBH --> CH
+    CH --> ACH
+    ACH --> TypeConversion
+    ACH --> Numeric
+    ACH --> Structure
+    ACH --> Special
 ```
 
+**Interface Responsibilities:**
+
+| Interface | Responsibility |
+|-----------|---------------|
+| `FieldExtractionHandler` | Extract methods, getter implementations |
+| `FieldBuilderHandler` | Builder methods (abstract, impl, concrete) |
+| `ConflictHandler` | Composite interface (extends both) |
+
 **Handler Categories:**
-- Type Conversion: IntEnumHandler, EnumEnumHandler, StringBytesHandler
-- Numeric: WideningHandler, FloatDoubleHandler, SignedUnsignedHandler
-- Structure: RepeatedSingleHandler, PrimitiveMessageHandler, MapFieldHandler, DefaultHandler
+
+| Category | Handlers | Purpose |
+|----------|----------|---------|
+| Type Conversion | IntEnum, EnumEnum, StringBytes | Type bridging |
+| Numeric | Widening, FloatDouble, SignedUnsigned | Numeric widening/conversion |
+| Structure | RepeatedSingle, PrimitiveMessage, MapField, Default | Field structure changes |
+| Special | RepeatedConflict, WellKnownType, RepeatedWellKnownType | Complex scenarios |
 
 ### Model Classes
 
@@ -565,6 +592,17 @@ flowchart TB
 | `MergedEnum` | Unified enum type |
 | `FieldInfo` | Raw field info from proto descriptor |
 | `MapInfo` | Map field key/value types |
+| `VersionFieldSnapshot` | Immutable snapshot of field info for a specific version |
+
+### Utility Classes
+
+| Class | Purpose |
+|-------|---------|
+| `MethodSpecFactory` | Centralized factory for creating `MethodSpec.Builder` instances |
+| `ExtractMethodGenerator` | Utility for extract method generation |
+| `BuilderMethodGenerator` | Utility for builder method generation |
+| `CodeGenerationHelper` | Common code generation patterns |
+| `ProcessingContext` | Context for field processing with version info |
 
 ---
 
@@ -628,3 +666,4 @@ flowchart TB
 - [Configuration](CONFIGURATION.md) - All plugin options
 - [Cookbook](COOKBOOK.md) - Practical examples
 - [API Reference](API_REFERENCE.md) - Generated code API reference
+- [CONTRACT-MATRIX.md](CONTRACT-MATRIX.md) - Field behavior contract matrix (getter/has behavior for all field types)

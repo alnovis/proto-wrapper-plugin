@@ -121,20 +121,30 @@ public class FieldInfo {
     /**
      * Determines if this field supports has*() method in protobuf.
      * <p>
+     * General rules:
+     * <ul>
+     *   <li>Repeated fields NEVER have has*() method (use getXxxCount() instead)</li>
+     *   <li>Fields in oneof always have has*() method</li>
+     * </ul>
      * In proto3:
      * <ul>
-     *   <li>Message types always have has*() method</li>
-     *   <li>Fields in oneof (including synthetic oneofs for proto3 optional) have has*() method</li>
-     *   <li>Scalar fields without optional modifier do NOT have has*() method</li>
+     *   <li>Singular message fields have has*() method</li>
+     *   <li>Scalar fields with 'optional' keyword (represented as synthetic oneof) have has*() method</li>
+     *   <li>Scalar fields without 'optional' modifier do NOT have has*() method</li>
      * </ul>
      * In proto2:
      * <ul>
      *   <li>All optional fields have has*() method</li>
-     *   <li>Required fields always return true for has*()</li>
+     *   <li>Required fields have has*() method (always returns true)</li>
      * </ul>
      */
     private static boolean determineHasMethodSupport(FieldDescriptorProto proto, ProtoSyntax syntax) {
-        // Message types always have has*() method
+        // Repeated fields NEVER have has*() method (in any syntax)
+        if (proto.getLabel() == Label.LABEL_REPEATED) {
+            return false;
+        }
+
+        // Singular message types always have has*() method
         if (proto.getType() == Type.TYPE_MESSAGE) {
             return true;
         }
@@ -144,9 +154,9 @@ public class FieldInfo {
             return true;
         }
 
-        // In proto2, all optional fields have has*() method
+        // In proto2, all non-repeated fields (optional and required) have has*() method
         if (!syntax.isProto3()) {
-            return proto.getLabel() == Label.LABEL_OPTIONAL;
+            return true; // We already excluded repeated above
         }
 
         // In proto3, scalar fields without optional modifier do NOT have has*() method

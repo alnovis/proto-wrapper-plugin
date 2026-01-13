@@ -1,18 +1,33 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.TypeName;
-import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.MergedField;
 
 /**
  * Sealed interface for handling field conflicts during code generation.
  *
+ * <p>This is a composite interface that combines {@link FieldExtractionHandler} and
+ * {@link FieldBuilderHandler} for handlers that need both extraction and builder capabilities.</p>
+ *
+ * <h2>Interface Segregation</h2>
+ * <p>Following the Interface Segregation Principle (ISP), responsibilities are split:</p>
+ * <ul>
+ *   <li>{@link FieldExtractionHandler} - generates extraction and getter methods</li>
+ *   <li>{@link FieldBuilderHandler} - generates builder methods</li>
+ *   <li>{@link ConflictHandler} - composite interface for full capability (this interface)</li>
+ * </ul>
+ *
+ * <p>Clients should depend on the narrowest interface that meets their needs:</p>
+ * <ul>
+ *   <li>Use {@code FieldExtractionHandler} when only generating read methods</li>
+ *   <li>Use {@code FieldBuilderHandler} when only generating builder methods</li>
+ *   <li>Use {@code ConflictHandler} when generating complete wrapper classes</li>
+ * </ul>
+ *
+ * <h2>Strategy Pattern</h2>
  * <p>Each implementation handles a specific type of field conflict (INT_ENUM, STRING_BYTES, etc.)
  * and knows how to generate the appropriate code for both abstract classes and implementations.</p>
  *
- * <p>This follows the Strategy pattern, allowing the field processing logic to be
- * cleanly separated from the generators.</p>
- *
+ * <h2>Sealed Hierarchy</h2>
  * <p>This is a sealed interface, which provides:</p>
  * <ul>
  *   <li>Compile-time guarantee of exhaustive handling when pattern matching</li>
@@ -20,101 +35,42 @@ import space.alnovis.protowrapper.model.MergedField;
  *   <li>Prevention of accidental external extensions</li>
  * </ul>
  *
+ * <h2>Handler Selection</h2>
+ * <p>Use {@link FieldProcessingChain} to find the appropriate handler for a field:</p>
+ *
+ * <pre>{@code
+ * ConflictHandler handler = FieldProcessingChain.findHandler(field, ctx);
+ * handler.addAbstractExtractMethods(builder, field, ctx);
+ * handler.addGetterImplementation(builder, field, ctx);
+ * // ... more generation
+ * }</pre>
+ *
+ * @since 1.0.0
+ * @see FieldExtractionHandler
+ * @see FieldBuilderHandler
  * @see FieldProcessingChain
  */
-public sealed interface ConflictHandler permits
+public sealed interface ConflictHandler extends FieldExtractionHandler, FieldBuilderHandler permits
         IntEnumHandler, EnumEnumHandler, StringBytesHandler, WideningHandler, FloatDoubleHandler,
         SignedUnsignedHandler, RepeatedSingleHandler, PrimitiveMessageHandler,
         RepeatedConflictHandler, MapFieldHandler, WellKnownTypeHandler, RepeatedWellKnownTypeHandler,
         DefaultHandler {
 
     /**
-     * Get the type identifier for this handler.
+     * {@inheritDoc}
      *
-     * <p>Used for logging, debugging, and identifying which handler processed a field.</p>
-     *
-     * @return The handler type
+     * <p>Used for logging, debugging, and identifying which handler processed a field.
+     * Each handler returns a unique {@link HandlerType} constant.</p>
      */
+    @Override
     HandlerType getHandlerType();
 
     /**
-     * Determines if this handler should process the given field.
+     * {@inheritDoc}
      *
-     * @param field The field to check
-     * @param ctx Processing context
-     * @return true if this handler should handle the field
+     * <p>The {@link FieldProcessingChain} iterates through handlers in priority order,
+     * calling this method to find the first handler that can process the field.</p>
      */
+    @Override
     boolean handles(MergedField field, ProcessingContext ctx);
-
-    /**
-     * Add abstract extract method declarations to the abstract class.
-     *
-     * <p>This generates the abstract method signatures that subclasses must implement.</p>
-     *
-     * @param builder The TypeSpec builder for the abstract class
-     * @param field The field being processed
-     * @param ctx Processing context
-     */
-    void addAbstractExtractMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-
-    /**
-     * Add concrete extract method implementations to the implementation class.
-     *
-     * <p>This generates the actual method bodies that extract values from the proto.</p>
-     *
-     * @param builder The TypeSpec builder for the implementation class
-     * @param field The field being processed
-     * @param presentInVersion Whether the field is present in the current version
-     * @param ctx Processing context
-     */
-    void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
-                                   boolean presentInVersion, ProcessingContext ctx);
-
-    /**
-     * Add getter implementation to the abstract class.
-     *
-     * <p>This generates the final getter methods that delegate to extract methods.</p>
-     *
-     * @param builder The TypeSpec builder for the abstract class
-     * @param field The field being processed
-     * @param ctx Processing context
-     */
-    void addGetterImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-
-    /**
-     * Add abstract builder method declarations to the abstract builder class.
-     *
-     * @param builder The TypeSpec builder for the abstract builder
-     * @param field The field being processed
-     * @param ctx Processing context
-     */
-    void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx);
-
-    /**
-     * Add concrete builder method implementations to the builder implementation class.
-     *
-     * <p>This generates the override implementations of the abstract doSetXxx methods
-     * that actually call the proto builder.</p>
-     *
-     * @param builder The TypeSpec builder for the builder implementation
-     * @param field The field being processed
-     * @param presentInVersion Whether the field is present in the current version
-     * @param ctx Processing context
-     */
-    void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
-                                boolean presentInVersion, ProcessingContext ctx);
-
-    /**
-     * Add concrete builder interface methods to the abstract builder class.
-     *
-     * <p>This generates the public final methods (setXxx, clearXxx, addXxx) that
-     * implement the Builder interface and delegate to the abstract doXxx methods.</p>
-     *
-     * @param builder The TypeSpec builder for the abstract builder
-     * @param field The field being processed
-     * @param builderReturnType The return type for fluent builder pattern (Builder interface type)
-     * @param ctx Processing context
-     */
-    void addConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                    TypeName builderReturnType, ProcessingContext ctx);
 }

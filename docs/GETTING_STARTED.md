@@ -156,7 +156,7 @@ Create `pom.xml` with the following content:
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <protobuf.version>3.25.1</protobuf.version>
-        <proto-wrapper.version>1.6.3</proto-wrapper.version>
+        <proto-wrapper.version>1.6.4</proto-wrapper.version>
     </properties>
 
     <dependencies>
@@ -266,7 +266,7 @@ mvn clean compile
 You should see output indicating successful generation:
 
 ```
-[INFO] --- proto-wrapper-maven-plugin:1.6.3:generate ---
+[INFO] --- proto-wrapper-maven-plugin:1.6.4:generate ---
 [INFO] Proto Wrapper: Generating wrappers for 2 versions
 [INFO] Proto Wrapper: Processing version v1 (1 messages)
 [INFO] Proto Wrapper: Processing version v2 (1 messages)

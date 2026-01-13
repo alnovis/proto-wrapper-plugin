@@ -232,7 +232,7 @@ public final class DefaultHandler extends AbstractConflictHandler implements Con
                 });
 
         // doClear for optional - use template method
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }

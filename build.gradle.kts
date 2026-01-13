@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "space.alnovis"
-    version = "1.6.3"
+    version = "1.6.4"
 
     repositories {
         mavenCentral()

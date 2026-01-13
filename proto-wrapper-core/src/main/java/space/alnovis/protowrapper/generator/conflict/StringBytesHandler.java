@@ -185,7 +185,7 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
         addAbstractDoSet(builder, field.getDoSetMethodName() + "Bytes", ArrayTypeName.of(TypeName.BYTE), field.getJavaName());
 
         // doClear for optional
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             addAbstractDoClear(builder, field.getDoClearMethodName());
         }
     }
@@ -223,7 +223,7 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
                 });
 
         // doClear for optional
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
         }
     }
@@ -246,7 +246,7 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
                 .build());
 
         // clearXxx() for optional
-        if (field.isOptional()) {
+        if (field.shouldGenerateHasMethod()) {
             addConcreteClearMethod(builder, field.getJavaName(), builderReturnType, ctx);
         }
     }

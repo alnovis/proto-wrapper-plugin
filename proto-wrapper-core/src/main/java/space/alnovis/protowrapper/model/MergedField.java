@@ -210,6 +210,7 @@ public class MergedField {
     private final Map<String, Boolean> optionalityPerVersion; // Version -> isOptional
     private final boolean isInOneof; // true if in oneof in ANY version
     private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
+    private final boolean allVersionsSupportHas; // true if ALL versions have has*() method available
 
     /**
      * Create a new MergedField from a FieldInfo.
@@ -250,6 +251,7 @@ public class MergedField {
         this.optionalityPerVersion.put(version, field.isOptional());
         this.isInOneof = field.isInOneof();
         this.wellKnownType = field.getWellKnownType();
+        this.allVersionsSupportHas = field.supportsHasMethod();
     }
 
     /**
@@ -280,6 +282,9 @@ public class MergedField {
         this.optionalityPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.optionalityPerVersion));
         this.isInOneof = !builder.oneofNamePerVersion.isEmpty();
         this.wellKnownType = firstField.getWellKnownType();
+        // Check if ALL versions support has*() method
+        this.allVersionsSupportHas = builder.versionFields.values().stream()
+                .allMatch(FieldInfo::supportsHasMethod);
     }
 
     /**
@@ -451,6 +456,54 @@ public class MergedField {
     /** @return true if the field is a primitive type */
     public boolean isPrimitive() {
         return primitive;
+    }
+
+    /**
+     * Returns true if ALL versions of this field support has*() method.
+     *
+     * <p>In proto3, singular scalar fields without 'optional' keyword do not have
+     * has*() methods. For mixed schemas or pure proto3 singular scalars, this returns false.</p>
+     *
+     * @return true if has*() is available in all versions
+     */
+    public boolean allVersionsSupportHas() {
+        return allVersionsSupportHas;
+    }
+
+    /**
+     * Returns true if has*() method should be generated in the unified API.
+     *
+     * <p>This is the canonical method to determine has*() method generation. It replaces
+     * the incorrect pattern {@code field.isOptional() && !field.isRepeated()} which fails for:</p>
+     * <ul>
+     *   <li>Proto2 required fields - isOptional() returns false, but has*() IS needed</li>
+     *   <li>Proto3 implicit scalars - isOptional() returns true, but has*() is NOT needed</li>
+     * </ul>
+     *
+     * <p>The correct logic is based on {@link FieldInfo#supportsHasMethod()} aggregated
+     * across all versions via {@link #allVersionsSupportHas()}.</p>
+     *
+     * <h3>Contract Matrix Rules:</h3>
+     * <ul>
+     *   <li>Repeated/Map fields: NEVER have has*()</li>
+     *   <li>Message fields: ALWAYS have has*()</li>
+     *   <li>Oneof fields: ALWAYS have has*()</li>
+     *   <li>Proto2 all singular: ALWAYS have has*()</li>
+     *   <li>Proto3 explicit optional: HAVE has*()</li>
+     *   <li>Proto3 implicit scalar: NO has*()</li>
+     * </ul>
+     *
+     * @return true if has*() method should be generated
+     * @see FieldInfo#supportsHasMethod()
+     * @see #allVersionsSupportHas()
+     */
+    public boolean shouldGenerateHasMethod() {
+        // Repeated and map fields never have has*() method
+        if (repeated || isMap) {
+            return false;
+        }
+        // Delegate to the aggregated version support check
+        return allVersionsSupportHas;
     }
 
     /** @return true if the field is a message type */
@@ -1008,11 +1061,43 @@ public class MergedField {
     }
 
     /**
-     * Whether this field needs has-check pattern (optional primitive).
-     * @return true if needs has-check
+     * Whether this field needs has-check pattern in getter.
+     *
+     * <p>Returns true if the getter should use the pattern
+     * {@code extractHas*(proto) ? extract*(proto) : null} to return null when unset.</p>
+     *
+     * <h3>Oneof fields</h3>
+     * <p>Oneof fields ALWAYS use has-check pattern. When a oneof field is not active
+     * (another field in the oneof is set or none is set), the getter must return null.
+     * This is consistent with proto semantics where only one field can be set at a time.</p>
+     *
+     * <h3>Message fields</h3>
+     * <p>Message fields return null when unset (if has*() is available).
+     * Without this check, proto returns a default instance instead of null,
+     * which is inconsistent with {@code has*()} returning false.</p>
+     *
+     * <h3>Primitive fields</h3>
+     * <p>Primitive optional fields (Integer, Boolean, etc.) return null when unset,
+     * but only if has*() is available. For proto3 singular scalars without 'optional'
+     * keyword, has*() is not available, so getter returns value directly.</p>
+     *
+     * <h3>Enum fields</h3>
+     * <p>Enum fields do not use has-check pattern. They return the enum value directly,
+     * with unset fields returning the first enum value (proto3 semantics).</p>
+     *
+     * @return true if getter should use has-check pattern
      */
     public boolean needsHasCheck() {
-        return optional && primitive;
+        // Oneof fields should ALWAYS return null when not active
+        if (isInOneof) {
+            return true;
+        }
+        // Message fields should return null when unset (consistent with has*() returning false)
+        if (message) {
+            return optional && allVersionsSupportHas;
+        }
+        // Primitive optional fields need has-check only when has*() is available
+        return optional && primitive && allVersionsSupportHas;
     }
 
     /**
