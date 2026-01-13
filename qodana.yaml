@@ -6,7 +6,7 @@
 version: "1.0"
 
 # JVM linter for Java + Kotlin
-linter: jetbrains/qodana-jvm:2024.3
+linter: jetbrains/qodana-jvm:2025.2
 
 # Project profile (inspections to run)
 profile:
@@ -28,6 +28,3 @@ exclude:
 
 # Fail CI if threshold exceeded
 failThreshold: 100
-
-# Bootstrap commands (build before analysis)
-bootstrap: mvn compile test-compile -B -q
