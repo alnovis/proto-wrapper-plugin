@@ -5,8 +5,8 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.ConflictEnumInfo;
-import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
+import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
 import javax.lang.model.element.Modifier;
 import java.util.Optional;
@@ -111,9 +111,8 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
             return;
         }
 
-        String version = ctx.requireVersion();
-        FieldInfo versionField = field.getVersionFields().get(version);
-        boolean versionIsEnum = versionField != null && versionField.isEnum();
+        VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+        boolean versionIsEnum = snapshot.isEnum();
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
         TypeName intReturnType = ctx.parseFieldType(field);
 
@@ -211,9 +210,8 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
     @Override
     public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                        boolean presentInVersion, ProcessingContext ctx) {
-        String version = ctx.requireVersion();
-        FieldInfo versionField = field.getVersionFields().get(version);
-        boolean versionIsEnum = versionField != null && versionField.isEnum();
+        VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+        boolean versionIsEnum = snapshot.isEnum();
         String versionJavaName = getVersionSpecificJavaName(field, ctx);
 
         // doSet (int) - use primitive int to match abstract method and ImplClassGenerator

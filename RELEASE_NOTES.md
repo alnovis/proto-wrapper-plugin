@@ -85,6 +85,51 @@ wrapper.getOfflineCount();          // 42 (correct value)
 
 **Fix:** The check for `LABEL_REPEATED` is now performed first, before any type-specific logic. Repeated fields never have `has*()` methods regardless of their type.
 
+## Architecture Improvements
+
+Version 1.6.4 also includes significant internal architecture improvements following SOLID principles.
+
+### Interface Segregation Principle (ISP) Compliance
+
+The `ConflictHandler` interface has been refactored to follow ISP:
+
+```mermaid
+flowchart LR
+    subgraph Before["❌ Before: Monolithic"]
+        CH_OLD["ConflictHandler<br/>───────────────<br/>+ addAbstractExtract()<br/>+ addExtractImpl()<br/>+ addGetterImpl()<br/>+ addAbstractBuilder()<br/>+ addBuilderImpl()<br/>+ addConcreteBuilder()"]
+    end
+
+    subgraph After["✅ After: ISP-Compliant"]
+        direction TB
+        FEH["FieldExtractionHandler<br/>───────────────<br/>+ addAbstractExtract()<br/>+ addExtractImpl()<br/>+ addGetterImpl()"]
+        FBH["FieldBuilderHandler<br/>───────────────<br/>+ addAbstractBuilder()<br/>+ addBuilderImpl()<br/>+ addConcreteBuilder()"]
+        CH_NEW["ConflictHandler<br/>«extends both»"]
+        FEH --> CH_NEW
+        FBH --> CH_NEW
+    end
+
+    Before -.->|refactor| After
+```
+
+**Benefits:**
+- Clients can depend on the narrowest interface they need
+- Read-only generators only depend on `FieldExtractionHandler`
+- Builder generators only depend on `FieldBuilderHandler`
+- Full handlers still use composite `ConflictHandler`
+
+### New Utility Classes
+
+| Class | Purpose |
+|-------|---------|
+| `MethodSpecFactory` | Centralized factory for MethodSpec.Builder creation |
+| `VersionFieldSnapshot` | Immutable record for version field lookups |
+| `ExtractMethodGenerator` | Utility for extraction method generation |
+| `BuilderMethodGenerator` | Utility for builder method generation |
+
+### New Documentation
+
+- **[CONTRACT-MATRIX.md](docs/CONTRACT-MATRIX.md)** - Comprehensive field behavior contract matrix documenting expected behavior for all field type combinations
+
 ## Getter Behavior Summary
 
 | Field Type | Unset Value | Set Value |
@@ -697,6 +742,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 - [GitHub Repository](https://github.com/alnovis/proto-wrapper-plugin)
 - [Documentation](README.md)
 - [API Reference](docs/API_REFERENCE.md)
+- [Contract Matrix](docs/CONTRACT-MATRIX.md) - Field behavior reference
 - [Roadmap](docs/ROADMAP.md)
 - [Cookbook](docs/COOKBOOK.md)
 - [Changelog](CHANGELOG.md)

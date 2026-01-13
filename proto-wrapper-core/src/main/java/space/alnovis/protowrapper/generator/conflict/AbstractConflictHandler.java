@@ -1,33 +1,39 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
-import static space.alnovis.protowrapper.generator.TypeUtils.*;
-import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
-
-import javax.lang.model.element.Modifier;
 import java.util.function.Consumer;
+import com.squareup.javapoet.MethodSpec;
 
 /**
  * Sealed base class providing common functionality for conflict handlers.
  *
- * <p>Contains utility methods for generating common method patterns
- * and extracting field information.</p>
+ * <p>This class delegates to specialized generators for different aspects of code generation:</p>
+ * <ul>
+ *   <li>{@link ExtractMethodGenerator} - extract, has, and getter methods</li>
+ *   <li>{@link BuilderMethodGenerator} - builder methods (doSet, doClear, set, clear, etc.)</li>
+ * </ul>
+ *
+ * <p>Protected methods are provided for backward compatibility with existing handlers.
+ * New code should prefer using the generator classes directly for better clarity.</p>
  *
  * <p>This is a sealed class that permits only the known handler implementations,
  * ensuring type safety and preventing accidental external extensions.</p>
+ *
+ * @see ExtractMethodGenerator
+ * @see BuilderMethodGenerator
+ * @see ConflictHandler
  */
 public abstract sealed class AbstractConflictHandler permits
         IntEnumHandler, EnumEnumHandler, StringBytesHandler, WideningHandler, FloatDoubleHandler,
         SignedUnsignedHandler, RepeatedSingleHandler, PrimitiveMessageHandler,
         RepeatedConflictHandler, MapFieldHandler, WellKnownTypeHandler, RepeatedWellKnownTypeHandler,
         DefaultHandler {
+
+    // ========== Extract/Has Method Generation (delegate to ExtractMethodGenerator) ==========
 
     /**
      * Add an abstract extractHas method for optional fields.
@@ -37,13 +43,7 @@ public abstract sealed class AbstractConflictHandler permits
      * @param ctx the processing context
      */
     protected void addAbstractHasMethod(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        if (field.shouldGenerateHasMethod()) {
-            builder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
-                    .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                    .returns(TypeName.BOOLEAN)
-                    .addParameter(ctx.protoType(), "proto")
-                    .build());
-        }
+        ExtractMethodGenerator.addAbstractHasMethod(builder, field, ctx);
     }
 
     /**
@@ -56,17 +56,11 @@ public abstract sealed class AbstractConflictHandler permits
      */
     protected void addAbstractExtractMethod(TypeSpec.Builder builder, MergedField field,
                                              TypeName returnType, ProcessingContext ctx) {
-        builder.addMethod(MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .returns(returnType)
-                .addParameter(ctx.protoType(), "proto")
-                .build());
+        ExtractMethodGenerator.addAbstractExtractMethod(builder, field, returnType, ctx);
     }
 
     /**
      * Add a concrete has method implementation for present fields.
-     * In proto3, scalar fields without 'optional' modifier do not have has*() methods,
-     * so we return false for those fields.
      *
      * @param builder the TypeSpec builder to add the method to
      * @param field the merged field definition
@@ -75,26 +69,7 @@ public abstract sealed class AbstractConflictHandler permits
      */
     protected void addHasMethodImpl(TypeSpec.Builder builder, MergedField field,
                                      String versionJavaName, ProcessingContext ctx) {
-        if (field.shouldGenerateHasMethod()) {
-            FieldInfo versionField = getVersionField(field, ctx);
-            boolean supportsHas = versionField != null && versionField.supportsHasMethod();
-
-            MethodSpec.Builder method = MethodSpec.methodBuilder(field.getExtractHasMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .returns(TypeName.BOOLEAN)
-                    .addParameter(ctx.protoClassName(), "proto");
-
-            if (supportsHas) {
-                method.addStatement("return proto.has$L()", versionJavaName);
-            } else {
-                // Proto3 scalar field without 'optional' - no has*() method, always return false
-                method.addJavadoc("Proto3 scalar field without 'optional' modifier - has*() not available.\n");
-                method.addStatement("return false");
-            }
-
-            builder.addMethod(method.build());
-        }
+        ExtractMethodGenerator.addHasMethodImpl(builder, field, versionJavaName, ctx);
     }
 
     /**
@@ -105,16 +80,7 @@ public abstract sealed class AbstractConflictHandler permits
      * @param ctx the processing context
      */
     protected void addMissingHasMethodImpl(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        if (field.shouldGenerateHasMethod()) {
-            builder.addMethod(MethodSpec.methodBuilder(field.getExtractHasMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .returns(TypeName.BOOLEAN)
-                    .addParameter(ctx.protoClassName(), "proto")
-                    .addStatement("return false")
-                    .addJavadoc("Field not present in this version.\n")
-                    .build());
-        }
+        ExtractMethodGenerator.addMissingHasMethodImpl(builder, field, ctx);
     }
 
     /**
@@ -127,19 +93,7 @@ public abstract sealed class AbstractConflictHandler permits
      */
     protected void addStandardGetterImpl(TypeSpec.Builder builder, MergedField field,
                                           TypeName returnType, ProcessingContext ctx) {
-        MethodSpec.Builder getter = MethodSpec.methodBuilder(field.getGetterName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(returnType);
-
-        if (field.needsHasCheck()) {
-            getter.addStatement("return $L(proto) ? $L(proto) : null",
-                    field.getExtractHasMethodName(), field.getExtractMethodName());
-        } else {
-            getter.addStatement("return $L(proto)", field.getExtractMethodName());
-        }
-
-        builder.addMethod(getter.build());
+        ExtractMethodGenerator.addStandardGetterImpl(builder, field, returnType, ctx);
     }
 
     /**
@@ -150,33 +104,120 @@ public abstract sealed class AbstractConflictHandler permits
      * @param ctx the processing context
      */
     protected void addHasMethodToAbstract(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        if (field.shouldGenerateHasMethod()) {
-            MethodSpec has = MethodSpec.methodBuilder("has" + ctx.capitalize(field.getJavaName()))
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(TypeName.BOOLEAN)
-                    .addStatement("return $L(proto)", field.getExtractHasMethodName())
-                    .build();
-            builder.addMethod(has);
-        }
+        ExtractMethodGenerator.addHasMethodToAbstract(builder, field, ctx);
     }
 
     /**
      * Get the FieldInfo for the current version.
+     *
      * @param field the merged field
      * @param ctx the processing context containing version info
      * @return the FieldInfo for this version, or null if not present
      */
     protected FieldInfo getVersionField(MergedField field, ProcessingContext ctx) {
-        String version = ctx.version();
-        return version != null ? field.getFieldForVersion(version).orElse(null) : null;
+        return ExtractMethodGenerator.getVersionField(field, ctx);
     }
 
-    // ========== Concrete Builder Methods (setXxx delegating to doSetXxx) ==========
+    // ========== Abstract Builder Methods (delegate to BuilderMethodGenerator) ==========
+
+    /**
+     * Add an abstract doSet method to the builder.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
+     * @param paramType the type of the method parameter
+     * @param paramName the name of the method parameter
+     */
+    protected void addAbstractDoSet(TypeSpec.Builder builder, String methodName,
+                                     TypeName paramType, String paramName) {
+        BuilderMethodGenerator.addAbstractDoSet(builder, methodName, paramType, paramName);
+    }
+
+    /**
+     * Add an abstract doClear method to the builder.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param methodName the name of the method to generate
+     */
+    protected void addAbstractDoClear(TypeSpec.Builder builder, String methodName) {
+        BuilderMethodGenerator.addAbstractDoClear(builder, methodName);
+    }
+
+    /**
+     * Add abstract doSet and optionally doClear for a scalar field.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param fieldType the type of the field
+     * @param ctx the processing context
+     */
+    protected void addAbstractScalarBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                                    TypeName fieldType, ProcessingContext ctx) {
+        BuilderMethodGenerator.addAbstractScalarMethods(builder, field, fieldType, ctx);
+    }
+
+    /**
+     * Add abstract doAdd, doAddAll, doSet, doClear for a repeated field.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param singleElementType the type of a single list element
+     * @param listType the type of the list parameter
+     * @param ctx the processing context
+     */
+    protected void addAbstractRepeatedBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                                      TypeName singleElementType, TypeName listType,
+                                                      ProcessingContext ctx) {
+        BuilderMethodGenerator.addAbstractRepeatedMethods(builder, field, singleElementType, listType, ctx);
+    }
+
+    // ========== Concrete Builder Methods (delegate to BuilderMethodGenerator) ==========
+
+    /**
+     * Build a concrete setXxx method that delegates to doSetXxx.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param fieldName the name of the field
+     * @param paramType the type of the method parameter
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
+     */
+    protected void addConcreteSetMethod(TypeSpec.Builder builder, String fieldName,
+                                         TypeName paramType, TypeName builderReturnType,
+                                         ProcessingContext ctx) {
+        BuilderMethodGenerator.addConcreteSet(builder, fieldName, paramType, builderReturnType, ctx);
+    }
+
+    /**
+     * Build a concrete clearXxx method that delegates to doClearXxx.
+     *
+     * @param builder the TypeSpec builder to add the method to
+     * @param fieldName the name of the field
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
+     */
+    protected void addConcreteClearMethod(TypeSpec.Builder builder, String fieldName,
+                                           TypeName builderReturnType, ProcessingContext ctx) {
+        BuilderMethodGenerator.addConcreteClear(builder, fieldName, builderReturnType, ctx);
+    }
+
+    /**
+     * Add standard concrete builder methods for a scalar field.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param fieldType the type of the field
+     * @param builderReturnType the return type for builder methods
+     * @param ctx the processing context
+     */
+    protected void addScalarConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
+                                                    TypeName fieldType, TypeName builderReturnType,
+                                                    ProcessingContext ctx) {
+        BuilderMethodGenerator.addConcreteScalarMethods(builder, field, fieldType, builderReturnType, ctx);
+    }
 
     /**
      * Add standard concrete builder methods for a repeated field.
-     * Generates: addXxx, addAllXxx, setXxx (replace all), clearXxx
      *
      * @param builder the TypeSpec builder to add methods to
      * @param field the merged field definition
@@ -188,90 +229,14 @@ public abstract sealed class AbstractConflictHandler permits
     protected void addRepeatedConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
                                                       TypeName singleElementType, TypeName listType,
                                                       TypeName builderReturnType, ProcessingContext ctx) {
-        String capName = ctx.capitalize(field.getJavaName());
-
-        // add single
-        builder.addMethod(MethodSpec.methodBuilder("add" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(singleElementType, field.getJavaName())
-                .returns(builderReturnType)
-                .addStatement("doAdd$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // addAll
-        builder.addMethod(MethodSpec.methodBuilder("addAll" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(listType, field.getJavaName())
-                .returns(builderReturnType)
-                .addStatement("doAddAll$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // set (replace all)
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(listType, field.getJavaName())
-                .returns(builderReturnType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // clear
-        builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(builderReturnType)
-                .addStatement("doClear$L()", capName)
-                .addStatement("return this")
-                .build());
+        BuilderMethodGenerator.addConcreteRepeatedMethods(builder, field, singleElementType, listType,
+                builderReturnType, ctx);
     }
 
-    /**
-     * Add standard concrete builder methods for a scalar field.
-     * Generates: setXxx, clearXxx (if optional)
-     *
-     * @param builder the TypeSpec builder to add methods to
-     * @param field the merged field definition
-     * @param fieldType the type of the field
-     * @param builderReturnType the return type for builder methods
-     * @param ctx the processing context
-     */
-    protected void addScalarConcreteBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                                    TypeName fieldType, TypeName builderReturnType,
-                                                    ProcessingContext ctx) {
-        String capName = ctx.capitalize(field.getJavaName());
-
-        // set
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(fieldType, field.getJavaName())
-                .returns(builderReturnType)
-                .addStatement("doSet$L($L)", capName, field.getJavaName())
-                .addStatement("return this")
-                .build());
-
-        // clear for fields with has*()
-        if (field.shouldGenerateHasMethod()) {
-            builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                    .returns(builderReturnType)
-                    .addStatement("doClear$L()", capName)
-                    .addStatement("return this")
-                    .build());
-        }
-    }
-
-    // ========== Template Methods for Builder Impl (doXxx) ==========
+    // ========== Builder Impl Methods (delegate to BuilderMethodGenerator) ==========
 
     /**
      * Build a doSet implementation method with version-conditional body.
-     * Uses silent ignore when field not present (adds comment).
      *
      * @param builder TypeSpec builder to add method to
      * @param methodName Full method name (e.g., "doSetName")
@@ -284,18 +249,12 @@ public abstract sealed class AbstractConflictHandler permits
                                    TypeName paramType, String paramName,
                                    boolean presentInVersion,
                                    Consumer<MethodSpec.Builder> bodyBuilder) {
-        MethodSpec.Builder method = MethodSpec.methodBuilder(methodName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(paramType, paramName);
-
-        addVersionConditional(method, presentInVersion, bodyBuilder);
-        builder.addMethod(method.build());
+        BuilderMethodGenerator.buildDoSetImpl(builder, methodName, paramType, paramName,
+                presentInVersion, bodyBuilder);
     }
 
     /**
      * Build a doSet implementation method that throws when field not present.
-     * Use this for setter operations where silently ignoring would be confusing.
      *
      * @param builder the TypeSpec builder to add the method to
      * @param methodName the name of the method to generate
@@ -309,13 +268,8 @@ public abstract sealed class AbstractConflictHandler permits
                                           TypeName paramType, String paramName,
                                           boolean presentInVersion, MergedField field,
                                           Consumer<MethodSpec.Builder> bodyBuilder) {
-        MethodSpec.Builder method = MethodSpec.methodBuilder(methodName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .addParameter(paramType, paramName);
-
-        addVersionConditionalOrThrow(method, presentInVersion, field, bodyBuilder);
-        builder.addMethod(method.build());
+        BuilderMethodGenerator.buildDoSetImplOrThrow(builder, methodName, paramType, paramName,
+                presentInVersion, field, bodyBuilder);
     }
 
     /**
@@ -331,8 +285,8 @@ public abstract sealed class AbstractConflictHandler permits
     protected void buildSimpleDoSetImpl(TypeSpec.Builder builder, String methodName,
                                          TypeName paramType, String paramName,
                                          boolean presentInVersion, String versionJavaName) {
-        buildDoSetImpl(builder, methodName, paramType, paramName, presentInVersion,
-                m -> m.addStatement("protoBuilder.set$L($L)", versionJavaName, paramName));
+        BuilderMethodGenerator.buildSimpleDoSetImpl(builder, methodName, paramType, paramName,
+                presentInVersion, versionJavaName);
     }
 
     /**
@@ -345,12 +299,7 @@ public abstract sealed class AbstractConflictHandler permits
      */
     protected void buildDoClearImpl(TypeSpec.Builder builder, String methodName,
                                      boolean presentInVersion, String versionJavaName) {
-        MethodSpec.Builder method = MethodSpec.methodBuilder(methodName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED);
-
-        addVersionConditionalClear(method, presentInVersion, versionJavaName);
-        builder.addMethod(method.build());
+        BuilderMethodGenerator.buildDoClearImpl(builder, methodName, presentInVersion, versionJavaName);
     }
 
     /**
@@ -363,128 +312,6 @@ public abstract sealed class AbstractConflictHandler permits
      */
     protected void buildDoClearImplForField(TypeSpec.Builder builder, MergedField field,
                                              boolean presentInVersion, String versionJavaName) {
-        buildDoClearImpl(builder, field.getDoClearMethodName(), presentInVersion, versionJavaName);
-    }
-
-    // ========== Template Methods for Abstract Builder Methods ==========
-
-    /**
-     * Add an abstract doSet method to the builder.
-     *
-     * @param builder the TypeSpec builder to add the method to
-     * @param methodName the name of the method to generate
-     * @param paramType the type of the method parameter
-     * @param paramName the name of the method parameter
-     */
-    protected void addAbstractDoSet(TypeSpec.Builder builder, String methodName, TypeName paramType, String paramName) {
-        builder.addMethod(MethodSpec.methodBuilder(methodName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .addParameter(paramType, paramName)
-                .build());
-    }
-
-    /**
-     * Add an abstract doClear method to the builder.
-     *
-     * @param builder the TypeSpec builder to add the method to
-     * @param methodName the name of the method to generate
-     */
-    protected void addAbstractDoClear(TypeSpec.Builder builder, String methodName) {
-        builder.addMethod(MethodSpec.methodBuilder(methodName)
-                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
-                .build());
-    }
-
-    /**
-     * Add abstract doSet and optionally doClear for a scalar field.
-     *
-     * @param builder the TypeSpec builder to add methods to
-     * @param field the merged field definition
-     * @param fieldType the type of the field
-     * @param ctx the processing context
-     */
-    protected void addAbstractScalarBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                                    TypeName fieldType, ProcessingContext ctx) {
-        String capName = ctx.capitalize(field.getJavaName());
-
-        // doSet
-        addAbstractDoSet(builder, "doSet" + capName, fieldType, field.getJavaName());
-
-        // doClear for fields with has*()
-        if (field.shouldGenerateHasMethod()) {
-            addAbstractDoClear(builder, "doClear" + capName);
-        }
-    }
-
-    /**
-     * Add abstract doAdd, doAddAll, doSet, doClear for a repeated field.
-     *
-     * @param builder the TypeSpec builder to add methods to
-     * @param field the merged field definition
-     * @param singleElementType the type of a single list element
-     * @param listType the type of the list parameter
-     * @param ctx the processing context
-     */
-    protected void addAbstractRepeatedBuilderMethods(TypeSpec.Builder builder, MergedField field,
-                                                      TypeName singleElementType, TypeName listType,
-                                                      ProcessingContext ctx) {
-        String capName = ctx.capitalize(field.getJavaName());
-
-        // doAdd
-        addAbstractDoSet(builder, "doAdd" + capName, singleElementType, field.getJavaName());
-
-        // doAddAll
-        addAbstractDoSet(builder, "doAddAll" + capName, listType, field.getJavaName());
-
-        // doSet (replace all)
-        addAbstractDoSet(builder, "doSet" + capName, listType, field.getJavaName());
-
-        // doClear
-        addAbstractDoClear(builder, "doClear" + capName);
-    }
-
-    // ========== Template Methods for Concrete Builder Methods ==========
-
-    /**
-     * Build a concrete setXxx method that delegates to doSetXxx.
-     *
-     * @param builder the TypeSpec builder to add the method to
-     * @param fieldName the name of the field
-     * @param paramType the type of the method parameter
-     * @param builderReturnType the return type for builder methods
-     * @param ctx the processing context
-     */
-    protected void addConcreteSetMethod(TypeSpec.Builder builder, String fieldName,
-                                         TypeName paramType, TypeName builderReturnType,
-                                         ProcessingContext ctx) {
-        String capName = ctx.capitalize(fieldName);
-        builder.addMethod(MethodSpec.methodBuilder("set" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addParameter(paramType, fieldName)
-                .returns(builderReturnType)
-                .addStatement("doSet$L($L)", capName, fieldName)
-                .addStatement("return this")
-                .build());
-    }
-
-    /**
-     * Build a concrete clearXxx method that delegates to doClearXxx.
-     *
-     * @param builder the TypeSpec builder to add the method to
-     * @param fieldName the name of the field
-     * @param builderReturnType the return type for builder methods
-     * @param ctx the processing context
-     */
-    protected void addConcreteClearMethod(TypeSpec.Builder builder, String fieldName,
-                                           TypeName builderReturnType, ProcessingContext ctx) {
-        String capName = ctx.capitalize(fieldName);
-        builder.addMethod(MethodSpec.methodBuilder("clear" + capName)
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .returns(builderReturnType)
-                .addStatement("doClear$L()", capName)
-                .addStatement("return this")
-                .build());
+        BuilderMethodGenerator.buildDoClearImplForField(builder, field, presentInVersion, versionJavaName);
     }
 }

@@ -11,6 +11,7 @@ import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
+import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
 import javax.lang.model.element.Modifier;
 import java.util.Map;
@@ -86,10 +87,12 @@ public final class CodeGenerationHelper {
      * @return the capitalized Java name for this version
      */
     public static String getVersionSpecificJavaName(MergedField field, ProcessingContext ctx) {
-        return Optional.ofNullable(ctx.version())
-                .flatMap(version -> Optional.ofNullable(field.getVersionFields().get(version)))
-                .map(vf -> ctx.capitalize(vf.getJavaName()))
-                .orElseGet(() -> ctx.capitalize(field.getJavaName()));
+        String version = ctx.version();
+        if (version == null) {
+            return ctx.capitalize(field.getJavaName());
+        }
+        VersionFieldSnapshot snapshot = VersionFieldSnapshot.of(field, version);
+        return ctx.capitalize(snapshot.javaNameOr(field.getJavaName()));
     }
 
     /**
@@ -167,14 +170,11 @@ public final class CodeGenerationHelper {
      * @return the proto getter call expression
      */
     public static String generateProtoGetterCall(MergedField field, ProcessingContext ctx) {
-        String version = ctx.requireVersion();
-        TypeResolver resolver = ctx.resolver();
-
         String javaName = getVersionSpecificJavaName(field, ctx);
         String enumType = getEnumTypeForFromProtoValue(field, ctx);
 
-        FieldInfo versionField = field.getVersionFields().get(version);
-        boolean versionIsEnum = versionField != null && versionField.isEnum();
+        VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+        boolean versionIsEnum = snapshot.isEnum();
         boolean mergedIsInt = "int".equals(field.getGetterType()) || "Integer".equals(field.getGetterType())
                 || "long".equals(field.getGetterType()) || "Long".equals(field.getGetterType());
 
@@ -205,7 +205,7 @@ public final class CodeGenerationHelper {
             return String.format("proto.get%s().getNumber()", javaName);
         } else {
             String mergedType = field.getGetterType();
-            String versionType = versionField != null ? versionField.getJavaType() : mergedType;
+            String versionType = snapshot.javaTypeOr(mergedType);
 
             if (("Long".equals(mergedType) || "long".equals(mergedType)) && "int".equals(versionType)) {
                 return String.format("(long) proto.get%s()", javaName);
@@ -236,23 +236,23 @@ public final class CodeGenerationHelper {
      */
     public static String getProtoTypeForField(MergedField field, ProcessingContext ctx,
                                                String currentProtoClassName) {
-        String version = ctx.requireVersion();
-        FieldInfo versionField = field.getVersionFields().get(version);
-        if (versionField == null) {
+        VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+        if (snapshot.isAbsent()) {
             return "com.google.protobuf.Message";
         }
 
-        String typeName = versionField.getTypeName();
-        if (typeName.startsWith(".")) {
+        String typeName = snapshot.typeName();
+        if (typeName != null && typeName.startsWith(".")) {
             typeName = typeName.substring(1);
         }
 
+        String version = ctx.requireVersion();
         GeneratorConfig config = ctx.config();
         String javaProtoPackage = config.getProtoPackage(version);
         TypeResolver resolver = ctx.resolver();
         String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
 
-        String messagePath = versionField.extractNestedTypePath(protoPackage);
+        String messagePath = snapshot.extractNestedTypePath(protoPackage);
 
         MergedSchema schema = ctx.schema();
         String outerClassName = findOuterClassForType(messagePath, schema, version);
@@ -305,23 +305,23 @@ public final class CodeGenerationHelper {
      */
     public static String getProtoEnumTypeForField(MergedField field, ProcessingContext ctx,
                                                     String currentProtoClassName) {
-        String version = ctx.requireVersion();
-        FieldInfo versionField = field.getVersionFields().get(version);
-        if (versionField == null) {
+        VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+        if (snapshot.isAbsent()) {
             return "Object";
         }
 
-        String typeName = versionField.getTypeName();
-        if (typeName.startsWith(".")) {
+        String typeName = snapshot.typeName();
+        if (typeName != null && typeName.startsWith(".")) {
             typeName = typeName.substring(1);
         }
 
+        String version = ctx.requireVersion();
         GeneratorConfig config = ctx.config();
         String javaProtoPackage = config.getProtoPackage(version);
         TypeResolver resolver = ctx.resolver();
         String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
 
-        String enumPath = versionField.extractNestedTypePath(protoPackage);
+        String enumPath = snapshot.extractNestedTypePath(protoPackage);
 
         MergedSchema schema = ctx.schema();
         String outerClassName = findOuterClassForEnum(enumPath, schema, version);

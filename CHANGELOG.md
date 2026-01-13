@@ -35,6 +35,38 @@ _No changes yet._
 #### Repeated Field Handling
 - **Fixed `supportsHasMethod()` for repeated message fields** - Repeated fields should never have `has*()` methods, regardless of field type (scalar, message, enum). The check for `LABEL_REPEATED` is now performed first, before any type-specific logic.
 
+### Architecture Improvements
+
+#### Interface Segregation Principle (ISP) Compliance
+- **Split `ConflictHandler` interface** - Following ISP, the monolithic interface is now split into focused sub-interfaces:
+  - `FieldExtractionHandler` - generates extraction and getter methods
+  - `FieldBuilderHandler` - generates builder methods
+  - `ConflictHandler` - composite interface extending both (backward compatible)
+- **Clients can now depend on narrowest interface** - Use `FieldExtractionHandler` for read-only generation, `FieldBuilderHandler` for builder-only generation
+
+#### New Utility Classes
+- **`MethodSpecFactory`** - Centralized factory for creating `MethodSpec.Builder` instances with consistent patterns:
+  - `protectedExtract()` - for version-specific extract methods
+  - `protectedAbstractExtract()` - for abstract extract declarations
+  - `publicFinalGetter()` - for final getter implementations
+  - `publicFinalBuilderSetter()` - for fluent builder methods
+  - `protectedDoImpl()` - for abstract doXxx method implementations
+
+- **`VersionFieldSnapshot`** - Immutable record consolidating version field lookups:
+  - Eliminates scattered `field.getVersionFields().get(version)` + null-check patterns
+  - Provides fluent API: `snapshot.javaTypeOr("double")`, `snapshot.isEnum()`, `snapshot.supportsHasMethod()`
+  - Added 22 convenience methods for common field queries
+
+- **`ExtractMethodGenerator`** - Utility class for extract method generation (extracted from handlers)
+- **`BuilderMethodGenerator`** - Utility class for builder method generation (extracted from handlers)
+
+#### ProcessingContext Enhancements
+- **`versionSnapshot(MergedField)`** - Get `VersionFieldSnapshot` for current version
+- **`versionJavaNameCapitalized(MergedField)`** - Get capitalized Java name for version
+
+#### Documentation
+- **Added [CONTRACT-MATRIX.md](docs/CONTRACT-MATRIX.md)** - Comprehensive field behavior contract matrix
+
 ### Added
 
 #### Golden Tests Module

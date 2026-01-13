@@ -170,6 +170,7 @@ protoWrapper {
 | **[Getting Started](docs/GETTING_STARTED.md)** | Step-by-step tutorial (15 min) |
 | [Configuration](docs/CONFIGURATION.md) | All plugin options for Maven and Gradle |
 | [Cookbook](docs/COOKBOOK.md) | Practical examples and patterns |
+| [Contract Matrix](docs/CONTRACT-MATRIX.md) | Field behavior reference (getter/has for all types) |
 | [Schema Diff](docs/SCHEMA_DIFF.md) | Compare schemas and detect breaking changes |
 | [Incremental Build](docs/INCREMENTAL_BUILD.md) | Build optimization details |
 | [Known Issues](docs/KNOWN_ISSUES.md) | Limitations and workarounds |

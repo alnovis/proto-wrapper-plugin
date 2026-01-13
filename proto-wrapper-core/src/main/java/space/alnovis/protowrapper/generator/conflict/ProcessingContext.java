@@ -12,6 +12,7 @@ import space.alnovis.protowrapper.generator.TypeResolver;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
+import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
 /**
  * Context object containing all information needed for field processing.
@@ -233,5 +234,56 @@ public record ProcessingContext(
      */
     public boolean shouldUseHasCheckInGetter(MergedField field) {
         return getContractFor(field).unified().getterUsesHasCheck();
+    }
+
+    // ==================== Version Field Snapshot Support ====================
+
+    /**
+     * Create a snapshot of field info for the current version.
+     *
+     * <p>This consolidates the common pattern of looking up version-specific
+     * field information and checking for null:</p>
+     *
+     * <pre>{@code
+     * // Instead of:
+     * FieldInfo versionField = field.getVersionFields().get(ctx.requireVersion());
+     * String versionType = versionField != null ? versionField.getJavaType() : "double";
+     * boolean isEnum = versionField != null && versionField.isEnum();
+     *
+     * // Use:
+     * VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
+     * String versionType = snapshot.javaTypeOr("double");
+     * boolean isEnum = snapshot.isEnum();
+     * }</pre>
+     *
+     * @param field the merged field
+     * @return snapshot of field info for the current version
+     * @throws IllegalStateException if version is not set
+     */
+    public VersionFieldSnapshot versionSnapshot(MergedField field) {
+        return VersionFieldSnapshot.of(field, requireVersion());
+    }
+
+    /**
+     * Get the version-specific Java name (capitalized) for a field.
+     *
+     * <p>Convenience method combining snapshot lookup and capitalization:</p>
+     *
+     * <pre>{@code
+     * // Instead of:
+     * String versionJavaName = ctx.versionSnapshot(field).javaNameOr(field.getJavaName());
+     * String capitalizedName = ctx.capitalize(versionJavaName);
+     *
+     * // Use:
+     * String capitalizedVersionName = ctx.versionJavaNameCapitalized(field);
+     * }</pre>
+     *
+     * @param field the merged field
+     * @return capitalized Java name for the current version
+     * @throws IllegalStateException if version is not set
+     */
+    public String versionJavaNameCapitalized(MergedField field) {
+        VersionFieldSnapshot snapshot = versionSnapshot(field);
+        return capitalize(snapshot.javaNameOr(field.getJavaName()));
     }
 }
