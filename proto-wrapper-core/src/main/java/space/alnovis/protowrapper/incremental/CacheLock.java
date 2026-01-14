@@ -161,7 +161,7 @@ public final class CacheLock implements Closeable {
 
         RandomAccessFile raf = null;
         FileChannel channel = null;
-        FileLock lock = null;
+        FileLock lock;
 
         try {
             raf = new RandomAccessFile(lockFile.toFile(), "rw");

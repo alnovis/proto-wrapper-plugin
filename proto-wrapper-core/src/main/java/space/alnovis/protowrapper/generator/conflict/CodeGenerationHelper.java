@@ -247,13 +247,13 @@ public final class CodeGenerationHelper {
         TypeResolver resolver = ctx.resolver();
         String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
 
-        String messagePath = snapshot.extractNestedTypePath(protoPackage);
+        String path = snapshot.extractNestedTypePath(protoPackage);
 
         MergedSchema schema = ctx.schema();
-        String outerClassName = findOuterClassForType(messagePath, schema, version);
+        String outerClassName = findOuterClassForType(path, schema, version);
 
         if (outerClassName != null) {
-            return javaProtoPackage + "." + outerClassName + "." + messagePath;
+            return javaProtoPackage + "." + outerClassName + "." + path;
         }
 
         if (currentProtoClassName != null && currentProtoClassName.startsWith(javaProtoPackage + ".")) {
@@ -261,11 +261,11 @@ public final class CodeGenerationHelper {
             int dotIdx = afterPackage.indexOf('.');
             if (dotIdx > 0) {
                 String currentOuterClass = afterPackage.substring(0, dotIdx);
-                return javaProtoPackage + "." + currentOuterClass + "." + messagePath;
+                return javaProtoPackage + "." + currentOuterClass + "." + path;
             }
         }
 
-        return javaProtoPackage + "." + messagePath;
+        return javaProtoPackage + "." + path;
     }
 
     /**
@@ -316,13 +316,13 @@ public final class CodeGenerationHelper {
         TypeResolver resolver = ctx.resolver();
         String protoPackage = resolver.extractProtoPackage(config.getProtoPackagePattern());
 
-        String enumPath = snapshot.extractNestedTypePath(protoPackage);
+        String path = snapshot.extractNestedTypePath(protoPackage);
 
         MergedSchema schema = ctx.schema();
-        String outerClassName = findOuterClassForEnum(enumPath, schema, version);
+        String outerClassName = findOuterClassForEnum(path, schema, version);
 
         if (outerClassName != null) {
-            return javaProtoPackage + "." + outerClassName + "." + enumPath;
+            return javaProtoPackage + "." + outerClassName + "." + path;
         }
 
         if (currentProtoClassName != null && currentProtoClassName.startsWith(javaProtoPackage + ".")) {
@@ -330,11 +330,11 @@ public final class CodeGenerationHelper {
             int dotIdx = afterPackage.indexOf('.');
             if (dotIdx > 0) {
                 String currentOuterClass = afterPackage.substring(0, dotIdx);
-                return javaProtoPackage + "." + currentOuterClass + "." + enumPath;
+                return javaProtoPackage + "." + currentOuterClass + "." + path;
             }
         }
 
-        return javaProtoPackage + "." + enumPath;
+        return javaProtoPackage + "." + path;
     }
 
     /**
