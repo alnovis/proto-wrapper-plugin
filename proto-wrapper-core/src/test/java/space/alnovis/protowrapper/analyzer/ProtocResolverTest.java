@@ -60,7 +60,7 @@ class ProtocResolverTest {
         // Create a fake protoc executable
         Path fakeProtoc = tempDir.resolve("fake-protoc");
         Files.writeString(fakeProtoc, "#!/bin/bash\necho 'libprotoc 4.28.2'");
-        fakeProtoc.toFile().setExecutable(true);
+        assertThat(fakeProtoc.toFile().setExecutable(true)).isTrue();
 
         Path resolved = resolver.resolve(fakeProtoc.toString());
 
@@ -116,7 +116,7 @@ class ProtocResolverTest {
         Path cachedProtoc = tempDir.resolve(fileName);
 
         Files.writeString(cachedProtoc, "#!/bin/bash\necho 'libprotoc 4.28.2'");
-        cachedProtoc.toFile().setExecutable(true);
+        assertThat(cachedProtoc.toFile().setExecutable(true)).isTrue();
 
         // Should return cached file without downloading
         Path resolved = resolver.resolveEmbedded();

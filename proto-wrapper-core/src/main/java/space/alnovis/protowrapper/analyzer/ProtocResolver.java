@@ -103,9 +103,7 @@ public class ProtocResolver {
         if (customPath != null && !customPath.isEmpty()) {
             Path custom = Path.of(customPath);
             if (Files.exists(custom)) {
-                if (!Files.isExecutable(custom) && !isWindows()) {
-                    custom.toFile().setExecutable(true);
-                }
+                ensureExecutable(custom);
                 logger.info("Using custom protoc: " + custom);
                 return custom;
             }
@@ -137,9 +135,7 @@ public class ProtocResolver {
 
         // Check cache
         if (Files.exists(cachedProtoc)) {
-            if (!Files.isExecutable(cachedProtoc) && !isWindows()) {
-                cachedProtoc.toFile().setExecutable(true);
-            }
+            ensureExecutable(cachedProtoc);
             logger.debug("Using cached protoc: " + cachedProtoc);
             return cachedProtoc;
         }
@@ -160,11 +156,7 @@ public class ProtocResolver {
             throw new IOException("Failed to download protoc from " + url + ": " + e.getMessage(), e);
         }
 
-        // Make executable on Unix
-        if (!isWindows()) {
-            cachedProtoc.toFile().setExecutable(true);
-        }
-
+        ensureExecutable(cachedProtoc);
         logger.info("Downloaded protoc " + protocVersion + " to: " + cachedProtoc);
         return cachedProtoc;
     }
@@ -268,6 +260,21 @@ public class ProtocResolver {
 
     private boolean isWindows() {
         return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows");
+    }
+
+    /**
+     * Ensures the file has executable permission on Unix systems.
+     * Logs a warning if the permission cannot be set.
+     *
+     * @param path the file to make executable
+     */
+    private void ensureExecutable(Path path) {
+        if (isWindows() || Files.isExecutable(path)) {
+            return;
+        }
+        if (!path.toFile().setExecutable(true)) {
+            logger.warn("Failed to set executable permission on: " + path);
+        }
     }
 
     /**
