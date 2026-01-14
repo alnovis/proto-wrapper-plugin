@@ -4,6 +4,9 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
+// Versions
+val protobufVersion = "4.28.2"
+
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
@@ -11,7 +14,7 @@ java {
 
 dependencies {
     // Protobuf for parsing descriptors
-    api("com.google.protobuf:protobuf-java:4.28.2")
+    api("com.google.protobuf:protobuf-java:$protobufVersion")
 
     // JavaPoet for code generation
     api("com.squareup:javapoet:1.13.0")
@@ -47,7 +50,8 @@ tasks.processResources {
         expand(
             "projectVersion" to project.version,
             "projectGroupId" to project.group,
-            "projectArtifactId" to project.name
+            "projectArtifactId" to project.name,
+            "protobuf" to mapOf("version" to protobufVersion)
         )
     }
 }

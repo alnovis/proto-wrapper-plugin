@@ -125,11 +125,11 @@ class ProtocExecutorTest {
 
     @Test
     void shouldCheckProtocAvailability() {
-        // This test depends on protoc being installed
+        // This test depends on protoc being available (system or embedded)
         boolean available = executor.isProtocAvailable();
 
         if (available) {
-            String version = executor.getProtocVersion();
+            String version = executor.queryInstalledProtocVersion();
             assertThat(version).contains("libprotoc");
         }
     }

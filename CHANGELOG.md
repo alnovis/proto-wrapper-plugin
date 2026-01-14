@@ -11,6 +11,32 @@ _No changes yet._
 
 ---
 
+## [1.6.5] - 2026-01-14
+
+### Added
+
+#### Embedded Protoc Support
+- **Automatic protoc download** - The plugin now automatically downloads the appropriate `protoc` binary from Maven Central if not found in PATH. No manual installation required!
+  - Supports Linux (x86_64, aarch64), macOS (x86_64, aarch64/Apple Silicon), Windows (x86_64)
+  - Downloaded binaries are cached in `~/.cache/proto-wrapper/protoc/` (Linux/macOS) or `%LOCALAPPDATA%\proto-wrapper\protoc\` (Windows)
+  - Uses the same protobuf version as the plugin's `protobuf-java` dependency by default
+
+- **New `protocVersion` parameter** - Allows overriding the embedded protoc version:
+  - Maven: `<protocVersion>4.28.2</protocVersion>` or `-Dprotoc.version=4.28.2`
+  - Gradle: `protocVersion.set("4.28.2")`
+
+- **New `ProtocResolver` class** - Internal component for resolving protoc with priority:
+  1. Custom path (if `protocPath` is set)
+  2. System PATH (if protoc is installed)
+  3. Embedded (download from Maven Central)
+
+### Changed
+
+- **`protocPath` parameter behavior** - Now optional. If not set, protoc is resolved automatically
+- **Error messages** - Updated to reflect automatic protoc resolution
+
+---
+
 ## [1.6.4] - 2026-01-13
 
 ### Fixed

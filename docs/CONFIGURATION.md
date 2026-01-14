@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.4</version>
+    <version>1.6.5</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -64,7 +64,8 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `includeVersionSuffix` | `true` | Include version suffix in class names (`MoneyV1` vs `Money`). |
 | `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types (Timestamp to Instant, etc.). |
 | `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for Well-Known Type fields. |
-| `protocPath` | (from PATH) | Path to protoc executable. Auto-detected if not specified. |
+| `protocPath` | (auto) | Path to protoc executable. If not set, resolved automatically: system PATH, then embedded download. |
+| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.5)* |
 
 #### Generation Flags
 
@@ -167,7 +168,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.4</version>
+    <version>1.6.5</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -225,7 +226,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.4"
+    id("space.alnovis.proto-wrapper") version "1.6.5"
 }
 ```
 
@@ -237,7 +238,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("space.alnovis:proto-wrapper-gradle-plugin:1.6.4")
+        classpath("space.alnovis:proto-wrapper-gradle-plugin:1.6.5")
     }
 }
 
@@ -351,7 +352,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("space.alnovis.proto-wrapper") version "1.6.4"
+    id("space.alnovis.proto-wrapper") version "1.6.5"
 }
 
 protoWrapper {

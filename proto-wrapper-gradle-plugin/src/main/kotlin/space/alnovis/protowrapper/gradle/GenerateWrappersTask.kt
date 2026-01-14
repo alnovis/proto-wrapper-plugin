@@ -108,11 +108,24 @@ abstract class GenerateWrappersTask : DefaultTask() {
 
     /**
      * Path to protoc executable.
-     * If not set, uses 'protoc' from PATH.
+     * If not set, protoc is resolved automatically:
+     * - System PATH (if protoc is installed)
+     * - Embedded (downloaded from Maven Central)
      */
     @get:Input
     @get:Optional
     abstract val protocPath: Property<String>
+
+    /**
+     * Version of protoc to use for embedded downloads.
+     * Only affects embedded protoc. Ignored if custom protocPath is set
+     * or system protoc is found.
+     * If not specified, uses the protobuf version that the plugin was built with.
+     * @since 1.6.5
+     */
+    @get:Input
+    @get:Optional
+    abstract val protocVersion: Property<String>
 
     /**
      * Whether to generate interface files.
@@ -360,8 +373,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
     /**
      * Initializes the protoc executor and validates availability.
      *
-     * <p>Sets up the ProtocExecutor with the configured path (if any) and
-     * verifies that protoc is available on the system.</p>
+     * <p>Sets up the ProtocExecutor with the configured path and version (if any) and
+     * verifies that protoc is available (will auto-download embedded if needed).</p>
      *
      * @throws GradleException if protoc is not available
      */
@@ -372,13 +385,18 @@ abstract class GenerateWrappersTask : DefaultTask() {
                 protocExecutor.setProtocPath(path)
             }
         }
+        protocVersion.orNull?.let { version ->
+            if (version.isNotEmpty()) {
+                protocExecutor.setProtocVersion(version)
+            }
+        }
 
         if (!protocExecutor.isProtocAvailable) {
             throw GradleException(
-                "protoc not found. Please install protobuf compiler or set protocPath parameter."
+                "protoc not available. Failed to resolve or download protoc."
             )
         }
-        pluginLogger.info("Using ${protocExecutor.protocVersion}")
+        pluginLogger.info("Using ${protocExecutor.queryInstalledProtocVersion()}")
     }
 
     /**

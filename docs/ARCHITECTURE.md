@@ -1,7 +1,7 @@
 # Proto Wrapper Plugin Architecture
 
-Version: 1.6.4
-Last Updated: 2026-01-13
+Version: 1.6.5
+Last Updated: 2026-01-14
 
 ## Overview
 

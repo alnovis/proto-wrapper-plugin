@@ -23,6 +23,15 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     // Protoc
     abstract val protocPath: Property<String>
 
+    /**
+     * Version of protoc to use for embedded downloads.
+     * Only affects embedded protoc. Ignored if custom protocPath is set
+     * or system protoc is found.
+     * If not specified, uses the protobuf version that the plugin was built with.
+     * @since 1.6.5
+     */
+    abstract val protocVersion: Property<String>
+
     // Generation flags
     abstract val generateInterfaces: Property<Boolean>
     abstract val generateAbstractClasses: Property<Boolean>

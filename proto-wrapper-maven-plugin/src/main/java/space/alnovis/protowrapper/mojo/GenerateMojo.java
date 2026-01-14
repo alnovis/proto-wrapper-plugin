@@ -113,10 +113,26 @@ public class GenerateMojo extends AbstractMojo {
     private String protoPackagePattern;
 
     /**
-     * Path to protoc executable. If not set, uses 'protoc' from PATH.
+     * Path to protoc executable. If not set, protoc is resolved automatically:
+     * <ol>
+     *   <li>System PATH (if protoc is installed)</li>
+     *   <li>Embedded (downloaded from Maven Central)</li>
+     * </ol>
      */
     @Parameter(property = "protoc.path")
     private String protocPath;
+
+    /**
+     * Version of protoc to use for embedded downloads.
+     * Only affects embedded protoc. Ignored if custom protocPath is set
+     * or system protoc is found.
+     *
+     * <p>If not specified, uses the protobuf version that the plugin was built with.</p>
+     *
+     * @since 1.6.5
+     */
+    @Parameter(property = "protoc.version")
+    private String protocVersion;
 
     /**
      * Whether to generate interface files.
@@ -260,13 +276,16 @@ public class GenerateMojo extends AbstractMojo {
         if (protocPath != null && !protocPath.isEmpty()) {
             protocExecutor.setProtocPath(protocPath);
         }
+        if (protocVersion != null && !protocVersion.isEmpty()) {
+            protocExecutor.setProtocVersion(protocVersion);
+        }
 
-        // Check protoc availability
+        // Check protoc availability (will auto-download embedded if needed)
         if (!protocExecutor.isProtocAvailable()) {
             throw new MojoExecutionException(
-                "protoc not found. Please install protobuf compiler or set protocPath parameter.");
+                "protoc not available. Failed to resolve or download protoc.");
         }
-        getLog().info("Using " + protocExecutor.getProtocVersion());
+        getLog().info("Using " + protocExecutor.queryInstalledProtocVersion());
 
         // Validate and resolve configuration
         resolveAndValidateConfig();

@@ -27,11 +27,12 @@ import java.util.regex.Pattern;
  */
 public class ProtocExecutor {
 
-    private static final String PROTOC_COMMAND = "protoc";
     private static final int TIMEOUT_SECONDS = 60;
 
     private final PluginLogger logger;
-    private String protocPath = PROTOC_COMMAND;
+    private final ProtocResolver resolver;
+    private String customProtocPath;
+    private Path resolvedProtocPath;
 
     /**
      * Create a ProtocExecutor with console logging.
@@ -57,15 +58,58 @@ public class ProtocExecutor {
      */
     public ProtocExecutor(PluginLogger logger) {
         this.logger = logger;
+        this.resolver = new ProtocResolver(logger);
     }
 
     /**
      * Set custom path to protoc executable.
      *
-     * @param protocPath the path to protoc
+     * <p>If not set, protoc will be resolved automatically:</p>
+     * <ol>
+     *   <li>System PATH (if protoc is installed)</li>
+     *   <li>Embedded (downloaded from Maven Central)</li>
+     * </ol>
+     *
+     * @param protocPath the path to protoc, or null for auto-detection
      */
     public void setProtocPath(String protocPath) {
-        this.protocPath = protocPath;
+        this.customProtocPath = protocPath;
+        this.resolvedProtocPath = null; // Reset cache
+    }
+
+    /**
+     * Set the protoc version to use for embedded downloads.
+     *
+     * <p>Only affects embedded protoc. Ignored if custom path is set
+     * or system protoc is found.</p>
+     *
+     * @param version protoc version (e.g., "4.28.2")
+     */
+    public void setProtocVersion(String version) {
+        resolver.setProtocVersion(version);
+        this.resolvedProtocPath = null; // Reset cache
+    }
+
+    /**
+     * Get the protoc version configured for embedded downloads.
+     *
+     * @return protoc version
+     */
+    public String getProtocVersion() {
+        return resolver.getProtocVersion();
+    }
+
+    /**
+     * Get the resolved protoc command path.
+     *
+     * @return path to protoc executable
+     * @throws IOException if protoc cannot be resolved
+     */
+    private String getProtocCommand() throws IOException {
+        if (resolvedProtocPath == null) {
+            resolvedProtocPath = resolver.resolve(customProtocPath);
+        }
+        return resolvedProtocPath.toString();
     }
 
     /**
@@ -105,7 +149,7 @@ public class ProtocExecutor {
 
         // Build command
         List<String> command = new ArrayList<>();
-        command.add(protocPath);
+        command.add(getProtocCommand());
         command.add("--descriptor_set_out=" + outputFile.toAbsolutePath());
         command.add("--include_imports");
 
@@ -292,13 +336,14 @@ public class ProtocExecutor {
     }
 
     /**
-     * Check if protoc is available.
+     * Check if protoc is available (either system, custom, or embedded).
      *
-     * @return true if protoc can be executed
+     * @return true if protoc can be resolved and executed
      */
     public boolean isProtocAvailable() {
         try {
-            ProcessBuilder pb = new ProcessBuilder(protocPath, "--version");
+            String protocCommand = getProtocCommand();
+            ProcessBuilder pb = new ProcessBuilder(protocCommand, "--version");
             Process process = pb.start();
             boolean finished = process.waitFor(5, TimeUnit.SECONDS);
             return finished && process.exitValue() == 0;
@@ -308,13 +353,14 @@ public class ProtocExecutor {
     }
 
     /**
-     * Get protoc version string.
+     * Query the version string from the resolved protoc executable.
      *
-     * @return Version string or null if not available
+     * @return version string (e.g., "libprotoc 4.28.2") or null if not available
      */
-    public String getProtocVersion() {
+    public String queryInstalledProtocVersion() {
         try {
-            ProcessBuilder pb = new ProcessBuilder(protocPath, "--version");
+            String protocCommand = getProtocCommand();
+            ProcessBuilder pb = new ProcessBuilder(protocCommand, "--version");
             Process process = pb.start();
 
             StringBuilder output = new StringBuilder();

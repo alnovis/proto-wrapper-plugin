@@ -37,32 +37,32 @@ The Schema Diff tool analyzes differences between two protobuf schema directorie
 
 ## CLI Usage
 
-The CLI is packaged as an executable JAR (`proto-wrapper-core-1.6.4-cli.jar`).
+The CLI is packaged as an executable JAR (`proto-wrapper-core-1.6.5-cli.jar`).
 
 ### Basic Commands
 
 ```bash
 # Basic comparison
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2
 
 # With output format
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2 --format=markdown
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2 --format=markdown
 
 # Show only breaking changes
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2 --breaking-only
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2 --breaking-only
 
 # Write to file
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2 --output=report.md
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2 --output=report.md
 
 # CI/CD mode: exit code 1 if breaking changes detected
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2 --fail-on-breaking
 
 # Custom version names
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2 \
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2 \
     --v1-name=production --v2-name=development
 
 # Quiet mode
-java -jar proto-wrapper-core-1.6.4-cli.jar diff proto/v1 proto/v2 -q
+java -jar proto-wrapper-core-1.6.5-cli.jar diff proto/v1 proto/v2 -q
 ```
 
 ### CLI Options
@@ -115,7 +115,7 @@ Configure as part of your build:
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.4</version>
+    <version>1.6.5</version>
     <executions>
         <!-- Schema diff during verify phase -->
         <execution>
@@ -164,7 +164,7 @@ Register and configure a `SchemaDiffTask`.
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.4"
+    id("space.alnovis.proto-wrapper") version "1.6.5"
 }
 
 // Register diff task
