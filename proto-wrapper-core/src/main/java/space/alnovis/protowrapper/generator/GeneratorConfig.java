@@ -81,11 +81,11 @@ public class GeneratorConfig {
     private boolean convertWellKnownTypes = true;
     private boolean generateRawProtoAccessors = false;
 
-    private Set<String> includedMessages = new HashSet<>();
-    private Set<String> excludedMessages = new HashSet<>();
+    private final Set<String> includedMessages = new HashSet<>();
+    private final Set<String> excludedMessages = new HashSet<>();
 
-    private Map<String, String> customTypeMappings = new HashMap<>();
-    private Map<String, String> fieldNameOverrides = new HashMap<>();
+    private final Map<String, String> customTypeMappings = new HashMap<>();
+    private final Map<String, String> fieldNameOverrides = new HashMap<>();
 
     // Incremental generation settings
     private boolean incremental = true;

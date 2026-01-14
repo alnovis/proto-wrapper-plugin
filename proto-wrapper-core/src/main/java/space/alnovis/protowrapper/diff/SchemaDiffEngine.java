@@ -77,13 +77,8 @@ public class SchemaDiffEngine {
         if (m1.isPresent() && m2.isEmpty()) {
             return MessageDiff.removed(m1.get());
         }
-        if (m1.isPresent() && m2.isPresent()) {
-            return compareMessageContents(m1.get(), m2.get());
-        }
-
-        // Neither exists (shouldn't happen if allNames is from both schemas)
-        return new MessageDiff(name, ChangeType.UNCHANGED, null, null,
-            List.of(), List.of(), List.of());
+        // Both present at this point (name came from allNames which is union of both schemas)
+        return compareMessageContents(m1.get(), m2.get());
     }
 
     /**
@@ -184,10 +179,6 @@ public class SchemaDiffEngine {
             if (primaryChangeType == ChangeType.UNCHANGED) {
                 primaryChangeType = ChangeType.MODIFIED;
             }
-        }
-
-        if (changes.isEmpty()) {
-            primaryChangeType = ChangeType.UNCHANGED;
         }
 
         return new FieldChange(number, f1.getJavaName(), primaryChangeType, f1, f2, changes);

@@ -307,30 +307,14 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName returnType = ctx.parseFieldType(field);
+        // Add missing has + int extract method (common pattern)
+        addMissingFieldExtractWithResolvedDefault(builder, field, ctx);
 
-        // Add missing has method
-        addMissingHasMethodImpl(builder, field, ctx);
-
-        // Add missing int extract method
-        MethodSpec.Builder extract = MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(returnType)
-                .addParameter(ctx.protoClassName(), "proto")
-                .addJavadoc("Field not present in this version.\n");
-
-        String defaultValue = ctx.resolver().getDefaultValue(field.getGetterType());
-        extract.addStatement("return $L", defaultValue);
-        builder.addMethod(extract.build());
-
-        // Add missing enum extract method
+        // Add missing enum extract method (INT_ENUM specific)
         ctx.schema().getConflictEnum(ctx.message().getName(), field.getName())
                 .ifPresent(enumInfo -> {
                     ClassName enumType = ClassName.get(ctx.apiPackage(), enumInfo.getEnumName());
-                    String enumExtractMethodName = field.getExtractEnumMethodName();
-
-                    builder.addMethod(MethodSpec.methodBuilder(enumExtractMethodName)
+                    builder.addMethod(MethodSpec.methodBuilder(field.getExtractEnumMethodName())
                             .addAnnotation(Override.class)
                             .addModifiers(Modifier.PROTECTED)
                             .returns(enumType)

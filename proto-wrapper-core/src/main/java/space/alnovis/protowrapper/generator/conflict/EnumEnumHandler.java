@@ -79,7 +79,7 @@ public final class EnumEnumHandler extends AbstractConflictHandler implements Co
     public void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
                                           boolean presentInVersion, ProcessingContext ctx) {
         if (!presentInVersion) {
-            addMissingFieldImplementation(builder, field, ctx);
+            addMissingFieldExtract(builder, field, TypeName.INT, "0", ctx);
             return;
         }
 
@@ -155,19 +155,4 @@ public final class EnumEnumHandler extends AbstractConflictHandler implements Co
         addConcreteClearMethod(builder, field.getJavaName(), builderReturnType, ctx);
     }
 
-    private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        // Add missing has method
-        addMissingHasMethodImpl(builder, field, ctx);
-
-        // Add missing int extract method
-        MethodSpec.Builder extract = MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(TypeName.INT)
-                .addParameter(ctx.protoClassName(), "proto")
-                .addJavadoc("Field not present in this version.\n");
-
-        extract.addStatement("return 0");
-        builder.addMethod(extract.build());
-    }
 }

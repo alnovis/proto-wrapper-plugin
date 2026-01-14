@@ -1,12 +1,12 @@
 package space.alnovis.protowrapper.generator.conflict;
 
+import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
 import java.util.function.Consumer;
-import com.squareup.javapoet.MethodSpec;
 
 /**
  * Sealed base class providing common functionality for conflict handlers.
@@ -115,7 +115,53 @@ public abstract sealed class AbstractConflictHandler permits
      * @return the FieldInfo for this version, or null if not present
      */
     protected FieldInfo getVersionField(MergedField field, ProcessingContext ctx) {
-        return ExtractMethodGenerator.getVersionField(field, ctx);
+        return ctx.versionSnapshot(field).fieldInfo();
+    }
+
+    /**
+     * Add extract and optionally has method for a field not present in this version.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param returnType the return type for the extract method
+     * @param defaultValue the default value literal (e.g., "0", "0L", "null")
+     * @param ctx the processing context
+     */
+    protected void addMissingFieldExtract(TypeSpec.Builder builder, MergedField field,
+                                           TypeName returnType, String defaultValue,
+                                           ProcessingContext ctx) {
+        ExtractMethodGenerator.addMissingFieldExtract(builder, field, returnType, defaultValue, ctx);
+    }
+
+    /**
+     * Add extract and optionally has method for a field not present in this version.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param returnType the return type for the extract method
+     * @param defaultValueFormat the format string for the default value
+     * @param defaultValueArgs arguments for the format string
+     * @param ctx the processing context
+     */
+    protected void addMissingFieldExtract(TypeSpec.Builder builder, MergedField field,
+                                           TypeName returnType, String defaultValueFormat,
+                                           Object[] defaultValueArgs, ProcessingContext ctx) {
+        ExtractMethodGenerator.addMissingFieldExtract(builder, field, returnType, defaultValueFormat,
+                defaultValueArgs, ctx);
+    }
+
+    /**
+     * Add extract and optionally has method for a field not present in this version,
+     * with auto-resolved default value from resolver.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param ctx the processing context
+     */
+    protected void addMissingFieldExtractWithResolvedDefault(TypeSpec.Builder builder,
+                                                              MergedField field,
+                                                              ProcessingContext ctx) {
+        ExtractMethodGenerator.addMissingFieldExtractWithResolvedDefault(builder, field, ctx);
     }
 
     // ========== Abstract Builder Methods (delegate to BuilderMethodGenerator) ==========

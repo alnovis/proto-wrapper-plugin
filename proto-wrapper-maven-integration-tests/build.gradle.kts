@@ -18,7 +18,7 @@ repositories {
 
 dependencies {
     // Protobuf runtime
-    implementation("com.google.protobuf:protobuf-java:3.24.0")
+    implementation("com.google.protobuf:protobuf-java:4.28.2")
 
     // Proto wrapper core (for exception classes in tests)
     testImplementation("space.alnovis:proto-wrapper-core:${version}")
@@ -39,7 +39,7 @@ sourceSets {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.24.0"
+        artifact = "com.google.protobuf:protoc:4.28.2"
     }
 }
 

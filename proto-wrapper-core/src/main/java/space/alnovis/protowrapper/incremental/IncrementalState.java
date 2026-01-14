@@ -1,6 +1,5 @@
 package space.alnovis.protowrapper.incremental;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -178,11 +177,7 @@ public record IncrementalState(
         }
 
         // Config changed
-        if (!Objects.equals(configHash, currentConfigHash)) {
-            return true;
-        }
-
-        return false;
+        return !Objects.equals(configHash, currentConfigHash);
     }
 
     /**

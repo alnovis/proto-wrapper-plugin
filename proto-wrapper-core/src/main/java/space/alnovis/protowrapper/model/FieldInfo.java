@@ -155,12 +155,8 @@ public class FieldInfo {
         }
 
         // In proto2, all non-repeated fields (optional and required) have has*() method
-        if (!syntax.isProto3()) {
-            return true; // We already excluded repeated above
-        }
-
         // In proto3, scalar fields without optional modifier do NOT have has*() method
-        return false;
+        return !syntax.isProto3();
     }
 
     /**

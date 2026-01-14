@@ -289,12 +289,8 @@ public record FieldContract(
         }
 
         // Rule: Proto3 explicit optional has has*() method
-        if (presence == FieldPresence.PROTO3_EXPLICIT_OPTIONAL) {
-            return true;
-        }
-
-        // Rule: Proto3 implicit (no optional keyword) - scalars do NOT have has*()
-        return false;
+        // Proto3 implicit (no optional keyword) - scalars do NOT have has*()
+        return presence == FieldPresence.PROTO3_EXPLICIT_OPTIONAL;
     }
 
     /**

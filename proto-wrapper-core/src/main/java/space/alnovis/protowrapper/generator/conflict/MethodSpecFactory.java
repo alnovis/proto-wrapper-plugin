@@ -1,6 +1,5 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import space.alnovis.protowrapper.model.MergedField;

@@ -182,7 +182,7 @@ public final class CacheLock implements Closeable {
             return null;
 
         } catch (IOException e) {
-            closeQuietly(lock);
+            // lock is always null here (if non-null, we would have returned at line 173)
             closeQuietly(channel);
             closeQuietly(raf);
             throw e;

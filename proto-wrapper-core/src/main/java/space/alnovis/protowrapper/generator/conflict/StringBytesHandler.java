@@ -1,17 +1,13 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ArrayTypeName;
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
-import com.squareup.javapoet.TypeSpec;
+import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
 import javax.lang.model.element.Modifier;
 import java.nio.charset.StandardCharsets;
 
-import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
+import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.getVersionSpecificJavaName;
 
 /**
  * Handler for STRING_BYTES type conflict fields.
@@ -252,22 +248,11 @@ public final class StringBytesHandler extends AbstractConflictHandler implements
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        // Add missing has method
-        addMissingHasMethodImpl(builder, field, ctx);
+        // Add missing has + String extract method (common pattern)
+        addMissingFieldExtract(builder, field, ClassName.get(String.class), "null", ctx);
 
-        // Add missing String extract method
-        builder.addMethod(MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(ClassName.get(String.class))
-                .addParameter(ctx.protoClassName(), "proto")
-                .addJavadoc("Field not present in this version.\n")
-                .addStatement("return null")
-                .build());
-
-        // Add missing bytes extract method
-        String bytesExtractMethodName = field.getExtractBytesMethodName();
-        builder.addMethod(MethodSpec.methodBuilder(bytesExtractMethodName)
+        // Add missing bytes extract method (STRING_BYTES specific)
+        builder.addMethod(MethodSpec.methodBuilder(field.getExtractBytesMethodName())
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(ArrayTypeName.of(TypeName.BYTE))

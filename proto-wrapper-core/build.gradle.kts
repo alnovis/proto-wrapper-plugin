@@ -11,7 +11,7 @@ java {
 
 dependencies {
     // Protobuf for parsing descriptors
-    api("com.google.protobuf:protobuf-java:3.24.0")
+    api("com.google.protobuf:protobuf-java:4.28.2")
 
     // JavaPoet for code generation
     api("com.squareup:javapoet:1.13.0")

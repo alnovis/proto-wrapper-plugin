@@ -96,7 +96,7 @@ public final class InterfaceMethodGenerator {
             case STRING_BYTES -> builder.addJavadoc("<p>For bytes versions, converts using UTF-8. Use {@code get$LBytes()} for raw bytes.</p>\n",
                     resolver.capitalize(field.getJavaName()));
             case PRIMITIVE_MESSAGE -> builder.addJavadoc("<p>Returns null/default for versions with message type.</p>\n");
-            default -> {}
+            default -> { /* Other conflict types don't need special javadoc */ }
         }
         builder.addJavadoc("@return $L value\n", field.getJavaName());
     }

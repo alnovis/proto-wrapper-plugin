@@ -316,9 +316,8 @@ public class SchemaDiffCli implements Callable<Integer> {
 
         private void cleanupTempDir() {
             if (tempDir != null) {
-                try {
-                    Files.walk(tempDir)
-                        .sorted((a, b) -> -a.compareTo(b))
+                try (var paths = Files.walk(tempDir)) {
+                    paths.sorted((a, b) -> -a.compareTo(b))
                         .forEach(path -> {
                             try {
                                 Files.deleteIfExists(path);

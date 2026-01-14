@@ -1,6 +1,5 @@
 package space.alnovis.protowrapper.generator.visitor;
 
-import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;

@@ -6,8 +6,6 @@ import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
 
-import javax.lang.model.element.Modifier;
-
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
 import static space.alnovis.protowrapper.generator.TypeUtils.*;
 

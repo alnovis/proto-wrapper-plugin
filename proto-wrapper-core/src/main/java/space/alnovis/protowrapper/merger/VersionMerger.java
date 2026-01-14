@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
  */
 public class VersionMerger {
 
-    private final MergerConfig config;
     private final PluginLogger logger;
 
     /**
@@ -54,11 +53,11 @@ public class VersionMerger {
     /**
      * Create a new VersionMerger with the specified configuration and logger.
      *
-     * @param config the merger configuration
+     * @param config the merger configuration (reserved for future use)
      * @param logger the logger to use
      */
+    @SuppressWarnings("unused") // config parameter kept for API compatibility
     public VersionMerger(MergerConfig config, PluginLogger logger) {
-        this.config = config;
         this.logger = logger;
     }
 
@@ -840,17 +839,9 @@ public class VersionMerger {
             return MergedField.ConflictType.FLOAT_DOUBLE;
         }
 
-        // Check for integer widening: int → long
+        // Check for integer widening: int → long (or narrowing long → int, handled the same way)
         if ((hasInt && hasLong && !hasDouble && !hasFloat && !hasMessage && !hasEnum) ||
             (hasInt && (hasDouble || hasFloat) && !hasLong && !hasMessage && !hasEnum)) {
-            return MergedField.ConflictType.WIDENING;
-        }
-
-        // Check for narrowing: long → int (if long comes first and int later, or vice versa)
-        // This is lossy, so we mark it as NARROWING but handle as WIDENING (use wider type)
-        if (hasLong && hasInt && !hasDouble && !hasFloat && !hasMessage && !hasEnum) {
-            // Already handled as WIDENING above if int→long
-            // If long→int pattern exists, it would still be WIDENING (use long)
             return MergedField.ConflictType.WIDENING;
         }
 
@@ -978,11 +969,7 @@ public class VersionMerger {
         if (hasInt64) signedTypes64.add(Type.TYPE_INT64);
         if (hasSint64) signedTypes64.add(Type.TYPE_SINT64);
         if (hasSfixed64) signedTypes64.add(Type.TYPE_SFIXED64);
-        if (signedTypes64.size() > 1) {
-            return true;
-        }
-
-        return false;
+        return signedTypes64.size() > 1;
     }
 
     /**

@@ -20,6 +20,7 @@ import space.alnovis.protowrapper.merger.VersionMerger
 import space.alnovis.protowrapper.model.MergedField
 import space.alnovis.protowrapper.model.MergedMessage
 import space.alnovis.protowrapper.model.MergedSchema
+import space.alnovis.protowrapper.model.ProtoSyntax
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -529,7 +530,7 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .generateVersionContext(generateVersionContext.get())
             .includeVersionSuffix(includeVersionSuffix.get())
             .generateBuilders(generateBuilders.get())
-            .protobufMajorVersion(protobufMajorVersion.get())
+            .defaultSyntax(if (protobufMajorVersion.get() == 2) ProtoSyntax.PROTO2 else ProtoSyntax.PROTO3)
             .convertWellKnownTypes(convertWellKnownTypes.get())
             .generateRawProtoAccessors(generateRawProtoAccessors.get())
             // Incremental generation settings

@@ -343,7 +343,8 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 if (versionIsInt) {
                     // Need to narrow Long -> int with validation
                     // Check if version field is unsigned (uint32) - requires value >= 0
-                    boolean isUnsigned = versionField != null && versionField.getType() != null &&
+                    // versionField is guaranteed non-null here since versionIsInt depends on it
+                    boolean isUnsigned = versionField.getType() != null &&
                             versionField.getType().name().contains("UINT");
                     String version = ctx.requireVersion();
                     if (isUnsigned) {
@@ -446,7 +447,8 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 String versionElementType = versionType != null ? TypeNormalizer.extractListElementType(versionType) : null;
                 boolean versionIsInt = versionElementType != null && TypeUtils.isIntType(versionElementType);
                 if (versionIsInt) {
-                    boolean isUnsigned = versionField != null && versionField.getType() != null &&
+                    // versionField is guaranteed non-null here since versionIsInt depends on it
+                    boolean isUnsigned = versionField.getType() != null &&
                             versionField.getType().name().contains("UINT");
                     String version = ctx.requireVersion();
                     if (isUnsigned) {

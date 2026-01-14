@@ -177,7 +177,6 @@ public record MergedFieldContract(
         // For REPEATED/MAP, never nullable (empty collection instead)
         if (cardinality != FieldCardinality.SINGULAR) {
             nullable = false;
-            getterUsesHasCheck = false;
         }
 
         // Default value: based on final unified state

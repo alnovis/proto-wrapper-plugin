@@ -1,19 +1,15 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
-import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.generator.GeneratorConfig;
 import space.alnovis.protowrapper.generator.TypeResolver;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedField;
-import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
-import javax.lang.model.element.Modifier;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -374,7 +370,7 @@ public final class CodeGenerationHelper {
      * @return "valueOf" for proto2, "forNumber" for proto3
      */
     public static String getEnumFromIntMethod(GeneratorConfig config) {
-        return config.isProtobuf2() ? "valueOf" : "forNumber";
+        return config.getDefaultSyntax().isProto2() ? "valueOf" : "forNumber";
     }
 
     /**
@@ -400,10 +396,10 @@ public final class CodeGenerationHelper {
                         String[] parts = fullTypePath.split("\\.");
                         // First part is the outer class, rest are nested
                         String[] nestedParts = java.util.Arrays.copyOfRange(parts, 1, parts.length);
-                        return (TypeName) ClassName.get(ctx.apiPackage(), parts[0], nestedParts);
+                        return ClassName.get(ctx.apiPackage(), parts[0], nestedParts);
                     } else {
                         // Top-level type
-                        return (TypeName) ClassName.get(ctx.apiPackage(), fullTypePath);
+                        return ClassName.get(ctx.apiPackage(), fullTypePath);
                     }
                 })
                 .orElse(null);

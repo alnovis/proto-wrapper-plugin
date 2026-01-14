@@ -159,6 +159,75 @@ public final class ExtractMethodGenerator {
         }
     }
 
+    // ========== Missing Field Methods ==========
+
+    /**
+     * Add extract and optionally has method implementations for a field not present in this version.
+     * This is a common pattern used across multiple handlers.
+     *
+     * <p>Generates:</p>
+     * <ul>
+     *   <li>extractXxx(proto) - returns the provided default value</li>
+     *   <li>extractHasXxx(proto) - returns false (if field supports has method)</li>
+     * </ul>
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param returnType the return type for the extract method
+     * @param defaultValueFormat the format string for the default value (e.g., "0L", "null", "$T.emptyList()")
+     * @param defaultValueArgs arguments for the format string (e.g., Collections.class)
+     * @param ctx the processing context
+     */
+    public static void addMissingFieldExtract(TypeSpec.Builder builder, MergedField field,
+                                               TypeName returnType, String defaultValueFormat,
+                                               Object[] defaultValueArgs, ProcessingContext ctx) {
+        // Add missing has method
+        addMissingHasMethodImpl(builder, field, ctx);
+
+        // Add missing extract method
+        MethodSpec.Builder extract = MethodSpecFactory.protectedExtract(field, returnType, ctx)
+                .addJavadoc("Field not present in this version.\n");
+
+        if (defaultValueArgs != null && defaultValueArgs.length > 0) {
+            extract.addStatement("return " + defaultValueFormat, defaultValueArgs);
+        } else {
+            extract.addStatement("return " + defaultValueFormat);
+        }
+
+        builder.addMethod(extract.build());
+    }
+
+    /**
+     * Add extract and optionally has method for missing field with simple default value.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param returnType the return type for the extract method
+     * @param defaultValue the default value literal (e.g., "0", "0L", "null", "\"\"")
+     * @param ctx the processing context
+     */
+    public static void addMissingFieldExtract(TypeSpec.Builder builder, MergedField field,
+                                               TypeName returnType, String defaultValue,
+                                               ProcessingContext ctx) {
+        addMissingFieldExtract(builder, field, returnType, defaultValue, null, ctx);
+    }
+
+    /**
+     * Add extract and optionally has method for missing field with auto-resolved default value.
+     * Uses {@code ctx.resolver().getDefaultValue(field.getGetterType())} to determine the default.
+     *
+     * @param builder the TypeSpec builder to add methods to
+     * @param field the merged field definition
+     * @param ctx the processing context
+     */
+    public static void addMissingFieldExtractWithResolvedDefault(TypeSpec.Builder builder,
+                                                                   MergedField field,
+                                                                   ProcessingContext ctx) {
+        TypeName returnType = ctx.parseFieldType(field);
+        String defaultValue = ctx.resolver().getDefaultValue(field.getGetterType());
+        addMissingFieldExtract(builder, field, returnType, defaultValue, ctx);
+    }
+
     // ========== Helper Methods ==========
 
     /**

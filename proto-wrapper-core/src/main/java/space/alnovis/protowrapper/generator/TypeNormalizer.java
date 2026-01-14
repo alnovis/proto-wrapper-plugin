@@ -173,10 +173,7 @@ public final class TypeNormalizer {
             return true;
         }
         // long can be safely widened to double
-        if ("long".equals(normalizedSource) && "double".equals(normalizedTarget)) {
-            return true;
-        }
-        return false;
+        return "long".equals(normalizedSource) && "double".equals(normalizedTarget);
     }
 
     /**

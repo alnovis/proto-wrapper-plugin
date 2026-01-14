@@ -189,10 +189,7 @@ public final class FieldProcessingChain {
      * has incompatible type) are treated as "not present".
      */
     private boolean hasIncompatibleTypeConflict(MergedField field, String version) {
-        if (field.getConflictType() == MergedField.ConflictType.INCOMPATIBLE) {
-            return true;
-        }
         // For other conflict types, the field is compatible
-        return false;
+        return field.getConflictType() == MergedField.ConflictType.INCOMPATIBLE;
     }
 }

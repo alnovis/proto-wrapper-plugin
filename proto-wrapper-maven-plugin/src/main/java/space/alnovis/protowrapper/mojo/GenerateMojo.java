@@ -12,10 +12,10 @@ import space.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import space.alnovis.protowrapper.analyzer.ProtocExecutor;
 import space.alnovis.protowrapper.generator.*;
 import space.alnovis.protowrapper.merger.VersionMerger;
-import space.alnovis.protowrapper.model.MergedEnum;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
+import space.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.io.File;
 import java.io.IOException;
@@ -468,7 +468,7 @@ public class GenerateMojo extends AbstractMojo {
                 .generateVersionContext(generateVersionContext)
                 .includeVersionSuffix(includeVersionSuffix)
                 .generateBuilders(generateBuilders)
-                .protobufMajorVersion(protobufMajorVersion)
+                .defaultSyntax(protobufMajorVersion == 2 ? ProtoSyntax.PROTO2 : ProtoSyntax.PROTO3)
                 .convertWellKnownTypes(convertWellKnownTypes)
                 .generateRawProtoAccessors(generateRawProtoAccessors)
                 // Incremental generation settings

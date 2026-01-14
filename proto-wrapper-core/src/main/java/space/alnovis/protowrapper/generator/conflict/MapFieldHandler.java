@@ -204,11 +204,8 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
             return true;
         }
         // INT_ENUM: enum -> int conversion
-        if (field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
-                && versionMapInfo.hasEnumValue()) {
-            return true;
-        }
-        return false;
+        return field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
+                && versionMapInfo.hasEnumValue();
     }
 
     @Override

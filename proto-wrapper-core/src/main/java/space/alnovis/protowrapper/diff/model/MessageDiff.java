@@ -168,7 +168,7 @@ public record MessageDiff(
             count++;
         }
 
-        count += fieldChanges.stream().filter(FieldChange::isBreaking).count();
+        count += (int) fieldChanges.stream().filter(FieldChange::isBreaking).count();
         count += nestedMessageChanges.stream().mapToInt(MessageDiff::countBreakingChanges).sum();
         count += nestedEnumChanges.stream()
             .filter(EnumDiff::hasBreakingChanges)

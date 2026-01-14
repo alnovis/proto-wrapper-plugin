@@ -1,6 +1,5 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
@@ -319,28 +318,13 @@ public final class PrimitiveMessageHandler extends AbstractConflictHandler imple
     }
 
     private void addMissingFieldImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName primitiveType = ctx.parseFieldType(field);
+        // Add missing has + primitive extract method (common pattern)
+        addMissingFieldExtractWithResolvedDefault(builder, field, ctx);
 
-        // Add missing has method
-        addMissingHasMethodImpl(builder, field, ctx);
-
-        // Add missing primitive extract method
-        MethodSpec.Builder extract = MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(primitiveType)
-                .addParameter(ctx.protoClassName(), "proto")
-                .addJavadoc("Field not present in this version.\n");
-
-        String defaultValue = ctx.resolver().getDefaultValue(field.getGetterType());
-        extract.addStatement("return $L", defaultValue);
-        builder.addMethod(extract.build());
-
-        // Add missing message extract method
+        // Add missing message extract method (PRIMITIVE_MESSAGE specific)
         TypeName messageType = getMessageTypeForField(field, ctx);
         if (messageType != null) {
-            String messageExtractMethodName = field.getExtractMessageMethodName();
-            builder.addMethod(MethodSpec.methodBuilder(messageExtractMethodName)
+            builder.addMethod(MethodSpec.methodBuilder(field.getExtractMessageMethodName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PROTECTED)
                     .returns(messageType)
