@@ -1,10 +1,8 @@
 package space.alnovis.protowrapper.exception;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -199,13 +197,13 @@ public final class ErrorContext {
             }
         }
 
-        if (version != null && sb.length() > 0) {
+        if (version != null && !sb.isEmpty()) {
             sb.append(" (").append(version).append(")");
         } else if (version != null) {
             sb.append(version);
         }
 
-        return sb.length() > 0 ? sb.toString() : "unknown location";
+        return !sb.isEmpty() ? sb.toString() : "unknown location";
     }
 
     @Override

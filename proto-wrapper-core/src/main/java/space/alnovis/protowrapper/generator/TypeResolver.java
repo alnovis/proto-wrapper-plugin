@@ -2,7 +2,6 @@ package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
-import space.alnovis.protowrapper.model.MergedEnum;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;

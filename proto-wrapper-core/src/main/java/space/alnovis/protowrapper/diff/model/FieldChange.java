@@ -106,11 +106,7 @@ public record FieldChange(
         if (from == Type.TYPE_FIXED32 && to == Type.TYPE_FIXED64) {
             return true;
         }
-        if (from == Type.TYPE_SFIXED32 && to == Type.TYPE_SFIXED64) {
-            return true;
-        }
-
-        return false;
+        return from == Type.TYPE_SFIXED32 && to == Type.TYPE_SFIXED64;
     }
 
     /**
@@ -147,13 +143,9 @@ public record FieldChange(
         }
 
         // repeated <-> singular is breaking
-        if (v1Field.isRepeated() != v2Field.isRepeated()) {
-            return true;
-        }
-
         // optional -> required is breaking (for existing messages without the field)
         // But proto3 doesn't have required, so this is mainly proto2 concern
-        return false;
+        return v1Field.isRepeated() != v2Field.isRepeated();
     }
 
     /**
@@ -259,12 +251,8 @@ public record FieldChange(
         }
 
         // 64-bit signed ↔ unsigned
-        if ((signed64.contains(t1) && unsigned64.contains(t2)) ||
-            (unsigned64.contains(t1) && signed64.contains(t2))) {
-            return true;
-        }
-
-        return false;
+        return (signed64.contains(t1) && unsigned64.contains(t2)) ||
+               (unsigned64.contains(t1) && signed64.contains(t2));
     }
 
     /**

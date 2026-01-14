@@ -2,10 +2,8 @@ package space.alnovis.protowrapper.diff;
 
 import space.alnovis.protowrapper.diff.model.*;
 import space.alnovis.protowrapper.model.*;
-import space.alnovis.protowrapper.diff.model.TypeConflictType;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Adapter that converts MergedSchema to diff model structures (MessageDiff, FieldChange, etc.).

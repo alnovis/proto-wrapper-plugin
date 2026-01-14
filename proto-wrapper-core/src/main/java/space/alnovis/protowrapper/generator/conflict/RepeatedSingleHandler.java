@@ -90,7 +90,9 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
     public void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
                                           boolean presentInVersion, ProcessingContext ctx) {
         if (!presentInVersion) {
-            addMissingFieldExtract(builder, field, ctx);
+            TypeName listType = getListType(field);
+            addMissingFieldExtract(builder, field, listType, "$T.emptyList()",
+                    new Object[]{Collections.class}, ctx);
             return;
         }
 
@@ -120,7 +122,7 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
 
         // has method implementation
         if (field.shouldGenerateHasMethod()) {
-            addHasExtractImpl(builder, field, versionField, presentInVersion, versionJavaName, isRepeatedInVersion, ctx);
+            addHasExtractImpl(builder, field, versionJavaName, isRepeatedInVersion, ctx);
         }
     }
 
@@ -304,40 +306,10 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
     }
 
     /**
-     * Adds extract method for missing field (returns empty list).
-     */
-    private void addMissingFieldExtract(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName listType = getListType(field);
-
-        MethodSpec extract = MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(listType)
-                .addParameter(ctx.protoClassName(), "proto")
-                .addJavadoc("Field not present in this version.\n")
-                .addStatement("return $T.emptyList()", Collections.class)
-                .build();
-        builder.addMethod(extract);
-
-        // has method returns false
-        if (field.shouldGenerateHasMethod()) {
-            MethodSpec hasMethod = MethodSpec.methodBuilder(field.getExtractHasMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .returns(TypeName.BOOLEAN)
-                    .addParameter(ctx.protoClassName(), "proto")
-                    .addJavadoc("Field not present in this version.\n")
-                    .addStatement("return false")
-                    .build();
-            builder.addMethod(hasMethod);
-        }
-    }
-
-    /**
      * Adds has extract implementation.
+     * Called only when field is present in version (presentInVersion is always true).
      */
     private void addHasExtractImpl(TypeSpec.Builder builder, MergedField field,
-                                    FieldInfo versionField, boolean presentInVersion,
                                     String versionJavaName, boolean isRepeatedInVersion,
                                     ProcessingContext ctx) {
         MethodSpec.Builder hasMethod = MethodSpec.methodBuilder(field.getExtractHasMethodName())
@@ -346,17 +318,12 @@ public final class RepeatedSingleHandler extends AbstractConflictHandler impleme
                 .returns(TypeName.BOOLEAN)
                 .addParameter(ctx.protoClassName(), "proto");
 
-        if (presentInVersion) {
-            if (isRepeatedInVersion) {
-                // For repeated: check if count > 0
-                hasMethod.addStatement("return proto.get$LCount() > 0", versionJavaName);
-            } else {
-                // For singular: use has method if available
-                hasMethod.addStatement("return proto.has$L()", versionJavaName);
-            }
+        if (isRepeatedInVersion) {
+            // For repeated: check if count > 0
+            hasMethod.addStatement("return proto.get$LCount() > 0", versionJavaName);
         } else {
-            hasMethod.addJavadoc("Field not present in this version.\n");
-            hasMethod.addStatement("return false");
+            // For singular: use has method if available
+            hasMethod.addStatement("return proto.has$L()", versionJavaName);
         }
 
         builder.addMethod(hasMethod.build());

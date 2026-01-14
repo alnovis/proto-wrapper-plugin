@@ -5,7 +5,6 @@ import com.squareup.javapoet.CodeBlock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static space.alnovis.protowrapper.generator.GeneratorUtils.isNullOrEmpty;

@@ -4,6 +4,7 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
+import space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 
 import java.util.Map;
@@ -155,12 +156,8 @@ public class FieldInfo {
         }
 
         // In proto2, all non-repeated fields (optional and required) have has*() method
-        if (!syntax.isProto3()) {
-            return true; // We already excluded repeated above
-        }
-
         // In proto3, scalar fields without optional modifier do NOT have has*() method
-        return false;
+        return !syntax.isProto3();
     }
 
     /**
@@ -350,10 +347,9 @@ public class FieldInfo {
     }
 
     private String extractSimpleTypeName(String fullTypeName) {
-        if (fullTypeName == null) return "Object";
-        int lastDot = fullTypeName.lastIndexOf('.');
-        return lastDot >= 0 ? fullTypeName.substring(lastDot + 1) : fullTypeName;
+        return CodeGenerationHelper.extractSimpleTypeName(fullTypeName);
     }
+
 
     /**
      * Extract the nested type path from a full proto type name.

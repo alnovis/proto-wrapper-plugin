@@ -9,7 +9,7 @@ import space.alnovis.protowrapper.model.MergedField;
 
 import javax.lang.model.element.Modifier;
 
-import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
+import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.getVersionSpecificJavaName;
 
 /**
  * Handler for scalar SIGNED_UNSIGNED type conflict fields.
@@ -97,8 +97,8 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
     public void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
                                           boolean presentInVersion, ProcessingContext ctx) {
         if (!presentInVersion) {
-            // Field not present in this version - return default
-            addMissingFieldExtract(builder, field, TypeName.LONG, ctx);
+            // Field not present in this version - return 0L
+            addMissingFieldExtract(builder, field, TypeName.LONG, "0L", ctx);
             return;
         }
 
@@ -134,7 +134,7 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
 
         // Add has method for fields that support has*()
         if (field.shouldGenerateHasMethod()) {
-            addHasExtractImpl(builder, field, presentInVersion, versionJavaName, ctx);
+            addHasExtractImpl(builder, field, versionJavaName, ctx);
         }
     }
 
@@ -269,52 +269,18 @@ public final class SignedUnsignedHandler extends AbstractConflictHandler impleme
     }
 
     /**
-     * Adds missing field extract method (returns 0L for missing fields).
-     */
-    private void addMissingFieldExtract(TypeSpec.Builder builder, MergedField field,
-                                         TypeName returnType, ProcessingContext ctx) {
-        MethodSpec extract = MethodSpec.methodBuilder(field.getExtractMethodName())
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PROTECTED)
-                .returns(returnType)
-                .addParameter(ctx.protoClassName(), "proto")
-                .addJavadoc("Field not present in this version.\n")
-                .addStatement("return 0L")
-                .build();
-        builder.addMethod(extract);
-
-        // Add has method that returns false for missing fields
-        if (field.shouldGenerateHasMethod()) {
-            MethodSpec hasMethod = MethodSpec.methodBuilder(field.getExtractHasMethodName())
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PROTECTED)
-                    .returns(TypeName.BOOLEAN)
-                    .addParameter(ctx.protoClassName(), "proto")
-                    .addJavadoc("Field not present in this version.\n")
-                    .addStatement("return false")
-                    .build();
-            builder.addMethod(hasMethod);
-        }
-    }
-
-    /**
      * Adds has extract implementation for optional fields.
+     * Called only when field is present in version.
      */
     private void addHasExtractImpl(TypeSpec.Builder builder, MergedField field,
-                                    boolean presentInVersion, String versionJavaName,
-                                    ProcessingContext ctx) {
+                                    String versionJavaName, ProcessingContext ctx) {
         MethodSpec.Builder hasMethod = MethodSpec.methodBuilder(field.getExtractHasMethodName())
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(TypeName.BOOLEAN)
                 .addParameter(ctx.protoClassName(), "proto");
 
-        if (presentInVersion) {
-            hasMethod.addStatement("return proto.has$L()", versionJavaName);
-        } else {
-            hasMethod.addJavadoc("Field not present in this version.\n");
-            hasMethod.addStatement("return false");
-        }
+        hasMethod.addStatement("return proto.has$L()", versionJavaName);
 
         builder.addMethod(hasMethod.build());
     }

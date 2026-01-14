@@ -1,7 +1,6 @@
 package space.alnovis.protowrapper.model;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Represents a merged enum from multiple protocol versions.

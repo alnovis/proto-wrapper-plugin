@@ -334,7 +334,6 @@ public class OneofConflictDetector {
                 oneofFieldNumbers.addAll(oneof.getFieldNumbers());
             }
 
-            Map<String, FieldInfo> versionFields = allMessageFields.getOrDefault(version, Collections.emptyMap());
             for (Map.Entry<Integer, Map<String, FieldInfo>> fieldEntry : allMessageFields.entrySet()) {
                 int fieldNumber = fieldEntry.getKey();
                 if (fieldEntry.getValue().containsKey(version)) {

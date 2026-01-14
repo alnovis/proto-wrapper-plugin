@@ -18,7 +18,7 @@ repositories {
 
 dependencies {
     // Protobuf runtime
-    implementation("com.google.protobuf:protobuf-java:3.24.0")
+    implementation("com.google.protobuf:protobuf-java:4.28.2")
 
     // Testing
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
@@ -37,7 +37,7 @@ sourceSets {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.24.0"
+        artifact = "com.google.protobuf:protoc:4.28.2"
     }
 }
 

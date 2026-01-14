@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import space.alnovis.protowrapper.PluginLogger;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -21,7 +23,7 @@ class ProtocExecutorTest {
 
     @BeforeEach
     void setUp() {
-        executor = new ProtocExecutor(msg -> {});
+        executor = new ProtocExecutor(PluginLogger.noop());
     }
 
     @Test

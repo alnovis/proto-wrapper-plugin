@@ -81,11 +81,11 @@ public class GeneratorConfig {
     private boolean convertWellKnownTypes = true;
     private boolean generateRawProtoAccessors = false;
 
-    private Set<String> includedMessages = new HashSet<>();
-    private Set<String> excludedMessages = new HashSet<>();
+    private final Set<String> includedMessages = new HashSet<>();
+    private final Set<String> excludedMessages = new HashSet<>();
 
-    private Map<String, String> customTypeMappings = new HashMap<>();
-    private Map<String, String> fieldNameOverrides = new HashMap<>();
+    private final Map<String, String> customTypeMappings = new HashMap<>();
+    private final Map<String, String> fieldNameOverrides = new HashMap<>();
 
     // Incremental generation settings
     private boolean incremental = true;
@@ -254,11 +254,11 @@ public class GeneratorConfig {
         sb.append(generateRawProtoAccessors).append("|");
         sb.append(defaultSyntax).append("|");
         // Include custom mappings
-        sb.append(customTypeMappings.toString()).append("|");
-        sb.append(fieldNameOverrides.toString()).append("|");
+        sb.append(customTypeMappings).append("|");
+        sb.append(fieldNameOverrides).append("|");
         // Include message filters
-        sb.append(includedMessages.toString()).append("|");
-        sb.append(excludedMessages.toString());
+        sb.append(includedMessages).append("|");
+        sb.append(excludedMessages);
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

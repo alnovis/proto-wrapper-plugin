@@ -3,7 +3,6 @@ package space.alnovis.protowrapper.generator;
 import com.squareup.javapoet.JavaFile;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
 /**
  * Base interface for all code generators.
