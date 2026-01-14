@@ -17,9 +17,11 @@ public final class PluginVersion {
 
     private static final String VERSION_PROPERTIES = "version.properties";
     private static final String VERSION_KEY = "plugin.version";
+    private static final String PROTOBUF_VERSION_KEY = "protobuf.version";
     private static final String UNKNOWN_VERSION = "unknown";
 
     private static volatile String cachedVersion;
+    private static volatile String cachedProtobufVersion;
 
     private PluginVersion() {
         // Utility class
@@ -57,14 +59,40 @@ public final class PluginVersion {
     }
 
     /**
-     * Clear the cached version.
+     * Get the protobuf version that the plugin was built with.
+     *
+     * <p>This version is used as the default for embedded protoc downloads.</p>
+     *
+     * @return protobuf version string (e.g., "4.28.2")
+     */
+    public static String getProtobufVersion() {
+        String version = cachedProtobufVersion;
+        if (version == null) {
+            synchronized (PluginVersion.class) {
+                version = cachedProtobufVersion;
+                if (version == null) {
+                    version = loadProperty(PROTOBUF_VERSION_KEY);
+                    cachedProtobufVersion = version;
+                }
+            }
+        }
+        return version;
+    }
+
+    /**
+     * Clear the cached versions.
      * Primarily for testing purposes.
      */
     static void clearCache() {
         cachedVersion = null;
+        cachedProtobufVersion = null;
     }
 
     private static String loadVersion() {
+        return loadProperty(VERSION_KEY);
+    }
+
+    private static String loadProperty(String key) {
         try (InputStream is = PluginVersion.class.getClassLoader()
                 .getResourceAsStream(VERSION_PROPERTIES)) {
             if (is == null) {
@@ -72,12 +100,12 @@ public final class PluginVersion {
             }
             Properties props = new Properties();
             props.load(is);
-            String version = props.getProperty(VERSION_KEY);
-            if (version == null || version.isBlank() || version.startsWith("${")) {
+            String value = props.getProperty(key);
+            if (value == null || value.isBlank() || value.startsWith("${")) {
                 // Not filtered (running from IDE without Maven build)
                 return UNKNOWN_VERSION;
             }
-            return version.trim();
+            return value.trim();
         } catch (IOException e) {
             return UNKNOWN_VERSION;
         }

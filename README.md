@@ -93,7 +93,7 @@ byte[] bytes = order.toBytes();
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.4</version>
+    <version>1.6.5</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.4"
+    id("space.alnovis.proto-wrapper") version "1.6.5"
 }
 
 protoWrapper {
@@ -152,6 +152,7 @@ protoWrapper {
 | Oneof support | Full oneof field handling with conflict detection | v1.2 |
 | Schema diff tool | Compare schemas, detect breaking changes | v1.5 |
 | Incremental build | Skip unchanged protos, 50%+ faster rebuilds | v1.6 |
+| Embedded protoc | Auto-download protoc, no manual installation needed | v1.6.5 |
 
 ### Type Conflict Handling
 
@@ -210,7 +211,8 @@ target/generated-sources/proto-wrapper/
 
 - Java 17+
 - Maven 3.8+ or Gradle 8.5+
-- Protocol Buffers compiler (`protoc`) in PATH
+
+**No manual protoc installation required!** The plugin automatically downloads the appropriate `protoc` binary from Maven Central if not found in PATH.
 
 ---
 
@@ -224,7 +226,7 @@ Add dependency (plugins auto-download):
 <dependency>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>1.6.4</version>
+    <version>1.6.5</version>
 </dependency>
 ```
 

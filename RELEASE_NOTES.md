@@ -1,3 +1,91 @@
+# Release Notes - Proto Wrapper Plugin v1.6.5
+
+**Release Date:** January 14, 2026
+
+## Overview
+
+Version 1.6.5 introduces **embedded protoc support** - the plugin now automatically downloads the appropriate `protoc` binary from Maven Central if not found in PATH. No manual installation required!
+
+## What's New
+
+### Embedded Protoc Support
+
+**No more manual protoc installation!** The plugin now handles protoc resolution automatically:
+
+1. **Custom path** (if `protocPath` parameter is set)
+2. **System PATH** (if protoc is already installed)
+3. **Embedded** (auto-download from Maven Central)
+
+#### Supported Platforms
+
+| Platform | Architecture |
+|----------|-------------|
+| Linux | x86_64, aarch64 |
+| macOS | x86_64, aarch64 (Apple Silicon) |
+| Windows | x86_64 |
+
+#### Caching
+
+Downloaded protoc binaries are cached locally:
+- **Linux/macOS:** `~/.cache/proto-wrapper/protoc/`
+- **Windows:** `%LOCALAPPDATA%\proto-wrapper\protoc\`
+
+#### Version Selection
+
+By default, the plugin uses the same protobuf version as its `protobuf-java` dependency (currently 4.28.2). You can override this:
+
+**Maven:**
+```xml
+<configuration>
+    <protocVersion>4.28.2</protocVersion>
+</configuration>
+```
+
+Or via command line:
+```bash
+mvn generate-sources -Dprotoc.version=4.28.2
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    protocVersion.set("4.28.2")
+}
+```
+
+### New Classes
+
+- **`ProtocResolver`** - Internal component responsible for resolving protoc executable
+- **`PluginVersion.getProtobufVersion()`** - Returns the protobuf version the plugin was built with
+
+## Upgrade Guide
+
+Simply update the version number. The change is fully backward compatible:
+
+**Maven:**
+```xml
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>1.6.5</version>
+</plugin>
+```
+
+**Gradle:**
+```kotlin
+plugins {
+    id("space.alnovis.proto-wrapper") version "1.6.5"
+}
+```
+
+## Breaking Changes
+
+None. Fully backward compatible with v1.6.4.
+
+**Note:** If you had workarounds for protoc not being installed, you can now remove them. The plugin handles everything automatically.
+
+---
+
 # Release Notes - Proto Wrapper Plugin v1.6.4
 
 **Release Date:** January 13, 2026

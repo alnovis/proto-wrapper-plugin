@@ -35,6 +35,7 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.implPackagePattern.set(extension.implPackagePattern)
             task.protoPackagePattern.set(extension.protoPackagePattern)
             task.protocPath.set(extension.protocPath)
+            task.protocVersion.set(extension.protocVersion)
             task.generateInterfaces.set(extension.generateInterfaces)
             task.generateAbstractClasses.set(extension.generateAbstractClasses)
             task.generateImplClasses.set(extension.generateImplClasses)
