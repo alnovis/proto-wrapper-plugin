@@ -197,13 +197,13 @@ public final class ErrorContext {
             }
         }
 
-        if (version != null && sb.length() > 0) {
+        if (version != null && !sb.isEmpty()) {
             sb.append(" (").append(version).append(")");
         } else if (version != null) {
             sb.append(version);
         }
 
-        return sb.length() > 0 ? sb.toString() : "unknown location";
+        return !sb.isEmpty() ? sb.toString() : "unknown location";
     }
 
     @Override

@@ -1,27 +1,23 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
+import space.alnovis.protowrapper.generator.conflict.AbstractBuilderContext;
+import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
+import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
+import space.alnovis.protowrapper.generator.oneof.OneofGenerator;
 import space.alnovis.protowrapper.model.MergedField;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedOneof;
 import space.alnovis.protowrapper.model.MergedSchema;
 
-import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
-
-import space.alnovis.protowrapper.generator.conflict.AbstractBuilderContext;
-import space.alnovis.protowrapper.generator.conflict.FieldProcessingChain;
-import space.alnovis.protowrapper.generator.conflict.ProcessingContext;
-import space.alnovis.protowrapper.generator.oneof.OneofGenerator;
-
 import javax.lang.model.element.Modifier;
-
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 
 /**
  * Generates abstract base classes using template method pattern.

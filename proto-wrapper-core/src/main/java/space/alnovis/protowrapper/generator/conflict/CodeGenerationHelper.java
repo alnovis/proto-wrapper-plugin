@@ -11,7 +11,6 @@ import space.alnovis.protowrapper.model.MergedSchema;
 import space.alnovis.protowrapper.model.VersionFieldSnapshot;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 /**

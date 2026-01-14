@@ -180,7 +180,7 @@ public class ProtocExecutor {
      * @throws IOException if directory cannot be read
      */
     public List<Path> findProtoFiles(Path directory) throws IOException {
-        return findProtoFiles(directory, (String[]) null);
+        return findProtoFiles(directory, null);
     }
 
     /**

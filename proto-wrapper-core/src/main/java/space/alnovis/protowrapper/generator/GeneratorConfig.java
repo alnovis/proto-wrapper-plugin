@@ -254,11 +254,11 @@ public class GeneratorConfig {
         sb.append(generateRawProtoAccessors).append("|");
         sb.append(defaultSyntax).append("|");
         // Include custom mappings
-        sb.append(customTypeMappings.toString()).append("|");
-        sb.append(fieldNameOverrides.toString()).append("|");
+        sb.append(customTypeMappings).append("|");
+        sb.append(fieldNameOverrides).append("|");
         // Include message filters
-        sb.append(includedMessages.toString()).append("|");
-        sb.append(excludedMessages.toString());
+        sb.append(includedMessages).append("|");
+        sb.append(excludedMessages);
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

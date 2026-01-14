@@ -13,7 +13,6 @@ import javax.lang.model.element.Modifier;
 import java.nio.charset.StandardCharsets;
 
 import static space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper.*;
-import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 /**
  * Handler for repeated fields with type conflicts.

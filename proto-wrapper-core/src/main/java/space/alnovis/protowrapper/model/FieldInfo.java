@@ -4,6 +4,7 @@ import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
+import space.alnovis.protowrapper.generator.conflict.CodeGenerationHelper;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 
 import java.util.Map;
@@ -346,10 +347,9 @@ public class FieldInfo {
     }
 
     private String extractSimpleTypeName(String fullTypeName) {
-        if (fullTypeName == null) return "Object";
-        int lastDot = fullTypeName.lastIndexOf('.');
-        return lastDot >= 0 ? fullTypeName.substring(lastDot + 1) : fullTypeName;
+        return CodeGenerationHelper.extractSimpleTypeName(fullTypeName);
     }
+
 
     /**
      * Extract the nested type path from a full proto type name.

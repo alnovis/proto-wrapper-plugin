@@ -1,21 +1,16 @@
 package space.alnovis.protowrapper.generator.conflict;
 
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.FieldSpec;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
-import com.squareup.javapoet.TypeName;
-import com.squareup.javapoet.TypeSpec;
+import com.squareup.javapoet.*;
 import space.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import space.alnovis.protowrapper.model.MapInfo;
 import space.alnovis.protowrapper.model.MergedField;
-
-import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 import javax.lang.model.element.Modifier;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+
+import static space.alnovis.protowrapper.generator.TypeUtils.*;
 
 /**
  * Handler for protobuf map fields.

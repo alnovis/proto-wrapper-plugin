@@ -433,10 +433,8 @@ public class VersionMerger {
                 String version = schema.getVersion();
                 String versionName = renamedGroup.versionToName().get(version);
                 if (versionName != null) {
-                    schema.getMessage(messageName).ifPresent(msg -> {
-                        msg.findOneofByName(versionName).ifPresent(oneof -> {
-                            oneofBuilder.addVersionOneof(version, oneof);
-                        });
+                    schema.getMessage(messageName).flatMap(msg -> msg.findOneofByName(versionName)).ifPresent(oneof -> {
+                        oneofBuilder.addVersionOneof(version, oneof);
                     });
                 }
             }
@@ -472,10 +470,8 @@ public class VersionMerger {
 
             // Collect oneofs from each version
             for (VersionSchema schema : schemas) {
-                schema.getMessage(messageName).ifPresent(msg -> {
-                    msg.findOneofByName(oneofName).ifPresent(oneof -> {
-                        oneofBuilder.addVersionOneof(schema.getVersion(), oneof);
-                    });
+                schema.getMessage(messageName).flatMap(msg -> msg.findOneofByName(oneofName)).ifPresent(oneof -> {
+                    oneofBuilder.addVersionOneof(schema.getVersion(), oneof);
                 });
             }
 
