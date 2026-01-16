@@ -82,6 +82,7 @@ public class GenerationOrchestrator {
         }
 
         if (config.isGenerateInterfaces()) {
+            generatedFiles += generateProtoWrapper(schema);
             generatedFiles += generateInterfaces(schema);
         }
 
@@ -318,6 +319,32 @@ public class GenerationOrchestrator {
                 logger.info("Generated " + count[0] + " conflict enums for INT_ENUM type conflicts");
             }
             return count[0];
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    /**
+     * Generate ProtoWrapper interface.
+     *
+     * <p>ProtoWrapper is a common base interface for all generated wrapper classes.
+     * It provides unified access to the underlying protobuf message without reflection.</p>
+     *
+     * @param schema Merged schema (used to extract version identifiers for javadoc)
+     * @return 1 (always generates one file)
+     * @throws IOException if generation fails
+     * @since 1.6.6
+     */
+    public int generateProtoWrapper(MergedSchema schema) throws IOException {
+        ProtoWrapperGenerator generator = new ProtoWrapperGenerator(config, schema.getVersions());
+
+        try {
+            generateWithLogging(
+                    generator::generateAndWrite,
+                    "Generated ProtoWrapper interface: ");
+
+            logger.info("Generated ProtoWrapper interface");
+            return 1;
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
