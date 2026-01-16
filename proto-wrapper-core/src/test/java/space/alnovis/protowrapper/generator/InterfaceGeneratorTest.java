@@ -66,11 +66,10 @@ class InterfaceGeneratorTest {
         String code = javaFile.toString();
 
         // Verify
-        assertThat(code).contains("public interface Money");
+        assertThat(code).contains("public interface Money extends ProtoWrapper");
         assertThat(code).contains("long getBills()");
         assertThat(code).contains("int getCoins()");
-        assertThat(code).contains("int getWrapperVersion()");
-        assertThat(code).contains("byte[] toBytes()");
+        // getWrapperVersion() and toBytes() are now inherited from ProtoWrapper
     }
 
     @Test

@@ -337,6 +337,16 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
 
     private void addCommonMethods(TypeSpec.Builder classBuilder, MergedMessage message,
                                   TypeVariableName protoType, TypeResolver resolver) {
+        // getTypedProto() implementation - returns proto as Message (from ProtoWrapper interface)
+        classBuilder.addMethod(MethodSpec.methodBuilder("getTypedProto")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(MESSAGE_CLASS)
+                .addStatement("return proto")
+                .addJavadoc("Get the underlying protobuf message.\n")
+                .addJavadoc("@return protobuf Message\n")
+                .build());
+
         // Abstract method for serialization
         classBuilder.addMethod(MethodSpec.methodBuilder("serializeToBytes")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)

@@ -11,6 +11,43 @@ _No changes yet._
 
 ---
 
+## [1.6.6] - 2026-01-16
+
+### Added
+
+#### ProtoWrapper Interface
+- **New `ProtoWrapper` interface** - Common base interface for all generated wrapper classes, enabling type-safe access to underlying protobuf messages without reflection:
+  ```java
+  public interface ProtoWrapper {
+      Message getTypedProto();
+      int getWrapperVersion();
+      byte[] toBytes();
+  }
+  ```
+  - All generated message interfaces now extend `ProtoWrapper`
+  - Enables polymorphic wrapper handling with zero reflection overhead
+  - Pattern matching support: `if (wrapper instanceof ProtoWrapper pw) { ... }`
+
+- **`ProtoWrapperGenerator`** - New generator class that creates the `ProtoWrapper` interface in the API package
+
+### Changed
+
+- **`InterfaceGenerator`** - Generated interfaces now extend `ProtoWrapper`
+- **`InterfaceCommonMethodGenerator`** - `getWrapperVersion()` and `toBytes()` methods are no longer generated directly in interfaces (inherited from `ProtoWrapper`)
+- **`AbstractClassGenerator`** - Added `getTypedProto()` implementation that returns `proto` as `Message`
+- **`ImplClassGenerator`** - `getTypedProto()` now has `@Override` annotation (covariant return type override)
+
+### Tests
+
+- **New `ProtoWrapperGoldenTest`** - Comprehensive golden tests for ProtoWrapper interface covering:
+  - Interface implementation verification
+  - `getTypedProto()` functionality and polymorphic access
+  - `getWrapperVersion()` for different protocol versions
+  - `toBytes()` serialization and round-trip parsing
+  - Polymorphic usage patterns with mixed version wrappers
+
+---
+
 ## [1.6.5] - 2026-01-14
 
 ### Added

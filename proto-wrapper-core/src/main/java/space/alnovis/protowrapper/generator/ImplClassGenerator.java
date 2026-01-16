@@ -178,8 +178,9 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return new $L(proto)", className)
                 .build());
 
-        // getTypedProto() for VersionContext
+        // getTypedProto() override with covariant return type (from ProtoWrapper via abstract class)
         classBuilder.addMethod(MethodSpec.methodBuilder("getTypedProto")
+                .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(protoType)
                 .addStatement("return proto")

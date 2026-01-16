@@ -85,8 +85,12 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
     public JavaFile generate(MergedMessage message, GenerationContext ctx) {
         TypeResolver resolver = ctx.getTypeResolver();
 
+        // ProtoWrapper is the base interface for all wrappers
+        ClassName protoWrapperType = ClassName.get(config.getApiPackage(), ProtoWrapperGenerator.INTERFACE_NAME);
+
         TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(message.getInterfaceName())
                 .addModifiers(Modifier.PUBLIC)
+                .addSuperinterface(protoWrapperType)
                 .addJavadoc("Version-agnostic interface for $L.\n\n", message.getName())
                 .addJavadoc("<p>Supported in versions: $L</p>\n", message.getPresentInVersions());
 

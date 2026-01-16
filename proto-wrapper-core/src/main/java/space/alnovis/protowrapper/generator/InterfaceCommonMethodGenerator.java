@@ -43,12 +43,17 @@ public final class InterfaceCommonMethodGenerator {
     /**
      * Add all common utility methods to the interface builder.
      *
+     * <p>Note: {@code getWrapperVersion()}, {@code toBytes()}, and {@code getTypedProto()}
+     * are inherited from {@code ProtoWrapper} interface and are not generated here.</p>
+     *
      * @param builder Interface builder to add methods to
      * @param message Message being generated
+     * @since 1.6.6 - removed getWrapperVersion/toBytes (now in ProtoWrapper)
      */
     public void addCommonMethods(TypeSpec.Builder builder, MergedMessage message) {
-        addGetWrapperVersion(builder, message);
-        addToBytes(builder);
+        // Note: getWrapperVersion(), toBytes(), and getTypedProto() are inherited from ProtoWrapper
+        // and are not generated here to avoid duplication.
+
         addAsVersion(builder, message);
         addAsVersionStrict(builder, message);
         addGetContext(builder);
