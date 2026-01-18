@@ -25,13 +25,9 @@ public class FactoryBasedVersionContextProvider implements VersionContextProvide
 
     private static final Logger log = LoggerFactory.getLogger(FactoryBasedVersionContextProvider.class);
 
-    private final Class<?> versionContextClass;
     private final Method forVersionIdMethod;
     private final Method findMethod;
     private final Method getDefaultMethod;
-    private final Method supportedVersionsMethod;
-    private final Method defaultVersionMethod;
-    private final Method isSupportedMethod;
 
     // Cached values from VersionContext
     private final List<String> supportedVersions;
@@ -46,15 +42,16 @@ public class FactoryBasedVersionContextProvider implements VersionContextProvide
         String versionContextClassName = basePackage + ".api.VersionContext";
 
         try {
-            this.versionContextClass = Class.forName(versionContextClassName);
+            Class<?> versionContextClass = Class.forName(versionContextClassName);
 
-            // Cache method references
+            // Cache method references for runtime use
             this.forVersionIdMethod = versionContextClass.getMethod("forVersionId", String.class);
             this.findMethod = versionContextClass.getMethod("find", String.class);
             this.getDefaultMethod = versionContextClass.getMethod("getDefault");
-            this.supportedVersionsMethod = versionContextClass.getMethod("supportedVersions");
-            this.defaultVersionMethod = versionContextClass.getMethod("defaultVersion");
-            this.isSupportedMethod = versionContextClass.getMethod("isSupported", String.class);
+
+            // Get methods only needed for initialization
+            Method supportedVersionsMethod = versionContextClass.getMethod("supportedVersions");
+            Method defaultVersionMethod = versionContextClass.getMethod("defaultVersion");
 
             // Cache static values
             @SuppressWarnings("unchecked")

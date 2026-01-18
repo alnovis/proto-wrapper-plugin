@@ -194,7 +194,7 @@ public class OrderController {
 
 | Dependency | Version |
 |------------|---------|
-| Spring Boot | 3.2.0 |
+| Spring Boot | 3.4.1 |
 | proto-wrapper-spring-boot-starter | 1.6.7 |
 | protobuf-java | 4.28.2 |
 
