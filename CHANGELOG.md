@@ -30,6 +30,8 @@ _No changes yet._
 
 #### Spring Boot Starter
 - **New `proto-wrapper-spring-boot-starter` module** - Spring Boot auto-configuration:
+  - Requires Spring Boot 3.0+ (Jakarta EE) and Java 17+
+  - Uses `provided` scope - compatible with any Spring Boot 3.x version
   - `ProtoWrapperProperties` - Configuration properties from `application.yml`
   - `ProtoWrapperAutoConfiguration` - Auto-configuration with conditional beans
   - `RequestScopedVersionContext` - Per-request version context using `@RequestScope`

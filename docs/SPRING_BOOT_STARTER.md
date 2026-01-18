@@ -2,6 +2,10 @@
 
 The `proto-wrapper-spring-boot-starter` provides auto-configuration for integrating Proto Wrapper with Spring Boot applications.
 
+**Requirements:**
+- Spring Boot 3.0+ (uses Jakarta EE)
+- Java 17+
+
 ## Installation
 
 Add the starter dependency to your project:

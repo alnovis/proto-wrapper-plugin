@@ -56,7 +56,11 @@ String defaultVer = VersionContext.defaultVersion();         // "v2"
 
 ### Spring Boot Starter
 
-New `proto-wrapper-spring-boot-starter` module provides auto-configuration for Spring Boot:
+New `proto-wrapper-spring-boot-starter` module provides auto-configuration for Spring Boot.
+
+**Requirements:** Spring Boot 3.0+ (Jakarta EE), Java 17+
+
+The starter uses `provided` scope for Spring dependencies, so your project's Spring Boot version takes precedence.
 
 #### Installation
 

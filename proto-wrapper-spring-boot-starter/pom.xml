@@ -14,28 +14,49 @@
     <packaging>jar</packaging>
 
     <name>Proto Wrapper Spring Boot Starter</name>
-    <description>Spring Boot auto-configuration for proto-wrapper</description>
+    <description>Spring Boot auto-configuration for proto-wrapper. Requires Spring Boot 3.0+.</description>
 
     <properties>
+        <!-- Versions used for compilation and testing only.
+             At runtime, versions are provided by user's Spring Boot parent POM. -->
         <spring-boot.version>3.4.1</spring-boot.version>
-        <spring.version>6.2.1</spring.version>
     </properties>
 
+    <!-- Import Spring Boot BOM for compilation.
+         Users will get their own versions from their Spring Boot parent. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-        <!-- Proto Wrapper Core -->
+        <!-- Proto Wrapper Core (compile-time dependency) -->
         <dependency>
             <groupId>space.alnovis</groupId>
             <artifactId>proto-wrapper-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Spring Boot -->
+        <!--
+            Spring Boot dependencies are "provided" - version comes from user's project.
+            Minimum supported version: Spring Boot 3.0.0
+        -->
+
+        <!-- Spring Boot Auto-configuration -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
-            <version>${spring-boot.version}</version>
+            <scope>provided</scope>
         </dependency>
 
+        <!-- Configuration metadata generation (compile-time only) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
@@ -43,38 +64,37 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Servlet API -->
+        <!-- Servlet API (provided by web container) -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
-            <version>6.1.0</version>
             <scope>provided</scope>
         </dependency>
 
-        <!-- Spring Web (optional) -->
+        <!-- Spring Web (provided, optional for non-web apps) -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
-            <version>${spring.version}</version>
+            <scope>provided</scope>
             <optional>true</optional>
         </dependency>
 
-        <!-- Spring WebMVC (optional) -->
+        <!-- Spring WebMVC (provided, optional for non-web apps) -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>
-            <version>${spring.version}</version>
+            <scope>provided</scope>
             <optional>true</optional>
         </dependency>
 
-        <!-- SLF4J -->
+        <!-- SLF4J (provided by Spring Boot) -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.16</version>
+            <scope>provided</scope>
         </dependency>
 
-        <!-- Testing -->
+        <!-- Testing (uses explicit versions) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
