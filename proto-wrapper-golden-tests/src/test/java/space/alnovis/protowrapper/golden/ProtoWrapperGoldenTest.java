@@ -28,8 +28,8 @@ class ProtoWrapperGoldenTest {
 
     static Stream<VersionContext> allVersions() {
         return Stream.of(
-            VersionContext.forVersion(1),
-            VersionContext.forVersion(2)
+            VersionContext.forVersionId("v1"),
+            VersionContext.forVersionId("v2")
         );
     }
 
@@ -65,7 +65,7 @@ class ProtoWrapperGoldenTest {
         @Test
         @DisplayName("AllFieldTypes implements ProtoWrapper")
         void allFieldTypes_implementsProtoWrapper() {
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             AllFieldTypes msg = buildWithRequiredFields(ctx).build();
 
             assertThat(msg).isInstanceOf(ProtoWrapper.class);
@@ -131,7 +131,7 @@ class ProtoWrapperGoldenTest {
         @Test
         @DisplayName("returns version 1 for v1 wrapper")
         void getWrapperVersion_returnsVersion1() {
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             AllFieldTypes msg = buildWithRequiredFields(ctx).build();
 
             ProtoWrapper wrapper = msg;
@@ -141,7 +141,7 @@ class ProtoWrapperGoldenTest {
         @Test
         @DisplayName("returns version 2 for v2 wrapper")
         void getWrapperVersion_returnsVersion2() {
-            VersionContext ctx = VersionContext.forVersion(2);
+            VersionContext ctx = VersionContext.forVersionId("v2");
             AllFieldTypes msg = buildWithRequiredFields(ctx).build();
 
             ProtoWrapper wrapper = msg;
@@ -193,8 +193,8 @@ class ProtoWrapperGoldenTest {
         @DisplayName("can process mixed version wrappers polymorphically")
         void canProcessMixedVersionWrappers() {
             // Create wrappers from different versions
-            VersionContext v1Ctx = VersionContext.forVersion(1);
-            VersionContext v2Ctx = VersionContext.forVersion(2);
+            VersionContext v1Ctx = VersionContext.forVersionId("v1");
+            VersionContext v2Ctx = VersionContext.forVersionId("v2");
 
             AllFieldTypes v1Msg = buildWithRequiredFields(v1Ctx)
                 .setRequiredInt32(1)
@@ -219,7 +219,7 @@ class ProtoWrapperGoldenTest {
         @Test
         @DisplayName("instanceof check works correctly")
         void instanceOfCheck_worksCorrectly() {
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             Object unknown = buildWithRequiredFields(ctx).build();
 
             // Pattern matching with ProtoWrapper

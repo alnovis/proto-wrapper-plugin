@@ -53,8 +53,8 @@ class GeneratorUtilsTest {
 
         @Test
         void buildVersionCheck_complexVersionNumber_extractsCorrectly() {
-            String result = GeneratorUtils.buildVersionCheck(Set.of("v202"));
-            assertThat(result).isEqualTo("getWrapperVersion() == 202");
+            String result = GeneratorUtils.buildVersionCheck(Set.of("v10"));
+            assertThat(result).isEqualTo("getWrapperVersion() == 10");
         }
 
         @ParameterizedTest
@@ -62,7 +62,7 @@ class GeneratorUtilsTest {
             "v1, 1",
             "v2, 2",
             "v10, 10",
-            "v202, 202",
+            "v99, 99",
             "version1, 1"
         })
         void extractVersionNumber_variousFormats_extractsCorrectly(String version, String expected) {

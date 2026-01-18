@@ -56,18 +56,18 @@ class ExceptionHierarchyTest {
                     .messageType("Order")
                     .fieldPath("Order.items[].name")
                     .fieldName("name")
-                    .version("v203")
+                    .version("v3")
                     .fieldNumber(5)
-                    .availableVersions(Set.of("v201", "v202"))
+                    .availableVersions(Set.of("v1", "v2"))
                     .addDetail("customKey", "customValue")
                     .build();
 
             assertEquals("Order", context.getMessageType());
             assertEquals("Order.items[].name", context.getFieldPath());
             assertEquals("name", context.getFieldName());
-            assertEquals("v203", context.getVersion());
+            assertEquals("v3", context.getVersion());
             assertEquals(5, context.getFieldNumber());
-            assertEquals(Set.of("v201", "v202"), context.getAvailableVersions());
+            assertEquals(Set.of("v1", "v2"), context.getAvailableVersions());
             assertEquals("customValue", context.getDetail("customKey"));
         }
 
@@ -77,10 +77,10 @@ class ExceptionHierarchyTest {
             ErrorContext context = ErrorContext.builder()
                     .messageType("Order")
                     .fieldPath("Order.status")
-                    .version("v203")
+                    .version("v3")
                     .build();
 
-            assertEquals("Order.status (v203)", context.getLocation());
+            assertEquals("Order.status (v3)", context.getLocation());
         }
 
         @Test
@@ -132,7 +132,7 @@ class ExceptionHierarchyTest {
             ErrorContext context = ErrorContext.builder()
                     .messageType("Order")
                     .fieldPath("Order.items")
-                    .version("v203")
+                    .version("v3")
                     .build();
 
             ProtoWrapperException ex = new ProtoWrapperException(
@@ -140,8 +140,8 @@ class ExceptionHierarchyTest {
 
             assertEquals("Order", ex.getMessageType());
             assertEquals("Order.items", ex.getFieldPath());
-            assertEquals("v203", ex.getVersion());
-            assertEquals("Order.items (v203)", ex.getLocation());
+            assertEquals("v3", ex.getVersion());
+            assertEquals("Order.items (v3)", ex.getLocation());
         }
     }
 

@@ -277,13 +277,13 @@ Money costMsg = order.getShippingCostMessage();  // Money object
 
 ```java
 // V1: use primitive setter
-VersionContext v1Ctx = VersionContext.forVersion(1);
+VersionContext v1Ctx = VersionContext.forVersionId("v1");
 Order v1Order = Order.newBuilder(v1Ctx)
     .setShippingCost(100)  // OK - V1 supports primitive
     .build();
 
 // V2: use message setter
-VersionContext v2Ctx = VersionContext.forVersion(2);
+VersionContext v2Ctx = VersionContext.forVersionId("v2");
 Money money = Money.newBuilder(v2Ctx)
     .setAmount(100)
     .setCurrency("USD")
@@ -437,7 +437,7 @@ message Payment {
 **Creating a payment with oneof:**
 
 ```java
-VersionContext ctx = VersionContext.forVersion(1);
+VersionContext ctx = VersionContext.forVersionId("v1");
 
 // Create the oneof field value
 CreditCard card = ctx.newCreditCardBuilder()
@@ -529,7 +529,7 @@ assert !cleared.hasCrypto();
 
 ```java
 // V1 payment with credit card
-VersionContext v1Ctx = VersionContext.forVersion(1);
+VersionContext v1Ctx = VersionContext.forVersionId("v1");
 Payment v1Payment = v1Ctx.newPaymentBuilder()
         .setId("PAY-001")
         .setCreditCard(card)
@@ -547,7 +547,7 @@ assert v2Payment.getCreditCard() != null;
 
 ```java
 // V2 payment with crypto (V2-only option)
-VersionContext v2Ctx = VersionContext.forVersion(2);
+VersionContext v2Ctx = VersionContext.forVersionId("v2");
 Payment v2Payment = v2Ctx.newPaymentBuilder()
         .setId("PAY-002")
         .setCrypto(crypto)
@@ -661,9 +661,9 @@ MethodCase methodCase = payment.getMethodCase();
 
 ```java
 @ParameterizedTest
-@ValueSource(ints = {1, 2})
-void testPaymentWithCreditCard(int version) {
-    VersionContext ctx = VersionContext.forVersion(version);
+@ValueSource(strings = {"v1", "v2"})
+void testPaymentWithCreditCard(String versionId) {
+    VersionContext ctx = VersionContext.forVersionId(versionId);
 
     CreditCard card = ctx.newCreditCardBuilder()
             .setCardNumber("4111111111111111")
@@ -685,8 +685,8 @@ void testPaymentWithCreditCard(int version) {
 
 @Test
 void testCryptoOnlyInV2() {
-    VersionContext v1Ctx = VersionContext.forVersion(1);
-    VersionContext v2Ctx = VersionContext.forVersion(2);
+    VersionContext v1Ctx = VersionContext.forVersionId("v1");
+    VersionContext v2Ctx = VersionContext.forVersionId("v2");
 
     // Crypto is V2-only
     Payment v1Payment = v1Ctx.newPaymentBuilder()
@@ -743,12 +743,12 @@ public class OrderController {
     @PostMapping("/api/orders")
     public ResponseEntity<byte[]> createOrder(
             @RequestBody byte[] protoBytes,
-            @RequestHeader("X-API-Version") int version) {
+            @RequestHeader("X-API-Version") String versionId) {
 
-        VersionContext ctx = VersionContext.forVersion(version);
+        VersionContext ctx = VersionContext.forVersionId(versionId);
 
         // Parse with correct version
-        Order order = ctx.wrapOrder(parseProto(protoBytes, version));
+        Order order = ctx.wrapOrder(parseProto(protoBytes, versionId));
 
         // Business logic
         Order processed = processOrder(order);
@@ -783,10 +783,10 @@ public class OrderAggregator {
 
 ```java
 @ParameterizedTest
-@ValueSource(ints = {1, 2})
-void testOrderProcessing(int version) {
+@ValueSource(strings = {"v1", "v2"})
+void testOrderProcessing(String versionId) {
     // Create test data for each version
-    VersionContext ctx = VersionContext.forVersion(version);
+    VersionContext ctx = VersionContext.forVersionId(versionId);
 
     Order order = createTestOrder(ctx);
 

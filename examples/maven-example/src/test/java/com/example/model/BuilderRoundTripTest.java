@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Builder Round-Trip Tests")
 class BuilderRoundTripTest {
 
-    private final VersionContext ctx = VersionContext.forVersion(1);
+    private final VersionContext ctx = VersionContext.forVersionId("v1");
 
     @Nested
     @DisplayName("Basic builder modifications")
@@ -390,7 +390,7 @@ class BuilderRoundTripTest {
     @DisplayName("V2 builder round-trip")
     class V2BuilderRoundTripTest {
 
-        private final VersionContext ctxV2 = VersionContext.forVersion(2);
+        private final VersionContext ctxV2 = VersionContext.forVersionId("v2");
 
         @Test
         @DisplayName("V2 builder with version-specific fields")

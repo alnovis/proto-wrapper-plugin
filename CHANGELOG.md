@@ -11,6 +11,52 @@ _No changes yet._
 
 ---
 
+## [1.6.7] - 2026-01-18
+
+### Added
+
+#### String-based VersionContext API
+- **New `forVersionId(String)` method** - Recommended way to get VersionContext by string identifier:
+  ```java
+  VersionContext ctx = VersionContext.forVersionId("v1");
+  ```
+- **New static factory methods on VersionContext interface**:
+  - `find(String versionId)` - Returns `Optional<VersionContext>`
+  - `getDefault()` - Returns the latest (default) version context
+  - `supportedVersions()` - Returns `List<String>` of all supported versions
+  - `defaultVersion()` - Returns the default version identifier
+  - `isSupported(String versionId)` - Checks if version is supported
+- **New `getVersionId()` method** - Returns string identifier (e.g., "v1", "v2")
+
+#### Spring Boot Starter
+- **New `proto-wrapper-spring-boot-starter` module** - Spring Boot auto-configuration:
+  - `ProtoWrapperProperties` - Configuration properties from `application.yml`
+  - `ProtoWrapperAutoConfiguration` - Auto-configuration with conditional beans
+  - `RequestScopedVersionContext` - Per-request version context using `@RequestScope`
+  - `VersionContextRequestFilter` - HTTP filter extracting version from headers
+  - `ProtoWrapperExceptionHandler` - `@ControllerAdvice` for error handling
+  - `VersionContextProvider` interface with `FactoryBasedVersionContextProvider` implementation
+- **New `examples/spring-boot-example/`** - Example Spring Boot application
+
+### Changed
+
+- **VersionContext static methods** - All factory methods now on VersionContext interface (no separate factory class)
+- **FactoryBasedVersionContextProvider** - Now uses `VersionContext.forVersionId()` instead of reflection
+
+### Deprecated
+
+- **`forVersion(int version)`** - Use `forVersionId(String)` instead. Marked for removal.
+- **`getVersion()`** - Use `getVersionId()` instead. Marked for removal.
+
+### Documentation
+
+- **New `docs/SPRING_BOOT_STARTER.md`** - Comprehensive Spring Boot Starter documentation
+- Updated API_REFERENCE.md with new VersionContext API
+- Updated GETTING_STARTED.md with String-based API examples
+- Added README.md to all examples (maven-example, spring-boot-example, gradle-example)
+
+---
+
 ## [1.6.6] - 2026-01-16
 
 ### Added

@@ -456,7 +456,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
                 .returns(TypeName.INT)
                 .addParameter(String.class, "packageName")
-                // Find version segment like "v1" or "v202" in package name
+                // Find version segment like "v1" or "v2" in package name
                 .addStatement("int lastDot = packageName.lastIndexOf('.')")
                 .beginControlFlow("if (lastDot > 0)")
                 // Check last segment (class package)
@@ -564,7 +564,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
             }
 
             // Generate version check for this field
-            // Extract version numbers from version strings (e.g., "v1" -> 1, "v202" -> 202)
+            // Extract version numbers from version strings (e.g., "v1" -> 1, "v2" -> 2)
             String versionCheck = fieldVersions.stream()
                     .map(v -> v.replaceAll("[^0-9]", ""))
                     .filter(s -> !s.isEmpty())

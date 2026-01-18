@@ -1,6 +1,7 @@
 package com.example.model;
 
 import com.example.model.api.*;
+// VersionContextFactory removed in v1.7.0 - factory methods now on VersionContext
 import com.google.protobuf.Message;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,7 +17,57 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class VersionContextTest {
 
     @Nested
-    @DisplayName("forVersion factory method")
+    @DisplayName("forVersionId factory method (recommended)")
+    class ForVersionIdTest {
+
+        @Test
+        @DisplayName("forVersionId('v1') returns V1 context")
+        void forVersionIdV1ReturnsV1Context() {
+            VersionContext ctx = VersionContext.forVersionId("v1");
+
+            assertThat(ctx).isNotNull();
+            assertThat(ctx.getVersionId()).isEqualTo("v1");
+            assertThat(ctx).isInstanceOf(com.example.model.v1.VersionContextV1.class);
+        }
+
+        @Test
+        @DisplayName("forVersionId('v2') returns V2 context")
+        void forVersionIdV2ReturnsV2Context() {
+            VersionContext ctx = VersionContext.forVersionId("v2");
+
+            assertThat(ctx).isNotNull();
+            assertThat(ctx.getVersionId()).isEqualTo("v2");
+            assertThat(ctx).isInstanceOf(com.example.model.v2.VersionContextV2.class);
+        }
+
+        @Test
+        @DisplayName("forVersionId with invalid version throws exception")
+        void forVersionIdInvalidThrows() {
+            assertThatThrownBy(() -> VersionContext.forVersionId("v99"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("v99")
+                    .hasMessageContaining("Supported");
+        }
+
+        @Test
+        @DisplayName("forVersionId with null throws exception")
+        void forVersionIdNullThrows() {
+            assertThatThrownBy(() -> VersionContext.forVersionId(null))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        @DisplayName("forVersionId is case-sensitive")
+        void forVersionIdCaseSensitive() {
+            // "V1" is not the same as "v1"
+            assertThatThrownBy(() -> VersionContext.forVersionId("V1"))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("forVersion factory method (deprecated)")
+    @SuppressWarnings("deprecation")
     class ForVersionTest {
 
         @Test
@@ -26,6 +77,7 @@ class VersionContextTest {
 
             assertThat(ctx).isNotNull();
             assertThat(ctx.getVersion()).isEqualTo(1);
+            assertThat(ctx.getVersionId()).isEqualTo("v1");
             assertThat(ctx).isInstanceOf(com.example.model.v1.VersionContextV1.class);
         }
 
@@ -36,6 +88,7 @@ class VersionContextTest {
 
             assertThat(ctx).isNotNull();
             assertThat(ctx.getVersion()).isEqualTo(2);
+            assertThat(ctx.getVersionId()).isEqualTo("v2");
             assertThat(ctx).isInstanceOf(com.example.model.v2.VersionContextV2.class);
         }
 
@@ -56,10 +109,29 @@ class VersionContextTest {
     }
 
     @Nested
+    @DisplayName("getVersionId method")
+    class GetVersionIdTest {
+
+        @Test
+        @DisplayName("V1 context returns 'v1'")
+        void v1ContextReturnsV1() {
+            VersionContext ctx = VersionContext.forVersionId("v1");
+            assertThat(ctx.getVersionId()).isEqualTo("v1");
+        }
+
+        @Test
+        @DisplayName("V2 context returns 'v2'")
+        void v2ContextReturnsV2() {
+            VersionContext ctx = VersionContext.forVersionId("v2");
+            assertThat(ctx.getVersionId()).isEqualTo("v2");
+        }
+    }
+
+    @Nested
     @DisplayName("V1 VersionContext wrapping")
     class V1VersionContextWrappingTest {
 
-        private final VersionContext ctx = VersionContext.forVersion(1);
+        private final VersionContext ctx = VersionContext.forVersionId("v1");
 
         @Test
         @DisplayName("wrapMoney wraps V1 proto correctly")
@@ -169,7 +241,7 @@ class VersionContextTest {
     @DisplayName("V2 VersionContext wrapping")
     class V2VersionContextWrappingTest {
 
-        private final VersionContext ctx = VersionContext.forVersion(2);
+        private final VersionContext ctx = VersionContext.forVersionId("v2");
 
         @Test
         @DisplayName("wrapMoney wraps V2 proto with additional fields")
@@ -261,8 +333,8 @@ class VersionContextTest {
                     .build();
 
             // Wrap using respective contexts
-            Money moneyV1 = VersionContext.forVersion(1).wrapMoney(protoV1);
-            Money moneyV2 = VersionContext.forVersion(2).wrapMoney(protoV2);
+            Money moneyV1 = VersionContext.forVersionId("v1").wrapMoney(protoV1);
+            Money moneyV2 = VersionContext.forVersionId("v2").wrapMoney(protoV2);
 
             // Process using common interface
             long total = processMoneyPolymorphically(moneyV1, moneyV2);
@@ -286,7 +358,7 @@ class VersionContextTest {
                     .setCurrency("GBP")
                     .build();
 
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             Money money = ctx.wrapMoney(protoV1);
 
             assertThat(money.getAmount()).isEqualTo(500);
@@ -299,29 +371,86 @@ class VersionContextTest {
     class SupportedVersionsTest {
 
         @Test
-        @DisplayName("forVersion supports version 1")
-        void supportsVersion1() {
-            VersionContext ctx = VersionContext.forVersion(1);
+        @DisplayName("forVersionId supports 'v1'")
+        void supportsVersionIdV1() {
+            VersionContext ctx = VersionContext.forVersionId("v1");
             assertThat(ctx).isNotNull();
-            assertThat(ctx.getVersion()).isEqualTo(1);
+            assertThat(ctx.getVersionId()).isEqualTo("v1");
         }
 
         @Test
-        @DisplayName("forVersion supports version 2")
-        void supportsVersion2() {
-            VersionContext ctx = VersionContext.forVersion(2);
+        @DisplayName("forVersionId supports 'v2'")
+        void supportsVersionIdV2() {
+            VersionContext ctx = VersionContext.forVersionId("v2");
             assertThat(ctx).isNotNull();
-            assertThat(ctx.getVersion()).isEqualTo(2);
+            assertThat(ctx.getVersionId()).isEqualTo("v2");
         }
 
         @Test
         @DisplayName("Can iterate through known versions")
         void canIterateThroughVersions() {
-            int[] supportedVersions = {1, 2};
-            for (int version : supportedVersions) {
-                VersionContext ctx = VersionContext.forVersion(version);
-                assertThat(ctx.getVersion()).isEqualTo(version);
+            String[] supportedVersions = {"v1", "v2"};
+            for (String versionId : supportedVersions) {
+                VersionContext ctx = VersionContext.forVersionId(versionId);
+                assertThat(ctx.getVersionId()).isEqualTo(versionId);
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("VersionContext static factory methods")
+    class VersionContextStaticMethodsTest {
+
+        @Test
+        @DisplayName("find returns Optional with V1 context")
+        void findReturnsOptionalWithV1Context() {
+            assertThat(VersionContext.find("v1"))
+                    .isPresent()
+                    .get()
+                    .satisfies(ctx -> assertThat(ctx.getVersionId()).isEqualTo("v1"));
+        }
+
+        @Test
+        @DisplayName("find returns empty Optional for invalid version")
+        void findReturnsEmptyForInvalidVersion() {
+            assertThat(VersionContext.find("v99")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("getDefault returns latest version")
+        void getDefaultReturnsLatestVersion() {
+            VersionContext ctx = VersionContext.getDefault();
+
+            assertThat(ctx).isNotNull();
+            assertThat(ctx.getVersionId()).isEqualTo("v2");
+        }
+
+        @Test
+        @DisplayName("supportedVersions returns all versions")
+        void supportedVersionsReturnsAllVersions() {
+            assertThat(VersionContext.supportedVersions())
+                    .containsExactly("v1", "v2");
+        }
+
+        @Test
+        @DisplayName("defaultVersion returns latest version id")
+        void defaultVersionReturnsLatestVersionId() {
+            assertThat(VersionContext.defaultVersion()).isEqualTo("v2");
+        }
+
+        @Test
+        @DisplayName("isSupported returns true for valid versions")
+        void isSupportedReturnsTrueForValidVersions() {
+            assertThat(VersionContext.isSupported("v1")).isTrue();
+            assertThat(VersionContext.isSupported("v2")).isTrue();
+        }
+
+        @Test
+        @DisplayName("isSupported returns false for invalid versions")
+        void isSupportedReturnsFalseForInvalidVersions() {
+            assertThat(VersionContext.isSupported("v99")).isFalse();
+            assertThat(VersionContext.isSupported("invalid")).isFalse();
+            assertThat(VersionContext.isSupported(null)).isFalse();
         }
     }
 }

@@ -29,8 +29,8 @@ class Proto2GoldenTest {
 
     static Stream<VersionContext> allVersions() {
         return Stream.of(
-            VersionContext.forVersion(1),
-            VersionContext.forVersion(2)
+            VersionContext.forVersionId("v1"),
+            VersionContext.forVersionId("v2")
         );
     }
 
@@ -363,8 +363,8 @@ class Proto2GoldenTest {
         @Test
         @DisplayName("Same values produce same results across versions")
         void sameValues_acrossVersions_producesSameResults() {
-            VersionContext v1 = VersionContext.forVersion(1);
-            VersionContext v2 = VersionContext.forVersion(2);
+            VersionContext v1 = VersionContext.forVersionId("v1");
+            VersionContext v2 = VersionContext.forVersionId("v2");
 
             AllFieldTypes msgV1 = buildWithRequiredFields(v1)
                 .setOptionalInt32(42)

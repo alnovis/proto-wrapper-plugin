@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: proto-wrapper-demo
+
+server:
+  port: 8080
+
+# Proto Wrapper configuration
+proto-wrapper:
+  # Base package where generated wrapper classes are located
+  # Factory-based provider (default) discovers versions automatically from generated code
+  base-package: com.example.demo.api
+
+  # Optional: HTTP header name for protocol version (default: X-Protocol-Version)
+  # version-header: X-Protocol-Version
+
+  # Optional: Provider type - FACTORY (default) or REFLECTIVE
+  # FACTORY uses generated VersionContext interface with static factory methods
+  # REFLECTIVE uses reflection to discover VersionContext implementations (requires explicit versions list)
+  # provider-type: factory
+
+  # Optional: Enable request-scoped version context (default: true)
+  # request-scoped: true
+
+  # Optional: Enable global exception handling (default: true)
+  # exception-handling: true
+
+  # Note: When using REFLECTIVE provider, uncomment and configure:
+  # provider-type: reflective
+  # versions:
+  #   - v1
+  #   - v2
+  # default-version: v2
+
+logging:
+  level:
+    com.example.demo: DEBUG
+    space.alnovis.protowrapper: DEBUG

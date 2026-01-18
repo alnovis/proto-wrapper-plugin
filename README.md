@@ -93,7 +93,7 @@ byte[] bytes = order.toBytes();
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.6</version>
+    <version>1.6.7</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.6"
+    id("space.alnovis.proto-wrapper") version "1.6.7"
 }
 
 protoWrapper {
@@ -154,6 +154,7 @@ protoWrapper {
 | Incremental build | Skip unchanged protos, 50%+ faster rebuilds | v1.6 |
 | Embedded protoc | Auto-download protoc, no manual installation needed | v1.6.5 |
 | ProtoWrapper interface | Common base interface for type-safe proto access | v1.6.6 |
+| Spring Boot Starter | Auto-configuration for Spring Boot applications | v1.6.7 |
 
 ### Type Conflict Handling
 
@@ -172,6 +173,7 @@ protoWrapper {
 |----------|-------------|
 | **[Getting Started](docs/GETTING_STARTED.md)** | Step-by-step tutorial (15 min) |
 | [Configuration](docs/CONFIGURATION.md) | All plugin options for Maven and Gradle |
+| [Spring Boot Starter](docs/SPRING_BOOT_STARTER.md) | Integration with Spring Boot |
 | [Cookbook](docs/COOKBOOK.md) | Practical examples and patterns |
 | [Contract Matrix](docs/CONTRACT-MATRIX.md) | Field behavior reference (getter/has for all types) |
 | [Schema Diff](docs/SCHEMA_DIFF.md) | Compare schemas and detect breaking changes |
@@ -182,8 +184,9 @@ protoWrapper {
 
 ## Examples
 
-- [Maven Example](examples/maven-example) - Complete Maven project
+- [Maven Example](examples/maven-example) - Complete Maven project with tests
 - [Gradle Example](examples/gradle-example) - Complete Gradle project
+- [Spring Boot Example](examples/spring-boot-example) - Spring Boot integration
 
 ---
 
@@ -195,7 +198,7 @@ target/generated-sources/proto-wrapper/
     ├── api/
     │   ├── Order.java              # Interface
     │   ├── PaymentType.java        # Unified enum
-    │   ├── VersionContext.java     # Factory
+    │   ├── VersionContext.java     # Version factory interface
     │   └── impl/
     │       └── AbstractOrder.java  # Template methods
     ├── v1/
@@ -227,7 +230,7 @@ Add dependency (plugins auto-download):
 <dependency>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>1.6.6</version>
+    <version>1.6.7</version>
 </dependency>
 ```
 

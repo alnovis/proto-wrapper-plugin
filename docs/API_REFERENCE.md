@@ -788,18 +788,36 @@ public class {MessageName} extends Abstract{MessageName}<{Proto.MessageName}> {
 ### VersionContext
 
 **Location:**
-- Interface: `{basePackage}.api`
+- Interface: `{basePackage}.api.VersionContext`
 - Implementations: `{basePackage}.v1.VersionContextV1`, `{basePackage}.v2.VersionContextV2`, etc.
 
 **Purpose:** Factory for creating wrapper instances of a specific protocol version. Provides a single entry point for all wrapper creation operations.
 
-**Structure:**
+**Structure (v1.7.0+):**
 ```java
 public interface VersionContext {
-    // Static factory
+    // Static fields (initialized at class load)
+    Map<String, VersionContext> CONTEXTS;
+    List<String> SUPPORTED_VERSIONS;
+    String DEFAULT_VERSION;
+
+    // Primary static factory methods (v1.7.0+)
+    static VersionContext forVersionId(String versionId);      // throws if not found
+    static Optional<VersionContext> find(String versionId);    // returns Optional
+    static VersionContext getDefault();                        // latest version
+    static List<String> supportedVersions();                   // ["v1", "v2"]
+    static String defaultVersion();                            // "v2"
+    static boolean isSupported(String versionId);              // true/false
+
+    // Primary version info (v1.6.7+)
+    String getVersionId();
+
+    // Deprecated static factory - will be removed in v2.0
+    @Deprecated(since = "1.6.7", forRemoval = true)
     static VersionContext forVersion(int version);
 
-    // Version info
+    // Deprecated version info - will be removed in v2.0
+    @Deprecated(since = "1.6.7", forRemoval = true)
     int getVersion();
 
     // For each message type:
@@ -818,6 +836,59 @@ public interface VersionContext {
 - Provides `parse*FromBytes` methods for deserializing from bytes
 - Provides `new*Builder` methods for creating new instances
 - Methods for types not present in a version throw `UnsupportedOperationException`
+
+#### Version Identifier API (v1.6.7+)
+
+Since v1.6.7, version identification uses String identifiers (`"v1"`, `"v2"`, `"legacy"`, etc.) instead of integers:
+
+```java
+// Recommended: use String-based API
+VersionContext ctx = VersionContext.forVersionId("v2");
+String versionId = ctx.getVersionId();  // "v2"
+
+// Deprecated: integer API only works for numeric versions
+VersionContext ctx = VersionContext.forVersion(2);  // @Deprecated
+int version = ctx.getVersion();  // @Deprecated, returns 2
+```
+
+**Why String identifiers?**
+- Supports custom version names (e.g., `"legacy"`, `"v2beta"`, `"production"`)
+- Consistent with plugin configuration and Spring Boot starter
+- Integer extraction is unreliable for non-numeric versions (e.g., `"legacy"` → 0)
+
+**Migration:**
+```java
+// Before (deprecated)
+VersionContext ctx = VersionContext.forVersion(1);
+if (ctx.getVersion() == 2) { ... }
+
+// After (recommended)
+VersionContext ctx = VersionContext.forVersionId("v1");
+if (ctx.getVersionId().equals("v2")) { ... }
+```
+
+### VersionContext Static Factory Methods (v1.7.0+)
+
+Since v1.7.0, all factory methods are available directly on the `VersionContext` interface:
+
+**Usage:**
+```java
+// Get specific version (throws if not found)
+VersionContext v2 = VersionContext.forVersionId("v2");
+
+// Safe lookup (returns Optional)
+Optional<VersionContext> maybeCtx = VersionContext.find("v2");
+
+// Get default (latest) version
+VersionContext latest = VersionContext.getDefault();
+
+// Check available versions
+List<String> versions = VersionContext.supportedVersions();  // ["v1", "v2"]
+String defaultVer = VersionContext.defaultVersion();         // "v2"
+boolean supported = VersionContext.isSupported("v3");        // false
+```
+
+> **Note:** `VersionContextFactory` class was removed in v1.7.0. Use `VersionContext` static methods instead.
 
 ---
 
@@ -1239,7 +1310,7 @@ IllegalArgumentException: Value -1 exceeds uint32 range for v2
 #### Basic Usage
 
 ```java
-VersionContext ctx = VersionContext.forVersion(2);
+VersionContext ctx = VersionContext.forVersionId("v2");
 
 // Create new message
 RepeatedConflicts message = RepeatedConflicts.newBuilder(ctx)
@@ -1613,7 +1684,7 @@ interface Builder {
 ### Usage Example
 
 ```java
-VersionContext ctx = VersionContext.forVersion(1);
+VersionContext ctx = VersionContext.forVersionId("v1");
 
 // Create with map entries
 MapTestMessage message = MapTestMessage.newBuilder(ctx)
@@ -1852,7 +1923,7 @@ public interface Payment {
 ### Usage Example
 
 ```java
-VersionContext ctx = VersionContext.forVersion(1);
+VersionContext ctx = VersionContext.forVersionId("v1");
 
 // Create with credit card
 CreditCard card = ctx.newCreditCardBuilder()

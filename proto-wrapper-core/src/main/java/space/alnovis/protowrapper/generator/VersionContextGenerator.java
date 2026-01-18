@@ -11,8 +11,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Generates VersionContext interface and version-specific implementations.
@@ -44,21 +46,171 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
         TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder("VersionContext")
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc("Version context for creating version-specific wrapper instances.\n\n")
-                .addJavadoc("<p>Provides factory methods for all wrapper types.</p>\n");
+                .addJavadoc("<p>Provides factory methods for obtaining version contexts and creating wrapper types.</p>\n\n")
+                .addJavadoc("<p>Usage:</p>\n")
+                .addJavadoc("<pre>{@code\n")
+                .addJavadoc("VersionContext ctx = VersionContext.forVersionId(\"v2\");\n")
+                .addJavadoc("Order order = ctx.wrapOrder(protoMessage);\n")
+                .addJavadoc("}</pre>\n");
 
-        // Static factory method
-        String versionExamples = schema.getVersions().stream()
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        List<String> versions = schema.getVersions();
+        String defaultVersion = versions.get(versions.size() - 1);
+
+        // Static fields: CONTEXTS map, SUPPORTED_VERSIONS list, DEFAULT_VERSION
+        ParameterizedTypeName mapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                ClassName.get(String.class),
+                versionContextType);
+
+        ParameterizedTypeName listType = ParameterizedTypeName.get(
+                ClassName.get(List.class),
+                ClassName.get(String.class));
+
+        // Build private static method to create CONTEXTS map (interfaces can't have static initializers)
+        MethodSpec.Builder createContextsMethod = MethodSpec.methodBuilder("createContexts")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .returns(mapType)
+                .addStatement("$T<$T, $T> map = new $T<>()",
+                        Map.class, String.class, versionContextType,
+                        LinkedHashMap.class);
+
+        for (String version : versions) {
+            String implPackage = config.getImplPackage(version);
+            String contextClass = "VersionContext" + version.substring(0, 1).toUpperCase() + version.substring(1);
+            ClassName contextClassName = ClassName.get(implPackage, contextClass);
+            createContextsMethod.addStatement("map.put($S, $T.INSTANCE)", version, contextClassName);
+        }
+
+        createContextsMethod.addStatement("return $T.unmodifiableMap(map)", Collections.class);
+        interfaceBuilder.addMethod(createContextsMethod.build());
+
+        String versionsJoined = versions.stream()
+                .map(v -> "\"" + v + "\"")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        // Add static fields with inline initialization (interface fields are implicitly public static final)
+        interfaceBuilder.addField(FieldSpec.builder(mapType, "CONTEXTS",
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+                .initializer("createContexts()")
+                .build());
+
+        interfaceBuilder.addField(FieldSpec.builder(listType, "SUPPORTED_VERSIONS",
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$T.of($L)", List.class, versionsJoined)
+                .build());
+
+        interfaceBuilder.addField(FieldSpec.builder(String.class, "DEFAULT_VERSION",
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$S", defaultVersion)
+                .build());
+
+        // Primary static factory method: forVersionId(String)
+        String versionIdExamples = versions.stream()
+                .map(v -> "\"" + v + "\"")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("forVersionId")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(versionContextType)
+                .addParameter(String.class, "versionId")
+                .addJavadoc("Get VersionContext for a specific version identifier.\n\n")
+                .addJavadoc("@param versionId Version identifier (e.g., $L)\n", versionIdExamples)
+                .addJavadoc("@return VersionContext for the specified version\n")
+                .addJavadoc("@throws IllegalArgumentException if versionId is null or not supported\n")
+                .addStatement("$T ctx = CONTEXTS.get(versionId)", versionContextType)
+                .beginControlFlow("if (ctx == null)")
+                .addStatement("throw new $T($S + versionId + $S + SUPPORTED_VERSIONS)",
+                        IllegalArgumentException.class,
+                        "Unsupported version: '",
+                        "'. Supported: ")
+                .endControlFlow()
+                .addStatement("return ctx")
+                .build());
+
+        // find(String versionId) - returns Optional
+        ParameterizedTypeName optionalType = ParameterizedTypeName.get(
+                ClassName.get(Optional.class),
+                versionContextType);
+
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("find")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(optionalType)
+                .addParameter(String.class, "versionId")
+                .addJavadoc("Find VersionContext for the specified version.\n\n")
+                .addJavadoc("@param versionId Version identifier (e.g., $L)\n", versionIdExamples)
+                .addJavadoc("@return Optional containing VersionContext, or empty if not supported\n")
+                .addStatement("return $T.ofNullable(CONTEXTS.get(versionId))", Optional.class)
+                .build());
+
+        // getDefault() - returns default (latest) version context
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("getDefault")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(versionContextType)
+                .addJavadoc("Get the default VersionContext (latest version).\n\n")
+                .addJavadoc("@return Default VersionContext ($L)\n", defaultVersion)
+                .addStatement("return CONTEXTS.get(DEFAULT_VERSION)")
+                .build());
+
+        // supportedVersions() - returns list of supported versions
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("supportedVersions")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(listType)
+                .addJavadoc("Get list of supported version identifiers.\n\n")
+                .addJavadoc("@return Immutable list of supported versions (e.g., [$L])\n", versionIdExamples)
+                .addStatement("return SUPPORTED_VERSIONS")
+                .build());
+
+        // defaultVersion() - returns default version string
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("defaultVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(String.class)
+                .addJavadoc("Get the default version identifier.\n\n")
+                .addJavadoc("@return Default version identifier ($S)\n", defaultVersion)
+                .addStatement("return DEFAULT_VERSION")
+                .build());
+
+        // isSupported(String versionId) - checks if version is supported
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("isSupported")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(String.class, "versionId")
+                .addJavadoc("Check if a version is supported.\n\n")
+                .addJavadoc("@param versionId Version identifier to check\n")
+                .addJavadoc("@return true if version is supported\n")
+                .addStatement("return CONTEXTS.containsKey(versionId)")
+                .build());
+
+        // Primary instance method: getVersionId()
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("getVersionId")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(String.class)
+                .addJavadoc("Get the version identifier for this context.\n\n")
+                .addJavadoc("@return Version identifier (e.g., $L)\n", versionIdExamples)
+                .build());
+
+        // Deprecated static factory method: forVersion(int)
+        String versionNumExamples = schema.getVersions().stream()
                 .map(this::extractVersionNumber)
                 .map(String::valueOf)
                 .collect(java.util.stream.Collectors.joining(", "));
 
+        AnnotationSpec deprecatedForVersion = AnnotationSpec.builder(Deprecated.class)
+                .addMember("since", "$S", "1.6.7")
+                .addMember("forRemoval", "$L", true)
+                .build();
+
         MethodSpec.Builder forVersion = MethodSpec.methodBuilder("forVersion")
+                .addAnnotation(deprecatedForVersion)
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .returns(ClassName.get(config.getApiPackage(), "VersionContext"))
+                .returns(versionContextType)
                 .addParameter(TypeName.INT, "version")
-                .addJavadoc("Get VersionContext for a specific protocol version.\n")
-                .addJavadoc("@param version Protocol version (e.g., $L)\n", versionExamples)
+                .addJavadoc("Get VersionContext for a specific protocol version number.\n\n")
+                .addJavadoc("@param version Protocol version number (e.g., $L)\n", versionNumExamples)
                 .addJavadoc("@return VersionContext for the specified version\n")
+                .addJavadoc("@throws IllegalArgumentException if version is not supported\n")
+                .addJavadoc("@deprecated since 1.6.7, for removal. Use {@link #forVersionId(String)} instead. ")
+                .addJavadoc("This method only works reliably for numeric version identifiers.\n")
                 .beginControlFlow("switch (version)");
 
         for (String version : schema.getVersions()) {
@@ -76,11 +228,20 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
         interfaceBuilder.addMethod(forVersion.build());
 
-        // getVersion() method
+        // Deprecated instance method: getVersion()
+        AnnotationSpec deprecatedGetVersion = AnnotationSpec.builder(Deprecated.class)
+                .addMember("since", "$S", "1.6.7")
+                .addMember("forRemoval", "$L", true)
+                .build();
+
         interfaceBuilder.addMethod(MethodSpec.methodBuilder("getVersion")
+                .addAnnotation(deprecatedGetVersion)
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .returns(TypeName.INT)
-                .addJavadoc("@return Protocol version number\n")
+                .addJavadoc("Get the numeric protocol version.\n\n")
+                .addJavadoc("@return Protocol version number (extracted from version identifier)\n")
+                .addJavadoc("@deprecated since 1.6.7, for removal. Use {@link #getVersionId()} instead. ")
+                .addJavadoc("This method returns 0 for non-numeric version identifiers.\n")
                 .build());
 
         // Wrap methods for each message type
@@ -354,10 +515,24 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .addModifiers(Modifier.PRIVATE)
                 .build());
 
-        // getVersion()
+        // getVersionId() - primary method
+        classBuilder.addMethod(MethodSpec.methodBuilder("getVersionId")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(String.class)
+                .addStatement("return $S", version)
+                .build());
+
+        // getVersion() - deprecated
         int versionNum = extractVersionNumber(version);
+        AnnotationSpec deprecatedImpl = AnnotationSpec.builder(Deprecated.class)
+                .addMember("since", "$S", "1.6.7")
+                .addMember("forRemoval", "$L", true)
+                .build();
+
         classBuilder.addMethod(MethodSpec.methodBuilder("getVersion")
                 .addAnnotation(Override.class)
+                .addAnnotation(deprecatedImpl)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(TypeName.INT)
                 .addStatement("return $L", versionNum)
@@ -437,8 +612,8 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
     /**
      * Build fully qualified ClassName for a nested message impl class.
-     * E.g., for TicketRequest.Item.Commodity in v202 returns ClassName representing
-     * "impl.package.v202.TicketRequest.Item.Commodity"
+     * E.g., for TicketRequest.Item.Commodity in v2 returns ClassName representing
+     * "impl.package.v2.TicketRequest.Item.Commodity"
      */
     private ClassName buildNestedImplType(MergedMessage nested, String implPackage, String topLevelImplClassName) {
         // Collect path from nested to root (excluding root since we start from topLevelImplClassName)
@@ -501,6 +676,184 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    /**
+     * Generate VersionContextFactory class.
+     *
+     * @param schema Merged schema
+     * @return Generated JavaFile
+     * @deprecated since 1.7.0, for removal. Factory methods are now part of VersionContext interface.
+     *             Use {@link #generateInterface(MergedSchema)} instead.
+     */
+    @Deprecated(since = "1.7.0", forRemoval = true)
+    public JavaFile generateFactory(MergedSchema schema) {
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        ClassName factoryClassName = ClassName.get(config.getApiPackage(), "VersionContextFactory");
+
+        TypeSpec.Builder factoryBuilder = TypeSpec.classBuilder("VersionContextFactory")
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addJavadoc("Factory for obtaining VersionContext instances by version string.\n\n")
+                .addJavadoc("<p>This class provides type-safe access to VersionContext implementations\n")
+                .addJavadoc("without requiring reflection.</p>\n\n")
+                .addJavadoc("<p>Usage:</p>\n")
+                .addJavadoc("<pre>{@code\n")
+                .addJavadoc("VersionContext ctx = VersionContextFactory.get(\"v2\");\n")
+                .addJavadoc("Order order = ctx.wrapOrder(protoMessage);\n")
+                .addJavadoc("}</pre>\n");
+
+        // Private constructor
+        factoryBuilder.addMethod(MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PRIVATE)
+                .build());
+
+        // Static CONTEXTS map
+        ParameterizedTypeName mapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                ClassName.get(String.class),
+                versionContextType);
+
+        // Build static initializer for CONTEXTS map
+        CodeBlock.Builder staticInit = CodeBlock.builder()
+                .addStatement("$T<$T, $T> map = new $T<>()",
+                        Map.class, String.class, versionContextType,
+                        java.util.LinkedHashMap.class);
+
+        List<String> versions = schema.getVersions();
+        for (String version : versions) {
+            String implPackage = config.getImplPackage(version);
+            String contextClass = "VersionContext" + version.substring(0, 1).toUpperCase() + version.substring(1);
+            ClassName contextClassName = ClassName.get(implPackage, contextClass);
+            staticInit.addStatement("map.put($S, $T.INSTANCE)", version, contextClassName);
+        }
+
+        staticInit.addStatement("CONTEXTS = $T.unmodifiableMap(map)", java.util.Collections.class);
+
+        // Build SUPPORTED_VERSIONS list
+        String versionsJoined = versions.stream()
+                .map(v -> "\"" + v + "\"")
+                .collect(java.util.stream.Collectors.joining(", "));
+        staticInit.addStatement("SUPPORTED_VERSIONS = $T.of($L)", List.class, versionsJoined);
+
+        // Default version is the last one (highest)
+        String defaultVersion = versions.get(versions.size() - 1);
+        staticInit.addStatement("DEFAULT_VERSION = $S", defaultVersion);
+
+        // Add fields
+        factoryBuilder.addField(FieldSpec.builder(mapType, "CONTEXTS",
+                        Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .build());
+
+        ParameterizedTypeName listType = ParameterizedTypeName.get(
+                ClassName.get(List.class),
+                ClassName.get(String.class));
+        factoryBuilder.addField(FieldSpec.builder(listType, "SUPPORTED_VERSIONS",
+                        Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .build());
+
+        factoryBuilder.addField(FieldSpec.builder(String.class, "DEFAULT_VERSION",
+                        Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .build());
+
+        // Add static initializer
+        factoryBuilder.addStaticBlock(staticInit.build());
+
+        // get(String version) method
+        factoryBuilder.addMethod(MethodSpec.methodBuilder("get")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(versionContextType)
+                .addParameter(String.class, "version")
+                .addJavadoc("Get VersionContext for the specified version.\n\n")
+                .addJavadoc("@param version Version string (e.g., \"v1\", \"v2\")\n")
+                .addJavadoc("@return VersionContext for the specified version\n")
+                .addJavadoc("@throws IllegalArgumentException if version is not supported\n")
+                .addStatement("$T ctx = CONTEXTS.get(version)", versionContextType)
+                .beginControlFlow("if (ctx == null)")
+                .addStatement("throw new $T($S + version + $S + SUPPORTED_VERSIONS)",
+                        IllegalArgumentException.class,
+                        "Unsupported version: '",
+                        "'. Supported: ")
+                .endControlFlow()
+                .addStatement("return ctx")
+                .build());
+
+        // find(String version) method
+        ParameterizedTypeName optionalType = ParameterizedTypeName.get(
+                ClassName.get(java.util.Optional.class),
+                versionContextType);
+        factoryBuilder.addMethod(MethodSpec.methodBuilder("find")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(optionalType)
+                .addParameter(String.class, "version")
+                .addJavadoc("Find VersionContext for the specified version.\n\n")
+                .addJavadoc("@param version Version string (e.g., \"v1\", \"v2\")\n")
+                .addJavadoc("@return Optional containing VersionContext, or empty if not supported\n")
+                .addStatement("return $T.ofNullable(CONTEXTS.get(version))", java.util.Optional.class)
+                .build());
+
+        // getDefault() method
+        factoryBuilder.addMethod(MethodSpec.methodBuilder("getDefault")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(versionContextType)
+                .addJavadoc("Get the default VersionContext (latest version).\n\n")
+                .addJavadoc("@return Default VersionContext\n")
+                .addStatement("return CONTEXTS.get(DEFAULT_VERSION)")
+                .build());
+
+        // supportedVersions() method
+        factoryBuilder.addMethod(MethodSpec.methodBuilder("supportedVersions")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(listType)
+                .addJavadoc("Get list of supported version strings.\n\n")
+                .addJavadoc("@return Immutable list of supported versions (e.g., [\"v1\", \"v2\"])\n")
+                .addStatement("return SUPPORTED_VERSIONS")
+                .build());
+
+        // defaultVersion() method
+        factoryBuilder.addMethod(MethodSpec.methodBuilder("defaultVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(String.class)
+                .addJavadoc("Get the default version string.\n\n")
+                .addJavadoc("@return Default version string (e.g., \"v2\")\n")
+                .addStatement("return DEFAULT_VERSION")
+                .build());
+
+        // isSupported(String version) method
+        factoryBuilder.addMethod(MethodSpec.methodBuilder("isSupported")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(String.class, "version")
+                .addJavadoc("Check if a version is supported.\n\n")
+                .addJavadoc("@param version Version string to check\n")
+                .addJavadoc("@return true if version is supported\n")
+                .addStatement("return CONTEXTS.containsKey(version)")
+                .build());
+
+        TypeSpec factorySpec = factoryBuilder.build();
+
+        return JavaFile.builder(config.getApiPackage(), factorySpec)
+                .addFileComment(GENERATED_FILE_COMMENT)
+                .indent("    ")
+                .build();
+    }
+
+    /**
+     * Generate and write VersionContextFactory.
+     *
+     * @param schema the merged schema
+     * @return the path to the generated file
+     * @throws IOException if writing fails
+     * @deprecated since 1.7.0, for removal. Factory methods are now part of VersionContext interface.
+     *             Use {@link #generateAndWriteInterface(MergedSchema)} instead.
+     */
+    @Deprecated(since = "1.7.0", forRemoval = true)
+    public Path generateAndWriteFactory(MergedSchema schema) throws IOException {
+        JavaFile javaFile = generateFactory(schema);
+        writeToFile(javaFile);
+
+        String relativePath = config.getApiPackage().replace('.', '/')
+                + "/VersionContextFactory.java";
+        return config.getOutputDirectory().resolve(relativePath);
     }
 
     /**

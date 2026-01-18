@@ -249,7 +249,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 implicit scalars: NOT nullable (return default values)")
         void proto3ImplicitScalars_notNullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             // Proto3 implicit scalars return type defaults, not null
@@ -267,7 +267,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 singular message: NULLABLE (returns null when unset)")
         void proto3SingularMessage_nullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             assertThat(msg.getSingularMessage())
@@ -281,7 +281,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 explicit optional scalars: NULLABLE (return null when unset)")
         void proto3ExplicitOptionalScalars_nullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             assertThat(msg.getOptionalInt32())
@@ -295,7 +295,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 explicit optional: can distinguish 0 from unset")
         void proto3ExplicitOptional_distinguishZeroFromUnset() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
 
             var msgWithZero = ctx.newAllFieldTypesBuilder()
                     .setOptionalInt32(0)
@@ -320,7 +320,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 oneof fields: NULLABLE (return null when not active)")
         void proto3Oneof_nullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             assertThat(msg.getOneofInt32())
@@ -337,7 +337,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 repeated fields: NOT nullable (return empty list)")
         void proto3Repeated_notNullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             assertThat(msg.getRepeatedInt32())
@@ -357,7 +357,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 map fields: NOT nullable (return empty map)")
         void proto3Map_notNullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             assertThat(msg.getStringToInt32Map())
@@ -382,7 +382,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2 required scalars: NOT nullable (return values)")
         void proto2RequiredScalars_notNullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx).build();
 
             // Required fields should return the set value
@@ -400,7 +400,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2 optional scalars: NULLABLE (return null when unset)")
         void proto2OptionalScalars_nullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx).build();
 
             assertThat(msg.getOptionalInt32())
@@ -414,7 +414,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2 optional message: NULLABLE (returns null when unset)")
         void proto2OptionalMessage_nullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx).build();
 
             assertThat(msg.getOptionalMessage())
@@ -428,7 +428,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2 repeated fields: NOT nullable (return empty list)")
         void proto2Repeated_notNullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx).build();
 
             assertThat(msg.getRepeatedInt32())
@@ -444,7 +444,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2 map fields: NOT nullable (return empty map)")
         void proto2Map_notNullable() {
-            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx).build();
 
             assertThat(msg.getStringToInt32Map())
@@ -465,7 +465,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 map: put and get works correctly")
         void proto3Map_putAndGet() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder()
                     .putStringToInt32("key1", 100)
                     .putStringToInt32("key2", 200)
@@ -481,7 +481,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 map with message value: put and get works correctly")
         void proto3MapMessage_putAndGet() {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var nested1 = ctx.newNestedMessageBuilder().setId(1).setName("first").build();
             var nested2 = ctx.newNestedMessageBuilder().setId(2).setName("second").build();
 
@@ -499,7 +499,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3 map: round trip preserves values")
         void proto3Map_roundTrip() throws Exception {
-            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var original = ctx.newAllFieldTypesBuilder()
                     .putStringToInt32("alpha", 1)
                     .putStringToInt32("beta", 2)
@@ -519,7 +519,7 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2 map: put and get works correctly")
         void proto2Map_putAndGet() {
-            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
+            var ctx = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx)
                     .putStringToInt32("key1", 100)
                     .putStringToInt32("key2", 200)
@@ -544,8 +544,8 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto3: Same contract behavior across v1 and v2")
         void proto3_sameContractAcrossVersions() {
-            var v1 = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(1);
-            var v2 = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersion(2);
+            var v1 = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
+            var v2 = space.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v2");
 
             var msgV1 = v1.newAllFieldTypesBuilder().build();
             var msgV2 = v2.newAllFieldTypesBuilder().build();
@@ -567,8 +567,8 @@ class ContractMatrixRuntimeTest {
         @Test
         @DisplayName("Proto2: Same contract behavior across v1 and v2")
         void proto2_sameContractAcrossVersions() {
-            var v1 = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(1);
-            var v2 = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersion(2);
+            var v1 = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
+            var v2 = space.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v2");
 
             var msgV1 = buildProto2WithRequiredFields(v1).build();
             var msgV2 = buildProto2WithRequiredFields(v2).build();

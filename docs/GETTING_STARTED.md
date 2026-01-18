@@ -311,8 +311,8 @@ public class Main {
                 .setStatus(1)  // COMPLETED as int
                 .build();
 
-        // Get version context for v1
-        VersionContext ctx = VersionContext.forVersion(1);
+        // Get version context for v1 (recommended String-based API)
+        VersionContext ctx = VersionContext.forVersionId("v1");
 
         // Wrap the proto - now you have a version-agnostic interface
         Order order = ctx.wrapOrder(v1Proto);
@@ -410,12 +410,17 @@ Proto Wrapper automatically handles type differences:
 Use `VersionContext` to:
 - Wrap proto messages: `ctx.wrapOrder(proto)`
 - Create new builders: `ctx.newOrderBuilder()`
-- Get version info: `ctx.getVersionNumber()`
+- Get version info: `ctx.getVersionId()` (returns `"v1"`, `"v2"`, etc.)
 
 ```java
-// Get context for specific version
-VersionContext v1Ctx = VersionContext.forVersion(1);
-VersionContext v2Ctx = VersionContext.forVersion(2);
+// Get context for specific version (recommended String-based API)
+VersionContext v1Ctx = VersionContext.forVersionId("v1");
+VersionContext v2Ctx = VersionContext.forVersionId("v2");
+
+// Other useful static methods on VersionContext
+Optional<VersionContext> maybeCtx = VersionContext.find("v1");
+VersionContext defaultCtx = VersionContext.getDefault();
+List<String> versions = VersionContext.supportedVersions();
 
 // Wrap protos from different versions
 Order orderFromV1 = v1Ctx.wrapOrder(v1Proto);

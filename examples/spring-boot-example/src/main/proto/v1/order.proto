@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+package com.example.demo.api.v1;
+
+option java_package = "com.example.demo.api.v1";
+option java_outer_classname = "Order";
+
+message OrderData {
+    required string id = 1;
+    required string customer_name = 2;
+    repeated OrderItem items = 3;
+    required double total = 4;
+}
+
+message OrderItem {
+    required string product_id = 1;
+    required string name = 2;
+    required int32 quantity = 3;
+    required double price = 4;
+}
+
+message CreateOrderRequest {
+    required string customer_name = 1;
+    repeated OrderItem items = 2;
+}
+
+message CreateOrderResponse {
+    required OrderData order = 1;
+}
