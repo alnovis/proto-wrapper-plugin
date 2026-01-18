@@ -16,8 +16,8 @@ import java.util.Set;
  * ErrorContext context = ErrorContext.builder()
  *     .messageType("Order")
  *     .fieldPath("items[].product.name")
- *     .version("v203")
- *     .addDetail("availableVersions", List.of("v201", "v202"))
+ *     .version("v3")
+ *     .addDetail("availableVersions", List.of("v1", "v2"))
  *     .build();
  * }</pre>
  */
@@ -114,7 +114,7 @@ public final class ErrorContext {
     }
 
     /**
-     * Returns the protocol version (e.g., "v203").
+     * Returns the protocol version (e.g., "v3").
      *
      * @return the protocol version
      */
@@ -183,7 +183,7 @@ public final class ErrorContext {
     /**
      * Returns a human-readable location string for error messages.
      *
-     * @return location string (e.g., "Order.items[]" or "Order (v203)")
+     * @return location string (e.g., "Order.items[]" or "Order (v3)")
      */
     public String getLocation() {
         StringBuilder sb = new StringBuilder();

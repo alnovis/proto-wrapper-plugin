@@ -63,7 +63,7 @@ public class ProtoWrapperGenerator extends BaseGenerator<Void> {
      * @return Generated JavaFile
      */
     public JavaFile generate() {
-        // Extract numeric version examples from version identifiers (e.g., "v1" -> "1", "v202" -> "202")
+        // Extract numeric version examples from version identifiers (e.g., "v1" -> "1", "v2" -> "2")
         String versionExamples = versions.stream()
                 .map(v -> v.replaceAll("[^0-9]", ""))
                 .filter(s -> !s.isEmpty())

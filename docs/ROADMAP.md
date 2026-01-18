@@ -17,6 +17,7 @@ This document outlines the development roadmap for upcoming releases.
 - [Version 1.6.0](#version-160) - Incremental Generation (Completed)
 - [Version 1.6.5](#version-165) - Embedded Protoc (Completed)
 - [Version 1.6.6](#version-166) - ProtoWrapper Interface (Completed)
+- [Version 1.6.7](#version-167) - Spring Boot Starter (Core)
 - [Version 1.7.0](#version-170) - Parallel Generation
 - [Version 1.8.0](#version-180) - Per-version Proto Syntax
 - [Version 1.9.0](#version-190) - Validation Annotations
@@ -531,6 +532,243 @@ processAnyWrapper(customer);
 
 - No breaking changes
 - New interface is additive
+
+---
+
+## Version 1.6.7
+
+**Target:** Feb 2026
+**Theme:** Spring Boot Starter (Core)
+
+### Feature: Spring Boot Auto-Configuration (Core)
+
+**Priority:** High
+**Complexity:** Medium
+
+#### Description
+
+Basic Spring Boot Starter providing auto-configuration, properties binding, exception handling, and request-scoped VersionContext. This enables immediate integration with Spring applications during KZ project migration to plugin-generated wrappers.
+
+#### Motivation
+
+Early release of core Spring Boot integration to:
+- Enable empirical testing during KZ project migration
+- Gather feedback before v204 protocol release
+- Provide foundation for advanced features in v2.1.0
+
+#### Components
+
+| Component | Description |
+|-----------|-------------|
+| **ProtoWrapperProperties** | @ConfigurationProperties for application.yml binding |
+| **ProtoWrapperAutoConfiguration** | Auto-configuration with conditional beans |
+| **RequestScopedVersionContext** | Per-request VersionContext using @RequestScope |
+| **VersionContextRequestFilter** | HTTP filter extracting version from headers |
+| **ProtoWrapperExceptionHandler** | @ControllerAdvice for unified error handling |
+
+#### Configuration
+
+```yaml
+# application.yml
+proto-wrapper:
+  base-package: com.example.model.api
+  versions:
+    - v1
+    - v2
+    - v3
+  default-version: v2
+  version-header: X-Protocol-Version
+  request-scoped: true
+  exception-handling: true
+```
+
+#### Generated Code Example
+
+```java
+@ConfigurationProperties(prefix = "proto-wrapper")
+public class ProtoWrapperProperties {
+    private String basePackage;
+    private List<String> versions = List.of();
+    private String defaultVersion;
+    private String versionHeader = "X-Protocol-Version";
+    private boolean requestScoped = true;
+    private boolean exceptionHandling = true;
+    // getters/setters
+}
+```
+
+```java
+@AutoConfiguration
+@ConditionalOnClass(VersionContext.class)
+@EnableConfigurationProperties(ProtoWrapperProperties.class)
+public class ProtoWrapperAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    public VersionContextProvider versionContextProvider(ProtoWrapperProperties props) {
+        return new ReflectiveVersionContextProvider(props.getBasePackage(), props.getVersions());
+    }
+
+    @Bean
+    @RequestScope
+    @ConditionalOnProperty(name = "proto-wrapper.request-scoped", havingValue = "true", matchIfMissing = true)
+    public RequestScopedVersionContext requestScopedVersionContext() {
+        return new RequestScopedVersionContext();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "proto-wrapper.request-scoped", havingValue = "true", matchIfMissing = true)
+    public FilterRegistrationBean<VersionContextRequestFilter> versionContextFilter(
+            RequestScopedVersionContext ctx, VersionContextProvider provider, ProtoWrapperProperties props) {
+        FilterRegistrationBean<VersionContextRequestFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new VersionContextRequestFilter(ctx, provider, props));
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        return registration;
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "proto-wrapper.exception-handling", havingValue = "true", matchIfMissing = true)
+    public ProtoWrapperExceptionHandler protoWrapperExceptionHandler() {
+        return new ProtoWrapperExceptionHandler();
+    }
+}
+```
+
+#### Usage Example
+
+```java
+@RestController
+@RequestMapping("/api/orders")
+public class OrderController {
+
+    private final RequestScopedVersionContext versionContext;
+
+    public OrderController(RequestScopedVersionContext versionContext) {
+        this.versionContext = versionContext;
+    }
+
+    @PostMapping
+    public Order createOrder(@RequestBody byte[] protoBytes) {
+        // VersionContext automatically set from X-Protocol-Version header
+        return versionContext.get().wrapOrder(protoBytes);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<byte[]> getOrder(@PathVariable String id) {
+        Order order = orderService.findById(id);
+        return ResponseEntity.ok()
+            .header("X-Protocol-Version", String.valueOf(order.getWrapperVersion()))
+            .body(order.toBytes());
+    }
+}
+```
+
+#### Exception Handling
+
+```java
+@ControllerAdvice
+public class ProtoWrapperExceptionHandler {
+
+    @ExceptionHandler(VersionNotSupportedException.class)
+    public ResponseEntity<ProtoWrapperErrorResponse> handleVersionNotSupported(
+            VersionNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ProtoWrapperErrorResponse(
+                "VERSION_NOT_SUPPORTED",
+                ex.getMessage(),
+                Map.of("requestedVersion", ex.getRequestedVersion(),
+                       "supportedVersions", ex.getSupportedVersions())
+            ));
+    }
+
+    @ExceptionHandler(ConversionException.class)
+    public ResponseEntity<ProtoWrapperErrorResponse> handleConversionError(
+            ConversionException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+            .body(new ProtoWrapperErrorResponse(
+                "CONVERSION_ERROR",
+                ex.getMessage(),
+                Map.of("sourceVersion", ex.getSourceVersion(),
+                       "targetVersion", ex.getTargetVersion())
+            ));
+    }
+
+    @ExceptionHandler(ProtoWrapperException.class)
+    public ResponseEntity<ProtoWrapperErrorResponse> handleGenericError(
+            ProtoWrapperException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(new ProtoWrapperErrorResponse(
+                "PROTO_WRAPPER_ERROR",
+                ex.getMessage(),
+                Collections.emptyMap()
+            ));
+    }
+}
+
+public record ProtoWrapperErrorResponse(
+    String errorCode,
+    String message,
+    Map<String, Object> details
+) {}
+```
+
+#### Module Structure
+
+```
+proto-wrapper-spring-boot-starter/
+├── src/main/java/
+│   └── space/alnovis/protowrapper/spring/
+│       ├── ProtoWrapperAutoConfiguration.java
+│       ├── ProtoWrapperProperties.java
+│       ├── RequestScopedVersionContext.java
+│       ├── VersionContextRequestFilter.java
+│       ├── VersionContextProvider.java
+│       ├── ReflectiveVersionContextProvider.java
+│       ├── ProtoWrapperExceptionHandler.java
+│       └── ProtoWrapperErrorResponse.java
+├── src/main/resources/
+│   └── META-INF/
+│       └── spring/
+│           └── org.springframework.boot.autoconfigure.AutoConfiguration.imports
+└── pom.xml
+
+examples/spring-boot-example/
+├── src/main/java/
+│   └── com/example/demo/
+│       ├── DemoApplication.java
+│       ├── controller/
+│       │   └── OrderController.java
+│       └── service/
+│           └── OrderService.java
+├── src/main/resources/
+│   ├── application.yml
+│   └── proto/
+│       ├── v1/order.proto
+│       └── v2/order.proto
+├── src/test/java/
+│   └── com/example/demo/
+│       └── OrderControllerTest.java
+└── pom.xml
+```
+
+#### Acceptance Criteria
+
+- [ ] ProtoWrapperProperties with all configuration options
+- [ ] Auto-configuration with conditional beans
+- [ ] RequestScopedVersionContext component
+- [ ] VersionContextRequestFilter for HTTP header extraction
+- [ ] ProtoWrapperExceptionHandler with handlers for all exceptions
+- [ ] Integration tests with Spring Boot 3.x
+- [ ] Example project in examples/spring-boot-example/
+- [ ] Documentation and examples
+
+### Migration Notes
+
+- No breaking changes
+- New optional module
+- Requires Spring Boot 3.0+
+- Advanced features (actuator, metrics) planned for v2.1.0
 
 ---
 
@@ -1154,101 +1392,48 @@ GeneratorConfig config = GeneratorConfig.builder()
 ## Version 2.1.0
 
 **Target:** Aug 2026
-**Theme:** Spring Boot Starter
+**Theme:** Spring Boot Starter (Advanced)
 
-### Feature: Spring Boot Auto-Configuration
+### Feature: Spring Boot Advanced Features
 
-**Priority:** High
+**Priority:** Medium
 **Complexity:** Medium
 
 #### Description
 
-Provide a Spring Boot Starter for seamless integration with Spring applications. Auto-configure VersionContext beans, enable property-based configuration, and integrate with Spring's dependency injection.
+Advanced Spring Boot integration features building on the core starter from v1.6.7. Adds Actuator health indicator, Micrometer metrics, @Qualifier support for specific version injection, and enhanced monitoring capabilities.
 
-#### Problem
+> **Note:** Core Spring Boot Starter functionality (auto-configuration, properties, exception handling, request-scoped context) was released in v1.6.7 to enable early adoption during KZ project migration.
 
-Current Spring integration requires manual bean configuration:
+#### Prerequisites
 
-```java
-@Configuration
-public class ProtoWrapperConfig {
-    @Bean
-    public VersionContext versionContext() {
-        return new VersionContextV202();  // Hardcoded version
-    }
-}
-```
+- proto-wrapper-spring-boot-starter v1.6.7+ (core functionality)
+- Spring Boot 3.0+
+- Spring Boot Actuator (optional, for health/metrics)
 
-#### Solution
+#### Features (v2.1.0 additions)
 
-Spring Boot Starter with auto-configuration:
+| Feature | Description |
+|---------|-------------|
+| **Health indicator** | Actuator endpoint for version info |
+| **Metrics** | Micrometer metrics for wrapper usage |
+| **@Qualifier injection** | Inject specific versions by qualifier |
+| **Version statistics** | Track wrapper usage by type and version |
+| **Named beans** | Register each version as a named bean |
 
-```yaml
-# application.yml
-proto-wrapper:
-  default-version: v202
-  versions:
-    v201:
-      enabled: true
-    v202:
-      enabled: true
-      default: true
-    v203:
-      enabled: true
-```
+#### @Qualifier Support
 
 ```java
 @Service
 public class OrderService {
     @Autowired
-    private VersionContext versionContext;  // Auto-injected
+    private VersionContext versionContext;  // Default version
 
     @Autowired
-    @Qualifier("v203")
-    private VersionContext v203Context;  // Specific version
+    @Qualifier("v3")
+    private VersionContext v3Context;  // Specific version
 }
 ```
-
-#### Generated Code
-
-```java
-// Auto-generated Spring configuration
-@Configuration
-@ConditionalOnClass(VersionContext.class)
-@EnableConfigurationProperties(ProtoWrapperProperties.class)
-public class ProtoWrapperAutoConfiguration {
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "proto-wrapper.default-version", havingValue = "v202")
-    public VersionContext defaultVersionContext() {
-        return new VersionContextV202();
-    }
-
-    @Bean("v201")
-    @ConditionalOnProperty(name = "proto-wrapper.versions.v201.enabled", havingValue = "true")
-    public VersionContext v201Context() {
-        return new VersionContextV201();
-    }
-
-    @Bean("v202")
-    @ConditionalOnProperty(name = "proto-wrapper.versions.v202.enabled", havingValue = "true")
-    public VersionContext v202Context() {
-        return new VersionContextV202();
-    }
-}
-```
-
-#### Features
-
-| Feature | Description |
-|---------|-------------|
-| Auto-configuration | Zero-config setup with sensible defaults |
-| Version selection | Property-based default version |
-| Multiple versions | Inject specific versions via @Qualifier |
-| Health indicator | Actuator endpoint for version info |
-| Metrics | Micrometer metrics for wrapper usage |
-| Conditional beans | Enable/disable versions via properties |
 
 #### Actuator Endpoint
 
@@ -1256,8 +1441,8 @@ public class ProtoWrapperAutoConfiguration {
 GET /actuator/proto-wrapper
 
 {
-  "defaultVersion": "v202",
-  "availableVersions": ["v201", "v202", "v203"],
+  "defaultVersion": "v2",
+  "availableVersions": ["v1", "v2", "v3"],
   "wrapperStats": {
     "totalWrapped": 15420,
     "byType": {
@@ -1269,49 +1454,73 @@ GET /actuator/proto-wrapper
 }
 ```
 
-#### Module Structure
+#### Micrometer Metrics
+
+```
+proto_wrapper_wrap_total{type="Order",version="v2"} 5230
+proto_wrapper_wrap_total{type="Payment",version="v2"} 4120
+proto_wrapper_wrap_duration_seconds{type="Order",quantile="0.95"} 0.002
+proto_wrapper_conversion_errors_total{from="v1",to="v3"} 12
+```
+
+#### Additional Components
 
 ```
 proto-wrapper-spring-boot-starter/
 ├── src/main/java/
 │   └── space/alnovis/protowrapper/spring/
-│       ├── ProtoWrapperAutoConfiguration.java
-│       ├── ProtoWrapperProperties.java
-│       ├── ProtoWrapperHealthIndicator.java
-│       └── ProtoWrapperMetrics.java
-├── src/main/resources/
-│   └── META-INF/
-│       └── spring.factories
+│       ├── ... (core from v1.6.7)
+│       ├── ProtoWrapperHealthIndicator.java    # v2.1.0
+│       ├── ProtoWrapperMetrics.java            # v2.1.0
+│       ├── VersionBeanRegistrar.java           # v2.1.0
+│       └── actuator/
+│           ├── ProtoWrapperEndpoint.java       # v2.1.0
+│           └── ProtoWrapperEndpointAutoConfiguration.java
 └── pom.xml
 ```
 
 #### Configuration
 
-```xml
-<!-- User's pom.xml -->
-<dependency>
-    <groupId>space.alnovis</groupId>
-    <artifactId>proto-wrapper-spring-boot-starter</artifactId>
-    <version>2.1.0</version>
-</dependency>
+```yaml
+# application.yml
+proto-wrapper:
+  # Core settings (v1.6.7)
+  base-package: com.example.model.api
+  versions:
+    - v1
+    - v2
+    - v3
+  default-version: v2
+
+  # Advanced settings (v2.1.0)
+  actuator:
+    enabled: true
+    endpoint-id: proto-wrapper
+  metrics:
+    enabled: true
+    prefix: proto_wrapper
+    track-by-type: true
+    track-by-version: true
+  qualifier-injection:
+    enabled: true
 ```
 
 #### Acceptance Criteria
 
-- [ ] Auto-configuration for VersionContext beans
-- [ ] Property-based version selection
-- [ ] @Qualifier support for specific versions
-- [ ] Spring Boot 3.x compatibility
+- [ ] @Qualifier support for version-specific injection
 - [ ] Actuator health indicator
 - [ ] Micrometer metrics integration
-- [ ] Conditional bean creation
+- [ ] Custom actuator endpoint
+- [ ] Named bean registration for each version
+- [ ] Usage statistics tracking
 - [ ] Documentation and examples
 
 ### Migration Notes
 
 - No breaking changes
-- New optional module
-- Requires Spring Boot 3.0+
+- Builds on v1.6.7 core starter
+- Actuator/metrics features are optional
+- Requires Spring Boot Actuator for health/metrics features
 
 ---
 
@@ -1350,7 +1559,7 @@ plugins:
     opt:
       - basePackage=com.example.model
       - generateBuilders=true
-      - versions=v201,v202,v203
+      - versions=v1,v2,v3
 ```
 
 ```bash
@@ -1365,8 +1574,8 @@ buf generate
 version: v1
 deps:
   - buf.build/googleapis/googleapis
-  - buf.build/alnovis/kkm-proto:v202  # Your versioned schemas
-  - buf.build/alnovis/kkm-proto:v203
+  - buf.build/example/my-proto:v2  # Your versioned schemas
+  - buf.build/example/my-proto:v3
 ```
 
 ```java
@@ -1374,8 +1583,8 @@ deps:
 protoWrapper {
     bsr {
         modules = [
-            "buf.build/alnovis/kkm-proto:v202",
-            "buf.build/alnovis/kkm-proto:v203"
+            "buf.build/example/my-proto:v2",
+            "buf.build/example/my-proto:v3"
         ]
     }
 }
@@ -1504,8 +1713,8 @@ public class OrderService {
     VersionContext versionContext;
 
     @Inject
-    @ProtoVersion("v203")
-    VersionContext v203Context;
+    @ProtoVersion("v3")
+    VersionContext v3Context;
 
     public Order processOrder(byte[] protoBytes) {
         return versionContext.wrapOrder(protoBytes);
@@ -1517,10 +1726,10 @@ public class OrderService {
 
 ```properties
 # application.properties
-quarkus.proto-wrapper.default-version=v202
-quarkus.proto-wrapper.versions.v201.enabled=true
-quarkus.proto-wrapper.versions.v202.enabled=true
-quarkus.proto-wrapper.versions.v203.enabled=true
+quarkus.proto-wrapper.default-version=v2
+quarkus.proto-wrapper.versions.v1.enabled=true
+quarkus.proto-wrapper.versions.v2.enabled=true
+quarkus.proto-wrapper.versions.v3.enabled=true
 ```
 
 #### Native Image Support
@@ -1531,8 +1740,8 @@ quarkus.proto-wrapper.versions.v203.enabled=true
 ReflectiveClassBuildItem registerForReflection() {
     return new ReflectiveClassBuildItem(true, true,
         "com.example.model.api.Order",
-        "com.example.model.v201.OrderV201",
-        "com.example.model.v202.OrderV202"
+        "com.example.model.v1.OrderV201",
+        "com.example.model.v2.OrderV202"
     );
 }
 ```
@@ -1640,8 +1849,8 @@ type OrderBuilder interface {
 ```
 
 ```go
-// v202/order_v202.go - Version implementation
-package v202
+// v2/order_v2.go - Version implementation
+package v2
 
 type OrderV202 struct {
     proto *pb.Order
@@ -1652,7 +1861,7 @@ func (o *OrderV202) GetOrderId() string {
 }
 
 func (o *OrderV202) GetTotalAmount() int64 {
-    // Widening: v201 has int32, v202 has int64
+    // Widening: v1 has int32, v2 has int64
     return o.proto.GetTotalAmount()
 }
 
@@ -1668,11 +1877,11 @@ package main
 
 import (
     "github.com/example/model/api"
-    "github.com/example/model/v202"
+    "github.com/example/model/v2"
 )
 
 func main() {
-    ctx := v202.NewVersionContext()
+    ctx := v2.NewVersionContext()
 
     // Wrap any version
     order := ctx.WrapOrder(protoBytes)
@@ -1732,14 +1941,14 @@ plugins:
     out: gen/go
     opt:
       - module=github.com/example/model
-      - versions=v201,v202,v203
+      - versions=v1,v2,v3
 ```
 
 ```bash
 # Or standalone
 protoc --proto-wrapper-go_out=. \
        --proto-wrapper-go_opt=module=github.com/example/model \
-       proto/v201/*.proto proto/v202/*.proto
+       proto/v1/*.proto proto/v2/*.proto
 ```
 
 #### Implementation Phases
@@ -1807,27 +2016,34 @@ A centralized, language-agnostic schema registry that stores versioned proto sch
 
 #### Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Schema Registry                          │
-├─────────────────────────────────────────────────────────────┤
-│  REST API                                                   │
-│  ┌─────────────┬─────────────┬─────────────┬──────────────┐│
-│  │ /schemas    │ /versions   │ /conflicts  │ /generate    ││
-│  └─────────────┴─────────────┴─────────────┴──────────────┘│
-├─────────────────────────────────────────────────────────────┤
-│  Schema Analyzer                                            │
-│  ┌─────────────┬─────────────┬─────────────┐               │
-│  │ Parser      │ Merger      │ Conflict    │               │
-│  │             │             │ Detector    │               │
-│  └─────────────┴─────────────┴─────────────┘               │
-├─────────────────────────────────────────────────────────────┤
-│  Storage                                                    │
-│  ┌─────────────┬─────────────┐                             │
-│  │ Proto Files │ Metadata    │                             │
-│  │ (S3/GCS)    │ (PostgreSQL)│                             │
-│  └─────────────┴─────────────┘                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    subgraph Registry["Schema Registry"]
+        direction LR
+        subgraph API["REST API"]
+            direction TB
+            E1["/schemas"]
+            E2["/versions"]
+            E3["/conflicts"]
+            E4["/generate"]
+        end
+
+        subgraph Analyzer["Schema Analyzer"]
+            direction TB
+            Parser
+            Merger
+            ConflictDetector["Conflict Detector"]
+        end
+
+        subgraph Storage
+            direction TB
+            ProtoFiles["Proto Files<br/>(S3/GCS)"]
+            Metadata["Metadata<br/>(PostgreSQL)"]
+        end
+    end
+
+    API --> Analyzer
+    Analyzer --> Storage
 ```
 
 #### REST API
@@ -1837,8 +2053,8 @@ A centralized, language-agnostic schema registry that stores versioned proto sch
 GET /api/v1/schemas
 {
   "schemas": [
-    {"name": "Order", "versions": ["v201", "v202", "v203"]},
-    {"name": "Payment", "versions": ["v201", "v202"]}
+    {"name": "Order", "versions": ["v1", "v2", "v3"]},
+    {"name": "Payment", "versions": ["v1", "v2"]}
   ]
 }
 
@@ -1847,18 +2063,18 @@ GET /api/v1/schemas/Order
 {
   "name": "Order",
   "versions": {
-    "v201": {"fields": 12, "lastModified": "2026-01-15"},
-    "v202": {"fields": 15, "lastModified": "2026-03-20"},
-    "v203": {"fields": 18, "lastModified": "2026-06-10"}
+    "v1": {"fields": 12, "lastModified": "2026-01-15"},
+    "v2": {"fields": 15, "lastModified": "2026-03-20"},
+    "v3": {"fields": 18, "lastModified": "2026-06-10"}
   },
   "conflicts": [
-    {"field": "paymentType", "type": "INT_ENUM", "versions": ["v201", "v202"]},
-    {"field": "totalAmount", "type": "WIDENING", "versions": ["v201", "v202", "v203"]}
+    {"field": "paymentType", "type": "INT_ENUM", "versions": ["v1", "v2"]},
+    {"field": "totalAmount", "type": "WIDENING", "versions": ["v1", "v2", "v3"]}
   ]
 }
 
 # Get conflicts between versions
-GET /api/v1/schemas/Order/conflicts?from=v201&to=v203
+GET /api/v1/schemas/Order/conflicts?from=v1&to=v3
 {
   "breaking": [
     {"type": "FIELD_REMOVED", "field": "legacyId", "severity": "ERROR"}
@@ -1872,7 +2088,7 @@ GET /api/v1/schemas/Order/conflicts?from=v201&to=v203
 POST /api/v1/generate
 {
   "schemas": ["Order", "Payment"],
-  "versions": ["v202", "v203"],
+  "versions": ["v2", "v3"],
   "language": "java",
   "options": {"generateBuilders": true}
 }
@@ -1887,24 +2103,15 @@ Response:
 
 #### Web UI
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Proto Wrapper Schema Registry                    [Search]  │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Schemas (15)                    Versions                   │
-│  ┌────────────────────┐         ┌────────────────────────┐ │
-│  │ ▶ Order           │  ────▶  │ v201  v202  v203       │ │
-│  │   Payment         │         │                        │ │
-│  │   Customer        │         │ Conflicts: 3           │ │
-│  │   Product         │         │ • paymentType: INT_ENUM│ │
-│  │   ...             │         │ • amount: WIDENING     │ │
-│  └────────────────────┘         └────────────────────────┘ │
-│                                                             │
-│  [Compare Versions]  [Generate Wrappers]  [Download Proto]  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+The registry includes a web interface for browsing schemas:
+
+| Panel | Description |
+|-------|-------------|
+| **Schema List** | Browsable list of all registered schemas (Order, Payment, Customer, etc.) |
+| **Version Details** | Available versions (v1, v2, v3) with field counts and timestamps |
+| **Conflict View** | Visual display of detected conflicts (INT_ENUM, WIDENING, etc.) |
+| **Actions** | Compare Versions, Generate Wrappers, Download Proto |
+| **Search** | Full-text search across schemas and fields |
 
 #### Docker Deployment
 
@@ -1938,14 +2145,14 @@ services:
 proto-wrapper registry push \
   --url https://registry.example.com \
   --schema Order \
-  --version v203 \
-  proto/v203/order.proto
+  --version v3 \
+  proto/v3/order.proto
 
 # Pull and generate
 proto-wrapper registry generate \
   --url https://registry.example.com \
   --schemas Order,Payment \
-  --versions v202,v203 \
+  --versions v2,v3 \
   --language go \
   --output gen/
 ```
@@ -2000,13 +2207,13 @@ Generate OpenAPI 3.x specifications from versioned proto schemas, enabling REST 
 openapi: 3.0.3
 info:
   title: Order API
-  version: v202
+  version: v2
   description: |
     Version-agnostic API generated from proto schemas.
-    Supports versions: v201, v202, v203
+    Supports versions: v1, v2, v3
 
 paths:
-  /api/v202/orders:
+  /api/v2/orders:
     post:
       summary: Create Order
       operationId: createOrder
@@ -2022,7 +2229,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Order'
 
-  /api/v202/orders/{orderId}:
+  /api/v2/orders/{orderId}:
     get:
       summary: Get Order
       parameters:
@@ -2052,16 +2259,16 @@ components:
           format: int64
           description: |
             Total amount in cents.
-            Note: Widened from int32 in v201 to int64 in v202+
+            Note: Widened from int32 in v1 to int64 in v2+
         paymentType:
           oneOf:
             - type: integer
-              description: Legacy int value (v201)
+              description: Legacy int value (v1)
             - $ref: '#/components/schemas/PaymentType'
           description: |
             Payment type. INT_ENUM conflict:
-            - v201: integer (1=CASH, 2=CARD)
-            - v202+: PaymentType enum
+            - v1: integer (1=CASH, 2=CARD)
+            - v2+: PaymentType enum
 
     PaymentType:
       type: string
@@ -2081,14 +2288,14 @@ components:
             type: INT_ENUM
             description: |
               This field has different types across versions:
-              - v201: int32 (1=CASH, 2=CARD, 3=CRYPTO)
-              - v202+: PaymentType enum
+              - v1: int32 (1=CASH, 2=CARD, 3=CRYPTO)
+              - v2+: PaymentType enum
             accessors:
               integer: getPaymentTypeInt()
               enum: getPaymentType()
           - field: totalAmount
             type: WIDENING
-            description: Widened from int32 to int64 in v202
+            description: Widened from int32 to int64 in v2
 ```
 
 #### Configuration
@@ -2116,7 +2323,7 @@ mvn proto-wrapper:openapi
 
 # Or via CLI
 proto-wrapper openapi \
-  --versions v201,v202,v203 \
+  --versions v1,v2,v3 \
   --output openapi.yaml \
   proto/
 ```
@@ -2133,7 +2340,7 @@ public class OpenApiConfig {
             VersionContextV202.class,
             OpenApiConfig.builder()
                 .title("Order API")
-                .version("v202")
+                .version("v2")
                 .build()
         );
     }
@@ -2278,13 +2485,14 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 | 1.6.0 | Incremental Generation | Released (2026-01-05) |
 | 1.6.5 | Embedded Protoc (Zero-Install) | Released (2026-01-14) |
 | 1.6.6 | ProtoWrapper Interface | Released (2026-01-16) |
-| 1.7.0 | Parallel Generation | Planned (Feb 2026) |
+| 1.6.7 | Spring Boot Starter (Core) | Planned (Feb 2026) |
+| 1.7.0 | Parallel Generation | Planned (Mar 2026) |
 | 1.8.0 | Per-version Proto Syntax | Planned (Mar 2026) |
 | 1.9.0 | Validation Annotations | Planned (Apr 2026) |
 | 1.10.0 | Kotlin Extensions | Planned (May 2026) |
 | 1.11.0 | Service/RPC Wrappers | Planned (Jun 2026) |
 | 2.0.0 | API Cleanup (Breaking) | Planned (Jul 2026) |
-| 2.1.0 | Spring Boot Starter | Planned (Aug 2026) |
+| 2.1.0 | Spring Boot Starter (Advanced) | Planned (Aug 2026) |
 | 2.2.0 | buf.build Integration | Planned (Sep 2026) |
 | 2.3.0 | Quarkus Extension | Planned (Oct 2026) |
 | 3.0.0 | Go Support | Planned (Q1 2027) |

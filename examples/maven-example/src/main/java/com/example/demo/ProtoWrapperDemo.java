@@ -27,12 +27,18 @@ public class ProtoWrapperDemo {
      * Demonstrates using VersionContext for runtime version selection.
      */
     public void demonstrateVersionContext() {
-        // Get VersionContext for specific version
-        VersionContext v1Context = VersionContext.forVersion(1);
-        VersionContext v2Context = VersionContext.forVersion(2);
+        // Get VersionContext for specific version (recommended String-based API)
+        VersionContext v1Context = VersionContext.forVersionId("v1");
+        VersionContext v2Context = VersionContext.forVersionId("v2");
 
-        System.out.println("V1 Context version: " + v1Context.getVersion());
-        System.out.println("V2 Context version: " + v2Context.getVersion());
+        System.out.println("V1 Context version: " + v1Context.getVersionId());
+        System.out.println("V2 Context version: " + v2Context.getVersionId());
+
+        // Other useful static methods on VersionContext
+        // VersionContext.find("v1")           -> Optional<VersionContext>
+        // VersionContext.getDefault()         -> VersionContext (latest version)
+        // VersionContext.supportedVersions()  -> List<String>
+        // VersionContext.isSupported("v1")    -> boolean
 
         // Use context to wrap proto messages
         // Money protoMoney = ...; // from deserialization
@@ -223,9 +229,9 @@ public class ProtoWrapperDemo {
      *
      * <p>Process messages without knowing their version at compile time.</p>
      */
-    public void demonstratePolymorphicUsage(int version, Message protoOrder) {
-        // Get the appropriate VersionContext
-        VersionContext ctx = VersionContext.forVersion(version);
+    public void demonstratePolymorphicUsage(String versionId, Message protoOrder) {
+        // Get the appropriate VersionContext using String identifier
+        VersionContext ctx = VersionContext.forVersionId(versionId);
 
         // Wrap the proto message - works for any version
         OrderResponse order = ctx.wrapOrderResponse(protoOrder);

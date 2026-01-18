@@ -42,7 +42,7 @@ class RoundTripTest {
             Order.OrderItem parsed = Order.OrderItem.parseFrom(originalBytes);
 
             // Wrap with version context
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             OrderItem wrapper = ctx.wrapOrderItem(parsed);
 
             // Serialize via wrapper
@@ -80,7 +80,7 @@ class RoundTripTest {
             byte[] bytes = original.toByteArray();
             Order.OrderItem parsed = Order.OrderItem.parseFrom(bytes);
 
-            OrderItem wrapper = VersionContext.forVersion(1).wrapOrderItem(parsed);
+            OrderItem wrapper = VersionContext.forVersionId("v1").wrapOrderItem(parsed);
 
             // Verify all fields readable
             assertThat(wrapper.getProductId()).isEqualTo("SKU-123");
@@ -119,7 +119,7 @@ class RoundTripTest {
                     .build();
 
             // Wrap original
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             OrderItem wrapper = ctx.wrapOrderItem(original);
             assertThat(wrapper.getQuantity()).isEqualTo(1);
 
@@ -157,7 +157,7 @@ class RoundTripTest {
                             .build())
                     .build();
 
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             OrderItem wrapper = ctx.wrapOrderItem(original);
             assertThat(wrapper.hasNotes()).isFalse();
 
@@ -195,7 +195,7 @@ class RoundTripTest {
                             .build())
                     .build();
 
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
             OrderItem wrapper = ctx.wrapOrderItem(original);
             assertThat(wrapper.getDiscount().getValue()).isEqualTo(5);
 
@@ -242,7 +242,7 @@ class RoundTripTest {
                     com.example.proto.v2.Common.Money.parseFrom(bytes);
 
             // Wrap with V2 context
-            Money wrapper = VersionContext.forVersion(2).wrapMoney(v2Parsed);
+            Money wrapper = VersionContext.forVersionId("v2").wrapMoney(v2Parsed);
 
             // V1 fields present
             assertThat(wrapper.getAmount()).isEqualTo(5000);
@@ -270,7 +270,7 @@ class RoundTripTest {
             // Parse and wrap
             com.example.proto.v2.Common.Money parsed =
                     com.example.proto.v2.Common.Money.parseFrom(bytes);
-            Money wrapper = VersionContext.forVersion(2).wrapMoney(parsed);
+            Money wrapper = VersionContext.forVersionId("v2").wrapMoney(parsed);
 
             // All fields present
             assertThat(wrapper.getAmount()).isEqualTo(10000);
@@ -337,7 +337,7 @@ class RoundTripTest {
 
             // Parse and wrap
             Invoice.InvoiceDocument parsed = Invoice.InvoiceDocument.parseFrom(bytes);
-            InvoiceDocument wrapper = VersionContext.forVersion(1).wrapInvoiceDocument(parsed);
+            InvoiceDocument wrapper = VersionContext.forVersionId("v1").wrapInvoiceDocument(parsed);
 
             // Verify all nested levels
             assertThat(wrapper.getInvoiceNumber()).isEqualTo("INV-2024-001");
@@ -381,8 +381,8 @@ class RoundTripTest {
                     com.example.proto.v2.Common.Money.newBuilder()
                             .setAmount(200).setCurrency("EUR").build();
 
-            Money v1Wrapper = VersionContext.forVersion(1).wrapMoney(v1Proto);
-            Money v2Wrapper = VersionContext.forVersion(2).wrapMoney(v2Proto);
+            Money v1Wrapper = VersionContext.forVersionId("v1").wrapMoney(v1Proto);
+            Money v2Wrapper = VersionContext.forVersionId("v2").wrapMoney(v2Proto);
 
             assertThat(v1Wrapper.getWrapperVersion()).isEqualTo(1);
             assertThat(v2Wrapper.getWrapperVersion()).isEqualTo(2);
@@ -394,7 +394,7 @@ class RoundTripTest {
             Common.Money proto = Common.Money.newBuilder()
                     .setAmount(100).setCurrency("USD").build();
 
-            Money wrapper = VersionContext.forVersion(1).wrapMoney(proto);
+            Money wrapper = VersionContext.forVersionId("v1").wrapMoney(proto);
 
             String result = switch (wrapper.getWrapperVersion()) {
                 case 1 -> "Processing V1 format";

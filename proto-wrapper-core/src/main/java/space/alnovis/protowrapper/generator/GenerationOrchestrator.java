@@ -483,7 +483,7 @@ public class GenerationOrchestrator {
                 implCount[0]++;
             });
 
-            int count = 1 + implCount[0];
+            int count = 1 + implCount[0]; // interface + implementations
             logger.info("Generated " + count + " VersionContext files");
             return count;
         } catch (UncheckedIOException e) {

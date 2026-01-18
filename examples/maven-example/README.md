@@ -100,8 +100,14 @@ public void processOrder(OrderResponse order) {
 Use `VersionContext` to create wrappers at runtime:
 
 ```java
-// Get context for a specific version
-VersionContext ctx = VersionContext.forVersion(1);
+// Get context for a specific version (recommended)
+VersionContext ctx = VersionContext.forVersionId("v1");
+
+// Other useful static methods
+Optional<VersionContext> maybeCtx = VersionContext.find("v1");
+VersionContext defaultCtx = VersionContext.getDefault();
+boolean supported = VersionContext.isSupported("v1");
+List<String> versions = VersionContext.supportedVersions();
 
 // Wrap a proto message
 OrderResponse order = ctx.wrapOrderResponse(protoMessage);

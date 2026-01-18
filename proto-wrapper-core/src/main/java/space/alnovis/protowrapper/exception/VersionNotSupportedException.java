@@ -10,7 +10,7 @@ import java.util.Set;
  *
  * <h2>Example</h2>
  * <pre>{@code
- * // Supported versions: v201, v202, v203
+ * // Supported versions: v1, v2, v3
  *
  * VersionContext ctx = VersionContext.forVersion("v999");  // Throws VersionNotSupportedException
  * }</pre>

@@ -101,11 +101,11 @@ project/
 ├── buf.gen.yaml       # Code generation config
 ├── buf.lock           # Dependency lock file
 └── proto/
-    ├── v201/
+    ├── v1/
     │   └── order.proto
-    ├── v202/
+    ├── v2/
     │   └── order.proto
-    └── v203/
+    └── v3/
         └── order.proto
 ```
 
@@ -188,7 +188,7 @@ plugins:
 buf lint
 
 # Lint specific directory
-buf lint proto/v203
+buf lint proto/v3
 
 # Output as JSON (for CI)
 buf lint --error-format=json
@@ -388,7 +388,7 @@ buf breaking --against '.git#branch=main' --error-format=json
 buf generate
 
 # Generate specific protos
-buf generate proto/v203
+buf generate proto/v3
 
 # Generate to specific output
 buf generate --output gen/
@@ -702,7 +702,7 @@ plugins:
     out: gen/java
     opt:
       - basePackage=com.example.model
-      - versions=v201,v202,v203
+      - versions=v1,v2,v3
       - generateBuilders=true
 ```
 
@@ -713,9 +713,9 @@ plugins:
 protoWrapper {
     bsr {
         modules = listOf(
-            "buf.build/yourorg/api:v201",
-            "buf.build/yourorg/api:v202",
-            "buf.build/yourorg/api:v203"
+            "buf.build/yourorg/api:v1",
+            "buf.build/yourorg/api:v2",
+            "buf.build/yourorg/api:v3"
         )
     }
 }
@@ -727,29 +727,29 @@ proto-wrapper's `diff` command will align with buf's output format:
 
 ```bash
 # buf-compatible output
-proto-wrapper diff --buf-compatible proto/v201 proto/v202
+proto-wrapper diff --buf-compatible proto/v1 proto/v2
 
 # Output matches buf breaking format
-proto/v202/order.proto:15:3: Field "2" on message "Order" changed type from "int32" to "int64".
+proto/v2/order.proto:15:3: Field "2" on message "Order" changed type from "int32" to "int64".
 ```
 
 ### Using buf with proto-wrapper Today
 
 ```bash
 # 1. Lint your protos with buf
-buf lint proto/v201
-buf lint proto/v202
-buf lint proto/v203
+buf lint proto/v1
+buf lint proto/v2
+buf lint proto/v3
 
 # 2. Check breaking changes between versions
-buf breaking proto/v202 --against proto/v201
-buf breaking proto/v203 --against proto/v202
+buf breaking proto/v2 --against proto/v1
+buf breaking proto/v3 --against proto/v2
 
 # 3. Generate wrappers with proto-wrapper
 mvn proto-wrapper:generate
 
 # 4. Use proto-wrapper diff for wrapper-aware analysis
-mvn proto-wrapper:diff -Dv1=proto/v201 -Dv2=proto/v203
+mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v3
 ```
 
 ---

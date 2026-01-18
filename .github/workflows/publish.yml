@@ -275,6 +275,19 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
 
+      - name: Publish proto-wrapper-spring-boot-starter to Maven Central
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            mvn deploy -B -pl proto-wrapper-spring-boot-starter -P release \
+              -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}"
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+
   # Publish Gradle plugin to Gradle Plugin Portal
   publish-gradle:
     needs: publish-maven

@@ -41,7 +41,7 @@ public class RoundTripDemo {
         System.out.println("\n3. Parsed from bytes");
 
         // Step 4: Wrap with version-agnostic interface
-        VersionContext ctx = VersionContext.forVersion(1);
+        VersionContext ctx = VersionContext.forVersionId("v1");
         OrderItem wrapper = ctx.wrapOrderItem(parsedProto);
         System.out.println("\n4. Wrapped with VersionContext (version " + wrapper.getWrapperVersion() + ")");
 

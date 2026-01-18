@@ -6,7 +6,7 @@
 
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-parent</artifactId>
-    <version>1.6.6</version>
+    <version>1.6.7</version>
     <packaging>pom</packaging>
 
     <!-- ==================== Project Info ==================== -->
@@ -55,6 +55,8 @@
     <modules>
         <module>proto-wrapper-core</module>
         <module>proto-wrapper-maven-plugin</module>
+        <!-- Spring Boot auto-configuration -->
+        <module>proto-wrapper-spring-boot-starter</module>
         <!-- Integration tests with comprehensive conflict coverage -->
         <module>proto-wrapper-maven-integration-tests</module>
         <!-- Golden tests for all field variations (proto2/proto3) -->

@@ -250,7 +250,7 @@ public NewFeature getNewFeatureIfAvailable(VersionContext ctx, Message proto) {
 - **Note:** Version-specific fields may be lost during conversion (e.g., v2-only fields lost when converting to v1)
 - **Example:**
   ```java
-  Money v1 = VersionContext.forVersion(1).newMoneyBuilder()
+  Money v1 = VersionContext.forVersionId("v1").newMoneyBuilder()
           .setAmount(1000L)
           .setCurrency("USD")
           .build();

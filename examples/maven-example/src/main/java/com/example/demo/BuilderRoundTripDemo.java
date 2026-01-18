@@ -41,7 +41,7 @@ public class BuilderRoundTripDemo {
 
         // Step 3: Parse and wrap with version-agnostic interface
         Order.OrderItem parsedProto = Order.OrderItem.parseFrom(bytes);
-        VersionContext ctx = VersionContext.forVersion(1);
+        VersionContext ctx = VersionContext.forVersionId("v1");
         OrderItem wrapper = ctx.wrapOrderItem(parsedProto);
         System.out.println("\n3. Wrapped with VersionContext (version " + wrapper.getWrapperVersion() + ")");
 

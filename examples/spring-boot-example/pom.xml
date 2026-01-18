@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>proto-wrapper-spring-boot-example</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Proto Wrapper Spring Boot Example</name>
+    <description>Example Spring Boot application using proto-wrapper-spring-boot-starter</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <proto-wrapper.version>1.6.7</proto-wrapper.version>
+        <protobuf.version>4.28.2</protobuf.version>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Proto Wrapper Spring Boot Starter -->
+        <dependency>
+            <groupId>space.alnovis</groupId>
+            <artifactId>proto-wrapper-spring-boot-starter</artifactId>
+            <version>${proto-wrapper.version}</version>
+        </dependency>
+
+        <!-- Protobuf Runtime -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>${protobuf.version}</version>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
+
+        <plugins>
+            <!-- Spring Boot Maven Plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- Protobuf Compiler -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+                <configuration>
+                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+                    <protoSourceRoot>${project.basedir}/src/main/proto</protoSourceRoot>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>compile-proto-v1</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>v1/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/protobuf-v1</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>compile-proto-v2</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>v2/**/*.proto</include>
+                            </includes>
+                            <outputDirectory>${project.build.directory}/generated-sources/protobuf-v2</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Proto Wrapper Maven Plugin -->
+            <plugin>
+                <groupId>space.alnovis</groupId>
+                <artifactId>proto-wrapper-maven-plugin</artifactId>
+                <version>${proto-wrapper.version}</version>
+                <configuration>
+                    <basePackage>com.example.demo.api</basePackage>
+                    <protoPackagePattern>com.example.demo.api.{version}</protoPackagePattern>
+                    <protoRoot>${project.basedir}/src/main/proto</protoRoot>
+                    <generateBuilders>true</generateBuilders>
+                    <generateVersionContext>true</generateVersionContext>
+                    <versions>
+                        <version>
+                            <protoDir>v1</protoDir>
+                        </version>
+                        <version>
+                            <protoDir>v2</protoDir>
+                        </version>
+                    </versions>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Add generated sources -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>add-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/protobuf-v1</source>
+                                <source>${project.build.directory}/generated-sources/protobuf-v2</source>
+                                <source>${project.build.directory}/generated-sources/proto-wrapper</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

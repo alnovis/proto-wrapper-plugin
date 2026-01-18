@@ -41,7 +41,7 @@ public final class GeneratorUtils {
      *   <li>Multiple versions: {@code getWrapperVersion() == 1 || getWrapperVersion() == 2}</li>
      * </ul>
      *
-     * @param versions Set of version strings (e.g., "v1", "v2", "v202")
+     * @param versions Set of version strings (e.g., "v1", "v2", "v3")
      * @return Version check expression for code generation
      */
     public static String buildVersionCheck(Set<String> versions) {
@@ -71,8 +71,8 @@ public final class GeneratorUtils {
     /**
      * Extract numeric part from version string.
      *
-     * @param version Version string (e.g., "v1", "v202")
-     * @return Numeric part (e.g., "1", "202") or empty string
+     * @param version Version string (e.g., "v1", "v2")
+     * @return Numeric part (e.g., "1", "2") or empty string
      */
     public static String extractVersionNumber(String version) {
         if (version == null) {
@@ -84,7 +84,7 @@ public final class GeneratorUtils {
     /**
      * Extract numeric version as integer.
      *
-     * @param version Version string (e.g., "v1", "v202")
+     * @param version Version string (e.g., "v1", "v2")
      * @return Numeric version or 0 if parsing fails
      */
     public static int extractVersionInt(String version) {

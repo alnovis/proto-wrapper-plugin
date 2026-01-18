@@ -716,8 +716,8 @@ public final class CodeGenerationHelper {
      * <p>Generates code like:</p>
      * <pre>
      * throw new UnsupportedOperationException(
-     *     "Field 'exciseStamp' is not available in protocol version 203. " +
-     *     "This field exists only in versions: [v202]");
+     *     "Field 'exciseStamp' is not available in protocol version 3. " +
+     *     "This field exists only in versions: [v2]");
      * </pre>
      *
      * @param method The method builder to add the throw statement to
@@ -725,7 +725,7 @@ public final class CodeGenerationHelper {
      */
     public static void addFieldNotInVersionError(MethodSpec.Builder method, MergedField field) {
         String fieldName = field.getJavaName();
-        // getPresentInVersions() returns version strings like "v202", "v203"
+        // getPresentInVersions() returns version strings like "v2", "v3"
         String versionsStr = String.join(", ", field.getPresentInVersions());
 
         method.addStatement("throw new $T($S + getVersion() + $S)",
