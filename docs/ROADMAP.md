@@ -1,7 +1,7 @@
 # Proto Wrapper Plugin Roadmap
 
-Version: 1.3
-Last Updated: 2026-01-04
+Version: 2.0
+Last Updated: 2026-01-18
 
 This document outlines the development roadmap for upcoming releases.
 
@@ -9,16 +9,32 @@ This document outlines the development roadmap for upcoming releases.
 
 ## Table of Contents
 
+### Java/JVM Releases (v1.x - v2.x)
+
 - [Version 1.3.0](#version-130) - Well-Known Types Support (Completed)
 - [Version 1.4.0](#version-140) - Repeated Conflict Field Builders (Completed)
 - [Version 1.5.0](#version-150) - Schema Diff Tool (Completed)
-- [Version 1.6.0](#version-160) - Incremental Generation
+- [Version 1.6.0](#version-160) - Incremental Generation (Completed)
+- [Version 1.6.5](#version-165) - Embedded Protoc (Completed)
+- [Version 1.6.6](#version-166) - ProtoWrapper Interface (Completed)
 - [Version 1.7.0](#version-170) - Parallel Generation
 - [Version 1.8.0](#version-180) - Per-version Proto Syntax
 - [Version 1.9.0](#version-190) - Validation Annotations
 - [Version 1.10.0](#version-1100) - Kotlin Extensions
 - [Version 1.11.0](#version-1110) - Service/RPC Wrappers
 - [Version 2.0.0](#version-200) - API Cleanup (Breaking Changes)
+- [Version 2.1.0](#version-210) - Spring Boot Starter
+- [Version 2.2.0](#version-220) - buf.build Integration
+- [Version 2.3.0](#version-230) - Quarkus Extension
+
+### Multi-Language Support (v3.x)
+
+- [Version 3.0.0](#version-300) - Go Support
+- [Version 3.1.0](#version-310) - Language-Agnostic Schema Registry
+- [Version 3.2.0](#version-320) - Proto-to-OpenAPI Generator
+
+### Future
+
 - [Future Considerations](#future-considerations)
 - [Contributing](#contributing)
 
@@ -330,91 +346,191 @@ diff.toMarkdown();            // String
 
 ---
 
-## Version 1.6.0
+## Version 1.6.0 (Completed)
 
-**Target:** Feb 2026
+**Released:** January 5, 2026
 **Theme:** Incremental Generation
 
 ### Feature: Incremental Generation
 
-**Priority:** High
-**Complexity:** High
+**Status:** Completed
 
 #### Description
 
 Only regenerate wrappers when source proto files change, significantly reducing build times for large projects.
 
-#### Implementation Plan
-
-1. **Input Tracking**
-   - Create `.proto-wrapper-cache` directory in build output
-   - Store hash of each .proto file
-   - Store generation timestamp
-
-2. **Change Detection**
-   ```java
-   public class IncrementalGenerator {
-       private final Path cacheDir;
-
-       public Set<Path> getChangedProtos(Set<Path> allProtos) {
-           return allProtos.stream()
-               .filter(this::hasChanged)
-               .collect(toSet());
-       }
-
-       private boolean hasChanged(Path proto) {
-           String currentHash = computeHash(proto);
-           String cachedHash = readCachedHash(proto);
-           return !currentHash.equals(cachedHash);
-       }
-   }
-   ```
-
-3. **Dependency Tracking**
-   - Track proto imports
-   - Regenerate dependents when dependency changes
-   - Build dependency graph
-
-4. **Selective Generation**
-   - Only regenerate affected messages
-   - Preserve unchanged generated files
-   - Update VersionContext if any message changes
-
-5. **Cache Invalidation**
-   - Plugin version change
-   - Configuration change
-   - Manual clean
-
 #### Configuration
 
 ```xml
 <configuration>
-    <incremental>true</incremental>
+    <incremental>true</incremental>  <!-- enabled by default -->
     <cacheDirectory>${project.build.directory}/proto-wrapper-cache</cacheDirectory>
+    <forceRegenerate>false</forceRegenerate>
 </configuration>
 ```
 
 ```kotlin
 protoWrapper {
-    incremental = true
-    cacheDirectory = layout.buildDirectory.dir("proto-wrapper-cache")
+    incremental.set(true)  // enabled by default
+    cacheDirectory.set(layout.buildDirectory.dir("proto-wrapper-cache"))
+    forceRegenerate.set(false)
 }
 ```
 
+#### Command Line
+
+```bash
+# Force full regeneration
+mvn compile -Dproto-wrapper.force=true
+./gradlew generateProtoWrapper -Pproto-wrapper.force=true
+```
+
+#### Implementation Details
+
+- `IncrementalState` - Persistent state model (JSON)
+- `IncrementalStateManager` - Cache state management
+- `ProtoDependencyGraph` - Proto import dependency graph
+- `ChangeDetector` - Change detection logic
+- `CacheLock` - File locking for thread safety
+
 #### Acceptance Criteria
 
-- [ ] No regeneration when protos unchanged
-- [ ] Correct regeneration on proto change
-- [ ] Dependency-aware regeneration
-- [ ] Cache invalidation on config change
-- [ ] Measurable build time improvement (>50% for unchanged)
-- [ ] Works with both Maven and Gradle
-- [ ] `--force` flag to bypass cache
+- [x] No regeneration when protos unchanged
+- [x] Correct regeneration on proto change
+- [x] Dependency-aware regeneration
+- [x] Cache invalidation on config change
+- [x] Measurable build time improvement (>50% for unchanged)
+- [x] Works with both Maven and Gradle
+- [x] `--force` flag to bypass cache
 
 ### Migration Notes
 
 - No breaking changes
-- Recommended: Enable incremental generation for faster builds
+- Incremental generation enabled by default
+
+---
+
+## Version 1.6.5 (Completed)
+
+**Released:** January 14, 2026
+**Theme:** Embedded Protoc
+
+### Feature: Automatic Protoc Download
+
+**Status:** Completed
+
+#### Description
+
+The plugin now automatically downloads the appropriate `protoc` binary from Maven Central if not found in PATH. No manual protoc installation required.
+
+#### Supported Platforms
+
+| OS | Architecture |
+|----|--------------|
+| Linux | x86_64, aarch64 |
+| macOS | x86_64, aarch64 (Apple Silicon) |
+| Windows | x86_64 |
+
+#### Cache Location
+
+- Linux/macOS: `~/.cache/proto-wrapper/protoc/`
+- Windows: `%LOCALAPPDATA%\proto-wrapper\protoc\`
+
+#### Configuration
+
+```xml
+<configuration>
+    <!-- Override protoc version (optional) -->
+    <protocVersion>4.28.2</protocVersion>
+</configuration>
+```
+
+#### Resolution Priority
+
+1. Custom path (if `protocPath` is set)
+2. System PATH (if protoc is installed)
+3. Embedded (download from Maven Central)
+
+#### Implementation Details
+
+- `ProtocResolver` - Resolves protoc with priority chain
+- Uses protobuf version from plugin's `protobuf-java` dependency by default
+
+#### Acceptance Criteria
+
+- [x] Auto-detect OS and architecture
+- [x] Download from Maven Central
+- [x] Cache for reuse
+- [x] Override version via configuration
+- [x] Fallback to system protoc if available
+
+### Migration Notes
+
+- No breaking changes
+- `protocPath` parameter now optional
+
+---
+
+## Version 1.6.6 (Completed)
+
+**Released:** January 16, 2026
+**Theme:** ProtoWrapper Interface
+
+### Feature: Common ProtoWrapper Interface
+
+**Status:** Completed
+
+#### Description
+
+All generated wrapper classes now implement a common `ProtoWrapper` interface, enabling polymorphic wrapper handling without reflection.
+
+#### Generated Interface
+
+```java
+public interface ProtoWrapper {
+    Message getTypedProto();   // Access underlying proto
+    int getWrapperVersion();   // Get protocol version
+    byte[] toBytes();          // Serialize to bytes
+}
+```
+
+#### Usage Example
+
+```java
+public void processAnyWrapper(ProtoWrapper wrapper) {
+    int version = wrapper.getWrapperVersion();
+    byte[] data = wrapper.toBytes();
+
+    // Pattern matching (Java 17+)
+    if (wrapper instanceof Order order) {
+        processOrder(order);
+    }
+}
+
+// Works with any generated wrapper
+processAnyWrapper(order);
+processAnyWrapper(payment);
+processAnyWrapper(customer);
+```
+
+#### Implementation Details
+
+- `ProtoWrapperGenerator` - Generates ProtoWrapper interface in API package
+- All message interfaces extend `ProtoWrapper`
+- `getTypedProto()` returns covariant type in implementations
+
+#### Acceptance Criteria
+
+- [x] ProtoWrapper interface generated
+- [x] All interfaces extend ProtoWrapper
+- [x] getTypedProto() returns correct type
+- [x] Pattern matching works
+- [x] Golden tests for all scenarios
+
+### Migration Notes
+
+- No breaking changes
+- New interface is additive
 
 ---
 
@@ -1035,19 +1151,1029 @@ GeneratorConfig config = GeneratorConfig.builder()
 
 ---
 
+## Version 2.1.0
+
+**Target:** Aug 2026
+**Theme:** Spring Boot Starter
+
+### Feature: Spring Boot Auto-Configuration
+
+**Priority:** High
+**Complexity:** Medium
+
+#### Description
+
+Provide a Spring Boot Starter for seamless integration with Spring applications. Auto-configure VersionContext beans, enable property-based configuration, and integrate with Spring's dependency injection.
+
+#### Problem
+
+Current Spring integration requires manual bean configuration:
+
+```java
+@Configuration
+public class ProtoWrapperConfig {
+    @Bean
+    public VersionContext versionContext() {
+        return new VersionContextV202();  // Hardcoded version
+    }
+}
+```
+
+#### Solution
+
+Spring Boot Starter with auto-configuration:
+
+```yaml
+# application.yml
+proto-wrapper:
+  default-version: v202
+  versions:
+    v201:
+      enabled: true
+    v202:
+      enabled: true
+      default: true
+    v203:
+      enabled: true
+```
+
+```java
+@Service
+public class OrderService {
+    @Autowired
+    private VersionContext versionContext;  // Auto-injected
+
+    @Autowired
+    @Qualifier("v203")
+    private VersionContext v203Context;  // Specific version
+}
+```
+
+#### Generated Code
+
+```java
+// Auto-generated Spring configuration
+@Configuration
+@ConditionalOnClass(VersionContext.class)
+@EnableConfigurationProperties(ProtoWrapperProperties.class)
+public class ProtoWrapperAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(name = "proto-wrapper.default-version", havingValue = "v202")
+    public VersionContext defaultVersionContext() {
+        return new VersionContextV202();
+    }
+
+    @Bean("v201")
+    @ConditionalOnProperty(name = "proto-wrapper.versions.v201.enabled", havingValue = "true")
+    public VersionContext v201Context() {
+        return new VersionContextV201();
+    }
+
+    @Bean("v202")
+    @ConditionalOnProperty(name = "proto-wrapper.versions.v202.enabled", havingValue = "true")
+    public VersionContext v202Context() {
+        return new VersionContextV202();
+    }
+}
+```
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| Auto-configuration | Zero-config setup with sensible defaults |
+| Version selection | Property-based default version |
+| Multiple versions | Inject specific versions via @Qualifier |
+| Health indicator | Actuator endpoint for version info |
+| Metrics | Micrometer metrics for wrapper usage |
+| Conditional beans | Enable/disable versions via properties |
+
+#### Actuator Endpoint
+
+```bash
+GET /actuator/proto-wrapper
+
+{
+  "defaultVersion": "v202",
+  "availableVersions": ["v201", "v202", "v203"],
+  "wrapperStats": {
+    "totalWrapped": 15420,
+    "byType": {
+      "Order": 5230,
+      "Payment": 4120,
+      "Customer": 6070
+    }
+  }
+}
+```
+
+#### Module Structure
+
+```
+proto-wrapper-spring-boot-starter/
+├── src/main/java/
+│   └── space/alnovis/protowrapper/spring/
+│       ├── ProtoWrapperAutoConfiguration.java
+│       ├── ProtoWrapperProperties.java
+│       ├── ProtoWrapperHealthIndicator.java
+│       └── ProtoWrapperMetrics.java
+├── src/main/resources/
+│   └── META-INF/
+│       └── spring.factories
+└── pom.xml
+```
+
+#### Configuration
+
+```xml
+<!-- User's pom.xml -->
+<dependency>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-spring-boot-starter</artifactId>
+    <version>2.1.0</version>
+</dependency>
+```
+
+#### Acceptance Criteria
+
+- [ ] Auto-configuration for VersionContext beans
+- [ ] Property-based version selection
+- [ ] @Qualifier support for specific versions
+- [ ] Spring Boot 3.x compatibility
+- [ ] Actuator health indicator
+- [ ] Micrometer metrics integration
+- [ ] Conditional bean creation
+- [ ] Documentation and examples
+
+### Migration Notes
+
+- No breaking changes
+- New optional module
+- Requires Spring Boot 3.0+
+
+---
+
+## Version 2.2.0
+
+**Target:** Sep 2026
+**Theme:** buf.build Integration
+
+### Feature: buf.build Plugin
+
+**Priority:** High
+**Complexity:** Medium
+
+#### Description
+
+Integrate with [buf.build](https://buf.build) ecosystem - the modern standard for Protobuf management. Provide a buf plugin for wrapper generation, integrate with BSR (Buf Schema Registry), and enhance schema diff with buf compatibility.
+
+#### Why buf.build?
+
+| Aspect | Traditional | buf.build |
+|--------|-------------|-----------|
+| Linting | Manual protoc flags | `buf lint` with configurable rules |
+| Breaking detection | Custom tooling | `buf breaking` built-in |
+| Dependencies | Copy proto files | `buf.yaml` dependency management |
+| Registry | None | BSR (Buf Schema Registry) |
+| Generation | protoc plugins | `buf generate` with plugins |
+
+#### buf Plugin
+
+```yaml
+# buf.gen.yaml
+version: v1
+plugins:
+  - plugin: buf.build/alnovis/proto-wrapper
+    out: gen/java
+    opt:
+      - basePackage=com.example.model
+      - generateBuilders=true
+      - versions=v201,v202,v203
+```
+
+```bash
+# Generate wrappers
+buf generate
+```
+
+#### BSR Integration
+
+```yaml
+# buf.yaml
+version: v1
+deps:
+  - buf.build/googleapis/googleapis
+  - buf.build/alnovis/kkm-proto:v202  # Your versioned schemas
+  - buf.build/alnovis/kkm-proto:v203
+```
+
+```java
+// Reference schemas from BSR
+protoWrapper {
+    bsr {
+        modules = [
+            "buf.build/alnovis/kkm-proto:v202",
+            "buf.build/alnovis/kkm-proto:v203"
+        ]
+    }
+}
+```
+
+#### Enhanced Schema Diff
+
+Align with buf breaking change detection:
+
+```bash
+# Use buf-compatible breaking change rules
+proto-wrapper diff --buf-compatible proto/v1 proto/v2
+
+# Output matches buf breaking format
+proto/v2/order.proto:15:3: Field "2" on message "Order" changed type from "int32" to "int64".
+```
+
+#### buf Plugin Implementation
+
+```go
+// cmd/protoc-gen-proto-wrapper/main.go
+package main
+
+import (
+    "google.golang.org/protobuf/compiler/protogen"
+)
+
+func main() {
+    protogen.Options{}.Run(func(gen *protogen.Plugin) error {
+        // Generate wrapper metadata
+        // Actual Java generation delegated to core library
+        return generateWrapperSpec(gen)
+    })
+}
+```
+
+#### Workflow Integration
+
+```yaml
+# .github/workflows/proto.yml
+name: Proto CI
+on: [push, pull_request]
+
+jobs:
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bufbuild/buf-setup-action@v1
+
+      - name: Lint
+        run: buf lint
+
+      - name: Breaking changes
+        run: buf breaking --against 'https://github.com/org/repo.git#branch=main'
+
+      - name: Generate wrappers
+        run: buf generate
+
+      - name: Build Java
+        run: mvn compile
+```
+
+#### Configuration
+
+```xml
+<!-- Maven plugin integration -->
+<plugin>
+    <groupId>space.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <configuration>
+        <bufIntegration>
+            <enabled>true</enabled>
+            <bufConfigPath>buf.yaml</bufConfigPath>
+            <useBufBreaking>true</useBufBreaking>
+        </bufIntegration>
+    </configuration>
+</plugin>
+```
+
+#### Acceptance Criteria
+
+- [ ] buf plugin for `buf generate`
+- [ ] BSR module resolution
+- [ ] buf-compatible breaking change output
+- [ ] Integration with buf lint rules
+- [ ] CI/CD workflow examples
+- [ ] Documentation for buf migration
+
+### Migration Notes
+
+- No breaking changes
+- buf integration is optional
+- Existing Maven/Gradle workflows continue to work
+
+---
+
+## Version 2.3.0
+
+**Target:** Oct 2026
+**Theme:** Quarkus Extension
+
+### Feature: Quarkus Extension
+
+**Priority:** Medium
+**Complexity:** Medium
+
+#### Description
+
+Native Quarkus extension for proto-wrapper with build-time optimization, GraalVM native image support, and CDI integration.
+
+#### Why Quarkus?
+
+- **Build-time processing**: Generate wrapper metadata at build time
+- **Native images**: Full GraalVM native-image support
+- **Fast startup**: Millisecond startup for serverless/containers
+- **CDI**: Standard dependency injection
+
+#### Extension Features
+
+```java
+@ApplicationScoped
+public class OrderService {
+    @Inject
+    VersionContext versionContext;
+
+    @Inject
+    @ProtoVersion("v203")
+    VersionContext v203Context;
+
+    public Order processOrder(byte[] protoBytes) {
+        return versionContext.wrapOrder(protoBytes);
+    }
+}
+```
+
+#### Configuration
+
+```properties
+# application.properties
+quarkus.proto-wrapper.default-version=v202
+quarkus.proto-wrapper.versions.v201.enabled=true
+quarkus.proto-wrapper.versions.v202.enabled=true
+quarkus.proto-wrapper.versions.v203.enabled=true
+```
+
+#### Native Image Support
+
+```java
+// Build-time registration for reflection
+@BuildStep
+ReflectiveClassBuildItem registerForReflection() {
+    return new ReflectiveClassBuildItem(true, true,
+        "com.example.model.api.Order",
+        "com.example.model.v201.OrderV201",
+        "com.example.model.v202.OrderV202"
+    );
+}
+```
+
+```bash
+# Build native image
+./mvnw package -Pnative
+
+# Run with millisecond startup
+./target/my-app-runner
+# Started in 0.015s
+```
+
+#### Dev Mode Integration
+
+```bash
+# Hot reload for proto changes
+./mvnw quarkus:dev
+
+# Proto file change detected
+# Regenerating wrappers...
+# Hot reload complete
+```
+
+#### Module Structure
+
+```
+proto-wrapper-quarkus/
+├── deployment/
+│   └── src/main/java/
+│       └── ProtoWrapperProcessor.java  # Build-time
+├── runtime/
+│   └── src/main/java/
+│       ├── ProtoWrapperRecorder.java
+│       └── ProtoVersionQualifier.java
+└── integration-tests/
+```
+
+#### Acceptance Criteria
+
+- [ ] CDI injection of VersionContext
+- [ ] @ProtoVersion qualifier
+- [ ] GraalVM native image support
+- [ ] Build-time wrapper registration
+- [ ] Dev mode hot reload
+- [ ] Quarkus 3.x compatibility
+- [ ] Documentation and quickstart
+
+### Migration Notes
+
+- No breaking changes
+- New optional module
+- Requires Quarkus 3.0+
+
+---
+
+## Version 3.0.0
+
+**Target:** Q1 2027
+**Theme:** Go Support
+
+### Feature: Go Code Generation
+
+**Priority:** High
+**Complexity:** Very High
+
+#### Description
+
+Extend proto-wrapper to generate version-agnostic Go wrappers, enabling the same multi-version abstraction pattern in Go projects. This is a major milestone introducing multi-language support.
+
+#### Why Go?
+
+| Reason | Details |
+|--------|---------|
+| gRPC adoption | Go is the #2 language for gRPC after Java |
+| Cloud native | Kubernetes, microservices heavily use Go |
+| Proto tooling | Strong protobuf ecosystem in Go |
+| User demand | Common request for polyglot environments |
+
+#### Generated Go Code
+
+```go
+// api/order.go - Generated interface
+package api
+
+type Order interface {
+    GetOrderId() string
+    GetItems() []OrderItem
+    GetTotalAmount() int64
+    GetPaymentType() PaymentType      // Unified enum
+    GetPaymentTypeInt() int32         // For INT_ENUM conflict
+
+    ToProto() proto.Message
+    ToBytes() []byte
+
+    ToBuilder() OrderBuilder
+}
+
+type OrderBuilder interface {
+    SetOrderId(string) OrderBuilder
+    AddItem(OrderItem) OrderBuilder
+    SetTotalAmount(int64) OrderBuilder
+    Build() Order
+}
+```
+
+```go
+// v202/order_v202.go - Version implementation
+package v202
+
+type OrderV202 struct {
+    proto *pb.Order
+}
+
+func (o *OrderV202) GetOrderId() string {
+    return o.proto.GetOrderId()
+}
+
+func (o *OrderV202) GetTotalAmount() int64 {
+    // Widening: v201 has int32, v202 has int64
+    return o.proto.GetTotalAmount()
+}
+
+func (o *OrderV202) GetPaymentType() api.PaymentType {
+    // INT_ENUM conflict resolution
+    return api.PaymentType(o.proto.GetPaymentType())
+}
+```
+
+```go
+// Usage
+package main
+
+import (
+    "github.com/example/model/api"
+    "github.com/example/model/v202"
+)
+
+func main() {
+    ctx := v202.NewVersionContext()
+
+    // Wrap any version
+    order := ctx.WrapOrder(protoBytes)
+
+    // Version-agnostic access
+    fmt.Printf("Order: %s, Total: %d\n",
+        order.GetOrderId(),
+        order.GetTotalAmount())
+
+    // Build new message
+    newOrder := ctx.NewOrderBuilder().
+        SetOrderId("ORD-001").
+        SetTotalAmount(5000).
+        Build()
+}
+```
+
+#### Architecture
+
+```
+proto-wrapper-go/
+├── cmd/
+│   └── protoc-gen-proto-wrapper-go/  # protoc plugin
+│       └── main.go
+├── pkg/
+│   ├── generator/
+│   │   ├── interface_generator.go
+│   │   ├── impl_generator.go
+│   │   └── conflict_handlers.go
+│   ├── model/
+│   │   ├── merged_schema.go
+│   │   └── conflict_type.go
+│   └── runtime/
+│       └── wrapper.go               # Runtime utilities
+├── internal/
+│   └── parser/
+│       └── proto_parser.go
+└── go.mod
+```
+
+#### Conflict Handling in Go
+
+| Conflict | Java | Go |
+|----------|------|-----|
+| INT_ENUM | Dual getters | Dual getters + type alias |
+| WIDENING | Unified as wider | Unified as int64 |
+| STRING_BYTES | Dual getters | `string` + `[]byte` getters |
+| OPTIONAL | hasXxx() | Pointer types (*string) |
+
+#### Configuration
+
+```yaml
+# buf.gen.yaml
+version: v1
+plugins:
+  - plugin: buf.build/alnovis/proto-wrapper-go
+    out: gen/go
+    opt:
+      - module=github.com/example/model
+      - versions=v201,v202,v203
+```
+
+```bash
+# Or standalone
+protoc --proto-wrapper-go_out=. \
+       --proto-wrapper-go_opt=module=github.com/example/model \
+       proto/v201/*.proto proto/v202/*.proto
+```
+
+#### Implementation Phases
+
+**Phase 1: Core Generator (v3.0.0)**
+- [ ] Go interface generation
+- [ ] Version implementation generation
+- [ ] Basic conflict handling (INT_ENUM, WIDENING)
+- [ ] protoc plugin
+
+**Phase 2: Full Feature Parity (v3.0.1)**
+- [ ] All conflict types
+- [ ] Builder pattern
+- [ ] Well-known types
+- [ ] Oneof support
+
+**Phase 3: Go Idioms (v3.0.2)**
+- [ ] Error handling (return errors, not exceptions)
+- [ ] Context support
+- [ ] Functional options pattern
+- [ ] go generate integration
+
+#### Acceptance Criteria
+
+- [ ] Generate Go interfaces from merged schema
+- [ ] Handle all conflict types
+- [ ] Builder pattern for Go
+- [ ] protoc plugin
+- [ ] buf plugin
+- [ ] go generate support
+- [ ] Comprehensive tests
+- [ ] Documentation
+
+### Migration Notes
+
+- Major version bump (3.0.0) for multi-language support
+- Java API unchanged
+- Go is a new, parallel track
+
+---
+
+## Version 3.1.0
+
+**Target:** Q2 2027
+**Theme:** Language-Agnostic Schema Registry
+
+### Feature: Schema Registry
+
+**Priority:** High
+**Complexity:** High
+
+#### Description
+
+A centralized, language-agnostic schema registry that stores versioned proto schemas with conflict metadata. Provides REST API for querying schema information, version compatibility, and wrapper generation metadata.
+
+#### Why Schema Registry?
+
+| Problem | Solution |
+|---------|----------|
+| Schema sprawl | Centralized storage |
+| Version discovery | API to list versions |
+| Conflict visibility | Pre-computed conflict info |
+| Multi-language | Language-agnostic metadata |
+| CI/CD integration | REST API for automation |
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Schema Registry                          │
+├─────────────────────────────────────────────────────────────┤
+│  REST API                                                   │
+│  ┌─────────────┬─────────────┬─────────────┬──────────────┐│
+│  │ /schemas    │ /versions   │ /conflicts  │ /generate    ││
+│  └─────────────┴─────────────┴─────────────┴──────────────┘│
+├─────────────────────────────────────────────────────────────┤
+│  Schema Analyzer                                            │
+│  ┌─────────────┬─────────────┬─────────────┐               │
+│  │ Parser      │ Merger      │ Conflict    │               │
+│  │             │             │ Detector    │               │
+│  └─────────────┴─────────────┴─────────────┘               │
+├─────────────────────────────────────────────────────────────┤
+│  Storage                                                    │
+│  ┌─────────────┬─────────────┐                             │
+│  │ Proto Files │ Metadata    │                             │
+│  │ (S3/GCS)    │ (PostgreSQL)│                             │
+│  └─────────────┴─────────────┘                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### REST API
+
+```bash
+# List all schemas
+GET /api/v1/schemas
+{
+  "schemas": [
+    {"name": "Order", "versions": ["v201", "v202", "v203"]},
+    {"name": "Payment", "versions": ["v201", "v202"]}
+  ]
+}
+
+# Get schema details
+GET /api/v1/schemas/Order
+{
+  "name": "Order",
+  "versions": {
+    "v201": {"fields": 12, "lastModified": "2026-01-15"},
+    "v202": {"fields": 15, "lastModified": "2026-03-20"},
+    "v203": {"fields": 18, "lastModified": "2026-06-10"}
+  },
+  "conflicts": [
+    {"field": "paymentType", "type": "INT_ENUM", "versions": ["v201", "v202"]},
+    {"field": "totalAmount", "type": "WIDENING", "versions": ["v201", "v202", "v203"]}
+  ]
+}
+
+# Get conflicts between versions
+GET /api/v1/schemas/Order/conflicts?from=v201&to=v203
+{
+  "breaking": [
+    {"type": "FIELD_REMOVED", "field": "legacyId", "severity": "ERROR"}
+  ],
+  "compatible": [
+    {"type": "FIELD_ADDED", "field": "metadata", "severity": "INFO"}
+  ]
+}
+
+# Generate wrapper metadata
+POST /api/v1/generate
+{
+  "schemas": ["Order", "Payment"],
+  "versions": ["v202", "v203"],
+  "language": "java",
+  "options": {"generateBuilders": true}
+}
+
+Response:
+{
+  "generationId": "abc123",
+  "downloadUrl": "/api/v1/generate/abc123/download",
+  "expiresAt": "2026-01-18T12:00:00Z"
+}
+```
+
+#### Web UI
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Proto Wrapper Schema Registry                    [Search]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Schemas (15)                    Versions                   │
+│  ┌────────────────────┐         ┌────────────────────────┐ │
+│  │ ▶ Order           │  ────▶  │ v201  v202  v203       │ │
+│  │   Payment         │         │                        │ │
+│  │   Customer        │         │ Conflicts: 3           │ │
+│  │   Product         │         │ • paymentType: INT_ENUM│ │
+│  │   ...             │         │ • amount: WIDENING     │ │
+│  └────────────────────┘         └────────────────────────┘ │
+│                                                             │
+│  [Compare Versions]  [Generate Wrappers]  [Download Proto]  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Docker Deployment
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  registry:
+    image: alnovis/proto-wrapper-registry:3.1.0
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://user:pass@db:5432/registry
+      - STORAGE_BACKEND=s3
+      - S3_BUCKET=proto-schemas
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=registry
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+```
+
+#### CLI Integration
+
+```bash
+# Push schemas to registry
+proto-wrapper registry push \
+  --url https://registry.example.com \
+  --schema Order \
+  --version v203 \
+  proto/v203/order.proto
+
+# Pull and generate
+proto-wrapper registry generate \
+  --url https://registry.example.com \
+  --schemas Order,Payment \
+  --versions v202,v203 \
+  --language go \
+  --output gen/
+```
+
+#### Acceptance Criteria
+
+- [ ] REST API for schema management
+- [ ] Version comparison endpoint
+- [ ] Conflict analysis endpoint
+- [ ] Multi-language generation endpoint
+- [ ] Web UI for browsing
+- [ ] Docker deployment
+- [ ] CLI integration
+- [ ] Authentication (API keys, OAuth)
+- [ ] Webhook notifications
+
+### Migration Notes
+
+- New standalone service
+- Optional component
+- Can be self-hosted or cloud-hosted
+
+---
+
+## Version 3.2.0
+
+**Target:** Q3 2027
+**Theme:** Proto-to-OpenAPI Generator
+
+### Feature: OpenAPI Specification Generation
+
+**Priority:** Medium
+**Complexity:** Medium
+
+#### Description
+
+Generate OpenAPI 3.x specifications from versioned proto schemas, enabling REST API documentation and client generation for non-gRPC consumers.
+
+#### Use Cases
+
+| Scenario | Description |
+|----------|-------------|
+| REST Gateway | Document gRPC-Gateway endpoints |
+| API Documentation | Swagger UI for proto-based APIs |
+| Client Generation | Generate REST clients (TypeScript, Python, etc.) |
+| API Versioning | Document multiple API versions |
+
+#### Generated OpenAPI
+
+```yaml
+# openapi.yaml (generated)
+openapi: 3.0.3
+info:
+  title: Order API
+  version: v202
+  description: |
+    Version-agnostic API generated from proto schemas.
+    Supports versions: v201, v202, v203
+
+paths:
+  /api/v202/orders:
+    post:
+      summary: Create Order
+      operationId: createOrder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /api/v202/orders/{orderId}:
+    get:
+      summary: Get Order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+
+components:
+  schemas:
+    Order:
+      type: object
+      required:
+        - orderId
+        - items
+      properties:
+        orderId:
+          type: string
+          description: Unique order identifier
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        totalAmount:
+          type: integer
+          format: int64
+          description: |
+            Total amount in cents.
+            Note: Widened from int32 in v201 to int64 in v202+
+        paymentType:
+          oneOf:
+            - type: integer
+              description: Legacy int value (v201)
+            - $ref: '#/components/schemas/PaymentType'
+          description: |
+            Payment type. INT_ENUM conflict:
+            - v201: integer (1=CASH, 2=CARD)
+            - v202+: PaymentType enum
+
+    PaymentType:
+      type: string
+      enum: [CASH, CARD, CRYPTO, BANK_TRANSFER]
+```
+
+#### Conflict Documentation
+
+```yaml
+# Conflict handling documented in OpenAPI
+components:
+  schemas:
+    Order:
+      x-proto-wrapper:
+        conflicts:
+          - field: paymentType
+            type: INT_ENUM
+            description: |
+              This field has different types across versions:
+              - v201: int32 (1=CASH, 2=CARD, 3=CRYPTO)
+              - v202+: PaymentType enum
+            accessors:
+              integer: getPaymentTypeInt()
+              enum: getPaymentType()
+          - field: totalAmount
+            type: WIDENING
+            description: Widened from int32 to int64 in v202
+```
+
+#### Configuration
+
+```xml
+<configuration>
+    <openApi>
+        <enabled>true</enabled>
+        <outputFile>${project.build.directory}/openapi.yaml</outputFile>
+        <format>yaml</format>  <!-- or json -->
+        <includeConflictDocs>true</includeConflictDocs>
+        <servers>
+            <server>
+                <url>https://api.example.com</url>
+                <description>Production</description>
+            </server>
+        </servers>
+    </openApi>
+</configuration>
+```
+
+```bash
+# Generate OpenAPI spec
+mvn proto-wrapper:openapi
+
+# Or via CLI
+proto-wrapper openapi \
+  --versions v201,v202,v203 \
+  --output openapi.yaml \
+  proto/
+```
+
+#### Swagger UI Integration
+
+```java
+// Spring Boot integration
+@Configuration
+public class OpenApiConfig {
+    @Bean
+    public OpenAPI protoWrapperOpenAPI() {
+        return ProtoWrapperOpenApiGenerator.generate(
+            VersionContextV202.class,
+            OpenApiConfig.builder()
+                .title("Order API")
+                .version("v202")
+                .build()
+        );
+    }
+}
+```
+
+#### Acceptance Criteria
+
+- [ ] Generate OpenAPI 3.x from proto
+- [ ] Document type conflicts
+- [ ] Multi-version support
+- [ ] Swagger UI compatible
+- [ ] Maven/Gradle goals
+- [ ] CLI command
+- [ ] Spring Boot integration
+- [ ] gRPC-Gateway compatibility
+
+### Migration Notes
+
+- New optional feature
+- No breaking changes
+
+---
+
 ## Future Considerations
 
-Features considered for v2.1.0+:
+Features considered for v3.3.0+:
 
 ### Protocol Buffers Edition Support
 - Support for proto editions (2023+)
 - Feature detection and adaptation
+- Edition-specific code generation
+- Migration tooling from proto2/proto3
 
 ### Custom Type Mappings
 ```xml
 <typeMappings>
     <mapping proto="google.type.Money" java="org.javamoney.moneta.Money"/>
     <mapping proto="google.type.Date" java="java.time.LocalDate"/>
+    <mapping proto="google.type.LatLng" java="org.locationtech.jts.geom.Point"/>
 </typeMappings>
 ```
 
@@ -1056,16 +2182,68 @@ Features considered for v2.1.0+:
 - Syntax highlighting for generated code
 - Navigation between proto and wrapper
 - Quick fixes for conflicts
+- Code completion for wrapper API
+- Refactoring support
+- Visual conflict explorer
 
 ### Proto Linting Integration
 - Integration with buf
 - Detect potential conflict patterns
 - Suggest proto improvements
+- Pre-commit hooks
+- Custom lint rules for version compatibility
 
 ### Performance Benchmarks
 - Automated performance testing
 - Comparison with raw proto access
 - Memory usage analysis
+- Startup time measurement
+- GraalVM native image benchmarks
+
+### Rust Support
+- Rust code generation
+- Trait-based wrappers
+- Zero-copy where possible
+- Async support (tokio)
+- WASM compilation target
+
+### TypeScript/JavaScript Support
+- TypeScript interface generation
+- Runtime type guards
+- Browser and Node.js support
+- Integration with protobuf-ts
+- Webpack/Vite plugins
+
+### Python Support
+- Python dataclass generation
+- Type hints (PEP 484)
+- Pydantic integration
+- Protocol class support
+- Async wrapper methods
+
+### GraphQL Schema Generation
+- Generate GraphQL schema from proto
+- Version-aware resolvers
+- Federation support
+- Subscription for streaming
+
+### Schema Evolution Recommendations
+- AI-powered suggestions for schema changes
+- Backward compatibility checker
+- Migration path recommendations
+- Deprecation warnings
+
+### Cloud-Native Features
+- Kubernetes operator for schema management
+- Service mesh integration (Istio, Linkerd)
+- Distributed tracing support
+- OpenTelemetry integration
+
+### Streaming Optimizations
+- Efficient streaming wrapper generation
+- Backpressure handling
+- Memory-efficient large message support
+- Chunk-based processing
 
 ---
 
@@ -1075,10 +2253,10 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 
 ### Priority Areas
 
-1. Repeated conflict field builders
-2. Kotlin extensions
-3. Schema diff tool
-4. Integration tests
+1. Go code generation
+2. Spring Boot Starter
+3. buf.build integration
+4. Schema Registry
 
 ### How to Propose Features
 
@@ -1097,10 +2275,18 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 | 1.3.0 | Well-Known Types Support | Released (2026-01-02) |
 | 1.4.0 | Repeated Conflict Field Builders | Released (2026-01-03) |
 | 1.5.0 | Schema Diff Tool | Released (2026-01-04) |
-| 1.6.0 | Incremental Generation | Planned (Feb 2026) |
-| 1.7.0 | Parallel Generation | Planned (Mar 2026) |
+| 1.6.0 | Incremental Generation | Released (2026-01-05) |
+| 1.6.5 | Embedded Protoc (Zero-Install) | Released (2026-01-14) |
+| 1.6.6 | ProtoWrapper Interface | Released (2026-01-16) |
+| 1.7.0 | Parallel Generation | Planned (Feb 2026) |
 | 1.8.0 | Per-version Proto Syntax | Planned (Mar 2026) |
 | 1.9.0 | Validation Annotations | Planned (Apr 2026) |
 | 1.10.0 | Kotlin Extensions | Planned (May 2026) |
 | 1.11.0 | Service/RPC Wrappers | Planned (Jun 2026) |
 | 2.0.0 | API Cleanup (Breaking) | Planned (Jul 2026) |
+| 2.1.0 | Spring Boot Starter | Planned (Aug 2026) |
+| 2.2.0 | buf.build Integration | Planned (Sep 2026) |
+| 2.3.0 | Quarkus Extension | Planned (Oct 2026) |
+| 3.0.0 | Go Support | Planned (Q1 2027) |
+| 3.1.0 | Language-Agnostic Schema Registry | Planned (Q2 2027) |
+| 3.2.0 | Proto-to-OpenAPI Generator | Planned (Q3 2027) |
