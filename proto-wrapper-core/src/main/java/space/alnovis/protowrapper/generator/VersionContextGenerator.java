@@ -1,8 +1,6 @@
 package space.alnovis.protowrapper.generator;
 
 import com.squareup.javapoet.*;
-import space.alnovis.protowrapper.generator.versioncontext.Java8Codegen;
-import space.alnovis.protowrapper.generator.versioncontext.JavaVersionCodegen;
 import space.alnovis.protowrapper.generator.versioncontext.VersionContextInterfaceComposer;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
@@ -12,10 +10,8 @@ import static space.alnovis.protowrapper.generator.ProtobufConstants.*;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -117,59 +113,7 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .build();
     }
 
-    /**
-     * Build fully qualified ClassName for a nested message interface.
-     * E.g., for TicketRequest.Item.Commodity returns ClassName representing
-     * "api.package.TicketRequest.Item.Commodity"
-     *
-     * @param nested the nested message
-     * @return the fully qualified ClassName for the nested interface
-     */
-    private ClassName buildNestedInterfaceType(MergedMessage nested) {
-        // Collect path from nested to root
-        List<String> path = new ArrayList<>();
-        MergedMessage current = nested;
-        while (current != null) {
-            path.add(current.getInterfaceName());
-            current = current.getParent();
-        }
-        Collections.reverse(path);
 
-        // First element is the top-level type
-        ClassName result = ClassName.get(config.getApiPackage(), path.get(0));
-
-        // Add nested classes
-        for (int i = 1; i < path.size(); i++) {
-            result = result.nestedClass(path.get(i));
-        }
-
-        return result;
-    }
-
-    /**
-     * Build flattened method name for nested builder.
-     * E.g., for TicketRequest.Item.Commodity returns "newTicketRequestItemCommodityBuilder"
-     *
-     * @param nested the nested message
-     * @return the builder method name
-     */
-    private String buildNestedBuilderMethodName(MergedMessage nested) {
-        return "new" + String.join("", collectMessageHierarchyNames(nested)) + "Builder";
-    }
-
-    /**
-     * Collect message names from root to current (e.g., ["Order", "Item"] for Order.Item).
-     *
-     * @param message the message to collect hierarchy for
-     * @return list of message names from root to current
-     */
-    private List<String> collectMessageHierarchyNames(MergedMessage message) {
-        LinkedList<String> names = new LinkedList<>();
-        for (MergedMessage current = message; current != null; current = current.getParent()) {
-            names.addFirst(current.getName());
-        }
-        return names;
-    }
 
     /**
      * Generate VersionContext implementation for a specific version.
@@ -339,14 +283,14 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
         }
 
         // Build fully qualified interface type for return
-        ClassName nestedInterfaceType = buildNestedInterfaceType(nested);
+        ClassName nestedInterfaceType = GeneratorUtils.buildNestedInterfaceType(nested, config.getApiPackage());
         ClassName builderType = nestedInterfaceType.nestedClass("Builder");
 
         // Build fully qualified impl type for newBuilder() call
         ClassName nestedImplType = buildNestedImplType(nested, implPackage, topLevelImplClassName);
 
         // Method name with full path (e.g., newTicketRequestItemCommodityBuilder)
-        String methodName = buildNestedBuilderMethodName(nested);
+        String methodName = GeneratorUtils.buildNestedBuilderMethodName(nested);
 
         classBuilder.addMethod(MethodSpec.methodBuilder(methodName)
                 .addAnnotation(Override.class)

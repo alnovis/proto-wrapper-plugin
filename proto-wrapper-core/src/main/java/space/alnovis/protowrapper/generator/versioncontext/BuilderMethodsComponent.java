@@ -9,10 +9,7 @@ import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import javax.lang.model.element.Modifier;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -72,7 +69,7 @@ public class BuilderMethodsComponent implements InterfaceComponent {
     private void addNestedBuilderMethods(TypeSpec.Builder interfaceBuilder, MergedMessage parent,
                                           Set<String> allVersions) {
         for (MergedMessage nested : parent.getNestedMessages()) {
-            ClassName nestedType = buildNestedInterfaceType(nested);
+            ClassName nestedType = GeneratorUtils.buildNestedInterfaceType(nested, config.getApiPackage());
             ClassName builderType = nestedType.nestedClass("Builder");
 
             String methodName = GeneratorUtils.buildNestedBuilderMethodName(nested);
@@ -112,24 +109,5 @@ public class BuilderMethodsComponent implements InterfaceComponent {
         }
 
         return methodBuilder.build();
-    }
-
-    /**
-     * Build fully qualified ClassName for a nested message interface.
-     */
-    private ClassName buildNestedInterfaceType(MergedMessage nested) {
-        List<String> path = new ArrayList<>();
-        MergedMessage current = nested;
-        while (current != null) {
-            path.add(current.getInterfaceName());
-            current = current.getParent();
-        }
-        Collections.reverse(path);
-
-        ClassName result = ClassName.get(config.getApiPackage(), path.get(0));
-        for (int i = 1; i < path.size(); i++) {
-            result = result.nestedClass(path.get(i));
-        }
-        return result;
     }
 }

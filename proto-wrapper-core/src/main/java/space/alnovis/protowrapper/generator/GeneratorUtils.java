@@ -1,8 +1,11 @@
 package space.alnovis.protowrapper.generator;
 
+import com.squareup.javapoet.ClassName;
 import space.alnovis.protowrapper.model.FieldInfo;
 import space.alnovis.protowrapper.model.MergedMessage;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -193,6 +196,32 @@ public final class GeneratorUtils {
      */
     public static String buildNestedInterfaceName(MergedMessage message) {
         return String.join("", collectMessageHierarchyNames(message));
+    }
+
+    /**
+     * Build fully qualified ClassName for a nested message interface.
+     *
+     * <p>For example, for nested message Order.Item returns ClassName representing
+     * "apiPackage.Order.Item".</p>
+     *
+     * @param nested the nested message
+     * @param apiPackage the API package name
+     * @return the fully qualified ClassName for the nested interface
+     */
+    public static ClassName buildNestedInterfaceType(MergedMessage nested, String apiPackage) {
+        List<String> path = new ArrayList<>();
+        MergedMessage current = nested;
+        while (current != null) {
+            path.add(current.getInterfaceName());
+            current = current.getParent();
+        }
+        Collections.reverse(path);
+
+        ClassName result = ClassName.get(apiPackage, path.get(0));
+        for (int i = 1; i < path.size(); i++) {
+            result = result.nestedClass(path.get(i));
+        }
+        return result;
     }
 
     // ==================== String Utilities ====================
