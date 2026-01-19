@@ -319,6 +319,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         // Abstract getVersion method - used for version-aware validation (deprecated)
         builder.addMethod(MethodSpec.methodBuilder("getVersion")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .addAnnotation(config.getJavaVersionCodegen().deprecatedAnnotation("1.6.9", true))
                 .returns(TypeName.INT)
                 .build());
 
@@ -427,9 +428,9 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("$T<$T> inaccessibleFields = getFieldsInaccessibleInVersion(targetVersion)",
                         java.util.List.class, String.class)
                 .beginControlFlow("if (!inaccessibleFields.isEmpty())")
-                .addStatement("throw new $T($T.format($S, getWrapperVersion(), targetVersion, inaccessibleFields))",
+                .addStatement("throw new $T($T.format($S, getWrapperVersionId(), targetVersion, inaccessibleFields))",
                         IllegalStateException.class, String.class,
-                        "Cannot convert from version %d to version %d: the following fields have values " +
+                        "Cannot convert from version %s to version %d: the following fields have values " +
                         "but will become inaccessible in the target version: %s. " +
                         "Use asVersion() if you want to proceed anyway (data is preserved via protobuf unknown fields).")
                 .endControlFlow()
@@ -463,13 +464,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .nextControlFlow("catch ($T e)", java.lang.reflect.InvocationTargetException.class)
                 // Get the real cause from InvocationTargetException
                 .addStatement("$T cause = e.getCause() != null ? e.getCause() : e", Throwable.class)
-                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), getWrapperVersion(), targetVersion, cause.getClass().getSimpleName(), cause.getMessage()), cause)",
+                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), getWrapperVersionId(), targetVersion, cause.getClass().getSimpleName(), cause.getMessage()), cause)",
                         RuntimeException.class, String.class,
-                        "Failed to convert %s from version %d to version %d: %s - %s")
+                        "Failed to convert %s from version %s to version %d: %s - %s")
                 .nextControlFlow("catch ($T e)", Exception.class)
-                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), getWrapperVersion(), targetVersion, e.getMessage()), e)",
+                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), getWrapperVersionId(), targetVersion, e.getMessage()), e)",
                         RuntimeException.class, String.class,
-                        "Failed to convert %s from version %d to version %d: %s")
+                        "Failed to convert %s from version %s to version %d: %s")
                 .endControlFlow()
                 .build());
 
@@ -510,8 +511,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
-                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersion(), proto.toString().replace($S, $S).trim())",
-                        String.class, "%s[version=%d] %s", "\n", ", ")
+                .addStatement("return $T.format($S, getClass().getSimpleName(), getWrapperVersionId(), proto.toString().replace($S, $S).trim())",
+                        String.class, "%s[version=%s] %s", "\n", ", ")
                 .build());
 
         // equals() - compare by version and proto content
@@ -523,8 +524,8 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("if (this == obj) return true")
                 .addStatement("if (obj == null || getClass() != obj.getClass()) return false")
                 .addStatement("$L<?> other = ($L<?>) obj", message.getAbstractClassName(), message.getAbstractClassName())
-                .addStatement("return this.getWrapperVersion() == other.getWrapperVersion() && $T.equals(this.proto, other.proto)",
-                        Objects.class)
+                .addStatement("return $T.equals(this.getWrapperVersionId(), other.getWrapperVersionId()) && $T.equals(this.proto, other.proto)",
+                        Objects.class, Objects.class)
                 .build());
 
         // hashCode() - based on version and proto content
@@ -532,7 +533,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(TypeName.INT)
-                .addStatement("return $T.hash(getWrapperVersion(), proto)", Objects.class)
+                .addStatement("return $T.hash(getWrapperVersionId(), proto)", Objects.class)
                 .build());
 
         // Abstract method for getting VersionContext (versionContextType already defined above)
