@@ -8,6 +8,7 @@ A practical guide with detailed examples for common Proto Wrapper use cases.
 
 ## Table of Contents
 
+- [Parsing and Serialization](#parsing-and-serialization)
 - [Type Conflict Handling](#type-conflict-handling)
 - [Generation Modes](#generation-modes)
 - [Oneof Field Handling](#oneof-field-handling)
@@ -25,6 +26,254 @@ A practical guide with detailed examples for common Proto Wrapper use cases.
 | [Configuration](CONFIGURATION.md) | All plugin options |
 | [Schema Diff](SCHEMA_DIFF.md) | Compare schema versions |
 | [Known Issues](KNOWN_ISSUES.md) | Limitations and workarounds |
+
+---
+
+## Parsing and Serialization
+
+Proto-wrapper provides multiple ways to parse byte arrays into wrapper objects and serialize them back.
+
+### Overview of Parsing Options
+
+| Method | Location | Description | Since |
+|--------|----------|-------------|-------|
+| `Interface.parseFromBytes(ctx, bytes)` | Interface | Static method on each interface | v1.6.9 |
+| `ctx.parse{Type}FromBytes(bytes)` | VersionContext | Instance method on context | v1.0.0 |
+| `ctx.wrap{Type}(proto)` | VersionContext | Wrap existing proto object | v1.0.0 |
+
+### Option 1: Static parseFromBytes (Recommended)
+
+*Since v1.6.9*
+
+The most intuitive approach — call `parseFromBytes` directly on the interface type:
+
+```java
+import com.example.model.api.Money;
+import com.example.model.api.VersionContext;
+import com.google.protobuf.InvalidProtocolBufferException;
+
+// Get version context
+VersionContext ctx = VersionContext.forVersionId("v1");
+
+// Parse bytes using static method on interface
+Money money = Money.parseFromBytes(ctx, bytes);
+
+// Access fields
+long amount = money.getAmount();
+String currency = money.getCurrency();
+```
+
+**Advantages:**
+- Mirrors native protobuf pattern (`MyProto.parseFrom(bytes)`)
+- Type is explicit in the method call
+- IDE autocomplete works naturally
+
+**Nested types:**
+
+```java
+// For nested interface Address.GeoLocation
+Address.GeoLocation location = Address.GeoLocation.parseFromBytes(ctx, bytes);
+
+// For deeply nested types
+Order.Item.Discount discount = Order.Item.Discount.parseFromBytes(ctx, bytes);
+```
+
+### Option 2: VersionContext Method
+
+Call the parse method on the VersionContext instance:
+
+```java
+VersionContext ctx = VersionContext.forVersionId("v2");
+
+// Parse using context method
+Money money = ctx.parseMoneyFromBytes(bytes);
+Order order = ctx.parseOrderFromBytes(bytes);
+Customer customer = ctx.parseCustomerFromBytes(bytes);
+
+// Nested types
+Address.GeoLocation location = ctx.parseAddressGeoLocationFromBytes(bytes);
+```
+
+**Advantages:**
+- Available since v1.0.0
+- Good when you have the context and need to parse many different types
+
+### Option 3: Wrap Existing Proto Object
+
+When you already have a parsed protobuf object:
+
+```java
+import com.example.proto.v1.Common;
+
+// Parse proto directly
+Common.Money proto = Common.Money.parseFrom(bytes);
+
+// Wrap it
+VersionContext ctx = VersionContext.forVersionId("v1");
+Money money = ctx.wrapMoney(proto);
+```
+
+**Use case:** Interoperability with code that works with raw protobuf objects.
+
+### Serialization
+
+All wrapper objects can be serialized to bytes:
+
+```java
+Money money = Money.newBuilder(ctx)
+        .setAmount(1000)
+        .setCurrency("USD")
+        .build();
+
+// Serialize to bytes
+byte[] bytes = money.toBytes();
+
+// Round-trip: parse back
+Money restored = Money.parseFromBytes(ctx, bytes);
+assert restored.getAmount() == 1000;
+assert restored.getCurrency().equals("USD");
+```
+
+### Complete Example: Request/Response Handling
+
+```java
+public class PaymentService {
+
+    private final VersionContext ctx;
+
+    public PaymentService(String protocolVersion) {
+        this.ctx = VersionContext.forVersionId(protocolVersion);
+    }
+
+    /**
+     * Process payment request from bytes.
+     */
+    public byte[] processPayment(byte[] requestBytes)
+            throws InvalidProtocolBufferException {
+
+        // Parse request using static method
+        Payment request = Payment.parseFromBytes(ctx, requestBytes);
+
+        // Business logic
+        PaymentResult result = executePayment(request);
+
+        // Build response
+        PaymentResponse response = PaymentResponse.newBuilder(ctx)
+                .setPaymentId(request.getId())
+                .setStatus(result.isSuccess() ? "SUCCESS" : "FAILED")
+                .setTimestamp(Instant.now())
+                .build();
+
+        // Serialize response
+        return response.toBytes();
+    }
+}
+```
+
+### Cross-Version Parsing
+
+Parse data with one version, convert to another:
+
+```java
+// Receive V1 data
+VersionContext v1Ctx = VersionContext.forVersionId("v1");
+Money v1Money = Money.parseFromBytes(v1Ctx, bytesFromV1Client);
+
+// Convert to V2 for processing
+Money v2Money = v1Money.asVersion(
+        com.example.model.v2.Money.class);
+
+// V2-only fields become accessible if data exists
+if (v2Money.supportsExchangeRate() && v2Money.hasExchangeRate()) {
+    Double rate = v2Money.getExchangeRate();
+}
+```
+
+### Error Handling
+
+```java
+VersionContext ctx = VersionContext.forVersionId("v1");
+
+try {
+    Money money = Money.parseFromBytes(ctx, bytes);
+    // Process money...
+} catch (InvalidProtocolBufferException e) {
+    // Invalid protobuf data
+    log.error("Failed to parse Money: {}", e.getMessage());
+    throw new BadRequestException("Invalid payment data");
+}
+```
+
+**Common errors:**
+- `InvalidProtocolBufferException` — bytes are not valid protobuf
+- `UninitializedMessageException` — required fields missing (proto2)
+
+### Parsing with Unknown Version
+
+When version comes from external source (e.g., header):
+
+```java
+public Money parseMoney(byte[] bytes, String versionHeader)
+        throws InvalidProtocolBufferException {
+
+    // Validate version
+    if (!VersionContext.isSupported(versionHeader)) {
+        throw new IllegalArgumentException(
+            "Unsupported version: " + versionHeader +
+            ". Supported: " + VersionContext.supportedVersions());
+    }
+
+    VersionContext ctx = VersionContext.forVersionId(versionHeader);
+    return Money.parseFromBytes(ctx, bytes);
+}
+```
+
+### Best Practices
+
+1. **Prefer static parseFromBytes** for clarity:
+   ```java
+   // Good - type is explicit
+   Money money = Money.parseFromBytes(ctx, bytes);
+
+   // OK - but type only in variable declaration
+   Money money = ctx.parseMoneyFromBytes(bytes);
+   ```
+
+2. **Reuse VersionContext** when processing multiple messages:
+   ```java
+   VersionContext ctx = VersionContext.forVersionId("v1");
+
+   // Parse multiple objects with same context
+   Order order = Order.parseFromBytes(ctx, orderBytes);
+   Customer customer = Customer.parseFromBytes(ctx, customerBytes);
+   Payment payment = Payment.parseFromBytes(ctx, paymentBytes);
+   ```
+
+3. **Use getContext() for related objects**:
+   ```java
+   // Parse main object
+   Order order = Order.parseFromBytes(ctx, orderBytes);
+
+   // Use its context for creating related objects
+   VersionContext orderCtx = order.getContext();
+   Payment payment = Payment.newBuilder(orderCtx)
+           .setOrderId(order.getId())
+           .setAmount(order.getTotal())
+           .build();
+   ```
+
+4. **Handle version mismatches gracefully**:
+   ```java
+   // Check if field is accessible before using
+   Money money = Money.parseFromBytes(ctx, bytes);
+
+   if (money.supportsExchangeRate()) {
+       Double rate = money.getExchangeRate();
+       // Use rate...
+   } else {
+       // Use default or calculate...
+   }
+   ```
 
 ---
 

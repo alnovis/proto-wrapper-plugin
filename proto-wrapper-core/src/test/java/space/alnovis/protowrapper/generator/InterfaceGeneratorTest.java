@@ -111,4 +111,63 @@ class InterfaceGeneratorTest {
 
         assertThat(code).contains("List<Item> getItems()");
     }
+
+    @Test
+    void shouldGenerateParseFromBytesMethod() {
+        MergedMessage message = new MergedMessage("Money");
+        message.addVersion("v1");
+        message.addVersion("v2");
+
+        FieldDescriptorProto amountProto = FieldDescriptorProto.newBuilder()
+                .setName("amount")
+                .setNumber(1)
+                .setType(Type.TYPE_INT64)
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+        message.addField(new MergedField(new FieldInfo(amountProto), "v1"));
+
+        JavaFile javaFile = generator.generate(message);
+        String code = javaFile.toString();
+
+        // Verify parseFromBytes static method is generated
+        assertThat(code).contains("static Money parseFromBytes(VersionContext ctx, byte[] bytes)");
+        assertThat(code).contains("throws InvalidProtocolBufferException");
+        assertThat(code).contains("return ctx.parseMoneyFromBytes(bytes)");
+        // Verify JavaDoc
+        assertThat(code).contains("Parse bytes into a Money using the specified version context");
+        assertThat(code).contains("@param ctx Version context determining the protocol version");
+        assertThat(code).contains("@param bytes Serialized protobuf data");
+    }
+
+    @Test
+    void shouldGenerateParseFromBytesEvenWithoutBuilders() {
+        // Create config without builders
+        GeneratorConfig configNoBuilders = GeneratorConfig.builder()
+                .outputDirectory(tempDir)
+                .apiPackage("org.example.api")
+                .generateBuilders(false)
+                .build();
+        InterfaceGenerator generatorNoBuilders = new InterfaceGenerator(configNoBuilders);
+        generatorNoBuilders.setSchema(new MergedSchema(Arrays.asList("v1")));
+
+        MergedMessage message = new MergedMessage("Order");
+        message.addVersion("v1");
+
+        FieldDescriptorProto idProto = FieldDescriptorProto.newBuilder()
+                .setName("id")
+                .setNumber(1)
+                .setType(Type.TYPE_INT64)
+                .setLabel(Label.LABEL_REQUIRED)
+                .build();
+        message.addField(new MergedField(new FieldInfo(idProto), "v1"));
+
+        JavaFile javaFile = generatorNoBuilders.generate(message);
+        String code = javaFile.toString();
+
+        // parseFromBytes should still be generated
+        assertThat(code).contains("static Order parseFromBytes(VersionContext ctx, byte[] bytes)");
+        assertThat(code).contains("return ctx.parseOrderFromBytes(bytes)");
+        // But newBuilder should NOT be generated
+        assertThat(code).doesNotContain("static Builder newBuilder");
+    }
 }
