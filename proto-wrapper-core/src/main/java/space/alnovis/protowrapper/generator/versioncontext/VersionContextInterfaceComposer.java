@@ -86,7 +86,7 @@ public class VersionContextInterfaceComposer {
      * @return this composer for chaining
      */
     public VersionContextInterfaceComposer addInstanceMethods() {
-        new InstanceMethodsComponent(schema).addTo(builder);
+        new InstanceMethodsComponent(config, schema).addTo(builder);
         return this;
     }
 

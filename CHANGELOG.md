@@ -46,6 +46,7 @@ protoWrapper {
 - **Java 8 compatible code generation** when `targetJavaVersion=8`:
   - Replaces `List.of()` with `Collections.unmodifiableList(Arrays.asList())`
   - Generates `VersionContextHelper` class instead of private interface methods
+  - Uses simple `@Deprecated` annotation without `since` and `forRemoval` parameters (Java 9+ only)
 
 ### Tests
 

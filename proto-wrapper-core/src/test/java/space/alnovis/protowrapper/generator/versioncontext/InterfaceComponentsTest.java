@@ -252,7 +252,7 @@ class InterfaceComponentsTest {
         @Test
         @DisplayName("adds getVersionId abstract method")
         void addsGetVersionIdMethod() {
-            new InstanceMethodsComponent(schema).addTo(builder);
+            new InstanceMethodsComponent(config, schema).addTo(builder);
 
             String code = builder.build().toString();
             assertThat(code).contains("String getVersionId()");
@@ -261,7 +261,7 @@ class InterfaceComponentsTest {
         @Test
         @DisplayName("adds deprecated getVersion abstract method")
         void addsDeprecatedGetVersionMethod() {
-            new InstanceMethodsComponent(schema).addTo(builder);
+            new InstanceMethodsComponent(config, schema).addTo(builder);
 
             String code = builder.build().toString();
             // JavaPoet generates @java.lang.Deprecated

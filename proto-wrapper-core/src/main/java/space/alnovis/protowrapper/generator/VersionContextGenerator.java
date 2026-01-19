@@ -213,11 +213,14 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .build());
 
         // getVersion() - deprecated
+        // Java 8 doesn't support @Deprecated(since, forRemoval), use simple @Deprecated
         int versionNum = extractVersionNumber(version);
-        AnnotationSpec deprecatedImpl = AnnotationSpec.builder(Deprecated.class)
-                .addMember("since", "$S", "1.6.7")
-                .addMember("forRemoval", "$L", true)
-                .build();
+        AnnotationSpec.Builder deprecatedImplBuilder = AnnotationSpec.builder(Deprecated.class);
+        if (!config.isJava8Compatible()) {
+            deprecatedImplBuilder.addMember("since", "$S", "1.6.7")
+                    .addMember("forRemoval", "$L", true);
+        }
+        AnnotationSpec deprecatedImpl = deprecatedImplBuilder.build();
 
         classBuilder.addMethod(MethodSpec.methodBuilder("getVersion")
                 .addAnnotation(Override.class)

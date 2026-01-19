@@ -4,6 +4,7 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 import space.alnovis.protowrapper.generator.GeneratorConfig;
+import space.alnovis.protowrapper.generator.GeneratorUtils;
 import space.alnovis.protowrapper.model.MergedMessage;
 import space.alnovis.protowrapper.model.MergedSchema;
 
@@ -11,7 +12,6 @@ import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -75,8 +75,8 @@ public class BuilderMethodsComponent implements InterfaceComponent {
             ClassName nestedType = buildNestedInterfaceType(nested);
             ClassName builderType = nestedType.nestedClass("Builder");
 
-            String methodName = buildNestedBuilderMethodName(nested);
-            String qualifiedName = buildNestedQualifiedName(nested);
+            String methodName = GeneratorUtils.buildNestedBuilderMethodName(nested);
+            String qualifiedName = GeneratorUtils.buildNestedQualifiedName(nested);
 
             boolean existsInAllVersions = nested.getPresentInVersions().containsAll(allVersions);
 
@@ -131,30 +131,5 @@ public class BuilderMethodsComponent implements InterfaceComponent {
             result = result.nestedClass(path.get(i));
         }
         return result;
-    }
-
-    /**
-     * Build flattened method name for nested builder.
-     */
-    private String buildNestedBuilderMethodName(MergedMessage nested) {
-        return "new" + String.join("", collectMessageHierarchyNames(nested)) + "Builder";
-    }
-
-    /**
-     * Build qualified display name for nested message (for javadoc).
-     */
-    private String buildNestedQualifiedName(MergedMessage nested) {
-        return String.join(".", collectMessageHierarchyNames(nested));
-    }
-
-    /**
-     * Collect message names from root to current.
-     */
-    private List<String> collectMessageHierarchyNames(MergedMessage message) {
-        LinkedList<String> names = new LinkedList<>();
-        for (MergedMessage current = message; current != null; current = current.getParent()) {
-            names.addFirst(current.getName());
-        }
-        return names;
     }
 }

@@ -40,7 +40,6 @@ public class WrapMethodsComponent implements InterfaceComponent {
 
     @Override
     public void addTo(TypeSpec.Builder builder) {
-        ClassName messageClass = MESSAGE_CLASS;
         ClassName invalidProtocolBufferException = ClassName.get(
                 "com.google.protobuf", "InvalidProtocolBufferException");
 
@@ -51,7 +50,7 @@ public class WrapMethodsComponent implements InterfaceComponent {
             boolean existsInAllVersions = message.getPresentInVersions().containsAll(schema.getVersions());
 
             // wrapXxx(Message) method
-            builder.addMethod(createWrapMethod(message, returnType, messageClass, existsInAllVersions));
+            builder.addMethod(createWrapMethod(message, returnType, existsInAllVersions));
 
             // parseXxxFromBytes(byte[]) method
             builder.addMethod(createParseFromBytesMethod(message, returnType,
@@ -60,26 +59,16 @@ public class WrapMethodsComponent implements InterfaceComponent {
     }
 
     private MethodSpec createWrapMethod(MergedMessage message, ClassName returnType,
-                                         ClassName messageClass, boolean existsInAllVersions) {
+                                         boolean existsInAllVersions) {
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder("wrap" + message.getName())
                 .addModifiers(Modifier.PUBLIC)
                 .returns(returnType)
-                .addParameter(messageClass, "proto")
+                .addParameter(MESSAGE_CLASS, "proto")
                 .addJavadoc("Wrap a proto $L message.\n", message.getName())
                 .addJavadoc("@param proto Proto message\n")
                 .addJavadoc("@return Wrapped $L, or null if proto is null\n", message.getName());
 
-        if (existsInAllVersions) {
-            methodBuilder.addModifiers(Modifier.ABSTRACT);
-        } else {
-            methodBuilder.addModifiers(Modifier.DEFAULT);
-            methodBuilder.addJavadoc("@apiNote Present only in versions: $L\n", message.getPresentInVersions());
-            methodBuilder.addStatement("throw new $T($S + $S)",
-                    UnsupportedOperationException.class,
-                    message.getName() + " is not available in this version. Present in: ",
-                    message.getPresentInVersions().toString());
-        }
-
+        applyVersionAvailability(methodBuilder, message, existsInAllVersions);
         return methodBuilder.build();
     }
 
@@ -95,6 +84,15 @@ public class WrapMethodsComponent implements InterfaceComponent {
                 .addJavadoc("@return Wrapped $L, or null if bytes is null\n", message.getName())
                 .addJavadoc("@throws InvalidProtocolBufferException if bytes cannot be parsed\n");
 
+        applyVersionAvailability(methodBuilder, message, existsInAllVersions);
+        return methodBuilder.build();
+    }
+
+    /**
+     * Apply abstract or default modifier based on version availability.
+     */
+    private void applyVersionAvailability(MethodSpec.Builder methodBuilder, MergedMessage message,
+                                           boolean existsInAllVersions) {
         if (existsInAllVersions) {
             methodBuilder.addModifiers(Modifier.ABSTRACT);
         } else {
@@ -105,7 +103,5 @@ public class WrapMethodsComponent implements InterfaceComponent {
                     message.getName() + " is not available in this version. Present in: ",
                     message.getPresentInVersions().toString());
         }
-
-        return methodBuilder.build();
     }
 }

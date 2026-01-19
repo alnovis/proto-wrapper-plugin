@@ -32,6 +32,7 @@ protoWrapper {
 |---------|-------------------|--------|
 | List creation | `List.of("v1", "v2")` | `Collections.unmodifiableList(Arrays.asList("v1", "v2"))` |
 | CONTEXTS init | Private interface method | External `VersionContextHelper` class |
+| @Deprecated | `@Deprecated(since="1.6.7", forRemoval=true)` | `@Deprecated` (simple) |
 
 #### Java 9+ Generated Code (default)
 
@@ -39,6 +40,12 @@ protoWrapper {
 public interface VersionContext {
     Map<String, VersionContext> CONTEXTS = createContexts();
     List<String> SUPPORTED_VERSIONS = List.of("v1", "v2");
+
+    @Deprecated(since = "1.6.7", forRemoval = true)
+    static VersionContext forVersion(int version) { ... }
+
+    @Deprecated(since = "1.6.7", forRemoval = true)
+    int getVersion();
 
     private static Map<String, VersionContext> createContexts() {
         Map<String, VersionContext> map = new LinkedHashMap<>();
@@ -56,6 +63,12 @@ public interface VersionContext {
     Map<String, VersionContext> CONTEXTS = VersionContextHelper.createContexts();
     List<String> SUPPORTED_VERSIONS =
         Collections.unmodifiableList(Arrays.asList("v1", "v2"));
+
+    @Deprecated  // Simple annotation without since/forRemoval (Java 9+ only)
+    static VersionContext forVersion(int version) { ... }
+
+    @Deprecated
+    int getVersion();
 }
 
 // Separate helper class (private interface methods not available in Java 8)

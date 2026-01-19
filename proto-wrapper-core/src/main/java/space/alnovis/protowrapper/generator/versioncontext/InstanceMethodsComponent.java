@@ -4,6 +4,7 @@ import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
+import space.alnovis.protowrapper.generator.GeneratorConfig;
 import space.alnovis.protowrapper.model.MergedSchema;
 
 import javax.lang.model.element.Modifier;
@@ -21,14 +22,17 @@ import java.util.stream.Collectors;
  */
 public class InstanceMethodsComponent implements InterfaceComponent {
 
+    private final GeneratorConfig config;
     private final MergedSchema schema;
 
     /**
      * Create a new InstanceMethodsComponent.
      *
+     * @param config generator configuration
      * @param schema merged schema
      */
-    public InstanceMethodsComponent(MergedSchema schema) {
+    public InstanceMethodsComponent(GeneratorConfig config, MergedSchema schema) {
+        this.config = config;
         this.schema = schema;
     }
 
@@ -49,10 +53,13 @@ public class InstanceMethodsComponent implements InterfaceComponent {
                 .build());
 
         // getVersion() - deprecated
-        AnnotationSpec deprecatedAnnotation = AnnotationSpec.builder(Deprecated.class)
-                .addMember("since", "$S", "1.6.7")
-                .addMember("forRemoval", "$L", true)
-                .build();
+        // Java 8 doesn't support @Deprecated(since, forRemoval), use simple @Deprecated
+        AnnotationSpec.Builder deprecatedBuilder = AnnotationSpec.builder(Deprecated.class);
+        if (!config.isJava8Compatible()) {
+            deprecatedBuilder.addMember("since", "$S", "1.6.7")
+                    .addMember("forRemoval", "$L", true);
+        }
+        AnnotationSpec deprecatedAnnotation = deprecatedBuilder.build();
 
         builder.addMethod(MethodSpec.methodBuilder("getVersion")
                 .addAnnotation(deprecatedAnnotation)

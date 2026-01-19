@@ -143,10 +143,13 @@ public class StaticMethodsComponent implements InterfaceComponent {
                 .map(String::valueOf)
                 .collect(Collectors.joining(", "));
 
-        AnnotationSpec deprecatedAnnotation = AnnotationSpec.builder(Deprecated.class)
-                .addMember("since", "$S", "1.6.7")
-                .addMember("forRemoval", "$L", true)
-                .build();
+        // Java 8 doesn't support @Deprecated(since, forRemoval), use simple @Deprecated
+        AnnotationSpec.Builder deprecatedBuilder = AnnotationSpec.builder(Deprecated.class);
+        if (!config.isJava8Compatible()) {
+            deprecatedBuilder.addMember("since", "$S", "1.6.7")
+                    .addMember("forRemoval", "$L", true);
+        }
+        AnnotationSpec deprecatedAnnotation = deprecatedBuilder.build();
 
         MethodSpec.Builder forVersion = MethodSpec.methodBuilder("forVersion")
                 .addAnnotation(deprecatedAnnotation)
