@@ -477,7 +477,7 @@ public class VersionConversionEdgeCasesTest {
             );
 
             // Check error message contains useful info
-            assertTrue(ex.getMessage().contains("version 1"), "Should mention source version");
+            assertTrue(ex.getMessage().contains("version v1"), "Should mention source version");
             assertTrue(ex.getMessage().contains("version 2"), "Should mention target version");
             assertTrue(ex.getMessage().contains("legacyCode"), "Should mention inaccessible field");
             assertTrue(ex.getMessage().contains("oldFormat"), "Should mention inaccessible field");
@@ -544,7 +544,7 @@ public class VersionConversionEdgeCasesTest {
                 v2.asVersionStrict(space.alnovis.protowrapper.it.model.v1.VersionSpecificFields.class)
             );
 
-            assertTrue(ex.getMessage().contains("version 2"), "Should mention source version");
+            assertTrue(ex.getMessage().contains("version v2"), "Should mention source version");
             assertTrue(ex.getMessage().contains("version 1"), "Should mention target version");
             assertTrue(ex.getMessage().contains("newFormat"), "Should mention inaccessible field");
             assertTrue(ex.getMessage().contains("category"), "Should mention inaccessible field");

@@ -257,22 +257,31 @@ maven_build() {
 
     print_section "Maven Build"
 
+    local output
+    local exit_code
+
     if [[ "$skip_tests" == "true" ]]; then
         print_info "Running: mvn clean install -DskipTests"
-        if mvn clean install -DskipTests -q; then
+        output=$(mvn clean install -DskipTests -q 2>&1)
+        exit_code=$?
+        if [[ $exit_code -eq 0 ]]; then
             print_success "Maven build completed"
             return 0
         else
             print_error "Maven build failed"
+            echo "$output" | tail -30
             return 1
         fi
     else
         print_info "Running: mvn clean install"
-        if mvn clean install -q; then
+        output=$(mvn clean install -q 2>&1)
+        exit_code=$?
+        if [[ $exit_code -eq 0 ]]; then
             print_success "Maven build and tests completed"
             return 0
         else
             print_error "Maven build failed"
+            echo "$output" | tail -50
             return 1
         fi
     fi
@@ -284,7 +293,7 @@ maven_tests() {
     print_info "Running: mvn test -pl proto-wrapper-core,proto-wrapper-golden-tests,proto-wrapper-maven-integration-tests"
 
     local output
-    output=$(mvn test -pl proto-wrapper-core,proto-wrapper-golden-tests,proto-wrapper-maven-integration-tests 2>&1)
+    output=$(mvn test -pl proto-wrapper-core,proto-wrapper-golden-tests,proto-wrapper-maven-integration-tests -q 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
@@ -304,12 +313,17 @@ gradle_build() {
 
     print_info "Running: ./gradlew check publishToMavenLocal"
 
-    if ./gradlew check publishToMavenLocal -q; then
+    local output
+    output=$(./gradlew check publishToMavenLocal -q 2>&1)
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
         print_success "Gradle build and tests completed"
         print_success "Published to mavenLocal"
         return 0
     else
         print_error "Gradle build failed"
+        echo "$output" | tail -30
         return 1
     fi
 }
@@ -320,12 +334,17 @@ gradle_integration_tests() {
     print_info "Running: gradle test (in proto-wrapper-gradle-integration-tests)"
 
     cd proto-wrapper-gradle-integration-tests
-    if gradle test -q; then
+    local output
+    output=$(gradle test -q 2>&1)
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
         print_success "Gradle integration tests passed"
         cd ..
         return 0
     else
         print_error "Gradle integration tests failed"
+        echo "$output" | tail -30
         cd ..
         return 1
     fi
