@@ -1,5 +1,8 @@
 package space.alnovis.protowrapper.generator;
 
+import space.alnovis.protowrapper.generator.versioncontext.Java8Codegen;
+import space.alnovis.protowrapper.generator.versioncontext.Java9PlusCodegen;
+import space.alnovis.protowrapper.generator.versioncontext.JavaVersionCodegen;
 import space.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.nio.file.Path;
@@ -191,6 +194,22 @@ public class GeneratorConfig {
     public int getTargetJavaVersion() { return targetJavaVersion; }
     /** @return true if generating Java 8 compatible code */
     public boolean isJava8Compatible() { return targetJavaVersion <= 8; }
+
+    /**
+     * Get the Java version-specific code generation strategy.
+     *
+     * <p>Returns appropriate strategy based on target Java version:</p>
+     * <ul>
+     *   <li>Java 8: {@link Java8Codegen} - uses Collections.unmodifiableList(), simple @Deprecated</li>
+     *   <li>Java 9+: {@link Java9PlusCodegen} - uses List.of(), @Deprecated(since, forRemoval)</li>
+     * </ul>
+     *
+     * @return the code generation strategy for the target Java version
+     * @since 1.6.9
+     */
+    public JavaVersionCodegen getJavaVersionCodegen() {
+        return targetJavaVersion >= 9 ? Java9PlusCodegen.INSTANCE : Java8Codegen.INSTANCE;
+    }
 
     /**
      * Get the implementation class name for a message in a specific version.

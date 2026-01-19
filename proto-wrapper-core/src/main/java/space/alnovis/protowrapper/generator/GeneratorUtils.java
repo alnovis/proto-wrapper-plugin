@@ -36,7 +36,37 @@ public final class GeneratorUtils {
     // ==================== Version Check Methods ====================
 
     /**
-     * Build a version check expression for the given set of versions.
+     * Build a version check expression for the given set of versions using string identifiers.
+     *
+     * <p>Generates code like:</p>
+     * <ul>
+     *   <li>Single version: {@code "v1".equals(getWrapperVersionId())}</li>
+     *   <li>Multiple versions: {@code "v1".equals(getWrapperVersionId()) || "v2".equals(getWrapperVersionId())}</li>
+     * </ul>
+     *
+     * @param versions Set of version strings (e.g., "v1", "v2", "v3")
+     * @return Version check expression for code generation
+     * @since 1.6.9
+     */
+    public static String buildVersionCheck(Set<String> versions) {
+        if (versions == null || versions.isEmpty()) {
+            return "true";
+        }
+
+        if (versions.size() == 1) {
+            String version = versions.iterator().next();
+            return "\"" + version + "\".equals(getWrapperVersionId())";
+        }
+
+        // Multiple versions - build OR condition with string checks
+        return versions.stream()
+                .sorted() // Ensure consistent order for tests
+                .map(v -> "\"" + v + "\".equals(getWrapperVersionId())")
+                .collect(Collectors.joining(" || "));
+    }
+
+    /**
+     * Build a version check expression using numeric version comparisons.
      *
      * <p>Generates code like:</p>
      * <ul>
@@ -46,8 +76,11 @@ public final class GeneratorUtils {
      *
      * @param versions Set of version strings (e.g., "v1", "v2", "v3")
      * @return Version check expression for code generation
+     * @deprecated since 1.6.9, for removal. Use {@link #buildVersionCheck(Set)} instead.
+     *             This method returns "true" for non-numeric version identifiers.
      */
-    public static String buildVersionCheck(Set<String> versions) {
+    @Deprecated(forRemoval = true, since = "1.6.9")
+    public static String buildNumericVersionCheck(Set<String> versions) {
         if (versions == null || versions.isEmpty()) {
             return "true";
         }

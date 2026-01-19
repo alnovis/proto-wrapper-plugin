@@ -180,6 +180,10 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
         // Add common utility methods
         commonMethodGenerator.addCommonMethods(interfaceBuilder, message);
 
+        // Common types used for static methods
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        ClassName interfaceType = ClassName.get(config.getApiPackage(), message.getInterfaceName());
+
         // Add Builder interface if enabled
         if (config.isGenerateBuilders()) {
             interfaceBuilder.addMethod(MethodSpec.methodBuilder("toBuilder")
@@ -194,9 +198,7 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
             interfaceBuilder.addType(builderInterface);
 
             // Add static newBuilder(VersionContext ctx) method
-            ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
-            ClassName builderType = ClassName.get(config.getApiPackage(), message.getInterfaceName())
-                    .nestedClass("Builder");
+            ClassName builderType = interfaceType.nestedClass("Builder");
             String builderMethodName = "new" + message.getName() + "Builder";
 
             interfaceBuilder.addMethod(MethodSpec.methodBuilder("newBuilder")
@@ -210,6 +212,25 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                     .addStatement("return ctx.$L()", builderMethodName)
                     .build());
         }
+
+        // Add static parseFromBytes(VersionContext ctx, byte[] bytes) method
+        ClassName invalidProtocolBufferException = ClassName.get("com.google.protobuf", "InvalidProtocolBufferException");
+        String parseMethodName = "parse" + message.getName() + "FromBytes";
+
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("parseFromBytes")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addParameter(versionContextType, "ctx")
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                .returns(interfaceType)
+                .addException(invalidProtocolBufferException)
+                .addJavadoc("Parse bytes into a $L using the specified version context.\n", message.getName())
+                .addJavadoc("<p>This is a convenience method equivalent to {@code ctx.$L(bytes)}.</p>\n", parseMethodName)
+                .addJavadoc("@param ctx Version context determining the protocol version\n")
+                .addJavadoc("@param bytes Serialized protobuf data\n")
+                .addJavadoc("@return Parsed $L instance\n", message.getName())
+                .addJavadoc("@throws InvalidProtocolBufferException if the bytes are not valid protobuf data\n")
+                .addStatement("return ctx.$L(bytes)", parseMethodName)
+                .build());
 
         TypeSpec interfaceSpec = interfaceBuilder.build();
 

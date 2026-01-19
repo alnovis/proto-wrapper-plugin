@@ -32,7 +32,7 @@ public class ToStringTest {
             String str = money.toString();
 
             assertTrue(str.contains("Money"), "Should contain class name");
-            assertTrue(str.contains("version=1"), "Should contain version");
+            assertTrue(str.contains("version=v1"), "Should contain version");
         }
 
         @Test
@@ -79,8 +79,8 @@ public class ToStringTest {
                     .setCurrency("USD")
                     .build();
 
-            assertTrue(v1.toString().contains("version=1"));
-            assertTrue(v2.toString().contains("version=2"));
+            assertTrue(v1.toString().contains("version=v1"));
+            assertTrue(v2.toString().contains("version=v2"));
         }
     }
 
@@ -138,7 +138,7 @@ public class ToStringTest {
 
             assertNotNull(str);
             assertTrue(str.contains("Money"));
-            assertTrue(str.contains("version=1"));
+            assertTrue(str.contains("version=v1"));
         }
 
         @Test

@@ -161,7 +161,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return proto.toByteArray()")
                 .build());
 
-        // Wrapper version method
+        // Wrapper version ID method - returns string version identifier (e.g., "v1", "v2")
+        classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersionId")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(ClassName.get(String.class))
+                .addParameter(protoType, "proto")
+                .addStatement("return $S", ctx.requireVersion())
+                .build());
+
+        // Wrapper version method - returns numeric version (deprecated)
         classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersion")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
@@ -377,7 +386,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("this.protoBuilder = protoBuilder")
                 .build());
 
-        // getVersion() - returns the version number for this builder
+        // getVersionId() - returns the version identifier for this builder (e.g., "v1", "v2")
+        String versionId = genCtx.requireVersion();
+        builder.addMethod(MethodSpec.methodBuilder("getVersionId")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED)
+                .returns(ClassName.get(String.class))
+                .addStatement("return $S", versionId)
+                .build());
+
+        // getVersion() - returns the version number for this builder (deprecated)
         int versionNumber = genCtx.getVersionNumber();
         builder.addMethod(MethodSpec.methodBuilder("getVersion")
                 .addAnnotation(Override.class)

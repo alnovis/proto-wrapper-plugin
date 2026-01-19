@@ -698,8 +698,9 @@ public interface {MessageName} {
     // Version conversion methods
     // Builder access methods
 
-    // Static factory method (v1.1.1+)
-    static Builder newBuilder(VersionContext ctx);
+    // Static factory methods
+    static Builder newBuilder(VersionContext ctx);                           // v1.1.1+
+    static {MessageName} parseFromBytes(VersionContext ctx, byte[] bytes);   // v1.6.9+
 
     interface Builder { ... }  // Optional, when generateBuilders=true
 }
@@ -822,10 +823,11 @@ public interface VersionContext {
 
     // For each message type:
     {MessageName} wrap{MessageName}(Message proto);
-    {MessageName} parse{MessageName}FromBytes(byte[] bytes);
+    {MessageName} parse{MessageName}FromBytes(byte[] bytes) throws InvalidProtocolBufferException;
     {MessageName}.Builder new{MessageName}Builder();  // when generateBuilders=true
 
     // For nested types:
+    {Parent}.{Nested} parse{Parent}{Nested}FromBytes(byte[] bytes) throws InvalidProtocolBufferException;
     {Parent}.{Nested}.Builder new{Parent}{Nested}Builder();
 }
 ```
@@ -976,15 +978,36 @@ if (wrapper.supportsNewField()) {
 
 ### Version Information
 
-#### getWrapperVersion()
+#### getWrapperVersionId() (v1.6.9+)
 
-**Signature:** `int getWrapperVersion()`
+**Signature:** `String getWrapperVersionId()`
+
+**Purpose:** Returns the version identifier of this wrapper instance.
+
+**Returns:** Version identifier string (e.g., "v1", "v2", "legacy").
+
+**Use case:** Runtime version detection for version-specific handling:
+
+```java
+String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", etc.
+if ("v2".equals(versionId)) {
+    // V2-specific handling
+}
+```
+
+---
+
+#### getWrapperVersion() (deprecated)
+
+**Signature:** `@Deprecated int getWrapperVersion()`
 
 **Purpose:** Returns the protocol version number of this wrapper instance.
 
-**Returns:** Version number (1, 2, 3, ...).
+**Returns:** Version number (1, 2, 3, ...). Returns 0 for non-numeric version identifiers.
 
-**Use case:** Runtime version detection for version-specific handling.
+**Deprecated since:** 1.6.9. Use `getWrapperVersionId()` instead.
+
+**Use case:** Legacy version detection (prefer `getWrapperVersionId()`).
 
 ---
 
@@ -1013,6 +1036,41 @@ Money payment = ctx.newMoneyBuilder().setAmount(100).build();
 **Returns:** Protobuf-encoded byte array.
 
 **Use case:** Network transmission, storage, version conversion.
+
+---
+
+#### parseFromBytes(VersionContext, byte[]) — Static Factory (v1.6.9+)
+
+**Signature:** `static {Interface} parseFromBytes(VersionContext ctx, byte[] bytes)`
+
+**Location:** On each interface (top-level and nested)
+
+**Purpose:** Parses bytes into a wrapper instance using the specified version context.
+
+**Parameters:**
+- `ctx` — VersionContext determining the protocol version for parsing
+- `bytes` — Serialized protobuf data
+
+**Returns:** Parsed wrapper instance.
+
+**Throws:** `InvalidProtocolBufferException` if the bytes are not valid protobuf data.
+
+**Equivalence:** `Money.parseFromBytes(ctx, bytes)` is equivalent to `ctx.parseMoneyFromBytes(bytes)`.
+
+**Use case:** More intuitive deserialization that mirrors the native protobuf pattern:
+```java
+// Native protobuf style
+MyProto.MyMessage proto = MyProto.MyMessage.parseFrom(bytes);
+
+// Proto wrapper style (matches the pattern)
+MyMessage wrapper = MyMessage.parseFromBytes(ctx, bytes);
+```
+
+**Nested types:**
+```java
+// For nested interface Address.GeoLocation
+Address.GeoLocation location = Address.GeoLocation.parseFromBytes(ctx, bytes);
+```
 
 ---
 

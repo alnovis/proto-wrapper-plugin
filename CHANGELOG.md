@@ -11,6 +11,60 @@ _No changes yet._
 
 ---
 
+## [1.6.9] - 2026-01-19
+
+### Added
+
+#### String-based ProtoWrapper API
+- **New `getWrapperVersionId()` method** on `ProtoWrapper` interface - Returns string version identifier (e.g., "v1", "v2"):
+  ```java
+  if (wrapper instanceof ProtoWrapper pw) {
+      String versionId = pw.getWrapperVersionId(); // "v1", "v2", etc.
+  }
+  ```
+- **New `extractWrapperVersionId()` abstract method** in generated abstract classes
+- **New `getVersionId()` method** for `AbstractBuilder` - Allows version-aware validation in builders
+
+#### Extended JavaVersionCodegen Strategy
+- **New common methods in `JavaVersionCodegen` interface** - Centralized Java version-specific code generation:
+  - `deprecatedAnnotation(since, forRemoval)` - Creates `@Deprecated` with version-appropriate parameters
+  - `immutableListOf(...)` - Creates `List.of()` (Java 9+) or `Collections.unmodifiableList()` (Java 8)
+  - `immutableSetOf(...)` - Creates `Set.of()` (Java 9+) or `Collections.unmodifiableSet()` (Java 8)
+  - `supportsPrivateInterfaceMethods()` - Check for Java 9+ feature support
+- **New `getJavaVersionCodegen()` method in `GeneratorConfig`** - Returns appropriate strategy based on `targetJavaVersion`
+
+### Changed
+
+- **`GeneratorUtils.buildVersionCheck()`** - Now generates string-based version checks:
+  - Single version: `"v1".equals(getWrapperVersionId())`
+  - Multiple versions: `"v1".equals(getWrapperVersionId()) || "v2".equals(getWrapperVersionId())`
+  - Works with non-numeric version identifiers (e.g., "alpha", "beta")
+- **Refactored `@Deprecated` annotation creation** - Now uses `JavaVersionCodegen` strategy instead of inline checks
+
+### Deprecated
+
+- **`getWrapperVersion()` on ProtoWrapper interface** - Use `getWrapperVersionId()` instead. Marked for removal.
+- **`GeneratorUtils.buildNumericVersionCheck()`** - Use `buildVersionCheck()` instead. Marked for removal.
+
+#### Build Automation Script
+- **New `build.sh` script** for automated version management and builds:
+  - `--check` - Verify version consistency across all files
+  - `--bump VERSION` - Update version in all files
+  - `--quick` - Skip tests for faster builds
+  - `--parallel` - Enable parallel Maven/Gradle execution
+  - `--ci` - CI-friendly output (no colors, exit on error)
+  - Checks: pom.xml, build.gradle.kts, examples, integration tests
+  - Builds: Maven modules, Gradle plugin, standalone integration tests
+
+### Notes
+
+This release completes the migration to string-based version identifiers across all generated code:
+- Version 1.6.7 added string-based methods to `VersionContext`
+- Version 1.6.9 adds string-based methods to `ProtoWrapper` and all wrapper implementations
+- Integer-based methods remain available but are deprecated for removal
+
+---
+
 ## [1.6.8] - 2026-01-19
 
 ### Added

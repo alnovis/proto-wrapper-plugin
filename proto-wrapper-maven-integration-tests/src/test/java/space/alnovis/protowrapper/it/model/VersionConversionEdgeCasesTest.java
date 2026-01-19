@@ -477,7 +477,7 @@ public class VersionConversionEdgeCasesTest {
             );
 
             // Check error message contains useful info
-            assertTrue(ex.getMessage().contains("version 1"), "Should mention source version");
+            assertTrue(ex.getMessage().contains("version v1"), "Should mention source version");
             assertTrue(ex.getMessage().contains("version 2"), "Should mention target version");
             assertTrue(ex.getMessage().contains("legacyCode"), "Should mention inaccessible field");
             assertTrue(ex.getMessage().contains("oldFormat"), "Should mention inaccessible field");
@@ -544,7 +544,7 @@ public class VersionConversionEdgeCasesTest {
                 v2.asVersionStrict(space.alnovis.protowrapper.it.model.v1.VersionSpecificFields.class)
             );
 
-            assertTrue(ex.getMessage().contains("version 2"), "Should mention source version");
+            assertTrue(ex.getMessage().contains("version v2"), "Should mention source version");
             assertTrue(ex.getMessage().contains("version 1"), "Should mention target version");
             assertTrue(ex.getMessage().contains("newFormat"), "Should mention inaccessible field");
             assertTrue(ex.getMessage().contains("category"), "Should mention inaccessible field");
@@ -636,6 +636,91 @@ public class VersionConversionEdgeCasesTest {
             assertFalse(v2.supportsOldFormat());
             assertTrue(v2.supportsNewFormat());
             assertTrue(v2.supportsCategory());
+        }
+    }
+
+    @Nested
+    @DisplayName("Version-specific message handling")
+    class VersionSpecificMessageTest {
+
+        @Test
+        @DisplayName("newCryptoBuilder() throws UnsupportedOperationException in v1")
+        void newCryptoBuilderThrowsInV1() {
+            VersionContext ctx1 = VersionContext.forVersion(1);
+
+            // Crypto message only exists in v2
+            UnsupportedOperationException ex = assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> ctx1.newCryptoBuilder()
+            );
+
+            assertTrue(ex.getMessage().contains("Crypto"),
+                    "Error should mention message name: " + ex.getMessage());
+            assertTrue(ex.getMessage().contains("v2") || ex.getMessage().contains("not available"),
+                    "Error should mention available version or unavailability: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Crypto.newBuilder(ctx) throws UnsupportedOperationException for v1 context")
+        void staticNewBuilderThrowsForV1Context() {
+            VersionContext ctx1 = VersionContext.forVersion(1);
+
+            // Static method delegates to ctx.newCryptoBuilder()
+            UnsupportedOperationException ex = assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> space.alnovis.protowrapper.it.model.api.Crypto.newBuilder(ctx1)
+            );
+
+            assertTrue(ex.getMessage().contains("Crypto"),
+                    "Error should mention message name: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("wrapCrypto() throws UnsupportedOperationException in v1")
+        void wrapCryptoThrowsInV1() {
+            VersionContext ctx1 = VersionContext.forVersion(1);
+
+            UnsupportedOperationException ex = assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> ctx1.wrapCrypto(null)
+            );
+
+            assertTrue(ex.getMessage().contains("Crypto"),
+                    "Error should mention message name: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("parseCryptoFromBytes() throws UnsupportedOperationException in v1")
+        void parseCryptoFromBytesThrowsInV1() {
+            VersionContext ctx1 = VersionContext.forVersion(1);
+
+            UnsupportedOperationException ex = assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> ctx1.parseCryptoFromBytes(new byte[0])
+            );
+
+            assertTrue(ex.getMessage().contains("Crypto"),
+                    "Error should mention message name: " + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("newCryptoBuilder() works in v2")
+        void newCryptoBuilderWorksInV2() {
+            VersionContext ctx2 = VersionContext.forVersion(2);
+
+            // Should not throw
+            assertDoesNotThrow(() -> ctx2.newCryptoBuilder());
+        }
+
+        @Test
+        @DisplayName("Crypto.newBuilder(ctx) works for v2 context")
+        void staticNewBuilderWorksForV2Context() {
+            VersionContext ctx2 = VersionContext.forVersion(2);
+
+            // Should not throw
+            assertDoesNotThrow(() ->
+                space.alnovis.protowrapper.it.model.api.Crypto.newBuilder(ctx2)
+            );
         }
     }
 }
