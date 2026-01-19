@@ -1,178 +1,165 @@
-# Release Notes - Proto Wrapper Plugin v1.6.8
+# Release Notes - Proto Wrapper Plugin v1.6.9
 
 **Release Date:** January 19, 2026
 
 ## Overview
 
-Version 1.6.8 introduces **Java 8 compatibility** via the new `targetJavaVersion` parameter and includes a major **architectural refactoring** of the VersionContextGenerator using the Composer + Strategy pattern.
+Version 1.6.9 introduces **string-based version identifiers** for wrapper instances and extends the **JavaVersionCodegen strategy** to additional generators, centralizing all Java version-specific code generation logic.
 
 ## What's New
 
-### Java 8 Compatibility
+### String-Based Version Identifiers for Wrappers
 
-The new `targetJavaVersion` parameter allows generating code compatible with Java 8 runtime:
-
-```xml
-<!-- Maven -->
-<configuration>
-    <targetJavaVersion>8</targetJavaVersion>
-</configuration>
-```
-
-```kotlin
-// Gradle
-protoWrapper {
-    targetJavaVersion.set(8)
-}
-```
-
-#### Generated Code Differences
-
-| Feature | Java 9+ (default) | Java 8 |
-|---------|-------------------|--------|
-| List creation | `List.of("v1", "v2")` | `Collections.unmodifiableList(Arrays.asList("v1", "v2"))` |
-| CONTEXTS init | Private interface method | External `VersionContextHelper` class |
-| @Deprecated | `@Deprecated(since="1.6.7", forRemoval=true)` | `@Deprecated` (simple) |
-
-#### Java 9+ Generated Code (default)
+Wrapper instances now support `getWrapperVersionId()` method that returns the version identifier as a string:
 
 ```java
-public interface VersionContext {
-    Map<String, VersionContext> CONTEXTS = createContexts();
-    List<String> SUPPORTED_VERSIONS = List.of("v1", "v2");
-
-    @Deprecated(since = "1.6.7", forRemoval = true)
-    static VersionContext forVersion(int version) { ... }
-
-    @Deprecated(since = "1.6.7", forRemoval = true)
-    int getVersion();
-
-    private static Map<String, VersionContext> createContexts() {
-        Map<String, VersionContext> map = new LinkedHashMap<>();
-        map.put("v1", VersionContextV1.INSTANCE);
-        map.put("v2", VersionContextV2.INSTANCE);
-        return Collections.unmodifiableMap(map);
-    }
+// New recommended API (v1.6.9+)
+String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", "legacy", etc.
+if ("v2".equals(versionId)) {
+    // V2-specific handling
 }
+
+// Deprecated API (still works)
+int version = wrapper.getWrapperVersion();  // @Deprecated since 1.6.9
 ```
 
-#### Java 8 Generated Code
+#### Why String Identifiers?
+
+- **Custom version names**: Supports non-numeric versions like `"legacy"`, `"v2beta"`, `"production"`
+- **Consistency**: Matches VersionContext API (`getVersionId()`) and plugin configuration
+- **Reliability**: Integer extraction is unreliable for non-numeric versions
+
+#### Generated Interface Changes
 
 ```java
-public interface VersionContext {
-    Map<String, VersionContext> CONTEXTS = VersionContextHelper.createContexts();
-    List<String> SUPPORTED_VERSIONS =
-        Collections.unmodifiableList(Arrays.asList("v1", "v2"));
+public interface Order {
+    // New primary method (v1.6.9+)
+    String getWrapperVersionId();
 
-    @Deprecated  // Simple annotation without since/forRemoval (Java 9+ only)
-    static VersionContext forVersion(int version) { ... }
+    // Deprecated method (will be removed in v2.0)
+    @Deprecated(since = "1.6.9", forRemoval = true)
+    int getWrapperVersion();
 
-    @Deprecated
-    int getVersion();
-}
-
-// Separate helper class (private interface methods not available in Java 8)
-final class VersionContextHelper {
-    static Map<String, VersionContext> createContexts() {
-        Map<String, VersionContext> map = new LinkedHashMap<>();
-        map.put("v1", VersionContextV1.INSTANCE);
-        map.put("v2", VersionContextV2.INSTANCE);
-        return Collections.unmodifiableMap(map);
-    }
+    // ... other methods
 }
 ```
 
-### Architecture Refactoring
+### Extended JavaVersionCodegen Strategy
 
-The `VersionContextGenerator` has been completely refactored using two design patterns:
-
-#### Strategy Pattern: JavaVersionCodegen
-
-```
-JavaVersionCodegen (interface)
-├── Java8Codegen      — Java 8 compatible code generation
-└── Java9PlusCodegen  — Modern Java code generation (default)
-```
-
-#### Composer Pattern: VersionContextInterfaceComposer
-
-Fluent API for building the VersionContext interface:
+The `JavaVersionCodegen` interface has been extended with common code generation methods:
 
 ```java
-JavaFile javaFile = new VersionContextInterfaceComposer(config, schema)
-    .addStaticFields()      // CONTEXTS, SUPPORTED_VERSIONS, DEFAULT_VERSION
-    .addStaticMethods()     // forVersionId, find, getDefault, etc.
-    .addInstanceMethods()   // getVersionId, getVersion
-    .addWrapMethods()       // wrapXxx, parseXxxFromBytes
-    .addBuilderMethods()    // newXxxBuilder
-    .addConvenienceMethods() // zeroMoney, createMoney
-    .build();
+public interface JavaVersionCodegen {
+    // Existing methods
+    FieldSpec createContextsField(...);
+    FieldSpec createSupportedVersionsField(...);
+    Optional<MethodSpec> createContextsMethod(...);
+    boolean requiresHelperClass();
+
+    // New methods (v1.6.9)
+    AnnotationSpec deprecatedAnnotation(String since, boolean forRemoval);
+    CodeBlock immutableListOf(String... elements);
+    CodeBlock immutableSetOf(String... elements);
+    boolean supportsPrivateInterfaceMethods();
+}
 ```
 
-#### Component Classes
+#### Java 8 vs Java 9+ Differences
 
-| Component | Responsibility |
-|-----------|---------------|
-| `StaticFieldsComponent` | CONTEXTS, SUPPORTED_VERSIONS, DEFAULT_VERSION, createContexts() |
-| `StaticMethodsComponent` | forVersionId, find, getDefault, supportedVersions, etc. |
-| `InstanceMethodsComponent` | getVersionId, getVersion (abstract methods) |
-| `WrapMethodsComponent` | wrapXxx, parseXxxFromBytes for each message |
-| `BuilderMethodsComponent` | newXxxBuilder for each message |
-| `ConvenienceMethodsComponent` | zeroMoney, createMoney (when applicable) |
+| Method | Java 8 | Java 9+ |
+|--------|--------|---------|
+| `deprecatedAnnotation()` | `@Deprecated` | `@Deprecated(since="...", forRemoval=...)` |
+| `immutableListOf()` | `Collections.unmodifiableList(Arrays.asList(...))` | `List.of(...)` |
+| `immutableSetOf()` | `Collections.unmodifiableSet(new HashSet<>(Arrays.asList(...)))` | `Set.of(...)` |
+| `supportsPrivateInterfaceMethods()` | `false` | `true` |
 
-#### Benefits
+#### Refactored Generators
 
-- **Reduced complexity**: `generateInterface()` method reduced from ~350 lines to ~10 lines
-- **Single Responsibility**: Each component handles one aspect of code generation
-- **Testability**: 62 new tests covering all components
-- **Extensibility**: Easy to add new Java version strategies (Java 17+, Java 21+) in the future
+The following generators now use `JavaVersionCodegen` strategy:
 
-## New Tests
+- `ProtoWrapperGenerator` - uses `deprecatedAnnotation()` and `immutableListOf()`
+- `AbstractClassGenerator` - uses `deprecatedAnnotation()` and `immutableListOf()`
+- `VersionContextGenerator` - already used strategy (v1.6.8)
 
-| Test Class | Tests | Coverage |
-|------------|-------|----------|
-| `JavaVersionCodegenTest` | 14 | Java8Codegen, Java9PlusCodegen, selection logic |
-| `InterfaceComponentsTest` | 26 | All 6 component classes |
-| `VersionContextInterfaceComposerTest` | 22 | Fluent API, selective composition, edge cases |
-| **Total** | **62** | Full versioncontext package coverage |
+This eliminates code duplication and ensures consistent Java version-specific code generation across all generators.
 
-## Upgrade Guide
+### Build Automation Script
 
-### From 1.6.7
+New `build.sh` script automates version management and builds:
+
+```bash
+# Check version consistency across all files
+./build.sh --check
+
+# Update version in all files
+./build.sh --bump 1.7.0
+
+# Quick build (skip tests)
+./build.sh --quick
+
+# Run build with parallel execution
+./build.sh --parallel
+
+# CI-friendly output (no colors, exit on error)
+./build.sh --ci
+
+# Full build with tests (default)
+./build.sh
+```
+
+The script:
+- Checks version consistency across pom.xml, build.gradle.kts, examples, and integration tests
+- Builds Maven modules (core, maven plugin, tests, examples)
+- Builds Gradle plugin and runs tests
+- Runs standalone Gradle integration tests
+- Supports parallel execution and CI mode
+
+## Migration Guide
+
+### From 1.6.8
 
 1. Update version number in your build file
-2. No code changes required — default behavior unchanged
-3. For Java 8 compatibility, add `targetJavaVersion`:
+2. Replace `getWrapperVersion()` with `getWrapperVersionId()`:
 
-**Maven:**
-```xml
-<configuration>
-    <targetJavaVersion>8</targetJavaVersion>
-</configuration>
-```
-
-**Gradle:**
-```kotlin
-protoWrapper {
-    targetJavaVersion.set(8)
+**Before:**
+```java
+if (wrapper.getWrapperVersion() == 2) {
+    // V2 handling
 }
 ```
+
+**After:**
+```java
+if ("v2".equals(wrapper.getWrapperVersionId())) {
+    // V2 handling
+}
+```
+
+3. No other changes required - existing code using `getWrapperVersion()` will continue to work with deprecation warnings
+
+## Deprecations
+
+| Deprecated | Since | Replacement | Removal |
+|------------|-------|-------------|---------|
+| `wrapper.getWrapperVersion()` | 1.6.9 | `wrapper.getWrapperVersionId()` | v2.0 |
 
 ## Breaking Changes
 
 None. All existing APIs remain compatible.
 
-## Configuration Reference
+## New Tests
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `targetJavaVersion` | `9` | Target Java version (8 or 9+) |
+| Test Class | Tests | Coverage |
+|------------|-------|----------|
+| `JavaVersionCodegenTest` | 18 | Extended strategy methods |
+| `ProtoWrapperGeneratorTest` | Updated | Strategy usage verification |
+| `AbstractClassGeneratorTest` | Updated | Strategy usage verification |
 
 ## Documentation
 
 - [Configuration Guide](docs/CONFIGURATION.md) - All configuration parameters
-- [API Reference](docs/API_REFERENCE.md) - Generated code reference
-- [ROADMAP](docs/ROADMAP.md) - Future Java version codegen strategies
+- [API Reference](docs/API_REFERENCE.md) - Generated code reference with `getWrapperVersionId()`
+- [Cookbook](docs/COOKBOOK.md) - Updated examples using new API
 
 ## Full Changelog
 

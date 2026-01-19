@@ -147,6 +147,26 @@ class ProtoWrapperGoldenTest {
             ProtoWrapper wrapper = msg;
             assertThat(wrapper.getWrapperVersion()).isEqualTo(2);
         }
+
+        @Test
+        @DisplayName("getWrapperVersionId returns 'v1' for v1 wrapper")
+        void getWrapperVersionId_returnsV1() {
+            VersionContext ctx = VersionContext.forVersionId("v1");
+            AllFieldTypes msg = buildWithRequiredFields(ctx).build();
+
+            ProtoWrapper wrapper = msg;
+            assertThat(wrapper.getWrapperVersionId()).isEqualTo("v1");
+        }
+
+        @Test
+        @DisplayName("getWrapperVersionId returns 'v2' for v2 wrapper")
+        void getWrapperVersionId_returnsV2() {
+            VersionContext ctx = VersionContext.forVersionId("v2");
+            AllFieldTypes msg = buildWithRequiredFields(ctx).build();
+
+            ProtoWrapper wrapper = msg;
+            assertThat(wrapper.getWrapperVersionId()).isEqualTo("v2");
+        }
     }
 
     @Nested

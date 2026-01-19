@@ -310,7 +310,13 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .returns(interfaceType)
                 .build());
 
-        // Abstract getVersion method - used for version-aware validation
+        // Abstract getVersionId method - returns version identifier (e.g., "v1", "v2")
+        builder.addMethod(MethodSpec.methodBuilder("getVersionId")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(ClassName.get(String.class))
+                .build());
+
+        // Abstract getVersion method - used for version-aware validation (deprecated)
         builder.addMethod(MethodSpec.methodBuilder("getVersion")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(TypeName.INT)
@@ -362,16 +368,32 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return serializeToBytes(proto)")
                 .build());
 
-        // Abstract getWrapperVersion - renamed to avoid conflict with protocol_version field
+        // Abstract extractWrapperVersionId - returns version identifier (e.g., "v1", "v2")
+        classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersionId")
+                .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
+                .returns(ClassName.get(String.class))
+                .addParameter(protoType, "proto")
+                .build());
+
+        // Abstract extractWrapperVersion - returns numeric version (deprecated)
         classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersion")
                 .addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT)
                 .returns(TypeName.INT)
                 .addParameter(protoType, "proto")
                 .build());
 
-        // getWrapperVersion() implementation
+        // getWrapperVersionId() implementation - recommended
+        classBuilder.addMethod(MethodSpec.methodBuilder("getWrapperVersionId")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .returns(ClassName.get(String.class))
+                .addStatement("return extractWrapperVersionId(proto)")
+                .build());
+
+        // getWrapperVersion() implementation - deprecated
         classBuilder.addMethod(MethodSpec.methodBuilder("getWrapperVersion")
                 .addAnnotation(Override.class)
+                .addAnnotation(config.getJavaVersionCodegen().deprecatedAnnotation("1.6.9", true))
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .returns(TypeName.INT)
                 .addStatement("return extractWrapperVersion(proto)")

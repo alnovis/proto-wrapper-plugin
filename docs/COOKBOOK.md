@@ -608,9 +608,9 @@ public void processPayment(Payment payment) {
         }
         case CRYPTO -> {
             // V2 only - check version first
-            if (payment.getWrapperVersion() < 2) {
+            if (!"v2".equals(payment.getWrapperVersionId())) {
                 throw new IllegalStateException(
-                    "Crypto not supported in V" + payment.getWrapperVersion());
+                    "Crypto not supported in version " + payment.getWrapperVersionId());
             }
             processCryptoPayment(payment.getCrypto());
         }

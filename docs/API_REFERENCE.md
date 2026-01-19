@@ -976,15 +976,36 @@ if (wrapper.supportsNewField()) {
 
 ### Version Information
 
-#### getWrapperVersion()
+#### getWrapperVersionId() (v1.6.9+)
 
-**Signature:** `int getWrapperVersion()`
+**Signature:** `String getWrapperVersionId()`
+
+**Purpose:** Returns the version identifier of this wrapper instance.
+
+**Returns:** Version identifier string (e.g., "v1", "v2", "legacy").
+
+**Use case:** Runtime version detection for version-specific handling:
+
+```java
+String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", etc.
+if ("v2".equals(versionId)) {
+    // V2-specific handling
+}
+```
+
+---
+
+#### getWrapperVersion() (deprecated)
+
+**Signature:** `@Deprecated int getWrapperVersion()`
 
 **Purpose:** Returns the protocol version number of this wrapper instance.
 
-**Returns:** Version number (1, 2, 3, ...).
+**Returns:** Version number (1, 2, 3, ...). Returns 0 for non-numeric version identifiers.
 
-**Use case:** Runtime version detection for version-specific handling.
+**Deprecated since:** 1.6.9. Use `getWrapperVersionId()` instead.
+
+**Use case:** Legacy version detection (prefer `getWrapperVersionId()`).
 
 ---
 

@@ -1,6 +1,8 @@
 package space.alnovis.protowrapper.generator.versioncontext;
 
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -9,8 +11,10 @@ import space.alnovis.protowrapper.generator.GeneratorConfig;
 import javax.lang.model.element.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Java 8 compatible code generation strategy.
@@ -27,6 +31,35 @@ public class Java8Codegen implements JavaVersionCodegen {
 
     private Java8Codegen() {
     }
+
+    // ==================== Common Operations ====================
+
+    @Override
+    public AnnotationSpec deprecatedAnnotation(String since, boolean forRemoval) {
+        // Java 8 does not support @Deprecated(since, forRemoval)
+        return AnnotationSpec.builder(Deprecated.class).build();
+    }
+
+    @Override
+    public CodeBlock immutableListOf(String... elements) {
+        String joined = String.join(", ", elements);
+        return CodeBlock.of("$T.unmodifiableList($T.asList($L))",
+                Collections.class, Arrays.class, joined);
+    }
+
+    @Override
+    public CodeBlock immutableSetOf(String... elements) {
+        String joined = String.join(", ", elements);
+        return CodeBlock.of("$T.unmodifiableSet(new $T<>($T.asList($L)))",
+                Collections.class, HashSet.class, Arrays.class, joined);
+    }
+
+    @Override
+    public boolean supportsPrivateInterfaceMethods() {
+        return false;
+    }
+
+    // ==================== VersionContext-specific Operations ====================
 
     @Override
     public FieldSpec createContextsField(

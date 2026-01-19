@@ -1,6 +1,8 @@
 package space.alnovis.protowrapper.generator.versioncontext;
 
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -14,8 +16,66 @@ import java.util.Optional;
  *
  * <p>Implementations handle differences between Java 8 and Java 9+ code generation,
  * such as private interface methods and List.of() vs Arrays.asList().</p>
+ *
+ * <p>Common operations (available for all generators):</p>
+ * <ul>
+ *   <li>{@link #deprecatedAnnotation(String, boolean)} - create @Deprecated with version-appropriate parameters</li>
+ *   <li>{@link #immutableListOf(String...)} - create immutable list expression</li>
+ *   <li>{@link #immutableSetOf(String...)} - create immutable set expression</li>
+ * </ul>
+ *
+ * @since 1.6.6
  */
 public interface JavaVersionCodegen {
+
+    // ==================== Common Operations (for all generators) ====================
+
+    /**
+     * Create @Deprecated annotation with appropriate parameters for target Java version.
+     *
+     * <p>For Java 9+: {@code @Deprecated(since = "1.6.9", forRemoval = true)}</p>
+     * <p>For Java 8: {@code @Deprecated}</p>
+     *
+     * @param since the version since which the element is deprecated
+     * @param forRemoval whether the element is scheduled for removal
+     * @return the annotation specification
+     * @since 1.6.9
+     */
+    AnnotationSpec deprecatedAnnotation(String since, boolean forRemoval);
+
+    /**
+     * Create immutable list expression.
+     *
+     * <p>For Java 9+: {@code List.of("a", "b")}</p>
+     * <p>For Java 8: {@code Collections.unmodifiableList(Arrays.asList("a", "b"))}</p>
+     *
+     * @param elements the list elements (already formatted as code, e.g., quoted strings)
+     * @return code block for creating immutable list
+     * @since 1.6.9
+     */
+    CodeBlock immutableListOf(String... elements);
+
+    /**
+     * Create immutable set expression.
+     *
+     * <p>For Java 9+: {@code Set.of("a", "b")}</p>
+     * <p>For Java 8: {@code Collections.unmodifiableSet(new HashSet<>(Arrays.asList("a", "b")))}</p>
+     *
+     * @param elements the set elements (already formatted as code, e.g., quoted strings)
+     * @return code block for creating immutable set
+     * @since 1.6.9
+     */
+    CodeBlock immutableSetOf(String... elements);
+
+    /**
+     * Check if private interface methods are supported.
+     *
+     * @return true for Java 9+, false for Java 8
+     * @since 1.6.9
+     */
+    boolean supportsPrivateInterfaceMethods();
+
+    // ==================== VersionContext-specific Operations ====================
 
     /**
      * Create the CONTEXTS static field.

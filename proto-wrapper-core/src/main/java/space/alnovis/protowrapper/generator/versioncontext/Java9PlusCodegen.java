@@ -1,6 +1,8 @@
 package space.alnovis.protowrapper.generator.versioncontext;
 
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -12,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Java 9+ code generation strategy.
@@ -20,6 +23,8 @@ import java.util.Optional;
  * <ul>
  *   <li>Private static methods in interfaces</li>
  *   <li>List.of() for immutable lists</li>
+ *   <li>Set.of() for immutable sets</li>
+ *   <li>@Deprecated(since, forRemoval) parameters</li>
  * </ul>
  */
 public class Java9PlusCodegen implements JavaVersionCodegen {
@@ -29,6 +34,35 @@ public class Java9PlusCodegen implements JavaVersionCodegen {
 
     private Java9PlusCodegen() {
     }
+
+    // ==================== Common Operations ====================
+
+    @Override
+    public AnnotationSpec deprecatedAnnotation(String since, boolean forRemoval) {
+        return AnnotationSpec.builder(Deprecated.class)
+                .addMember("since", "$S", since)
+                .addMember("forRemoval", "$L", forRemoval)
+                .build();
+    }
+
+    @Override
+    public CodeBlock immutableListOf(String... elements) {
+        String joined = String.join(", ", elements);
+        return CodeBlock.of("$T.of($L)", List.class, joined);
+    }
+
+    @Override
+    public CodeBlock immutableSetOf(String... elements) {
+        String joined = String.join(", ", elements);
+        return CodeBlock.of("$T.of($L)", Set.class, joined);
+    }
+
+    @Override
+    public boolean supportsPrivateInterfaceMethods() {
+        return true;
+    }
+
+    // ==================== VersionContext-specific Operations ====================
 
     @Override
     public FieldSpec createContextsField(

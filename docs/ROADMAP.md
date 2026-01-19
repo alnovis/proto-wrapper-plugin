@@ -2371,7 +2371,7 @@ Features considered for v3.3.0+:
 
 ### Extended Java Version Codegen Strategy
 
-**Current State (v1.6.8):**
+**Current State (v1.6.9):**
 The `JavaVersionCodegen` strategy pattern handles Java 8 vs Java 9+ differences for VersionContext generation:
 - `Java8Codegen` — uses `Collections.unmodifiableList(Arrays.asList(...))`, external `VersionContextHelper` class
 - `Java9PlusCodegen` — uses `List.of()`, private interface methods

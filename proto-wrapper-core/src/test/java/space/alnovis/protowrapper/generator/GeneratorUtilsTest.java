@@ -26,16 +26,16 @@ class GeneratorUtilsTest {
     class VersionCheckTests {
 
         @Test
-        void buildVersionCheck_singleVersion_returnsSimpleCheck() {
+        void buildVersionCheck_singleVersion_returnsStringCheck() {
             String result = GeneratorUtils.buildVersionCheck(Set.of("v1"));
-            assertThat(result).isEqualTo("getWrapperVersion() == 1");
+            assertThat(result).isEqualTo("\"v1\".equals(getWrapperVersionId())");
         }
 
         @Test
         void buildVersionCheck_multipleVersions_returnsOrCondition() {
             String result = GeneratorUtils.buildVersionCheck(Set.of("v1", "v2"));
-            assertThat(result).contains("getWrapperVersion() == 1");
-            assertThat(result).contains("getWrapperVersion() == 2");
+            assertThat(result).contains("\"v1\".equals(getWrapperVersionId())");
+            assertThat(result).contains("\"v2\".equals(getWrapperVersionId())");
             assertThat(result).contains("||");
         }
 
@@ -52,9 +52,42 @@ class GeneratorUtilsTest {
         }
 
         @Test
-        void buildVersionCheck_complexVersionNumber_extractsCorrectly() {
-            String result = GeneratorUtils.buildVersionCheck(Set.of("v10"));
-            assertThat(result).isEqualTo("getWrapperVersion() == 10");
+        void buildVersionCheck_nonNumericVersion_worksCorrectly() {
+            String result = GeneratorUtils.buildVersionCheck(Set.of("alpha"));
+            assertThat(result).isEqualTo("\"alpha\".equals(getWrapperVersionId())");
+        }
+
+        @Test
+        void buildVersionCheck_multipleVersions_sortedOutput() {
+            // Ensure consistent order for tests
+            String result = GeneratorUtils.buildVersionCheck(Set.of("v2", "v1", "v3"));
+            assertThat(result).isEqualTo(
+                "\"v1\".equals(getWrapperVersionId()) || " +
+                "\"v2\".equals(getWrapperVersionId()) || " +
+                "\"v3\".equals(getWrapperVersionId())");
+        }
+
+        @Test
+        @SuppressWarnings("deprecation")
+        void buildNumericVersionCheck_singleVersion_returnsIntCheck() {
+            String result = GeneratorUtils.buildNumericVersionCheck(Set.of("v1"));
+            assertThat(result).isEqualTo("getWrapperVersion() == 1");
+        }
+
+        @Test
+        @SuppressWarnings("deprecation")
+        void buildNumericVersionCheck_multipleVersions_returnsOrCondition() {
+            String result = GeneratorUtils.buildNumericVersionCheck(Set.of("v1", "v2"));
+            assertThat(result).contains("getWrapperVersion() == 1");
+            assertThat(result).contains("getWrapperVersion() == 2");
+            assertThat(result).contains("||");
+        }
+
+        @Test
+        @SuppressWarnings("deprecation")
+        void buildNumericVersionCheck_nonNumericVersion_returnsTrue() {
+            String result = GeneratorUtils.buildNumericVersionCheck(Set.of("alpha"));
+            assertThat(result).isEqualTo("true");
         }
 
         @ParameterizedTest

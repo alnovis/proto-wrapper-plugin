@@ -1,6 +1,8 @@
 package space.alnovis.protowrapper.generator.versioncontext;
 
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -112,6 +114,48 @@ class JavaVersionCodegenTest {
 
             assertThat(method).isEmpty();
         }
+
+        @Test
+        @DisplayName("does not support private interface methods")
+        void doesNotSupportPrivateInterfaceMethods() {
+            assertThat(codegen.supportsPrivateInterfaceMethods()).isFalse();
+        }
+
+        @Test
+        @DisplayName("creates simple @Deprecated annotation without parameters")
+        void createsSimpleDeprecatedAnnotation() {
+            AnnotationSpec annotation = codegen.deprecatedAnnotation("1.6.9", true);
+
+            String code = annotation.toString();
+            assertThat(code).isEqualTo("@java.lang.Deprecated");
+            assertThat(code).doesNotContain("since");
+            assertThat(code).doesNotContain("forRemoval");
+        }
+
+        @Test
+        @DisplayName("creates immutable list using Collections.unmodifiableList")
+        void createsImmutableListUsingCollections() {
+            CodeBlock code = codegen.immutableListOf("\"a\"", "\"b\"");
+
+            String codeStr = code.toString();
+            assertThat(codeStr).contains("Collections.unmodifiableList");
+            assertThat(codeStr).contains("Arrays.asList");
+            assertThat(codeStr).contains("\"a\"");
+            assertThat(codeStr).contains("\"b\"");
+        }
+
+        @Test
+        @DisplayName("creates immutable set using Collections.unmodifiableSet")
+        void createsImmutableSetUsingCollections() {
+            CodeBlock code = codegen.immutableSetOf("\"x\"", "\"y\"");
+
+            String codeStr = code.toString();
+            assertThat(codeStr).contains("Collections.unmodifiableSet");
+            assertThat(codeStr).contains("HashSet");
+            assertThat(codeStr).contains("Arrays.asList");
+            assertThat(codeStr).contains("\"x\"");
+            assertThat(codeStr).contains("\"y\"");
+        }
     }
 
     @Nested
@@ -202,6 +246,59 @@ class JavaVersionCodegenTest {
             assertThat(code).contains("com.custom.impl.v1.VersionContextV1");
             assertThat(code).contains("com.custom.impl.v2.VersionContextV2");
         }
+
+        @Test
+        @DisplayName("supports private interface methods")
+        void supportsPrivateInterfaceMethods() {
+            assertThat(codegen.supportsPrivateInterfaceMethods()).isTrue();
+        }
+
+        @Test
+        @DisplayName("creates @Deprecated annotation with since and forRemoval")
+        void createsDeprecatedAnnotationWithParameters() {
+            AnnotationSpec annotation = codegen.deprecatedAnnotation("1.6.9", true);
+
+            String code = annotation.toString();
+            assertThat(code).contains("@java.lang.Deprecated");
+            assertThat(code).contains("since = \"1.6.9\"");
+            assertThat(code).contains("forRemoval = true");
+        }
+
+        @Test
+        @DisplayName("creates @Deprecated annotation with forRemoval = false")
+        void createsDeprecatedAnnotationWithoutForRemoval() {
+            AnnotationSpec annotation = codegen.deprecatedAnnotation("1.5.0", false);
+
+            String code = annotation.toString();
+            assertThat(code).contains("since = \"1.5.0\"");
+            assertThat(code).contains("forRemoval = false");
+        }
+
+        @Test
+        @DisplayName("creates immutable list using List.of()")
+        void createsImmutableListUsingListOf() {
+            CodeBlock code = codegen.immutableListOf("\"a\"", "\"b\"");
+
+            String codeStr = code.toString();
+            assertThat(codeStr).contains("List.of");
+            assertThat(codeStr).contains("\"a\"");
+            assertThat(codeStr).contains("\"b\"");
+            assertThat(codeStr).doesNotContain("Collections");
+            assertThat(codeStr).doesNotContain("Arrays");
+        }
+
+        @Test
+        @DisplayName("creates immutable set using Set.of()")
+        void createsImmutableSetUsingSetOf() {
+            CodeBlock code = codegen.immutableSetOf("\"x\"", "\"y\"");
+
+            String codeStr = code.toString();
+            assertThat(codeStr).contains("Set.of");
+            assertThat(codeStr).contains("\"x\"");
+            assertThat(codeStr).contains("\"y\"");
+            assertThat(codeStr).doesNotContain("Collections");
+            assertThat(codeStr).doesNotContain("HashSet");
+        }
     }
 
     @Nested
@@ -256,6 +353,38 @@ class JavaVersionCodegenTest {
                     : Java9PlusCodegen.INSTANCE;
 
             assertThat(codegen).isInstanceOf(Java9PlusCodegen.class);
+        }
+
+        @Test
+        @DisplayName("getJavaVersionCodegen returns Java8Codegen for Java 8")
+        void getJavaVersionCodegenReturnsJava8CodegenForJava8() {
+            GeneratorConfig java8Config = GeneratorConfig.builder()
+                    .outputDirectory(tempDir)
+                    .apiPackage("org.example.api")
+                    .targetJavaVersion(8)
+                    .build();
+
+            assertThat(java8Config.getJavaVersionCodegen()).isInstanceOf(Java8Codegen.class);
+        }
+
+        @Test
+        @DisplayName("getJavaVersionCodegen returns Java9PlusCodegen for Java 9+")
+        void getJavaVersionCodegenReturnsJava9PlusCodegenForJava9Plus() {
+            GeneratorConfig java9Config = GeneratorConfig.builder()
+                    .outputDirectory(tempDir)
+                    .apiPackage("org.example.api")
+                    .targetJavaVersion(9)
+                    .build();
+
+            assertThat(java9Config.getJavaVersionCodegen()).isInstanceOf(Java9PlusCodegen.class);
+
+            GeneratorConfig java17Config = GeneratorConfig.builder()
+                    .outputDirectory(tempDir)
+                    .apiPackage("org.example.api")
+                    .targetJavaVersion(17)
+                    .build();
+
+            assertThat(java17Config.getJavaVersionCodegen()).isInstanceOf(Java9PlusCodegen.class);
         }
     }
 }

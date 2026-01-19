@@ -21,7 +21,8 @@ import java.util.stream.Collectors;
  * <pre>
  * public interface ProtoWrapper {
  *     Message getTypedProto();
- *     int getWrapperVersion();
+ *     String getWrapperVersionId();
+ *     int getWrapperVersion(); // deprecated
  *     byte[] toBytes();
  * }
  * </pre>
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
  * <pre>{@code
  * if (wrapper instanceof ProtoWrapper pw) {
  *     Message proto = pw.getTypedProto();
+ *     String versionId = pw.getWrapperVersionId(); // e.g., "v1", "v2"
  * }
  * }</pre>
  *
@@ -81,6 +83,15 @@ public class ProtoWrapperGenerator extends BaseGenerator<Void> {
             versionPackageExamples = "v1.Order or v2.Order"; // fallback
         }
 
+        // Build version ID examples (e.g., "v1", "v2")
+        String versionIdExamples = versions.stream()
+                .limit(2)
+                .map(v -> "\"" + v + "\"")
+                .collect(Collectors.joining(", "));
+        if (versionIdExamples.isEmpty()) {
+            versionIdExamples = "\"v1\", \"v2\""; // fallback
+        }
+
         TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(INTERFACE_NAME)
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc("Common interface for all generated wrapper classes.\n\n")
@@ -91,7 +102,7 @@ public class ProtoWrapperGenerator extends BaseGenerator<Void> {
                 .addJavadoc("<pre>{@code\n")
                 .addJavadoc("if (wrapper instanceof ProtoWrapper pw) {\n")
                 .addJavadoc("    Message proto = pw.getTypedProto();\n")
-                .addJavadoc("    int version = pw.getWrapperVersion();\n")
+                .addJavadoc("    String versionId = pw.getWrapperVersionId();\n")
                 .addJavadoc("}\n")
                 .addJavadoc("}</pre>\n\n")
                 .addJavadoc("@since 1.6.6\n");
@@ -106,13 +117,26 @@ public class ProtoWrapperGenerator extends BaseGenerator<Void> {
                 .addJavadoc("@return underlying protobuf Message, never null\n")
                 .build());
 
-        // getWrapperVersion() - version accessor
-        interfaceBuilder.addMethod(MethodSpec.methodBuilder("getWrapperVersion")
+        // getWrapperVersionId() - string version accessor (recommended)
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("getWrapperVersionId")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(ClassName.get(String.class))
+                .addJavadoc("Get the version identifier this wrapper was created from.\n\n")
+                .addJavadoc("@return version identifier (e.g., $L)\n", versionIdExamples)
+                .addJavadoc("@since 1.6.9\n")
+                .build());
+
+        // getWrapperVersion() - deprecated int version accessor
+        MethodSpec.Builder deprecatedVersionMethod = MethodSpec.methodBuilder("getWrapperVersion")
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .returns(TypeName.INT)
-                .addJavadoc("Get the protocol version this wrapper was created from.\n\n")
+                .addJavadoc("Get the protocol version number this wrapper was created from.\n\n")
                 .addJavadoc("@return version number (e.g., $L)\n", versionExamples)
-                .build());
+                .addJavadoc("@deprecated since 1.6.9, for removal. Use {@link #getWrapperVersionId()} instead.\n")
+                .addJavadoc("            This method returns 0 for non-numeric version identifiers.\n")
+                .addAnnotation(config.getJavaVersionCodegen().deprecatedAnnotation("1.6.9", true));
+
+        interfaceBuilder.addMethod(deprecatedVersionMethod.build());
 
         // toBytes() - serialization
         interfaceBuilder.addMethod(MethodSpec.methodBuilder("toBytes")
