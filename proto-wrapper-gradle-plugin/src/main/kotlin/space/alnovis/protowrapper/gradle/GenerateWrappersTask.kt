@@ -248,6 +248,15 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Input
     abstract val forceRegenerate: Property<Boolean>
 
+    /**
+     * Target Java version for generated code.
+     * Use 8 for Java 8 compatible code (avoids private interface methods, List.of()).
+     * Default: 9 (uses modern Java features like private interface methods).
+     * @since 1.6.8
+     */
+    @get:Input
+    abstract val targetJavaVersion: Property<Int>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -555,6 +564,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .incremental(incremental.get())
             .cacheDirectory(cacheDirectory.get().asFile.toPath())
             .forceRegenerate(forceRegenerate.get())
+            // Java version compatibility
+            .targetJavaVersion(targetJavaVersion.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)

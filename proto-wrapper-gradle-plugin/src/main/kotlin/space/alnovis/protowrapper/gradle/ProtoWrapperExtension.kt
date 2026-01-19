@@ -70,6 +70,14 @@ abstract class ProtoWrapperExtension(private val project: Project) {
      */
     abstract val forceRegenerate: Property<Boolean>
 
+    /**
+     * Target Java version for generated code.
+     * Use 8 for Java 8 compatible code (avoids private interface methods, List.of()).
+     * Default: 9 (uses modern Java features like private interface methods).
+     * @since 1.6.8
+     */
+    abstract val targetJavaVersion: Property<Int>
+
     // Versions container
     val versions: NamedDomainObjectContainer<VersionConfig> =
         project.container(VersionConfig::class.java) { name ->
@@ -103,5 +111,7 @@ abstract class ProtoWrapperExtension(private val project: Project) {
             project.layout.buildDirectory.dir("proto-wrapper-cache")
         )
         forceRegenerate.convention(false)
+        // Java version compatibility (default: modern Java 9+)
+        targetJavaVersion.convention(9)
     }
 }

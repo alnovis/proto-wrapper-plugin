@@ -92,6 +92,9 @@ public class GeneratorConfig {
     private Path cacheDirectory;
     private boolean forceRegenerate = false;
 
+    // Target Java version (8 = Java 8 compatible, 9+ = use modern features)
+    private int targetJavaVersion = 9;
+
     /**
      * Create a new builder for GeneratorConfig.
      *
@@ -184,6 +187,10 @@ public class GeneratorConfig {
     public Path getCacheDirectory() { return cacheDirectory; }
     /** @return true if forced regeneration is enabled */
     public boolean isForceRegenerate() { return forceRegenerate; }
+    /** @return the target Java version (8, 9, 11, 17, etc.) */
+    public int getTargetJavaVersion() { return targetJavaVersion; }
+    /** @return true if generating Java 8 compatible code */
+    public boolean isJava8Compatible() { return targetJavaVersion <= 8; }
 
     /**
      * Get the implementation class name for a message in a specific version.
@@ -253,6 +260,7 @@ public class GeneratorConfig {
         sb.append(convertWellKnownTypes).append("|");
         sb.append(generateRawProtoAccessors).append("|");
         sb.append(defaultSyntax).append("|");
+        sb.append(targetJavaVersion).append("|");
         // Include custom mappings
         sb.append(customTypeMappings).append("|");
         sb.append(fieldNameOverrides).append("|");
@@ -500,6 +508,22 @@ public class GeneratorConfig {
          */
         public Builder forceRegenerate(boolean forceRegenerate) {
             config.forceRegenerate = forceRegenerate;
+            return this;
+        }
+
+        /**
+         * Set the target Java version for generated code.
+         * Use 8 for Java 8 compatible code (avoids private interface methods, List.of()).
+         * Default: 9 (uses modern Java features).
+         *
+         * @param version target Java version (8, 9, 11, 17, etc.)
+         * @return this builder
+         */
+        public Builder targetJavaVersion(int version) {
+            if (version < 8) {
+                throw new IllegalArgumentException("targetJavaVersion must be at least 8, got: " + version);
+            }
+            config.targetJavaVersion = version;
             return this;
         }
 

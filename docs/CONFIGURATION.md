@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.5</version>
+    <version>1.6.8</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -65,7 +65,8 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types (Timestamp to Instant, etc.). |
 | `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for Well-Known Type fields. |
 | `protocPath` | (auto) | Path to protoc executable. If not set, resolved automatically: system PATH, then embedded download. |
-| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.5)* |
+| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.8)* |
+| `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 1.6.8)* |
 
 #### Generation Flags
 
@@ -168,7 +169,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.5</version>
+    <version>1.6.8</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -184,6 +185,7 @@ mvn compile -Dproto-wrapper.incremental=false
         <generateBuilders>true</generateBuilders>
         <convertWellKnownTypes>true</convertWellKnownTypes>
         <protobufMajorVersion>3</protobufMajorVersion>
+        <targetJavaVersion>8</targetJavaVersion> <!-- Use 8 for Java 8 compatibility -->
 
         <!-- Class naming -->
         <includeVersionSuffix>true</includeVersionSuffix>
@@ -226,7 +228,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.5"
+    id("space.alnovis.proto-wrapper") version "1.6.8"
 }
 ```
 
@@ -238,7 +240,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("space.alnovis:proto-wrapper-gradle-plugin:1.6.5")
+        classpath("space.alnovis:proto-wrapper-gradle-plugin:1.6.8")
     }
 }
 
@@ -291,6 +293,7 @@ protoWrapper {
 | `convertWellKnownTypes` | `Property<Boolean>` | `true` | Convert WKT to Java types. |
 | `generateRawProtoAccessors` | `Property<Boolean>` | `false` | Generate raw proto accessors for WKT. |
 | `protocPath` | `Property<String>` | (auto) | Path to protoc. |
+| `targetJavaVersion` | `Property<Int>` | `9` | Target Java version (use `8` for Java 8 compatibility). |
 
 ### Version Configuration
 
@@ -352,7 +355,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("space.alnovis.proto-wrapper") version "1.6.5"
+    id("space.alnovis.proto-wrapper") version "1.6.8"
 }
 
 protoWrapper {
@@ -370,6 +373,7 @@ protoWrapper {
     generateBuilders.set(true)
     convertWellKnownTypes.set(true)
     protobufMajorVersion.set(3)
+    targetJavaVersion.set(8)  // Use 8 for Java 8 compatibility
 
     // Class naming
     includeVersionSuffix.set(true)

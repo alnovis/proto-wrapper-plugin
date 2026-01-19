@@ -11,6 +11,52 @@ _No changes yet._
 
 ---
 
+## [1.6.8] - 2026-01-19
+
+### Added
+
+- **`targetJavaVersion` parameter** - Configure target Java version for generated code:
+  - Use `8` for Java 8 compatible code (avoids private interface methods and `List.of()`)
+  - Default: `9` (uses modern Java features)
+  - Available in both Maven and Gradle plugins
+
+**Maven:**
+```xml
+<configuration>
+    <targetJavaVersion>8</targetJavaVersion>
+</configuration>
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    targetJavaVersion.set(8)
+}
+```
+
+### Changed
+
+- **VersionContextGenerator refactored** using Composer + Strategy pattern:
+  - New `JavaVersionCodegen` strategy interface with `Java8Codegen` and `Java9PlusCodegen` implementations
+  - New `VersionContextInterfaceComposer` with fluent API for building VersionContext interface
+  - New component classes: `StaticFieldsComponent`, `StaticMethodsComponent`, `InstanceMethodsComponent`, `WrapMethodsComponent`, `BuilderMethodsComponent`, `ConvenienceMethodsComponent`
+  - Reduced `generateInterface()` method from ~350 lines to ~10 lines
+  - Improved maintainability and testability following Single Responsibility Principle
+
+- **Java 8 compatible code generation** when `targetJavaVersion=8`:
+  - Replaces `List.of()` with `Collections.unmodifiableList(Arrays.asList())`
+  - Generates `VersionContextHelper` class instead of private interface methods
+  - Uses simple `@Deprecated` annotation without `since` and `forRemoval` parameters (Java 9+ only)
+
+### Tests
+
+- **New test classes for versioncontext package** (62 tests total):
+  - `JavaVersionCodegenTest` - Tests for Java8Codegen, Java9PlusCodegen, and version selection (14 tests)
+  - `InterfaceComponentsTest` - Tests for all 6 component classes (26 tests)
+  - `VersionContextInterfaceComposerTest` - Integration tests for composer (22 tests)
+
+---
+
 ## [1.6.7] - 2026-01-18
 
 ### Added

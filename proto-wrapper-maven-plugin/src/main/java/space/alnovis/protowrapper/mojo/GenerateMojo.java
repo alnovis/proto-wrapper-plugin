@@ -252,6 +252,16 @@ public class GenerateMojo extends AbstractMojo {
     private boolean forceRegenerate;
 
     /**
+     * Target Java version for generated code.
+     * Use 8 for Java 8 compatible code (avoids private interface methods, List.of()).
+     * Default: 9 (uses modern Java features like private interface methods).
+     *
+     * @since 1.6.8
+     */
+    @Parameter(property = "proto-wrapper.targetJavaVersion", defaultValue = "9")
+    private int targetJavaVersion;
+
+    /**
      * Maven project.
      */
     @Parameter(defaultValue = "${project}", readonly = true)
@@ -493,7 +503,9 @@ public class GenerateMojo extends AbstractMojo {
                 // Incremental generation settings
                 .incremental(incremental)
                 .cacheDirectory(cacheDirectory != null ? cacheDirectory.toPath() : null)
-                .forceRegenerate(forceRegenerate);
+                .forceRegenerate(forceRegenerate)
+                // Java version compatibility
+                .targetJavaVersion(targetJavaVersion);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {
