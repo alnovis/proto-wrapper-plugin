@@ -1,165 +1,165 @@
-# Release Notes - Proto Wrapper Plugin v1.6.7
+# Release Notes - Proto Wrapper Plugin v1.6.8
 
-**Release Date:** January 18, 2026
+**Release Date:** January 19, 2026
 
 ## Overview
 
-Version 1.6.7 introduces the **String-based VersionContext API** and **Spring Boot Starter** for seamless integration with Spring Boot applications.
+Version 1.6.8 introduces **Java 8 compatibility** via the new `targetJavaVersion` parameter and includes a major **architectural refactoring** of the VersionContextGenerator using the Composer + Strategy pattern.
 
 ## What's New
 
-### String-based VersionContext API
+### Java 8 Compatibility
 
-The new API uses string identifiers instead of integers, providing better flexibility for non-numeric version names:
-
-```java
-// NEW: String-based API (recommended)
-VersionContext ctx = VersionContext.forVersionId("v1");
-String versionId = ctx.getVersionId();  // "v1"
-
-// OLD: Integer-based API (deprecated)
-VersionContext ctx = VersionContext.forVersion(1);
-int version = ctx.getVersion();  // 1
-```
-
-#### New Static Methods on VersionContext
-
-| Method | Return Type | Description |
-|--------|-------------|-------------|
-| `forVersionId(String)` | `VersionContext` | Get context by string ID (throws if invalid) |
-| `find(String)` | `Optional<VersionContext>` | Safe lookup, returns empty if not found |
-| `getDefault()` | `VersionContext` | Get the latest/default version |
-| `supportedVersions()` | `List<String>` | All supported version IDs |
-| `defaultVersion()` | `String` | Default version ID |
-| `isSupported(String)` | `boolean` | Check if version is supported |
-
-#### Usage Examples
-
-```java
-// Get specific version
-VersionContext v1 = VersionContext.forVersionId("v1");
-
-// Safe lookup with Optional
-Optional<VersionContext> maybeCtx = VersionContext.find("v1");
-maybeCtx.ifPresent(ctx -> processWithVersion(ctx));
-
-// Get default (latest) version
-VersionContext latest = VersionContext.getDefault();
-
-// Check supported versions
-List<String> versions = VersionContext.supportedVersions();  // ["v1", "v2"]
-boolean supported = VersionContext.isSupported("v3");        // false
-
-// Get default version ID
-String defaultVer = VersionContext.defaultVersion();         // "v2"
-```
-
-### Spring Boot Starter
-
-New `proto-wrapper-spring-boot-starter` module provides auto-configuration for Spring Boot.
-
-**Requirements:** Spring Boot 3.0+ (Jakarta EE), Java 17+
-
-The starter uses `provided` scope for Spring dependencies, so your project's Spring Boot version takes precedence.
-
-#### Installation
+The new `targetJavaVersion` parameter allows generating code compatible with Java 8 runtime:
 
 ```xml
-<dependency>
-    <groupId>space.alnovis</groupId>
-    <artifactId>proto-wrapper-spring-boot-starter</artifactId>
-    <version>1.6.7</version>
-</dependency>
+<!-- Maven -->
+<configuration>
+    <targetJavaVersion>8</targetJavaVersion>
+</configuration>
 ```
 
-#### Configuration
-
-```yaml
-proto-wrapper:
-  base-package: com.example.model.api
-  version-header: X-Protocol-Version  # optional, default
-  default-version: v2                  # optional
+```kotlin
+// Gradle
+protoWrapper {
+    targetJavaVersion.set(8)
+}
 ```
 
-#### Features
+#### Generated Code Differences
 
-- **RequestScopedVersionContext** - Inject version context per HTTP request
-- **VersionContextRequestFilter** - Extract version from HTTP headers
-- **VersionContextProvider** - Programmatic access to all version contexts
-- **ProtoWrapperExceptionHandler** - Unified error handling
+| Feature | Java 9+ (default) | Java 8 |
+|---------|-------------------|--------|
+| List creation | `List.of("v1", "v2")` | `Collections.unmodifiableList(Arrays.asList("v1", "v2"))` |
+| CONTEXTS init | Private interface method | External `VersionContextHelper` class |
 
-#### Usage in Controllers
+#### Java 9+ Generated Code (default)
 
 ```java
-@RestController
-public class OrderController {
-    private final RequestScopedVersionContext versionContext;
-    private final VersionContextProvider provider;
+public interface VersionContext {
+    Map<String, VersionContext> CONTEXTS = createContexts();
+    List<String> SUPPORTED_VERSIONS = List.of("v1", "v2");
 
-    @GetMapping("/orders/{id}")
-    public Order getOrder(@PathVariable String id) {
-        String version = versionContext.getVersion();
-        // Use version-specific logic...
-    }
-
-    @GetMapping("/versions")
-    public List<String> getSupportedVersions() {
-        return provider.getSupportedVersions();
+    private static Map<String, VersionContext> createContexts() {
+        Map<String, VersionContext> map = new LinkedHashMap<>();
+        map.put("v1", VersionContextV1.INSTANCE);
+        map.put("v2", VersionContextV2.INSTANCE);
+        return Collections.unmodifiableMap(map);
     }
 }
 ```
 
-## Deprecated API
+#### Java 8 Generated Code
 
-The following methods are deprecated and marked for removal:
+```java
+public interface VersionContext {
+    Map<String, VersionContext> CONTEXTS = VersionContextHelper.createContexts();
+    List<String> SUPPORTED_VERSIONS =
+        Collections.unmodifiableList(Arrays.asList("v1", "v2"));
+}
 
-| Deprecated | Replacement |
-|------------|-------------|
-| `VersionContext.forVersion(int)` | `VersionContext.forVersionId(String)` |
-| `VersionContext.getVersion()` | `VersionContext.getVersionId()` |
+// Separate helper class (private interface methods not available in Java 8)
+final class VersionContextHelper {
+    static Map<String, VersionContext> createContexts() {
+        Map<String, VersionContext> map = new LinkedHashMap<>();
+        map.put("v1", VersionContextV1.INSTANCE);
+        map.put("v2", VersionContextV2.INSTANCE);
+        return Collections.unmodifiableMap(map);
+    }
+}
+```
+
+### Architecture Refactoring
+
+The `VersionContextGenerator` has been completely refactored using two design patterns:
+
+#### Strategy Pattern: JavaVersionCodegen
+
+```
+JavaVersionCodegen (interface)
+├── Java8Codegen      — Java 8 compatible code generation
+└── Java9PlusCodegen  — Modern Java code generation (default)
+```
+
+#### Composer Pattern: VersionContextInterfaceComposer
+
+Fluent API for building the VersionContext interface:
+
+```java
+JavaFile javaFile = new VersionContextInterfaceComposer(config, schema)
+    .addStaticFields()      // CONTEXTS, SUPPORTED_VERSIONS, DEFAULT_VERSION
+    .addStaticMethods()     // forVersionId, find, getDefault, etc.
+    .addInstanceMethods()   // getVersionId, getVersion
+    .addWrapMethods()       // wrapXxx, parseXxxFromBytes
+    .addBuilderMethods()    // newXxxBuilder
+    .addConvenienceMethods() // zeroMoney, createMoney
+    .build();
+```
+
+#### Component Classes
+
+| Component | Responsibility |
+|-----------|---------------|
+| `StaticFieldsComponent` | CONTEXTS, SUPPORTED_VERSIONS, DEFAULT_VERSION, createContexts() |
+| `StaticMethodsComponent` | forVersionId, find, getDefault, supportedVersions, etc. |
+| `InstanceMethodsComponent` | getVersionId, getVersion (abstract methods) |
+| `WrapMethodsComponent` | wrapXxx, parseXxxFromBytes for each message |
+| `BuilderMethodsComponent` | newXxxBuilder for each message |
+| `ConvenienceMethodsComponent` | zeroMoney, createMoney (when applicable) |
+
+#### Benefits
+
+- **Reduced complexity**: `generateInterface()` method reduced from ~350 lines to ~10 lines
+- **Single Responsibility**: Each component handles one aspect of code generation
+- **Testability**: 62 new tests covering all components
+- **Extensibility**: Easy to add new Java version strategies (Java 17+, Java 21+) in the future
+
+## New Tests
+
+| Test Class | Tests | Coverage |
+|------------|-------|----------|
+| `JavaVersionCodegenTest` | 14 | Java8Codegen, Java9PlusCodegen, selection logic |
+| `InterfaceComponentsTest` | 26 | All 6 component classes |
+| `VersionContextInterfaceComposerTest` | 22 | Fluent API, selective composition, edge cases |
+| **Total** | **62** | Full versioncontext package coverage |
 
 ## Upgrade Guide
 
-### From 1.6.6
+### From 1.6.7
 
 1. Update version number in your build file
-2. Replace `forVersion(int)` with `forVersionId(String)`:
-   ```java
-   // Before
-   VersionContext ctx = VersionContext.forVersion(1);
+2. No code changes required — default behavior unchanged
+3. For Java 8 compatibility, add `targetJavaVersion`:
 
-   // After
-   VersionContext ctx = VersionContext.forVersionId("v1");
-   ```
-3. Replace `getVersion()` with `getVersionId()`:
-   ```java
-   // Before
-   int version = ctx.getVersion();
+**Maven:**
+```xml
+<configuration>
+    <targetJavaVersion>8</targetJavaVersion>
+</configuration>
+```
 
-   // After
-   String versionId = ctx.getVersionId();
-   ```
-
-### Adding Spring Boot Starter
-
-1. Add the starter dependency
-2. Configure `proto-wrapper.base-package` in `application.yml`
-3. Inject `RequestScopedVersionContext` or `VersionContextProvider`
+**Gradle:**
+```kotlin
+protoWrapper {
+    targetJavaVersion.set(8)
+}
+```
 
 ## Breaking Changes
 
-None. The deprecated methods continue to work.
+None. All existing APIs remain compatible.
+
+## Configuration Reference
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `targetJavaVersion` | `9` | Target Java version (8 or 9+) |
 
 ## Documentation
 
-- [Spring Boot Starter Guide](docs/SPRING_BOOT_STARTER.md) - Full integration documentation
+- [Configuration Guide](docs/CONFIGURATION.md) - All configuration parameters
 - [API Reference](docs/API_REFERENCE.md) - Generated code reference
-
-## Examples
-
-- [Maven Example](examples/maven-example) - Complete Maven project with tests
-- [Gradle Example](examples/gradle-example) - Complete Gradle project
-- [Spring Boot Example](examples/spring-boot-example) - Spring Boot integration
+- [ROADMAP](docs/ROADMAP.md) - Future Java version codegen strategies
 
 ## Full Changelog
 

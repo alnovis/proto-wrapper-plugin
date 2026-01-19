@@ -53,6 +53,9 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.cacheDirectory.set(extension.cacheDirectory)
             task.forceRegenerate.set(extension.forceRegenerate)
 
+            // Java version compatibility (since 1.6.8)
+            task.targetJavaVersion.set(extension.targetJavaVersion)
+
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }

@@ -93,7 +93,7 @@ byte[] bytes = order.toBytes();
 <plugin>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.7</version>
+    <version>1.6.8</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.7"
+    id("space.alnovis.proto-wrapper") version "1.6.8"
 }
 
 protoWrapper {
@@ -155,6 +155,7 @@ protoWrapper {
 | Embedded protoc | Auto-download protoc, no manual installation needed | v1.6.5 |
 | ProtoWrapper interface | Common base interface for type-safe proto access | v1.6.6 |
 | Spring Boot Starter | Auto-configuration for Spring Boot applications | v1.6.7 |
+| Java 8 compatibility | Generate Java 8 compatible code with `targetJavaVersion=8` | v1.6.8 |
 
 ### Type Conflict Handling
 
@@ -230,7 +231,7 @@ Add dependency (plugins auto-download):
 <dependency>
     <groupId>space.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>1.6.7</version>
+    <version>1.6.8</version>
 </dependency>
 ```
 

@@ -2369,6 +2369,52 @@ public class OpenApiConfig {
 
 Features considered for v3.3.0+:
 
+### Extended Java Version Codegen Strategy
+
+**Current State (v1.6.8):**
+The `JavaVersionCodegen` strategy pattern handles Java 8 vs Java 9+ differences for VersionContext generation:
+- `Java8Codegen` — uses `Collections.unmodifiableList(Arrays.asList(...))`, external `VersionContextHelper` class
+- `Java9PlusCodegen` — uses `List.of()`, private interface methods
+
+**Analysis:**
+Other generators (`InterfaceGenerator`, `AbstractClassGenerator`, `ImplClassGenerator`, `EnumGenerator`) currently produce Java 8-compatible code and don't require version-specific strategies.
+
+**Future Extension:**
+If we add support for newer Java features in generated code, extend the strategy hierarchy:
+
+```
+JavaVersionCodegen (strategy interface)
+├── Java8Codegen          (current)
+├── Java9PlusCodegen      (current)
+├── Java17Codegen         (future: records, sealed classes)
+└── Java21Codegen         (future: pattern matching in switch)
+```
+
+**Potential Java 17+ Features:**
+| Feature | Use Case | Example |
+|---------|----------|---------|
+| Records | Immutable wrapper models | `public record OrderData(String id, long amount) {}` |
+| Sealed classes | Restricted wrapper hierarchies | `sealed interface Order permits OrderV1, OrderV2` |
+| Pattern matching | Type-safe instanceof | `if (order instanceof OrderV1 v1) { ... }` |
+
+**Potential Java 21+ Features:**
+| Feature | Use Case | Example |
+|---------|----------|---------|
+| Record patterns | Destructuring in switch | `case OrderV1(var id, var items) -> ...` |
+| Pattern matching for switch | Version dispatching | `switch (order) { case OrderV1 v1 -> ... }` |
+| Sequenced collections | Ordered collection access | `SequencedCollection<Item>` |
+
+**Implementation Approach:**
+1. Add `targetJavaVersion` checks beyond 8/9 (17, 21)
+2. Create new codegen implementations as needed
+3. Apply to all generators, not just VersionContext
+4. Configuration: `<targetJavaVersion>21</targetJavaVersion>`
+
+**Priority:** Low (current output is already compatible with all Java versions)
+**Trigger:** User demand for modern Java idioms in generated code
+
+---
+
 ### Protocol Buffers Edition Support
 - Support for proto editions (2023+)
 - Feature detection and adaptation
