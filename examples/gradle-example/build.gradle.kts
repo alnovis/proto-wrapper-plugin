@@ -1,7 +1,7 @@
 plugins {
     java
     id("com.google.protobuf") version "0.9.4"
-    id("space.alnovis.proto-wrapper")
+    id("io.alnovis.proto-wrapper")
 }
 
 group = "com.example"

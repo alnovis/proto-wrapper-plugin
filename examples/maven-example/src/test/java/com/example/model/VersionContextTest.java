@@ -73,10 +73,9 @@ class VersionContextTest {
         @Test
         @DisplayName("forVersion(1) returns V1 context")
         void forVersion1ReturnsV1Context() {
-            VersionContext ctx = VersionContext.forVersion(1);
+            VersionContext ctx = VersionContext.forVersionId("v1");
 
             assertThat(ctx).isNotNull();
-            assertThat(ctx.getVersion()).isEqualTo(1);
             assertThat(ctx.getVersionId()).isEqualTo("v1");
             assertThat(ctx).isInstanceOf(com.example.model.v1.VersionContextV1.class);
         }
@@ -84,26 +83,25 @@ class VersionContextTest {
         @Test
         @DisplayName("forVersion(2) returns V2 context")
         void forVersion2ReturnsV2Context() {
-            VersionContext ctx = VersionContext.forVersion(2);
+            VersionContext ctx = VersionContext.forVersionId("v2");
 
             assertThat(ctx).isNotNull();
-            assertThat(ctx.getVersion()).isEqualTo(2);
             assertThat(ctx.getVersionId()).isEqualTo("v2");
             assertThat(ctx).isInstanceOf(com.example.model.v2.VersionContextV2.class);
         }
 
         @Test
-        @DisplayName("forVersion with invalid version throws exception")
-        void forVersionInvalidThrows() {
-            assertThatThrownBy(() -> VersionContext.forVersion(99))
+        @DisplayName("forVersionId with invalid version throws exception")
+        void forVersionIdInvalidThrows() {
+            assertThatThrownBy(() -> VersionContext.forVersionId("v99"))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("99");
+                    .hasMessageContaining("v99");
         }
 
         @Test
-        @DisplayName("forVersion(0) throws exception")
-        void forVersionZeroThrows() {
-            assertThatThrownBy(() -> VersionContext.forVersion(0))
+        @DisplayName("forVersionId with null throws exception")
+        void forVersionIdNullThrows() {
+            assertThatThrownBy(() -> VersionContext.forVersionId(null))
                     .isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -146,7 +144,7 @@ class VersionContextTest {
             assertThat(money).isNotNull();
             assertThat(money.getAmount()).isEqualTo(1000);
             assertThat(money.getCurrency()).isEqualTo("USD");
-            assertThat(money.getWrapperVersion()).isEqualTo(1);
+            assertThat(money.getWrapperVersionId()).isEqualTo("v1");
         }
 
         @Test
@@ -258,7 +256,7 @@ class VersionContextTest {
             assertThat(money).isNotNull();
             assertThat(money.getAmount()).isEqualTo(2000);
             assertThat(money.getCurrency()).isEqualTo("EUR");
-            assertThat(money.getWrapperVersion()).isEqualTo(2);
+            assertThat(money.getWrapperVersionId()).isEqualTo("v2");
 
             // V2-specific fields
             assertThat(money.hasExchangeRate()).isTrue();

@@ -275,13 +275,13 @@ class BuilderRoundTripTest {
                     .build();
 
             OrderItem wrapper = ctx.wrapOrderItem(proto);
-            assertThat(wrapper.getWrapperVersion()).isEqualTo(1);
+            assertThat(wrapper.getWrapperVersionId()).isEqualTo("v1");
 
             OrderItem modified = wrapper.toBuilder()
                     .setQuantity(10)
                     .build();
 
-            assertThat(modified.getWrapperVersion()).isEqualTo(1);
+            assertThat(modified.getWrapperVersionId()).isEqualTo("v1");
         }
     }
 

@@ -1,7 +1,7 @@
 # Proto Wrapper Plugin Roadmap
 
-Version: 2.0
-Last Updated: 2026-01-18
+Version: 2.1
+Last Updated: 2026-01-20
 
 This document outlines the development roadmap for upcoming releases.
 
@@ -17,16 +17,18 @@ This document outlines the development roadmap for upcoming releases.
 - [Version 1.6.0](#version-160) - Incremental Generation (Completed)
 - [Version 1.6.5](#version-165) - Embedded Protoc (Completed)
 - [Version 1.6.6](#version-166) - ProtoWrapper Interface (Completed)
-- [Version 1.6.7](#version-167) - Spring Boot Starter (Core)
-- [Version 1.7.0](#version-170) - Parallel Generation
-- [Version 1.8.0](#version-180) - Per-version Proto Syntax
-- [Version 1.9.0](#version-190) - Validation Annotations
-- [Version 1.10.0](#version-1100) - Kotlin Extensions
-- [Version 1.11.0](#version-1110) - Service/RPC Wrappers
-- [Version 2.0.0](#version-200) - API Cleanup (Breaking Changes)
-- [Version 2.1.0](#version-210) - Spring Boot Starter
-- [Version 2.2.0](#version-220) - buf.build Integration
-- [Version 2.3.0](#version-230) - Quarkus Extension
+- [Version 1.6.7](#version-167) - Spring Boot Starter Core (Completed)
+- [Version 1.6.8](#version-168) - VersionContext String API (Completed)
+- [Version 1.6.9](#version-169) - ProtoWrapper String API (Completed)
+- [Version 2.0.0](#version-200) - Breaking Changes Release (Completed)
+- [Version 2.1.0](#version-210) - Parallel Generation
+- [Version 2.2.0](#version-220) - Per-version Proto Syntax
+- [Version 2.3.0](#version-230) - Validation Annotations
+- [Version 2.4.0](#version-240) - Kotlin Extensions
+- [Version 2.5.0](#version-250) - Service/RPC Wrappers
+- [Version 2.6.0](#version-260) - Spring Boot Advanced
+- [Version 2.7.0](#version-270) - buf.build Integration
+- [Version 2.8.0](#version-280) - Quarkus Extension
 
 ### Multi-Language Support (v3.x)
 
@@ -259,7 +261,7 @@ mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DfailOnBreaking=true
 
 ```kotlin
 // Register diff task
-tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
+tasks.register<io.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
     v1Directory.set(file("proto/v1"))
     v2Directory.set(file("proto/v2"))
     v1Name.set("v1")
@@ -535,26 +537,18 @@ processAnyWrapper(customer);
 
 ---
 
-## Version 1.6.7
+## Version 1.6.7 (Completed)
 
-**Target:** Feb 2026
+**Released:** January 17, 2026
 **Theme:** Spring Boot Starter (Core)
 
 ### Feature: Spring Boot Auto-Configuration (Core)
 
-**Priority:** High
-**Complexity:** Medium
+**Status:** Completed
 
 #### Description
 
-Basic Spring Boot Starter providing auto-configuration, properties binding, exception handling, and request-scoped VersionContext. This enables immediate integration with Spring applications during KZ project migration to plugin-generated wrappers.
-
-#### Motivation
-
-Early release of core Spring Boot integration to:
-- Enable empirical testing during KZ project migration
-- Gather feedback before v204 protocol release
-- Provide foundation for advanced features in v2.1.0
+Basic Spring Boot Starter providing auto-configuration, properties binding, exception handling, and request-scoped VersionContext.
 
 #### Components
 
@@ -718,7 +712,7 @@ public record ProtoWrapperErrorResponse(
 ```
 proto-wrapper-spring-boot-starter/
 ├── src/main/java/
-│   └── space/alnovis/protowrapper/spring/
+│   └── io/alnovis/protowrapper/spring/
 │       ├── ProtoWrapperAutoConfiguration.java
 │       ├── ProtoWrapperProperties.java
 │       ├── RequestScopedVersionContext.java
@@ -768,11 +762,148 @@ examples/spring-boot-example/
 - No breaking changes
 - New optional module
 - Requires Spring Boot 3.0+
-- Advanced features (actuator, metrics) planned for v2.1.0
+- Advanced features (actuator, metrics) planned for v2.6.0
 
 ---
 
-## Version 1.7.0
+## Version 1.6.8 (Completed)
+
+**Released:** January 18, 2026
+**Theme:** VersionContext String API
+
+### Feature: String-based VersionContext API
+
+**Status:** Completed
+
+#### Description
+
+Added string-based version identifiers to VersionContext interface, enabling support for non-numeric version names.
+
+#### New Methods
+
+```java
+// New primary methods
+static VersionContext forVersionId(String versionId);  // "v1", "v2", "legacy"
+static Optional<VersionContext> find(String versionId);
+String getVersionId();  // Returns "v1", "v2", etc.
+
+// Deprecated (removed in 2.0.0)
+@Deprecated static VersionContext forVersion(int version);
+@Deprecated int getVersion();
+```
+
+#### Acceptance Criteria
+
+- [x] forVersionId(String) method
+- [x] find(String) method returning Optional
+- [x] getVersionId() instance method
+- [x] Deprecated integer-based methods
+- [x] Tests updated
+
+### Migration Notes
+
+- No breaking changes
+- Integer-based methods deprecated
+
+---
+
+## Version 1.6.9 (Completed)
+
+**Released:** January 19, 2026
+**Theme:** ProtoWrapper String API
+
+### Feature: String-based ProtoWrapper API
+
+**Status:** Completed
+
+#### Description
+
+Extended string-based version identifiers to ProtoWrapper interface and builders.
+
+#### New Methods
+
+```java
+// ProtoWrapper interface
+String getWrapperVersionId();  // Returns "v1", "v2", etc.
+
+// Builder interface
+String getVersionId();  // Version of builder
+
+// Deprecated (removed in 2.0.0)
+@Deprecated int getWrapperVersion();
+@Deprecated int extractWrapperVersion();
+```
+
+#### Acceptance Criteria
+
+- [x] getWrapperVersionId() on ProtoWrapper
+- [x] extractWrapperVersionId() in abstract classes
+- [x] getVersionId() in builders
+- [x] Deprecated integer-based methods
+- [x] Tests updated
+
+### Migration Notes
+
+- No breaking changes
+- Integer-based methods deprecated, marked for removal
+
+---
+
+## Version 2.0.0 (Completed)
+
+**Released:** January 20, 2026
+**Theme:** Breaking Changes Release
+
+### Breaking Changes
+
+All deprecated integer-based version methods have been removed.
+
+#### Removed Methods
+
+| Interface | Removed Method | Replacement |
+|-----------|---------------|-------------|
+| `ProtoWrapper` | `getWrapperVersion()` | `getWrapperVersionId()` |
+| `ProtoWrapper` | `extractWrapperVersion()` | `extractWrapperVersionId()` |
+| `VersionContext` | `getVersion()` | `getVersionId()` |
+| `VersionContext` | `forVersion(int)` | `forVersionId(String)` |
+| `Builder` | `getVersion()` | `getVersionId()` |
+
+#### Internal API Removed
+
+| Class | Removed Method | Replacement |
+|-------|---------------|-------------|
+| `GeneratorUtils` | `buildNumericVersionCheck()` | `buildVersionCheck()` |
+
+### Migration Guide
+
+```java
+// Before (1.6.x)
+int version = wrapper.getWrapperVersion();
+VersionContext ctx = VersionContext.forVersion(1);
+if (ctx.getVersion() == 2) { ... }
+
+// After (2.0.0)
+String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", etc.
+VersionContext ctx = VersionContext.forVersionId("v1");
+if ("v2".equals(ctx.getVersionId())) { ... }
+```
+
+### Benefits
+
+- **Custom version names**: Supports non-numeric versions like `"legacy"`, `"v2beta"`, `"production"`
+- **Consistency**: Single API style across all interfaces
+- **Reliability**: No ambiguity with version number extraction from strings
+
+### Acceptance Criteria
+
+- [x] All deprecated methods removed
+- [x] All tests updated to use new API
+- [x] Documentation updated
+- [x] CHANGELOG updated
+
+---
+
+## Version 2.1.0
 
 **Target:** Mar 2026
 **Theme:** Parallel Generation
@@ -834,7 +965,7 @@ public class ParallelGenerationOrchestrator {
 
 ---
 
-## Version 1.8.0
+## Version 2.2.0
 
 **Target:** Mar 2026
 **Theme:** Per-version Proto Syntax
@@ -990,7 +1121,7 @@ public class MoneyV2 extends AbstractMoney<V2Money> {
 
 ---
 
-## Version 1.9.0
+## Version 2.3.0
 
 **Target:** Apr 2026
 **Theme:** Validation Annotations
@@ -1079,7 +1210,7 @@ public interface Order {
 
 ---
 
-## Version 1.10.0
+## Version 2.4.0
 
 **Target:** May 2026
 **Theme:** Kotlin Extensions
@@ -1205,7 +1336,7 @@ protoWrapper {
 
 ---
 
-## Version 1.11.0
+## Version 2.5.0
 
 **Target:** Jun 2026
 **Theme:** Service/RPC Wrappers
@@ -1285,114 +1416,10 @@ public class OrderServiceGrpcAdapter implements OrderService {
 
 ---
 
-## Version 2.0.0
-
-**Target:** Jul 2026
-**Theme:** API Cleanup (Breaking Changes)
-
-### Feature: Remove Deprecated API
-
-**Priority:** High
-**Complexity:** Low
-
-#### Deprecated API to Remove
-
-| Class/Method | Deprecated Since | Replacement |
-|--------------|------------------|-------------|
-| `InterfaceGenerator.setSchema()` | 1.2.0 | Use `GenerationContext` |
-| `InterfaceGenerator.generate(MergedMessage)` | 1.2.0 | Use `generate(GenerationContext)` |
-| `InterfaceGenerator.generateAndWrite(MergedMessage)` | 1.2.0 | Use `generateAndWrite(GenerationContext)` |
-| `AbstractClassGenerator.setSchema()` | 1.2.0 | Use `GenerationContext` |
-| `AbstractClassGenerator.generate(MergedMessage)` | 1.2.0 | Use `generate(GenerationContext)` |
-| `ImplClassGenerator.setSchema()` | 1.2.0 | Use `GenerationContext` |
-| `ImplClassGenerator.generate(MergedMessage, String, String)` | 1.2.0 | Use `generate(GenerationContext)` |
-| `MergedField(FieldInfo, String)` constructor | 1.2.0 | Use `MergedField.create()` |
-| `MergedField.addVersion(String, FieldInfo)` | 1.2.0 | Use builder pattern |
-| `ProtocExecutor(Consumer<String>)` | 1.2.0 | Use `ProtocExecutor(PluginLogger)` |
-
-#### Migration Guide
-
-```java
-// Before (deprecated)
-InterfaceGenerator generator = new InterfaceGenerator(config);
-generator.setSchema(schema);
-generator.generate(message);
-
-// After
-GenerationContext ctx = new GenerationContext(schema, config);
-InterfaceGenerator generator = new InterfaceGenerator(config);
-generator.generate(ctx.forMessage(message));
-```
-
----
-
-### Feature: API Refinements
-
-#### Sealed Interfaces
-
-```java
-// Make all handler interfaces sealed
-public sealed interface ConflictHandler permits
-    IntEnumHandler, EnumEnumHandler, StringBytesHandler,
-    WideningHandler, FloatDoubleHandler, SignedUnsignedHandler,
-    RepeatedSingleHandler, PrimitiveMessageHandler,
-    MapFieldHandler, DefaultHandler {}
-```
-
-#### Record-based Models
-
-```java
-// Convert remaining model classes to records
-public record GeneratorConfig(
-    String apiPackage,
-    String implPackagePattern,
-    boolean generateBuilders,
-    boolean generateInterfaces,
-    // ...
-) {
-    public static Builder builder() { ... }
-}
-```
-
-#### Builder Improvements
-
-```java
-// Fluent configuration
-GeneratorConfig config = GeneratorConfig.builder()
-    .apiPackage("com.example.api")
-    .implPackagePattern("{api}.{version}")
-    .generateBuilders(true)
-    .wellKnownTypes(WellKnownTypeConfig.builder()
-        .convertTimestamp(true)
-        .convertDuration(true)
-        .build())
-    .validation(ValidationConfig.builder()
-        .enabled(true)
-        .style(ValidationStyle.JAKARTA)
-        .build())
-    .build();
-```
-
-### Migration Notes
-
-#### Breaking Changes
-
-1. **Removed deprecated API** - See migration guide above
-2. **Minimum Java version: 17** (unchanged)
-3. **GenerationContext required** for all generators
-
-#### Migration Steps
-
-1. Replace deprecated method calls
-2. Use `GenerationContext` for generation
-3. Update custom handlers if any
-
----
-
-## Version 2.1.0
+## Version 2.6.0
 
 **Target:** Aug 2026
-**Theme:** Spring Boot Starter (Advanced)
+**Theme:** Spring Boot Advanced
 
 ### Feature: Spring Boot Advanced Features
 
@@ -1468,7 +1495,7 @@ proto_wrapper_conversion_errors_total{from="v1",to="v3"} 12
 ```
 proto-wrapper-spring-boot-starter/
 ├── src/main/java/
-│   └── space/alnovis/protowrapper/spring/
+│   └── io/alnovis/protowrapper/spring/
 │       ├── ... (core from v1.6.7)
 │       ├── ProtoWrapperHealthIndicator.java    # v2.1.0
 │       ├── ProtoWrapperMetrics.java            # v2.1.0
@@ -1524,7 +1551,7 @@ proto-wrapper:
 
 ---
 
-## Version 2.2.0
+## Version 2.7.0
 
 **Target:** Sep 2026
 **Theme:** buf.build Integration
@@ -1654,7 +1681,7 @@ jobs:
 ```xml
 <!-- Maven plugin integration -->
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <configuration>
         <bufIntegration>
@@ -1683,7 +1710,7 @@ jobs:
 
 ---
 
-## Version 2.3.0
+## Version 2.8.0
 
 **Target:** Oct 2026
 **Theme:** Quarkus Extension
@@ -2531,16 +2558,18 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 | 1.6.0 | Incremental Generation | Released (2026-01-05) |
 | 1.6.5 | Embedded Protoc (Zero-Install) | Released (2026-01-14) |
 | 1.6.6 | ProtoWrapper Interface | Released (2026-01-16) |
-| 1.6.7 | Spring Boot Starter (Core) | Planned (Feb 2026) |
-| 1.7.0 | Parallel Generation | Planned (Mar 2026) |
-| 1.8.0 | Per-version Proto Syntax | Planned (Mar 2026) |
-| 1.9.0 | Validation Annotations | Planned (Apr 2026) |
-| 1.10.0 | Kotlin Extensions | Planned (May 2026) |
-| 1.11.0 | Service/RPC Wrappers | Planned (Jun 2026) |
-| 2.0.0 | API Cleanup (Breaking) | Planned (Jul 2026) |
-| 2.1.0 | Spring Boot Starter (Advanced) | Planned (Aug 2026) |
-| 2.2.0 | buf.build Integration | Planned (Sep 2026) |
-| 2.3.0 | Quarkus Extension | Planned (Oct 2026) |
+| 1.6.7 | Spring Boot Starter (Core) | Released (2026-01-17) |
+| 1.6.8 | VersionContext String API | Released (2026-01-18) |
+| 1.6.9 | ProtoWrapper String API | Released (2026-01-19) |
+| 2.0.0 | Breaking Changes (Deprecated Removal) | Released (2026-01-20) |
+| 2.1.0 | Parallel Generation | Planned (Mar 2026) |
+| 2.2.0 | Per-version Proto Syntax | Planned (Mar 2026) |
+| 2.3.0 | Validation Annotations | Planned (Apr 2026) |
+| 2.4.0 | Kotlin Extensions | Planned (May 2026) |
+| 2.5.0 | Service/RPC Wrappers | Planned (Jun 2026) |
+| 2.6.0 | Spring Boot Advanced | Planned (Aug 2026) |
+| 2.7.0 | buf.build Integration | Planned (Sep 2026) |
+| 2.8.0 | Quarkus Extension | Planned (Oct 2026) |
 | 3.0.0 | Go Support | Planned (Q1 2027) |
 | 3.1.0 | Language-Agnostic Schema Registry | Planned (Q2 2027) |
 | 3.2.0 | Proto-to-OpenAPI Generator | Planned (Q3 2027) |

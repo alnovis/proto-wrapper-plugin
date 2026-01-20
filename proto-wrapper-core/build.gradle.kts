@@ -60,7 +60,7 @@ tasks.processResources {
 tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
     archiveClassifier.set("cli")
     manifest {
-        attributes["Main-Class"] = "space.alnovis.protowrapper.cli.SchemaDiffCli"
+        attributes["Main-Class"] = "io.alnovis.protowrapper.cli.SchemaDiffCli"
     }
     mergeServiceFiles()
 }

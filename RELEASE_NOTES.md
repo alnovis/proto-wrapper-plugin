@@ -1,46 +1,56 @@
-# Release Notes - Proto Wrapper Plugin v1.6.9
+# Release Notes - Proto Wrapper Plugin v2.0.0
 
-**Release Date:** January 19, 2026
+**Release Date:** January 2026 (Upcoming)
 
 ## Overview
 
-Version 1.6.9 introduces **string-based version identifiers** for wrapper instances and extends the **JavaVersionCodegen strategy** to additional generators, centralizing all Java version-specific code generation logic.
+Version 2.0.0 is a **breaking change release** that removes all deprecated integer-based version APIs. The plugin now exclusively uses **string-based version identifiers** for all version-related operations.
 
-## What's New
+## Breaking Changes
 
-### String-Based Version Identifiers for Wrappers
+### Removed Methods
 
-Wrapper instances now support `getWrapperVersionId()` method that returns the version identifier as a string:
+The following deprecated methods have been removed:
+
+| Interface | Removed Method | Replacement |
+|-----------|---------------|-------------|
+| `ProtoWrapper` | `getWrapperVersion()` | `getWrapperVersionId()` |
+| `ProtoWrapper` | `extractWrapperVersion()` | `extractWrapperVersionId()` |
+| `VersionContext` | `getVersion()` | `getVersionId()` |
+| `VersionContext` | `forVersion(int)` | `forVersionId(String)` |
+| `Builder` | `getVersion()` | `getVersionId()` |
+
+### Migration Guide
+
+Update all usages of deprecated methods:
 
 ```java
-// New recommended API (v1.6.9+)
-String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", "legacy", etc.
-if ("v2".equals(versionId)) {
-    // V2-specific handling
-}
+// Before (v1.6.x)
+int version = wrapper.getWrapperVersion();
+VersionContext ctx = VersionContext.forVersion(1);
+if (ctx.getVersion() == 2) { ... }
 
-// Deprecated API (still works)
-int version = wrapper.getWrapperVersion();  // @Deprecated since 1.6.9
+// After (v2.0.0)
+String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", etc.
+VersionContext ctx = VersionContext.forVersionId("v1");
+if ("v2".equals(ctx.getVersionId())) { ... }
 ```
 
-#### Why String Identifiers?
+### Benefits of String-Based API
 
 - **Custom version names**: Supports non-numeric versions like `"legacy"`, `"v2beta"`, `"production"`
-- **Consistency**: Matches VersionContext API (`getVersionId()`) and plugin configuration
-- **Reliability**: Integer extraction is unreliable for non-numeric versions
+- **Consistency**: Single API style across all interfaces
+- **Reliability**: No ambiguity with version number extraction from strings
 
-#### Generated Interface Changes
+### Generated Interface Changes
 
 ```java
-public interface Order {
-    // New primary method (v1.6.9+)
-    String getWrapperVersionId();
+public interface Order extends ProtoWrapper<Order> {
+    // String-based version identifier (v2.0.0)
+    String getWrapperVersionId();  // "v1", "v2", "legacy", etc.
 
-    // Deprecated method (will be removed in v2.0)
-    @Deprecated(since = "1.6.9", forRemoval = true)
-    int getWrapperVersion();
-
-    // ... other methods
+    // Integer-based methods are REMOVED
+    // int getWrapperVersion();  // REMOVED in v2.0.0
 }
 ```
 

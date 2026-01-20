@@ -1,9 +1,9 @@
 // Map field tests for v2 - same types as v1 (no conflicts)
 syntax = "proto2";
 
-package space.alnovis.protowrapper.it.proto.v2;
+package io.alnovis.protowrapper.it.proto.v2;
 
-option java_package = "space.alnovis.protowrapper.it.proto.v2";
+option java_package = "io.alnovis.protowrapper.it.proto.v2";
 option java_outer_classname = "MapTest";
 
 // Main message with simple map fields (same types as v1)

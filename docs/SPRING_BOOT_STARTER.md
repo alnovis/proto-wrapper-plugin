@@ -13,7 +13,7 @@ Add the starter dependency to your project:
 **Maven:**
 ```xml
 <dependency>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-spring-boot-starter</artifactId>
     <version>1.6.7</version>
 </dependency>
@@ -21,7 +21,7 @@ Add the starter dependency to your project:
 
 **Gradle:**
 ```kotlin
-implementation("space.alnovis:proto-wrapper-spring-boot-starter:1.6.7")
+implementation("io.alnovis:proto-wrapper-spring-boot-starter:1.6.7")
 ```
 
 ## Configuration

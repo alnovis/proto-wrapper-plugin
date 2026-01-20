@@ -1,9 +1,9 @@
 // Map fields with type conflicts - v1
 syntax = "proto2";
 
-package space.alnovis.protowrapper.it.proto.v1;
+package io.alnovis.protowrapper.it.proto.v1;
 
-option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_package = "io.alnovis.protowrapper.it.proto.v1";
 option java_outer_classname = "MapConflicts";
 
 // Enum for testing INT_ENUM conflict

@@ -2,9 +2,9 @@
 // Tests: singular, optional (proto3), repeated, oneof for all types
 syntax = "proto3";
 
-package space.alnovis.protowrapper.golden.proto3.v1;
+package io.alnovis.protowrapper.golden.proto3.v1;
 
-option java_package = "space.alnovis.protowrapper.golden.proto3.v1";
+option java_package = "io.alnovis.protowrapper.golden.proto3.v1";
 option java_outer_classname = "AllFields";
 
 // Nested message for testing message fields

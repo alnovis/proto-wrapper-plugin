@@ -106,7 +106,7 @@ cd proto-wrapper-gradle-integration-tests && gradle test --no-daemon
 | Classes | PascalCase | `InterfaceGenerator`, `MergedField` |
 | Methods | camelCase | `generateInterface()`, `resolveType()` |
 | Constants | UPPER_SNAKE_CASE | `GENERATED_FILE_COMMENT` |
-| Packages | lowercase | `space.alnovis.protowrapper.generator` |
+| Packages | lowercase | `io.alnovis.protowrapper.generator` |
 | Type Parameters | Single uppercase | `<T>`, `<PROTO>` |
 
 ### JavaDoc Requirements
@@ -252,7 +252,7 @@ void shouldDetectIntEnumConflict() {
 ```
 proto-wrapper-plugin/
 ├── proto-wrapper-core/                    # Core library (Maven + Gradle)
-│   └── src/main/java/space/alnovis/protowrapper/
+│   └── src/main/java/io/alnovis/protowrapper/
 │       ├── analyzer/                      # Proto file parsing
 │       ├── diff/                          # Schema Diff functionality (v1.5.0+)
 │       ├── exception/                     # Exception hierarchy

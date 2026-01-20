@@ -1,9 +1,9 @@
 // Order messages for v1
 syntax = "proto2";
 
-package space.alnovis.protowrapper.it.proto.v1;
+package io.alnovis.protowrapper.it.proto.v1;
 
-option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_package = "io.alnovis.protowrapper.it.proto.v1";
 option java_outer_classname = "Order";
 
 import "v1/common.proto";

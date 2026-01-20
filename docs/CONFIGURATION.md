@@ -29,9 +29,9 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.9</version>
+    <version>2.0.0</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -65,8 +65,8 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types (Timestamp to Instant, etc.). |
 | `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for Well-Known Type fields. |
 | `protocPath` | (auto) | Path to protoc executable. If not set, resolved automatically: system PATH, then embedded download. |
-| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.9)* |
-| `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 1.6.9)* |
+| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 2.0.0)* |
+| `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 2.0.0)* |
 
 #### Generation Flags
 
@@ -167,9 +167,9 @@ mvn compile -Dproto-wrapper.incremental=false
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.9</version>
+    <version>2.0.0</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -228,7 +228,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.9"
+    id("io.alnovis.proto-wrapper") version "2.0.0"
 }
 ```
 
@@ -240,11 +240,11 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("space.alnovis:proto-wrapper-gradle-plugin:1.6.9")
+        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.0.0")
     }
 }
 
-apply(plugin = "space.alnovis.proto-wrapper")
+apply(plugin = "io.alnovis.proto-wrapper")
 ```
 
 ### Extension Properties
@@ -355,7 +355,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("space.alnovis.proto-wrapper") version "1.6.9"
+    id("io.alnovis.proto-wrapper") version "2.0.0"
 }
 
 protoWrapper {
@@ -412,7 +412,7 @@ For multi-module projects where proto files are in a separate module:
 ```xml
 <!-- proto-definitions module -->
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <configuration>
         <basePackage>com.example.proto.wrapper</basePackage>
@@ -437,7 +437,7 @@ include("proto-definitions", "app")
 
 // proto-definitions/build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper")
+    id("io.alnovis.proto-wrapper")
 }
 
 protoWrapper {

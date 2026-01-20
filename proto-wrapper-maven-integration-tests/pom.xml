@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>space.alnovis</groupId>
+        <groupId>io.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
-        <version>1.6.9</version>
+        <version>2.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -36,7 +36,7 @@
     <dependencies>
         <!-- Proto wrapper core (for exception classes) -->
         <dependency>
-            <groupId>space.alnovis</groupId>
+            <groupId>io.alnovis</groupId>
             <artifactId>proto-wrapper-core</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
@@ -111,12 +111,12 @@
 
             <!-- Generate version-agnostic wrappers -->
             <plugin>
-                <groupId>space.alnovis</groupId>
+                <groupId>io.alnovis</groupId>
                 <artifactId>proto-wrapper-maven-plugin</artifactId>
                 <version>${project.version}</version>
                 <configuration>
-                    <basePackage>space.alnovis.protowrapper.it.model</basePackage>
-                    <protoPackagePattern>space.alnovis.protowrapper.it.proto.{version}</protoPackagePattern>
+                    <basePackage>io.alnovis.protowrapper.it.model</basePackage>
+                    <protoPackagePattern>io.alnovis.protowrapper.it.proto.{version}</protoPackagePattern>
                     <protoRoot>${basedir}/../test-protos/scenarios/generation</protoRoot>
                     <includeVersionSuffix>false</includeVersionSuffix>
                     <generateBuilders>true</generateBuilders>

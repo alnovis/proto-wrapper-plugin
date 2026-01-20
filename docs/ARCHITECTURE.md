@@ -61,7 +61,7 @@ proto-wrapper-plugin/
 ## Package Structure (proto-wrapper-core)
 
 ```
-space.alnovis.protowrapper
+io.alnovis.protowrapper
   analyzer/         # Proto file parsing via protoc
   generator/        # Code generation (main package)
     builder/        # Builder interface generation

@@ -42,7 +42,7 @@ The Schema Diff Tool provides a programmatic API for comparing protobuf schemas 
 
 ### SchemaDiff
 
-**Package:** `space.alnovis.protowrapper.diff`
+**Package:** `io.alnovis.protowrapper.diff`
 
 **Purpose:** Main facade for schema comparison. Provides access to all differences between two schema versions.
 
@@ -96,8 +96,8 @@ static SchemaDiff compare(Path v1Dir, Path v2Dir, String v1Name, String v2Name) 
 #### Usage Example
 
 ```java
-import space.alnovis.protowrapper.diff.SchemaDiff;
-import space.alnovis.protowrapper.diff.model.*;
+import io.alnovis.protowrapper.diff.SchemaDiff;
+import io.alnovis.protowrapper.diff.model.*;
 
 // Compare schemas
 SchemaDiff diff = SchemaDiff.compare(
@@ -134,7 +134,7 @@ System.out.println("Breaking: " + summary.errorCount() + " errors");
 
 ### DiffSummary
 
-**Package:** `space.alnovis.protowrapper.diff.SchemaDiff.DiffSummary`
+**Package:** `io.alnovis.protowrapper.diff.SchemaDiff.DiffSummary`
 
 **Purpose:** Summary statistics for the schema diff.
 
@@ -161,7 +161,7 @@ public record DiffSummary(
 
 #### ChangeType
 
-**Package:** `space.alnovis.protowrapper.diff.model`
+**Package:** `io.alnovis.protowrapper.diff.model`
 
 Enum representing the type of change detected.
 
@@ -193,7 +193,7 @@ Enum representing the type of change detected.
 
 #### MessageDiff
 
-**Package:** `space.alnovis.protowrapper.diff.model`
+**Package:** `io.alnovis.protowrapper.diff.model`
 
 Represents changes to a message between two schema versions.
 
@@ -233,7 +233,7 @@ public record MessageDiff(
 
 #### FieldChange
 
-**Package:** `space.alnovis.protowrapper.diff.model`
+**Package:** `io.alnovis.protowrapper.diff.model`
 
 Represents a change to a field between two schema versions.
 
@@ -276,7 +276,7 @@ The following type conversions are considered compatible (non-breaking):
 
 #### EnumDiff
 
-**Package:** `space.alnovis.protowrapper.diff.model`
+**Package:** `io.alnovis.protowrapper.diff.model`
 
 Represents changes to an enum between two schema versions.
 
@@ -312,7 +312,7 @@ public record EnumDiff(
 
 #### EnumValueChange
 
-**Package:** `space.alnovis.protowrapper.diff.model`
+**Package:** `io.alnovis.protowrapper.diff.model`
 
 Represents a change to an enum value.
 
@@ -344,7 +344,7 @@ public record EnumValueChange(
 
 #### BreakingChange
 
-**Package:** `space.alnovis.protowrapper.diff.model`
+**Package:** `io.alnovis.protowrapper.diff.model`
 
 Represents a breaking change detected between schema versions.
 
@@ -409,7 +409,7 @@ public interface DiffFormatter {
 
 #### TextDiffFormatter
 
-**Package:** `space.alnovis.protowrapper.diff.formatter`
+**Package:** `io.alnovis.protowrapper.diff.formatter`
 
 Produces plain text output with ASCII separators.
 
@@ -459,7 +459,7 @@ Breaking:  2 errors, 0 warnings
 
 #### JsonDiffFormatter
 
-**Package:** `space.alnovis.protowrapper.diff.formatter`
+**Package:** `io.alnovis.protowrapper.diff.formatter`
 
 Produces JSON output for programmatic processing.
 
@@ -547,7 +547,7 @@ String json = formatter.format(diff);
 
 #### MarkdownDiffFormatter
 
-**Package:** `space.alnovis.protowrapper.diff.formatter`
+**Package:** `io.alnovis.protowrapper.diff.formatter`
 
 Produces Markdown output with tables, suitable for documentation and PRs.
 

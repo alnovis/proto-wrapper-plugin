@@ -5,9 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2026-01-20
 
-_No changes yet._
+### Changed (Breaking Changes)
+
+#### Namespace Migration
+- **GroupId changed from `space.alnovis` to `io.alnovis`**
+- All Maven coordinates now use `io.alnovis` groupId
+- Gradle plugin ID changed from `space.alnovis.proto-wrapper` to `io.alnovis.proto-wrapper`
+
+### Removed (Breaking Changes)
+
+These methods were deprecated in 1.6.9 and have now been removed:
+
+#### ProtoWrapper Interface
+- **`getWrapperVersion()`** - Use `getWrapperVersionId()` instead (returns `String`)
+- **`extractWrapperVersion()`** - Use `extractWrapperVersionId()` instead (returns `String`)
+
+#### VersionContext Interface
+- **`getVersion()`** - Use `getVersionId()` instead (returns `String`)
+- **`forVersion(int)`** - Use `forVersionId(String)` instead
+
+#### Builder Interface
+- **`getVersion()`** - Use `getVersionId()` instead (returns `String`)
+
+#### Internal API
+- **`GeneratorUtils.buildNumericVersionCheck()`** - Use `buildVersionCheck()` instead
+
+### Migration Guide
+
+Replace deprecated methods with their string-based equivalents:
+
+```java
+// Before (removed)
+int version = wrapper.getWrapperVersion();
+VersionContext ctx = VersionContext.forVersion(1);
+
+// After
+String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", etc.
+VersionContext ctx = VersionContext.forVersionId("v1");
+```
 
 ---
 
@@ -534,7 +571,7 @@ State is persisted to JSON in cache directory (`state.json`):
 
 #### New Core Classes
 ```
-proto-wrapper-core/src/main/java/space/alnovis/protowrapper/incremental/
+proto-wrapper-core/src/main/java/io/alnovis/protowrapper/incremental/
 ├── FileFingerprint.java          # File hash + timestamp for change detection
 ├── IncrementalState.java         # Persistent state model (record)
 ├── IncrementalStateManager.java  # Cache state management
@@ -722,7 +759,7 @@ mvn proto-wrapper:diff -Dv1=proto/v1 -Dv2=proto/v2 -DfailOnBreaking=true
   - Support for all output formats and CI/CD options
 
 ```kotlin
-tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
+tasks.register<io.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
     v1Directory.set(file("proto/v1"))
     v2Directory.set(file("proto/v2"))
     outputFormat.set("markdown")
