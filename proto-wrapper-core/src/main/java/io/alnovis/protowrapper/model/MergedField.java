@@ -517,12 +517,12 @@ public class MergedField {
 
     /** @return the set of versions where this field is present */
     public Set<String> getPresentInVersions() {
-        return Collections.unmodifiableSet(presentInVersions);
+        return presentInVersions;
     }
 
     /** @return the map of version to FieldInfo */
     public Map<String, FieldInfo> getVersionFields() {
-        return Collections.unmodifiableMap(versionFields);
+        return versionFields;
     }
 
     /**
@@ -580,7 +580,7 @@ public class MergedField {
      * @return Unmodifiable map of version to Java type
      */
     public Map<String, String> getTypesPerVersion() {
-        return Collections.unmodifiableMap(typesPerVersion);
+        return typesPerVersion;
     }
 
     /**
@@ -605,7 +605,7 @@ public class MergedField {
      * @return Unmodifiable map of version to oneof name (only versions where field is in oneof)
      */
     public Map<String, String> getOneofNamePerVersion() {
-        return Collections.unmodifiableMap(oneofNamePerVersion);
+        return oneofNamePerVersion;
     }
 
     /**
@@ -637,7 +637,7 @@ public class MergedField {
      * @return Unmodifiable map of version to optionality status
      */
     public Map<String, Boolean> getOptionalityPerVersion() {
-        return Collections.unmodifiableMap(optionalityPerVersion);
+        return optionalityPerVersion;
     }
 
     /**
@@ -645,7 +645,7 @@ public class MergedField {
      * @return true if field is optional in some versions and required in others
      */
     public boolean hasOptionalRequiredMismatch() {
-        if (optionalityPerVersion.isEmpty() || optionalityPerVersion.size() <= 1) {
+        if (optionalityPerVersion.size() < 2) {
             return false;
         }
         boolean hasOptional = optionalityPerVersion.values().stream().anyMatch(Boolean::booleanValue);

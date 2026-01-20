@@ -80,17 +80,15 @@ public class BreakingChangeDetector {
         String fieldPath = messagePath + "." + fc.fieldName();
 
         switch (fc.changeType()) {
-            case REMOVED -> {
-                // Field removed - plugin handles with hasXxx/supportsXxx methods
-                changes.add(new BreakingChange(
-                    BreakingChange.Type.FIELD_REMOVED,
-                    BreakingChange.Severity.INFO,
-                    fieldPath,
-                    "Plugin generates hasXxx()/supportsXxx() for version checking",
-                    formatFieldInfo(fc.v1Field()),
-                    null
-                ));
-            }
+            // Field removed - plugin handles with hasXxx/supportsXxx methods
+            case REMOVED -> changes.add(new BreakingChange(
+                BreakingChange.Type.FIELD_REMOVED,
+                BreakingChange.Severity.INFO,
+                fieldPath,
+                "Plugin generates hasXxx()/supportsXxx() for version checking",
+                formatFieldInfo(fc.v1Field()),
+                null
+            ));
 
             case TYPE_CHANGED -> {
                 TypeConflictType conflictType = fc.getTypeConflictType();
@@ -191,33 +189,28 @@ public class BreakingChangeDetector {
         String valuePath = enumPath + "." + vc.valueName();
 
         switch (vc.changeType()) {
-            case VALUE_REMOVED -> {
-                // Enum value removed - plugin uses int values or unified enum
-                changes.add(new BreakingChange(
-                    BreakingChange.Type.ENUM_VALUE_REMOVED,
-                    BreakingChange.Severity.INFO,
-                    valuePath,
-                    "Plugin uses int accessor or unified enum for version compatibility",
-                    vc.valueName() + " = " + vc.v1Number(),
-                    null
-                ));
-            }
+            // Enum value removed - plugin uses int values or unified enum
+            case VALUE_REMOVED -> changes.add(new BreakingChange(
+                BreakingChange.Type.ENUM_VALUE_REMOVED,
+                BreakingChange.Severity.INFO,
+                valuePath,
+                "Plugin uses int accessor or unified enum for version compatibility",
+                vc.valueName() + " = " + vc.v1Number(),
+                null
+            ));
 
-            case VALUE_NUMBER_CHANGED -> {
-                // Enum value number changed - plugin uses int values
-                changes.add(new BreakingChange(
-                    BreakingChange.Type.ENUM_VALUE_NUMBER_CHANGED,
-                    BreakingChange.Severity.WARNING,
-                    valuePath,
-                    "Wire format change - plugin uses int for safe cross-version access",
-                    String.valueOf(vc.v1Number()),
-                    String.valueOf(vc.v2Number())
-                ));
-            }
+            // Enum value number changed - plugin uses int values
+            case VALUE_NUMBER_CHANGED -> changes.add(new BreakingChange(
+                BreakingChange.Type.ENUM_VALUE_NUMBER_CHANGED,
+                BreakingChange.Severity.WARNING,
+                valuePath,
+                "Wire format change - plugin uses int for safe cross-version access",
+                String.valueOf(vc.v1Number()),
+                String.valueOf(vc.v2Number())
+            ));
 
-            case VALUE_ADDED -> {
-                // Adding a value is informational only
-            }
+            // Adding a value is informational only
+            case VALUE_ADDED -> { }
 
             default -> {
                 // No action for other types

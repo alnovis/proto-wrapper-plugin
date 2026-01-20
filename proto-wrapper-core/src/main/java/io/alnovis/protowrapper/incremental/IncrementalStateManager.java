@@ -205,10 +205,8 @@ public class IncrementalStateManager {
             return changes.currentFingerprints().keySet();
         }
 
-        Set<String> affected = new HashSet<>();
-
-        // Add directly changed files
-        affected.addAll(changes.getChangedFiles());
+        // Start with directly changed files
+        Set<String> affected = new HashSet<>(changes.getChangedFiles());
 
         // Add transitive dependents
         for (String changed : changes.getChangedFiles()) {

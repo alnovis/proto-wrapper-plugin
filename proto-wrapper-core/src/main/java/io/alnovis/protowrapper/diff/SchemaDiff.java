@@ -293,7 +293,7 @@ public class SchemaDiff {
      * @return unmodifiable list of breaking changes
      */
     public List<BreakingChange> getBreakingChanges() {
-        return Collections.unmodifiableList(breakingChanges);
+        return breakingChanges;
     }
 
     /**

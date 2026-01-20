@@ -653,10 +653,8 @@ public class VersionMerger {
             // For map fields, value type conflicts are handled separately by detectMapValueConflict()
             // Don't set field-level conflictType for maps - they use mapValueConflictType instead
             boolean allMaps = fields.stream().allMatch(fv -> fv.field().isMap());
-            if (allMaps) {
-                // Map fields with value type conflicts are handled by detectMapValueConflict()
-                // Don't mark as INCOMPATIBLE - leave conflictType as NONE
-            } else {
+            if (!allMaps) {
+                // Non-map fields: detect and set conflict type
                 MergedField.ConflictType conflictType = detectConflictType(fields);
                 builder.conflictType(conflictType);
 
@@ -726,17 +724,13 @@ public class VersionMerger {
 
         // Collect map value types from all versions
         Set<String> valueTypes = new LinkedHashSet<>();
-        Set<com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type> protoValueTypes = new LinkedHashSet<>();
         boolean hasEnumValue = false;
-        boolean hasMessageValue = false;
 
         for (FieldWithVersion fv : fields) {
             MapInfo mapInfo = fv.field().getMapInfo();
             if (mapInfo != null) {
                 valueTypes.add(mapInfo.getValueJavaType());
-                protoValueTypes.add(mapInfo.getValueType());
                 if (mapInfo.hasEnumValue()) hasEnumValue = true;
-                if (mapInfo.hasMessageValue()) hasMessageValue = true;
             }
         }
 

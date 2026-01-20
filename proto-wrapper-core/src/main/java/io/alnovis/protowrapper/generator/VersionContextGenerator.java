@@ -157,8 +157,6 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .build());
 
         // Wrap methods
-        ClassName messageClass = MESSAGE_CLASS;
-
         for (MergedMessage message : schema.getMessages()) {
             // Skip if message is not present in this version
             // (will use default method from interface which throws UnsupportedOperationException)
@@ -179,7 +177,7 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PUBLIC)
                     .returns(returnType)
-                    .addParameter(messageClass, "proto")
+                    .addParameter(MESSAGE_CLASS, "proto")
                     .beginControlFlow("if (proto == null)")
                     .addStatement("return null")
                     .endControlFlow()

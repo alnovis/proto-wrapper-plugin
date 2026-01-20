@@ -126,7 +126,7 @@ public class OneofConflictInfo {
         private final OneofConflictType type;
         private String oneofName = "";
         private String messageName = "";
-        private String description = "";
+        private String description;
         private final Set<String> affectedVersions = new LinkedHashSet<>();
         private final Map<String, Object> details = new LinkedHashMap<>();
 

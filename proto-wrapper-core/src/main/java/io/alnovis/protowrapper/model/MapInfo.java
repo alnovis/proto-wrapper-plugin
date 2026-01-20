@@ -197,8 +197,7 @@ public record MapInfo(
 
     private String extractSimpleTypeName(String fullTypeName) {
         if (fullTypeName == null) return "Object";
-        int lastDot = fullTypeName.lastIndexOf('.');
-        return lastDot >= 0 ? fullTypeName.substring(lastDot + 1) : fullTypeName;
+        return fullTypeName.substring(fullTypeName.lastIndexOf('.') + 1);
     }
 
     @Override

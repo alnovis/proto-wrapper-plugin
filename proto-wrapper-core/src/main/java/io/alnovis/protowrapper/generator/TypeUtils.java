@@ -262,9 +262,8 @@ public final class TypeUtils {
      */
     public static TypeName getRepeatedConflictElementType(io.alnovis.protowrapper.model.MergedField.ConflictType conflictType) {
         return switch (conflictType) {
-            case WIDENING -> TypeName.LONG.box();
+            case WIDENING, SIGNED_UNSIGNED -> TypeName.LONG.box();
             case FLOAT_DOUBLE -> TypeName.DOUBLE.box();
-            case SIGNED_UNSIGNED -> TypeName.LONG.box();
             case INT_ENUM -> TypeName.INT.box();
             case STRING_BYTES -> ClassName.get(String.class);
             default -> ClassName.get(Object.class);

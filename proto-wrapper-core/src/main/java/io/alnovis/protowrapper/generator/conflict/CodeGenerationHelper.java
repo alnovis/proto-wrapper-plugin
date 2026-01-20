@@ -236,11 +236,6 @@ public final class CodeGenerationHelper {
             return "com.google.protobuf.Message";
         }
 
-        String typeName = snapshot.typeName();
-        if (typeName != null && typeName.startsWith(".")) {
-            typeName = typeName.substring(1);
-        }
-
         String version = ctx.requireVersion();
         GeneratorConfig config = ctx.config();
         String javaProtoPackage = config.getProtoPackage(version);
@@ -303,11 +298,6 @@ public final class CodeGenerationHelper {
         VersionFieldSnapshot snapshot = ctx.versionSnapshot(field);
         if (snapshot.isAbsent()) {
             return "Object";
-        }
-
-        String typeName = snapshot.typeName();
-        if (typeName != null && typeName.startsWith(".")) {
-            typeName = typeName.substring(1);
         }
 
         String version = ctx.requireVersion();

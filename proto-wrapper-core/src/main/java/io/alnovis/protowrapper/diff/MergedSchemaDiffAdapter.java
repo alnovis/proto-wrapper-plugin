@@ -79,11 +79,11 @@ public class MergedSchemaDiffAdapter {
             // Removed in v2
             return createRemovedMessageDiff(message);
         }
-        if (inV1 && inV2) {
+        // At this point inV1 == inV2 (both true or both false)
+        if (inV1) {
             // Present in both - check for modifications
             return createModifiedMessageDiff(message);
         }
-
         // Not in either version (shouldn't happen)
         return new MessageDiff(message.getName(), ChangeType.UNCHANGED,
             null, null, List.of(), List.of(), List.of());
@@ -138,11 +138,11 @@ public class MergedSchemaDiffAdapter {
             return new FieldChange(field.getNumber(), field.getJavaName(), ChangeType.REMOVED,
                 v1Field, null, List.of("Removed field"));
         }
-        if (inV1 && inV2) {
+        // At this point inV1 == inV2 (both true or both false)
+        if (inV1) {
             // Present in both - check for modifications
             return createModifiedFieldChange(field);
         }
-
         // Not in either version (shouldn't happen)
         return new FieldChange(field.getNumber(), field.getJavaName(), ChangeType.UNCHANGED,
             null, null, List.of());
@@ -241,10 +241,10 @@ public class MergedSchemaDiffAdapter {
             EnumInfo enumInfo = createEnumInfoFromMerged(mergedEnum, v1Name);
             return EnumDiff.removed(enumInfo);
         }
-        if (inV1 && inV2) {
+        // At this point inV1 == inV2 (both true or both false)
+        if (inV1) {
             return createModifiedEnumDiff(mergedEnum);
         }
-
         return new EnumDiff(mergedEnum.getName(), ChangeType.UNCHANGED, null, null, List.of());
     }
 

@@ -158,15 +158,8 @@ public class TypeResolver {
             return buildNestedClassName(typePath);
         }
 
-        // Cross-message reference - validate exists or use fallback
-        // Note: All paths return buildNestedClassName, but schema check validates the type exists
-        if (schema != null &&
-                (schema.findMessageByPath(typePath).isPresent() ||
-                 schema.findEnumByPath(typePath).isPresent())) {
-            return buildNestedClassName(typePath);
-        }
-
-        // Fallback - assume it's valid (for types not in schema or when schema is null)
+        // Cross-message reference - build nested class name
+        // Schema validation is informational only; we always use buildNestedClassName
         return buildNestedClassName(typePath);
     }
 

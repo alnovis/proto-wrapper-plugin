@@ -362,15 +362,18 @@ public class GenerationOrchestrator {
         GenerationContext ctx = GenerationContext.create(schema, config);
 
         try {
-            long count = schema.getMessages().stream()
+            List<MergedMessage> toGenerate = schema.getMessages().stream()
                     .filter(message -> config.shouldGenerate(message.getName()))
-                    .map(message -> generateWithLogging(
-                            () -> generator.generateAndWrite(message, ctx),
-                            "Generated interface: "))
-                    .count();
+                    .toList();
 
-            logger.info("Generated " + count + " interfaces");
-            return (int) count;
+            for (MergedMessage message : toGenerate) {
+                generateWithLogging(
+                        () -> generator.generateAndWrite(message, ctx),
+                        "Generated interface: ");
+            }
+
+            logger.info("Generated " + toGenerate.size() + " interfaces");
+            return toGenerate.size();
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
@@ -388,15 +391,18 @@ public class GenerationOrchestrator {
         GenerationContext ctx = GenerationContext.create(schema, config);
 
         try {
-            long count = schema.getMessages().stream()
+            List<MergedMessage> toGenerate = schema.getMessages().stream()
                     .filter(message -> config.shouldGenerate(message.getName()))
-                    .map(message -> generateWithLogging(
-                            () -> generator.generateAndWrite(message, ctx),
-                            "Generated abstract class: "))
-                    .count();
+                    .toList();
 
-            logger.info("Generated " + count + " abstract classes");
-            return (int) count;
+            for (MergedMessage message : toGenerate) {
+                generateWithLogging(
+                        () -> generator.generateAndWrite(message, ctx),
+                        "Generated abstract class: ");
+            }
+
+            logger.info("Generated " + toGenerate.size() + " abstract classes");
+            return toGenerate.size();
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }

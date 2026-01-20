@@ -5,7 +5,6 @@ import io.alnovis.protowrapper.model.MergedSchema;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.function.Consumer;
 
 /**
  * Traverses message structures and invokes visitor callbacks.

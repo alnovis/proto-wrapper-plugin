@@ -577,13 +577,11 @@ public final class BuilderInterfaceGenerator {
         }
 
         // Build version info for javadoc
-        String primVersions = field.getVersionFields().entrySet().stream()
-                .filter(e -> field.isPrimitiveInVersion(e.getKey()))
-                .map(java.util.Map.Entry::getKey)
+        String primVersions = field.getVersionFields().keySet().stream()
+                .filter(field::isPrimitiveInVersion)
                 .collect(Collectors.joining(", "));
-        String msgVersions = field.getVersionFields().entrySet().stream()
-                .filter(e -> field.isMessageInVersion(e.getKey()))
-                .map(java.util.Map.Entry::getKey)
+        String msgVersions = field.getVersionFields().keySet().stream()
+                .filter(field::isMessageInVersion)
                 .collect(Collectors.joining(", "));
 
         // Primitive setter
@@ -672,12 +670,11 @@ public final class BuilderInterfaceGenerator {
                     "java.util.List<".length(),
                     resolvedType.length() - 1);
             elementType = resolveTypeName(elementTypeStr);
-            listType = ParameterizedTypeName.get(ClassName.get(java.util.List.class), elementType);
         } else {
             // Fallback to Object
             elementType = ClassName.get(Object.class);
-            listType = ParameterizedTypeName.get(ClassName.get(java.util.List.class), elementType);
         }
+        listType = ParameterizedTypeName.get(ClassName.get(java.util.List.class), elementType);
 
         // Build version info for javadoc
         String versionsStr = field.getVersionFields().entrySet().stream()

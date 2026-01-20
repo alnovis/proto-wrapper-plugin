@@ -856,11 +856,6 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
             return "com.google.protobuf.Message";
         }
 
-        // Remove leading dot if present
-        if (valueTypeName.startsWith(".")) {
-            valueTypeName = valueTypeName.substring(1);
-        }
-
         // Extract simple type name (e.g., "NestedMessage" from "io.alnovis...NestedMessage")
         String simpleTypeName = mapInfo.getSimpleValueTypeName();
 
