@@ -19,19 +19,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ============================================================================
-# Configuration
+# Configuration - File Lists
 # ============================================================================
 
-# Files that need version updates
-VERSION_FILES=(
-    "pom.xml:9"
-    "build.gradle.kts:8"
-    "examples/maven-example/pom.xml:proto-wrapper.version"
-    "examples/spring-boot-example/pom.xml:proto-wrapper.version"
-    "proto-wrapper-gradle-integration-tests/build.gradle.kts:6"
+# Submodule pom.xml files (need parent version update)
+SUBMODULE_POMS=(
+    "proto-wrapper-core/pom.xml"
+    "proto-wrapper-maven-plugin/pom.xml"
+    "proto-wrapper-spring-boot-starter/pom.xml"
+    "proto-wrapper-golden-tests/pom.xml"
+    "proto-wrapper-maven-integration-tests/pom.xml"
+    "examples/maven-example/pom.xml"
 )
 
-# Documentation files with version references
+# Standalone Gradle projects (version = "X.Y.Z")
+STANDALONE_GRADLE=(
+    "proto-wrapper-gradle-integration-tests/build.gradle.kts"
+)
+
+# Documentation files (global search/replace)
 DOC_FILES=(
     "README.md"
     "docs/CONFIGURATION.md"
@@ -108,138 +114,203 @@ print_info() {
 }
 
 # ============================================================================
-# Version Management
+# Version Management - Generic Functions
 # ============================================================================
 
 get_current_version() {
     grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/'
 }
 
+# Get version from pom.xml parent block
+get_pom_parent_version() {
+    local file="$1"
+    grep -A5 '<parent>' "$file" | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/'
+}
+
+# Get version from pom.xml after parent block (project version)
+get_pom_project_version() {
+    local file="$1"
+    grep -A20 '</parent>' "$file" | grep -m1 '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/'
+}
+
+# Get version from pom.xml property
+get_pom_property_version() {
+    local file="$1"
+    local property="$2"
+    grep "<$property>" "$file" | sed "s/.*<$property>\(.*\)<\/$property>.*/\1/"
+}
+
+# Get version from build.gradle.kts
+get_gradle_version() {
+    local file="$1"
+    grep -m1 'version = "' "$file" | sed 's/.*version = "\(.*\)".*/\1/'
+}
+
+# Update parent version in pom.xml (only in <parent> block)
+update_pom_parent() {
+    local file="$1"
+    local old="$2"
+    local new="$3"
+    awk -v old="$old" -v new="$new" '
+        /<parent>/ { in_parent=1 }
+        in_parent && /<version>/ && !done { gsub("<version>"old"</version>", "<version>"new"</version>"); done=1 }
+        /<\/parent>/ { in_parent=0 }
+        { print }
+    ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+}
+
+# Update project version in pom.xml (first <version> after </parent>)
+update_pom_project() {
+    local file="$1"
+    local old="$2"
+    local new="$3"
+    awk -v old="$old" -v new="$new" '
+        /<\/parent>/ { after_parent=1 }
+        after_parent && /<version>/ && !done { gsub("<version>"old"</version>", "<version>"new"</version>"); done=1 }
+        { print }
+    ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+}
+
+# Update property in pom.xml
+update_pom_property() {
+    local file="$1"
+    local property="$2"
+    local old="$3"
+    local new="$4"
+    sed -i "s/<$property>$old<\/$property>/<$property>$new<\/$property>/" "$file"
+}
+
+# Update version in build.gradle.kts
+update_gradle() {
+    local file="$1"
+    local old="$2"
+    local new="$3"
+    sed -i "s/version = \"$old\"/version = \"$new\"/" "$file"
+}
+
+# ============================================================================
+# Version Check & Bump
+# ============================================================================
+
 check_versions() {
-    local expected_version="$1"
+    local expected="$1"
     local has_errors=false
 
-    print_section "Checking version consistency (expected: $expected_version)"
+    print_section "Checking version consistency (expected: $expected)"
 
-    # Check pom.xml
-    local pom_version=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
-    if [[ "$pom_version" == "$expected_version" ]]; then
-        print_success "pom.xml: $pom_version"
+    # Root pom.xml
+    local v=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+    if [[ "$v" == "$expected" ]]; then
+        print_success "pom.xml: $v"
     else
-        print_error "pom.xml: $pom_version (expected $expected_version)"
+        print_error "pom.xml: $v (expected $expected)"
         has_errors=true
     fi
 
-    # Check build.gradle.kts
-    local gradle_version=$(grep -m1 'version = "' build.gradle.kts | sed 's/.*version = "\(.*\)".*/\1/')
-    if [[ "$gradle_version" == "$expected_version" ]]; then
-        print_success "build.gradle.kts: $gradle_version"
+    # Root build.gradle.kts
+    v=$(get_gradle_version "build.gradle.kts")
+    if [[ "$v" == "$expected" ]]; then
+        print_success "build.gradle.kts: $v"
     else
-        print_error "build.gradle.kts: $gradle_version (expected $expected_version)"
+        print_error "build.gradle.kts: $v (expected $expected)"
         has_errors=true
     fi
 
-    # Check examples/maven-example/pom.xml
-    # Note: maven-example uses ${project.parent.version} which is valid (inherits from parent)
-    local maven_example_version=$(grep '<proto-wrapper.version>' examples/maven-example/pom.xml | sed 's/.*<proto-wrapper.version>\(.*\)<\/proto-wrapper.version>.*/\1/')
-    if [[ "$maven_example_version" == "$expected_version" ]] || [[ "$maven_example_version" == '${project.parent.version}' ]]; then
-        print_success "examples/maven-example/pom.xml: $maven_example_version"
+    # Submodule parent versions
+    for file in "${SUBMODULE_POMS[@]}"; do
+        if [[ -f "$file" ]]; then
+            v=$(get_pom_parent_version "$file")
+            if [[ "$v" == "$expected" ]]; then
+                print_success "$file (parent): $v"
+            else
+                print_error "$file (parent): $v (expected $expected)"
+                has_errors=true
+            fi
+        fi
+    done
+
+    # examples/maven-example project version (special case)
+    v=$(get_pom_project_version "examples/maven-example/pom.xml")
+    if [[ "$v" == "$expected" ]]; then
+        print_success "examples/maven-example/pom.xml (project): $v"
     else
-        print_error "examples/maven-example/pom.xml: $maven_example_version (expected $expected_version or \${project.parent.version})"
+        print_error "examples/maven-example/pom.xml (project): $v (expected $expected)"
         has_errors=true
     fi
 
-    # Check examples/spring-boot-example/pom.xml
-    local spring_example_version=$(grep '<proto-wrapper.version>' examples/spring-boot-example/pom.xml | sed 's/.*<proto-wrapper.version>\(.*\)<\/proto-wrapper.version>.*/\1/')
-    if [[ "$spring_example_version" == "$expected_version" ]]; then
-        print_success "examples/spring-boot-example/pom.xml: $spring_example_version"
+    # examples/spring-boot-example property
+    v=$(get_pom_property_version "examples/spring-boot-example/pom.xml" "proto-wrapper.version")
+    if [[ "$v" == "$expected" ]]; then
+        print_success "examples/spring-boot-example/pom.xml: $v"
     else
-        print_error "examples/spring-boot-example/pom.xml: $spring_example_version (expected $expected_version)"
+        print_error "examples/spring-boot-example/pom.xml: $v (expected $expected)"
         has_errors=true
     fi
 
-    # Check proto-wrapper-gradle-integration-tests/build.gradle.kts
-    local gradle_it_version=$(grep -m1 'version = "' proto-wrapper-gradle-integration-tests/build.gradle.kts | sed 's/.*version = "\(.*\)".*/\1/')
-    if [[ "$gradle_it_version" == "$expected_version" ]]; then
-        print_success "proto-wrapper-gradle-integration-tests/build.gradle.kts: $gradle_it_version"
-    else
-        print_error "proto-wrapper-gradle-integration-tests/build.gradle.kts: $gradle_it_version (expected $expected_version)"
-        has_errors=true
-    fi
+    # Standalone Gradle projects
+    for file in "${STANDALONE_GRADLE[@]}"; do
+        if [[ -f "$file" ]]; then
+            v=$(get_gradle_version "$file")
+            if [[ "$v" == "$expected" ]]; then
+                print_success "$file: $v"
+            else
+                print_error "$file: $v (expected $expected)"
+                has_errors=true
+            fi
+        fi
+    done
 
-    # Check proto-wrapper-maven-integration-tests/pom.xml (parent version)
-    local maven_it_version=$(grep -A5 '<parent>' proto-wrapper-maven-integration-tests/pom.xml | grep '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
-    if [[ "$maven_it_version" == "$expected_version" ]]; then
-        print_success "proto-wrapper-maven-integration-tests/pom.xml (parent): $maven_it_version"
-    else
-        print_error "proto-wrapper-maven-integration-tests/pom.xml (parent): $maven_it_version (expected $expected_version)"
-        has_errors=true
-    fi
-
-    if [[ "$has_errors" == "true" ]]; then
-        return 1
-    fi
+    [[ "$has_errors" == "true" ]] && return 1
     return 0
 }
 
 bump_version() {
-    local new_version="$1"
-    local old_version=$(get_current_version)
+    local new="$1"
+    local old=$(get_current_version)
 
-    print_section "Bumping version: $old_version -> $new_version"
+    print_section "Bumping version: $old -> $new"
 
-    # Update pom.xml (root) - first <version> tag
-    sed -i "0,/<version>$old_version<\/version>/s//<version>$new_version<\/version>/" pom.xml
+    # Root pom.xml
+    sed -i "0,/<version>$old<\/version>/s//<version>$new<\/version>/" pom.xml
     print_success "pom.xml"
 
-    # Update build.gradle.kts (root)
-    sed -i "s/version = \"$old_version\"/version = \"$new_version\"/" build.gradle.kts
+    # Root build.gradle.kts
+    update_gradle "build.gradle.kts" "$old" "$new"
     print_success "build.gradle.kts"
 
-    # Update examples/maven-example/pom.xml (only if not using parent version)
-    local maven_example_version=$(grep '<proto-wrapper.version>' examples/maven-example/pom.xml | sed 's/.*<proto-wrapper.version>\(.*\)<\/proto-wrapper.version>.*/\1/')
-    if [[ "$maven_example_version" != '${project.parent.version}' ]]; then
-        sed -i "s/<proto-wrapper.version>$old_version<\/proto-wrapper.version>/<proto-wrapper.version>$new_version<\/proto-wrapper.version>/" examples/maven-example/pom.xml
-        print_success "examples/maven-example/pom.xml"
-    else
-        print_info "examples/maven-example/pom.xml: uses \${project.parent.version} (no change needed)"
-    fi
-
-    # Update examples/spring-boot-example/pom.xml
-    sed -i "s/<proto-wrapper.version>$old_version<\/proto-wrapper.version>/<proto-wrapper.version>$new_version<\/proto-wrapper.version>/" examples/spring-boot-example/pom.xml
-    print_success "examples/spring-boot-example/pom.xml"
-
-    # Update proto-wrapper-gradle-integration-tests/build.gradle.kts
-    sed -i "s/version = \"$old_version\"/version = \"$new_version\"/" proto-wrapper-gradle-integration-tests/build.gradle.kts
-    print_success "proto-wrapper-gradle-integration-tests/build.gradle.kts"
-
-    # Update proto-wrapper-maven-integration-tests/pom.xml (parent version)
-    sed -i "s/<version>$old_version<\/version>/<version>$new_version<\/version>/" proto-wrapper-maven-integration-tests/pom.xml
-    print_success "proto-wrapper-maven-integration-tests/pom.xml (parent)"
-
-    # Update submodule parent versions
-    for submodule in proto-wrapper-core proto-wrapper-maven-plugin proto-wrapper-spring-boot-starter proto-wrapper-golden-tests; do
-        if [[ -f "$submodule/pom.xml" ]]; then
-            sed -i "s/<version>$old_version<\/version>/<version>$new_version<\/version>/" "$submodule/pom.xml"
-            print_success "$submodule/pom.xml (parent)"
+    # Submodule parent versions
+    for file in "${SUBMODULE_POMS[@]}"; do
+        if [[ -f "$file" ]]; then
+            update_pom_parent "$file" "$old" "$new"
+            print_success "$file (parent)"
         fi
     done
 
-    # Update examples/maven-example/pom.xml parent version
-    sed -i "0,/<version>$old_version<\/version>/s//<version>$new_version<\/version>/" examples/maven-example/pom.xml
-    print_success "examples/maven-example/pom.xml (parent)"
+    # examples/maven-example project version (special case)
+    update_pom_project "examples/maven-example/pom.xml" "$old" "$new"
+    print_success "examples/maven-example/pom.xml (project)"
 
-    # Update README.md
-    sed -i "s/$old_version/$new_version/g" README.md
-    print_success "README.md"
+    # examples/spring-boot-example property
+    update_pom_property "examples/spring-boot-example/pom.xml" "proto-wrapper.version" "$old" "$new"
+    print_success "examples/spring-boot-example/pom.xml"
 
-    # Update docs/CONFIGURATION.md
-    if [[ -f "docs/CONFIGURATION.md" ]]; then
-        sed -i "s/$old_version/$new_version/g" docs/CONFIGURATION.md
-        print_success "docs/CONFIGURATION.md"
-    fi
+    # Standalone Gradle projects
+    for file in "${STANDALONE_GRADLE[@]}"; do
+        if [[ -f "$file" ]]; then
+            update_gradle "$file" "$old" "$new"
+            print_success "$file"
+        fi
+    done
 
-    print_info "Version bumped to $new_version"
+    # Documentation
+    for file in "${DOC_FILES[@]}"; do
+        if [[ -f "$file" ]]; then
+            sed -i "s/$old/$new/g" "$file"
+            print_success "$file"
+        fi
+    done
+
+    print_info "Version bumped to $new"
     print_info "Don't forget to update CHANGELOG.md manually!"
 }
 
@@ -473,7 +544,12 @@ Examples:
 Files checked/updated:
   - pom.xml (root)
   - build.gradle.kts (root)
-  - examples/maven-example/pom.xml
+  - proto-wrapper-core/pom.xml (parent)
+  - proto-wrapper-maven-plugin/pom.xml (parent)
+  - proto-wrapper-spring-boot-starter/pom.xml (parent)
+  - proto-wrapper-golden-tests/pom.xml (parent)
+  - proto-wrapper-maven-integration-tests/pom.xml (parent)
+  - examples/maven-example/pom.xml (parent + project)
   - examples/spring-boot-example/pom.xml
   - proto-wrapper-gradle-integration-tests/build.gradle.kts
   - README.md
