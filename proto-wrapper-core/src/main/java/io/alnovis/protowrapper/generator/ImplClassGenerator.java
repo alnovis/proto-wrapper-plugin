@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+
 /**
  * Generates version-specific implementation classes.
  *
@@ -143,13 +144,16 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         // Wrapper version ID method - returns string version identifier (e.g., "v1", "v2")
-        classBuilder.addMethod(MethodSpec.methodBuilder("extractWrapperVersionId")
+        String version = ctx.requireVersion();
+        VersionReferenceFactory vrf = VersionReferenceFactory.create(config);
+        MethodSpec.Builder extractVersionMethod = MethodSpec.methodBuilder("extractWrapperVersionId")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
                 .returns(ClassName.get(String.class))
-                .addParameter(protoType, "proto")
-                .addStatement("return $S", ctx.requireVersion())
-                .build());
+                .addParameter(protoType, "proto");
+
+        vrf.addReturnStatement(extractVersionMethod, version);
+        classBuilder.addMethod(extractVersionMethod.build());
 
         // Factory method
         classBuilder.addMethod(MethodSpec.methodBuilder("from")
@@ -170,7 +174,6 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
                 .build());
 
         // getVersionContext() implementation - returns VersionContext for this version
-        String version = ctx.requireVersion();
         String versionContextClassName = "VersionContext" + version.toUpperCase();
         ClassName versionContextType = ClassName.get(ctx.getApiPackage(), "VersionContext");
         ClassName versionContextImplType = ClassName.get(implPackage, versionContextClassName);
@@ -343,12 +346,14 @@ public class ImplClassGenerator extends BaseGenerator<MergedMessage> {
 
         // getVersionId() - returns the version identifier for this builder (e.g., "v1", "v2")
         String versionId = genCtx.requireVersion();
-        builder.addMethod(MethodSpec.methodBuilder("getVersionId")
+        VersionReferenceFactory vrf = VersionReferenceFactory.create(config);
+        MethodSpec.Builder getVersionIdMethod = MethodSpec.methodBuilder("getVersionId")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PROTECTED)
-                .returns(ClassName.get(String.class))
-                .addStatement("return $S", versionId)
-                .build());
+                .returns(ClassName.get(String.class));
+
+        vrf.addReturnStatement(getVersionIdMethod, versionId);
+        builder.addMethod(getVersionIdMethod.build());
 
         // Implement doSet/doClear/doAdd methods for each field using handler chain
         ProcessingContext procCtx = ProcessingContext.forImpl(message, protoType, genCtx, config);

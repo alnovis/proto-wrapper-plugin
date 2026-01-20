@@ -78,6 +78,7 @@ public class GeneratorConfig {
     private boolean generateAbstractClasses = true;
     private boolean generateImplClasses = true;
     private boolean generateVersionContext = true;
+    private boolean generateProtocolVersions = false;
     private boolean includeVersionSuffix = true;
     private boolean generateBuilders = false;
     private ProtoSyntax defaultSyntax = ProtoSyntax.AUTO; // AUTO means detect from .proto files
@@ -97,6 +98,10 @@ public class GeneratorConfig {
 
     // Target Java version (8 = Java 8 compatible, 9+ = use modern features)
     private int targetJavaVersion = 9;
+
+    // Parallel generation settings (since 2.1.0)
+    private boolean parallelGeneration = false;
+    private int generationThreads = 0; // 0 = auto (available processors)
 
     /**
      * Create a new builder for GeneratorConfig.
@@ -143,6 +148,8 @@ public class GeneratorConfig {
     public boolean isGenerateImplClasses() { return generateImplClasses; }
     /** @return true if VersionContext should be generated */
     public boolean isGenerateVersionContext() { return generateVersionContext; }
+    /** @return true if ProtocolVersions class should be generated */
+    public boolean isGenerateProtocolVersions() { return generateProtocolVersions; }
     /** @return true if version suffix should be included */
     public boolean isIncludeVersionSuffix() { return includeVersionSuffix; }
     /** @return true if builders should be generated */
@@ -194,6 +201,17 @@ public class GeneratorConfig {
     public int getTargetJavaVersion() { return targetJavaVersion; }
     /** @return true if generating Java 8 compatible code */
     public boolean isJava8Compatible() { return targetJavaVersion <= 8; }
+    /** @return true if parallel generation is enabled */
+    public boolean isParallelGeneration() { return parallelGeneration; }
+    /** @return number of generation threads (0 = auto) */
+    public int getGenerationThreads() { return generationThreads; }
+    /**
+     * Get the effective number of threads for parallel generation.
+     * @return number of threads to use (auto-calculated if generationThreads is 0)
+     */
+    public int getEffectiveGenerationThreads() {
+        return generationThreads > 0 ? generationThreads : Runtime.getRuntime().availableProcessors();
+    }
 
     /**
      * Get the Java version-specific code generation strategy.
@@ -382,6 +400,16 @@ public class GeneratorConfig {
         }
 
         /**
+         * Set whether to generate ProtocolVersions utility class.
+         * @param value whether to generate ProtocolVersions
+         * @return this builder
+         */
+        public Builder generateProtocolVersions(boolean value) {
+            config.generateProtocolVersions = value;
+            return this;
+        }
+
+        /**
          * Set whether to include version suffix.
          * @param value whether to include version suffix
          * @return this builder
@@ -543,6 +571,37 @@ public class GeneratorConfig {
                 throw new IllegalArgumentException("targetJavaVersion must be at least 8, got: " + version);
             }
             config.targetJavaVersion = version;
+            return this;
+        }
+
+        /**
+         * Enable or disable parallel generation.
+         * When enabled, wrapper classes are generated in parallel for better performance.
+         * Default: false
+         *
+         * @param parallelGeneration true to enable parallel generation
+         * @return this builder
+         * @since 2.1.0
+         */
+        public Builder parallelGeneration(boolean parallelGeneration) {
+            config.parallelGeneration = parallelGeneration;
+            return this;
+        }
+
+        /**
+         * Set the number of threads for parallel generation.
+         * Only used when parallelGeneration is enabled.
+         * Default: 0 (auto = available processors)
+         *
+         * @param threads number of threads (0 for auto)
+         * @return this builder
+         * @since 2.1.0
+         */
+        public Builder generationThreads(int threads) {
+            if (threads < 0) {
+                throw new IllegalArgumentException("generationThreads must be >= 0, got: " + threads);
+            }
+            config.generationThreads = threads;
             return this;
         }
 

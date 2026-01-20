@@ -14,10 +14,15 @@ import io.alnovis.protowrapper.model.MergedSchema;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -96,6 +101,10 @@ public class GenerationOrchestrator {
 
         if (config.isGenerateVersionContext()) {
             generatedFiles += generateVersionContext(schema, versionConfigs, protoClassNameResolver);
+        }
+
+        if (config.isGenerateProtocolVersions()) {
+            generatedFiles += generateProtocolVersions(schema);
         }
 
         // Generate utility classes (StructConverter) if needed
@@ -361,22 +370,18 @@ public class GenerationOrchestrator {
         InterfaceGenerator generator = new InterfaceGenerator(config);
         GenerationContext ctx = GenerationContext.create(schema, config);
 
-        try {
-            List<MergedMessage> toGenerate = schema.getMessages().stream()
-                    .filter(message -> config.shouldGenerate(message.getName()))
-                    .toList();
+        List<MergedMessage> toGenerate = schema.getMessages().stream()
+                .filter(message -> config.shouldGenerate(message.getName()))
+                .toList();
 
-            for (MergedMessage message : toGenerate) {
-                generateWithLogging(
-                        () -> generator.generateAndWrite(message, ctx),
-                        "Generated interface: ");
-            }
+        int count = generateInParallelOrSequential(
+                toGenerate,
+                message -> generator.generateAndWrite(message, ctx),
+                "Generated interface: "
+        );
 
-            logger.info("Generated " + toGenerate.size() + " interfaces");
-            return toGenerate.size();
-        } catch (UncheckedIOException e) {
-            throw e.getCause();
-        }
+        logger.info("Generated " + count + " interfaces");
+        return count;
     }
 
     /**
@@ -390,22 +395,18 @@ public class GenerationOrchestrator {
         AbstractClassGenerator generator = new AbstractClassGenerator(config);
         GenerationContext ctx = GenerationContext.create(schema, config);
 
-        try {
-            List<MergedMessage> toGenerate = schema.getMessages().stream()
-                    .filter(message -> config.shouldGenerate(message.getName()))
-                    .toList();
+        List<MergedMessage> toGenerate = schema.getMessages().stream()
+                .filter(message -> config.shouldGenerate(message.getName()))
+                .toList();
 
-            for (MergedMessage message : toGenerate) {
-                generateWithLogging(
-                        () -> generator.generateAndWrite(message, ctx),
-                        "Generated abstract class: ");
-            }
+        int count = generateInParallelOrSequential(
+                toGenerate,
+                message -> generator.generateAndWrite(message, ctx),
+                "Generated abstract class: "
+        );
 
-            logger.info("Generated " + toGenerate.size() + " abstract classes");
-            return toGenerate.size();
-        } catch (UncheckedIOException e) {
-            throw e.getCause();
-        }
+        logger.info("Generated " + count + " abstract classes");
+        return count;
     }
 
     /**
@@ -498,6 +499,32 @@ public class GenerationOrchestrator {
     }
 
     /**
+     * Generate ProtocolVersions utility class.
+     *
+     * <p>ProtocolVersions provides compile-time constants for all supported
+     * protocol versions and utility methods for version validation.</p>
+     *
+     * @param schema Merged schema (used to get version list)
+     * @return 1 (always generates one file)
+     * @throws IOException if generation fails
+     * @since 2.1.0
+     */
+    public int generateProtocolVersions(MergedSchema schema) throws IOException {
+        ProtocolVersionsGenerator generator = new ProtocolVersionsGenerator(config, schema.getVersions());
+
+        try {
+            generateWithLogging(
+                    generator::generateAndWrite,
+                    "Generated ProtocolVersions: ");
+
+            logger.info("Generated ProtocolVersions class");
+            return 1;
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    /**
      * Build proto mappings for a specific version.
      */
     private Map<String, String> buildProtoMappings(MergedSchema schema,
@@ -534,6 +561,83 @@ public class GenerationOrchestrator {
     @FunctionalInterface
     private interface ThrowingSupplier<T> {
         T get() throws IOException;
+    }
+
+    /**
+     * Functional interface for message generation that throws IOException.
+     */
+    @FunctionalInterface
+    private interface MessageGenerator<T> {
+        Path generate(T item) throws IOException;
+    }
+
+    /**
+     * Generate items either in parallel or sequentially based on configuration.
+     *
+     * @param items List of items to process
+     * @param generator Function to generate each item
+     * @param logPrefix Prefix for debug logging
+     * @param <T> Type of items
+     * @return Number of generated files
+     * @throws IOException if generation fails
+     * @since 2.1.0
+     */
+    private <T> int generateInParallelOrSequential(
+            List<T> items,
+            MessageGenerator<T> generator,
+            String logPrefix) throws IOException {
+
+        if (items.isEmpty()) {
+            return 0;
+        }
+
+        if (!config.isParallelGeneration() || items.size() < 2) {
+            // Sequential generation
+            try {
+                for (T item : items) {
+                    Path path = generator.generate(item);
+                    logger.debug(logPrefix + path);
+                }
+                return items.size();
+            } catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
+        }
+
+        // Parallel generation
+        int threads = config.getEffectiveGenerationThreads();
+        logger.debug("Parallel generation with " + threads + " threads for " + items.size() + " items");
+
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        AtomicInteger count = new AtomicInteger(0);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        try {
+            for (T item : items) {
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    try {
+                        Path path = generator.generate(item);
+                        logger.debug(logPrefix + path);
+                        count.incrementAndGet();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }, executor);
+                futures.add(future);
+            }
+
+            // Wait for all to complete
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            return count.get();
+
+        } catch (java.util.concurrent.CompletionException e) {
+            if (e.getCause() instanceof UncheckedIOException) {
+                throw ((UncheckedIOException) e.getCause()).getCause();
+            }
+            throw new IOException("Parallel generation failed", e.getCause());
+        } finally {
+            executor.shutdown();
+        }
     }
 
     /**

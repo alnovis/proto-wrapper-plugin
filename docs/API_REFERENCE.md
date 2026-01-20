@@ -18,6 +18,7 @@ This document describes the API of proto-wrapper plugin, including generated cod
   - [Abstract Class](#abstract-class)
   - [Implementation Class](#implementation-class)
   - [VersionContext](#versioncontext)
+  - [ProtocolVersions](#protocolversions)
   - [Enum](#enum)
 - [Generated Methods](#generated-methods)
   - [Field Accessors](#field-accessors)
@@ -673,7 +674,7 @@ Generated code is organized into the following packages:
 
 | Package | Contents | Purpose |
 |---------|----------|---------|
-| `{basePackage}.api` | Interfaces, Enums, VersionContext | Version-agnostic public API |
+| `{basePackage}.api` | Interfaces, Enums, VersionContext, ProtocolVersions | Version-agnostic public API |
 | `{basePackage}.api.impl` | Abstract classes | Shared implementation logic |
 | `{basePackage}.v1` | V1 implementations, VersionContextV1 | Version 1 specific code |
 | `{basePackage}.v2` | V2 implementations, VersionContextV2 | Version 2 specific code |
@@ -891,6 +892,106 @@ boolean supported = VersionContext.isSupported("v3");        // false
 ```
 
 > **Note:** `VersionContextFactory` class was removed in v1.7.0. Use `VersionContext` static methods instead.
+
+---
+
+### ProtocolVersions
+
+*New in v2.1.0*
+
+**Location:** `{basePackage}.api.ProtocolVersions`
+
+**Purpose:** Centralized class containing version identifier constants. Generated when `generateProtocolVersions=true`.
+
+**Structure:**
+```java
+public final class ProtocolVersions {
+    /** Version identifier: "v1" */
+    public static final String V1 = "v1";
+
+    /** Version identifier: "v2" */
+    public static final String V2 = "v2";
+
+    /** List of all supported versions */
+    public static final List<String> ALL_VERSIONS = List.of(V1, V2);
+
+    /** Default (latest) version */
+    public static final String DEFAULT_VERSION = V2;
+
+    private ProtocolVersions() {}
+}
+```
+
+**Key Characteristics:**
+- Contains `public static final String` constants for each version
+- Constant names are uppercase version identifiers (e.g., `V1`, `V2`, `LEGACY`)
+- Provides `ALL_VERSIONS` list and `DEFAULT_VERSION` constant
+- Private constructor prevents instantiation
+- When enabled, all generated code references these constants instead of string literals
+
+**Benefits:**
+- **Type Safety**: IDE autocomplete and compile-time checking for version strings
+- **Refactoring**: Rename a version in one place
+- **Discoverability**: See all versions in one class
+- **Consistency**: Eliminates typos in version strings
+
+**Usage:**
+```java
+// Without ProtocolVersions (string literals)
+VersionContext ctx = VersionContext.forVersionId("v1");
+
+// With ProtocolVersions (constants)
+VersionContext ctx = VersionContext.forVersionId(ProtocolVersions.V1);
+
+// Check supported versions
+if (ProtocolVersions.ALL_VERSIONS.contains(requestedVersion)) {
+    // ...
+}
+
+// Use default version
+VersionContext defaultCtx = VersionContext.forVersionId(ProtocolVersions.DEFAULT_VERSION);
+```
+
+**Configuration:**
+
+Maven:
+```xml
+<configuration>
+    <generateProtocolVersions>true</generateProtocolVersions>
+</configuration>
+```
+
+Gradle:
+```kotlin
+protoWrapper {
+    generateProtocolVersions.set(true)
+}
+```
+
+**Generated Code References:**
+
+When `generateProtocolVersions=true`, the generated code uses constants:
+
+```java
+// VersionContext interface
+public interface VersionContext {
+    List<String> SUPPORTED_VERSIONS = List.of(
+        ProtocolVersions.V1,
+        ProtocolVersions.V2
+    );
+    String DEFAULT_VERSION = ProtocolVersions.V2;
+}
+
+// Implementation classes
+public class OrderV1 {
+    @Override
+    public String getWrapperVersionId() {
+        return ProtocolVersions.V1;
+    }
+}
+```
+
+When `generateProtocolVersions=false` (default), string literals are used directly.
 
 ---
 

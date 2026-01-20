@@ -40,6 +40,7 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.generateAbstractClasses.set(extension.generateAbstractClasses)
             task.generateImplClasses.set(extension.generateImplClasses)
             task.generateVersionContext.set(extension.generateVersionContext)
+            task.generateProtocolVersions.set(extension.generateProtocolVersions)
             task.includeVersionSuffix.set(extension.includeVersionSuffix)
             task.generateBuilders.set(extension.generateBuilders)
             task.protobufMajorVersion.set(extension.protobufMajorVersion)
@@ -55,6 +56,10 @@ class ProtoWrapperPlugin : Plugin<Project> {
 
             // Java version compatibility (since 1.6.8)
             task.targetJavaVersion.set(extension.targetJavaVersion)
+
+            // Parallel generation (since 2.1.0)
+            task.parallelGeneration.set(extension.parallelGeneration)
+            task.generationThreads.set(extension.generationThreads)
 
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })

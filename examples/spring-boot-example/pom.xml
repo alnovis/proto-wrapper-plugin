@@ -21,7 +21,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <proto-wrapper.version>2.0.0</proto-wrapper.version>
+        <proto-wrapper.version>2.1.0</proto-wrapper.version>
         <protobuf.version>4.28.2</protobuf.version>
     </properties>
 
@@ -115,7 +115,8 @@
                 <artifactId>proto-wrapper-maven-plugin</artifactId>
                 <version>${proto-wrapper.version}</version>
                 <configuration>
-                    <basePackage>com.example.demo.api</basePackage>
+                    <basePackage>com.example.demo</basePackage>
+                    <apiPackage>com.example.demo.api</apiPackage>
                     <protoPackagePattern>com.example.demo.api.{version}</protoPackagePattern>
                     <protoRoot>${project.basedir}/src/main/proto</protoRoot>
                     <generateBuilders>true</generateBuilders>

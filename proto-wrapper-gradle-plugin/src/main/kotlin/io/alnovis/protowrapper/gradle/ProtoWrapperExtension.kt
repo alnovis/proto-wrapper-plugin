@@ -37,6 +37,14 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     abstract val generateAbstractClasses: Property<Boolean>
     abstract val generateImplClasses: Property<Boolean>
     abstract val generateVersionContext: Property<Boolean>
+    /**
+     * Whether to generate ProtocolVersions utility class.
+     * ProtocolVersions provides compile-time constants for all supported
+     * protocol versions and utility methods for version validation.
+     * Default: true
+     * @since 2.1.0
+     */
+    abstract val generateProtocolVersions: Property<Boolean>
     abstract val includeVersionSuffix: Property<Boolean>
     abstract val generateBuilders: Property<Boolean>
     abstract val protobufMajorVersion: Property<Int>
@@ -78,6 +86,23 @@ abstract class ProtoWrapperExtension(private val project: Project) {
      */
     abstract val targetJavaVersion: Property<Int>
 
+    // Parallel generation (since 2.1.0)
+    /**
+     * Enable parallel generation for improved build performance.
+     * When enabled, wrapper classes are generated in parallel using multiple threads.
+     * Default: false
+     * @since 2.1.0
+     */
+    abstract val parallelGeneration: Property<Boolean>
+
+    /**
+     * Number of threads for parallel generation.
+     * Only used when parallelGeneration is enabled.
+     * Default: 0 (auto = number of available processors)
+     * @since 2.1.0
+     */
+    abstract val generationThreads: Property<Int>
+
     // Versions container
     val versions: NamedDomainObjectContainer<VersionConfig> =
         project.container(VersionConfig::class.java) { name ->
@@ -100,6 +125,7 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         generateAbstractClasses.convention(true)
         generateImplClasses.convention(true)
         generateVersionContext.convention(true)
+        generateProtocolVersions.convention(true)
         includeVersionSuffix.convention(true)
         generateBuilders.convention(false)
         protobufMajorVersion.convention(3)
@@ -113,5 +139,8 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         forceRegenerate.convention(false)
         // Java version compatibility (default: modern Java 9+)
         targetJavaVersion.convention(9)
+        // Parallel generation (since 2.1.0)
+        parallelGeneration.convention(false)
+        generationThreads.convention(0)
     }
 }

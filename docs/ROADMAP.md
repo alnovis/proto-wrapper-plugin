@@ -21,7 +21,7 @@ This document outlines the development roadmap for upcoming releases.
 - [Version 1.6.8](#version-168) - VersionContext String API (Completed)
 - [Version 1.6.9](#version-169) - ProtoWrapper String API (Completed)
 - [Version 2.0.0](#version-200) - Breaking Changes Release (Completed)
-- [Version 2.1.0](#version-210) - Parallel Generation
+- [Version 2.1.0](#version-210) - ProtocolVersions & Parallel Generation (Completed)
 - [Version 2.2.0](#version-220) - Per-version Proto Syntax
 - [Version 2.3.0](#version-230) - Validation Annotations
 - [Version 2.4.0](#version-240) - Kotlin Extensions
@@ -903,43 +903,50 @@ if ("v2".equals(ctx.getVersionId())) { ... }
 
 ---
 
-## Version 2.1.0
+## Version 2.1.0 (Completed)
 
-**Target:** Mar 2026
-**Theme:** Parallel Generation
+**Released:** January 20, 2026
+**Theme:** ProtocolVersions & Parallel Generation
 
-### Feature: Parallel Generation
+### Feature 1: ProtocolVersions Class Generation
 
-**Priority:** Medium
-**Complexity:** Low
+**Status:** Completed
+
+#### Description
+
+Generate `ProtocolVersions` utility class with compile-time constants for all supported protocol versions.
+
+#### Usage
+
+```java
+// Use constants instead of magic strings
+String version = ProtocolVersions.V1;
+
+// Check if version is supported
+if (ProtocolVersions.isSupported(versionId)) { ... }
+
+// Get all supported versions
+Set<String> versions = ProtocolVersions.supported();
+
+// Validate version (throws if unsupported)
+ProtocolVersions.requireSupported(versionId);
+```
+
+#### Configuration
+
+```xml
+<configuration>
+    <generateProtocolVersions>true</generateProtocolVersions> <!-- default: true -->
+</configuration>
+```
+
+### Feature 2: Parallel Generation
+
+**Status:** Completed
 
 #### Description
 
 Generate wrapper classes in parallel to improve build performance for large schemas.
-
-#### Implementation
-
-```java
-public class ParallelGenerationOrchestrator {
-    private final ExecutorService executor;
-
-    public void generateAll(MergedSchema schema, GeneratorConfig config) {
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-        // Generate messages in parallel
-        for (MergedMessage message : schema.getMessages()) {
-            futures.add(CompletableFuture.runAsync(() ->
-                generateMessage(message, config), executor));
-        }
-
-        // Wait for all
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-        // Generate VersionContext (depends on all messages)
-        generateVersionContext(schema, config);
-    }
-}
-```
 
 #### Configuration
 
@@ -950,18 +957,25 @@ public class ParallelGenerationOrchestrator {
 </configuration>
 ```
 
+#### Implementation
+
+Parallel generation implemented in `GenerationOrchestrator`:
+- Interfaces generated in parallel
+- Abstract classes generated in parallel
+- Implementation classes generated in parallel
+- Thread-safe file writing via JavaPoet
+
 #### Acceptance Criteria
 
-- [ ] Thread-safe generation
-- [ ] Configurable thread count
-- [ ] No race conditions in file writing
-- [ ] Measurable performance improvement
-- [ ] Proper error handling and reporting
+- [x] Thread-safe generation
+- [x] Configurable thread count
+- [x] No race conditions in file writing
+- [x] Proper error handling and reporting
 
 ### Migration Notes
 
 - No breaking changes
-- New feature is opt-in
+- Both features are opt-in (ProtocolVersions enabled by default, Parallel disabled by default)
 
 ---
 
@@ -2562,7 +2576,7 @@ We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelin
 | 1.6.8 | VersionContext String API | Released (2026-01-18) |
 | 1.6.9 | ProtoWrapper String API | Released (2026-01-19) |
 | 2.0.0 | Breaking Changes (Deprecated Removal) | Released (2026-01-20) |
-| 2.1.0 | Parallel Generation | Planned (Mar 2026) |
+| 2.1.0 | ProtocolVersions & Parallel Generation | Released (2026-01-20) |
 | 2.2.0 | Per-version Proto Syntax | Planned (Mar 2026) |
 | 2.3.0 | Validation Annotations | Planned (Apr 2026) |
 | 2.4.0 | Kotlin Extensions | Planned (May 2026) |

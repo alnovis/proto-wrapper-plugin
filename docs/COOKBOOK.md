@@ -8,6 +8,7 @@ A practical guide with detailed examples for common Proto Wrapper use cases.
 
 ## Table of Contents
 
+- [Using ProtocolVersions Constants](#using-protocolversions-constants)
 - [Parsing and Serialization](#parsing-and-serialization)
 - [Type Conflict Handling](#type-conflict-handling)
 - [Generation Modes](#generation-modes)
@@ -26,6 +27,138 @@ A practical guide with detailed examples for common Proto Wrapper use cases.
 | [Configuration](CONFIGURATION.md) | All plugin options |
 | [Schema Diff](SCHEMA_DIFF.md) | Compare schema versions |
 | [Known Issues](KNOWN_ISSUES.md) | Limitations and workarounds |
+
+---
+
+## Using ProtocolVersions Constants
+
+*New in v2.1.0*
+
+When `generateProtocolVersions=true`, a `ProtocolVersions` class is generated with constants for all version identifiers. This improves type safety and makes code more maintainable.
+
+### Enabling ProtocolVersions
+
+**Maven:**
+```xml
+<configuration>
+    <generateProtocolVersions>true</generateProtocolVersions>
+</configuration>
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    generateProtocolVersions.set(true)
+}
+```
+
+### Generated Class
+
+```java
+public final class ProtocolVersions {
+    public static final String V1 = "v1";
+    public static final String V2 = "v2";
+    public static final List<String> ALL_VERSIONS = List.of(V1, V2);
+    public static final String DEFAULT_VERSION = V2;
+
+    private ProtocolVersions() {}
+}
+```
+
+### Basic Usage
+
+```java
+import com.example.model.api.ProtocolVersions;
+import com.example.model.api.VersionContext;
+
+// Use constants instead of string literals
+VersionContext ctx = VersionContext.forVersionId(ProtocolVersions.V1);
+
+// IDE autocomplete helps prevent typos
+Order order = Order.newBuilder(ctx)
+        .setOrderId("ORD-001")
+        .build();
+
+// Check version at runtime
+if (ProtocolVersions.V2.equals(order.getWrapperVersionId())) {
+    // V2-specific logic
+}
+```
+
+### Version Validation
+
+```java
+public Order processOrder(byte[] bytes, String requestedVersion)
+        throws InvalidProtocolBufferException {
+
+    // Validate using the generated list
+    if (!ProtocolVersions.ALL_VERSIONS.contains(requestedVersion)) {
+        throw new IllegalArgumentException(
+            "Unsupported version: " + requestedVersion +
+            ". Supported: " + ProtocolVersions.ALL_VERSIONS);
+    }
+
+    VersionContext ctx = VersionContext.forVersionId(requestedVersion);
+    return Order.parseFromBytes(ctx, bytes);
+}
+```
+
+### Using Default Version
+
+```java
+// Get context for latest (default) version
+VersionContext ctx = VersionContext.forVersionId(ProtocolVersions.DEFAULT_VERSION);
+
+// Or use VersionContext.getDefault() which is equivalent
+VersionContext defaultCtx = VersionContext.getDefault();
+```
+
+### Switch on Version
+
+```java
+public void handleOrder(Order order) {
+    String version = order.getWrapperVersionId();
+
+    // Compare with constants
+    if (ProtocolVersions.V1.equals(version)) {
+        handleV1Order(order);
+    } else if (ProtocolVersions.V2.equals(version)) {
+        handleV2Order(order);
+    }
+}
+```
+
+### Benefits Over String Literals
+
+| With Literals | With Constants |
+|---------------|----------------|
+| `"v1"` (typo-prone) | `ProtocolVersions.V1` (compile-time checked) |
+| No autocomplete | IDE autocomplete |
+| Scattered magic strings | Centralized constants |
+| Hard to find all usages | Easy "Find Usages" refactoring |
+
+### Integration with Generated Code
+
+When `generateProtocolVersions=true`, all generated code uses these constants:
+
+```java
+// VersionContext uses constants
+public interface VersionContext {
+    List<String> SUPPORTED_VERSIONS = List.of(
+        ProtocolVersions.V1,
+        ProtocolVersions.V2
+    );
+    String DEFAULT_VERSION = ProtocolVersions.V2;
+}
+
+// Implementation classes use constants
+public class OrderV1 {
+    @Override
+    public String getWrapperVersionId() {
+        return ProtocolVersions.V1;  // Not "v1"
+    }
+}
+```
 
 ---
 
