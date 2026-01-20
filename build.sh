@@ -35,7 +35,6 @@ VERSION_FILES=(
 DOC_FILES=(
     "README.md"
     "docs/CONFIGURATION.md"
-    "../CLAUDE.md"
 )
 
 # ============================================================================
@@ -177,16 +176,6 @@ check_versions() {
         has_errors=true
     fi
 
-    # Check CLAUDE.md (workspace)
-    if [[ -f "../CLAUDE.md" ]]; then
-        local claude_version_count=$(grep -c "Version: $expected_version\|version \"$expected_version\"\|<version>$expected_version</version>" ../CLAUDE.md 2>/dev/null || echo "0")
-        if [[ "$claude_version_count" -ge 2 ]]; then
-            print_success "CLAUDE.md: found $claude_version_count version references"
-        else
-            print_warning "CLAUDE.md: found only $claude_version_count version references (check manually)"
-        fi
-    fi
-
     if [[ "$has_errors" == "true" ]]; then
         return 1
     fi
@@ -239,12 +228,6 @@ bump_version() {
     # Update examples/maven-example/pom.xml parent version
     sed -i "0,/<version>$old_version<\/version>/s//<version>$new_version<\/version>/" examples/maven-example/pom.xml
     print_success "examples/maven-example/pom.xml (parent)"
-
-    # Update CLAUDE.md
-    if [[ -f "../CLAUDE.md" ]]; then
-        sed -i "s/$old_version/$new_version/g" ../CLAUDE.md
-        print_success "CLAUDE.md"
-    fi
 
     # Update README.md
     sed -i "s/$old_version/$new_version/g" README.md
@@ -495,7 +478,6 @@ Files checked/updated:
   - proto-wrapper-gradle-integration-tests/build.gradle.kts
   - README.md
   - docs/CONFIGURATION.md
-  - CLAUDE.md (workspace)
 
 EOF
 }
