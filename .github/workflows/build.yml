@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ master, develop ]
 
+# Configurable Maven group path (change when migrating groupId)
+# Current: io.github.alnovis (temporary, while alnovis.space is suspended)
+# Original: space.alnovis (restore when domain is active again)
+env:
+  MAVEN_GROUP_PATH: io/github/alnovis
+
 jobs:
   # Maven Build
   build-maven:
@@ -93,7 +99,7 @@ jobs:
             mvn install -B -N
             mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
             echo "Installed plugins:"
-            ls ~/.m2/repository/space/alnovis/proto-wrapper-maven-plugin/
+            ls ~/.m2/repository/${{ env.MAVEN_GROUP_PATH }}/proto-wrapper-maven-plugin/
 
       - name: Run Golden Tests
         uses: nick-fields/retry@v3
