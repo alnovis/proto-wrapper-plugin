@@ -335,7 +335,7 @@ class FieldMappingTest {
 
             Money money = new com.example.model.v1.Money(proto);
 
-            assertThat(money.getWrapperVersion()).isEqualTo(1);
+            assertThat(money.getWrapperVersionId()).isEqualTo("v1");
         }
 
         @Test
@@ -348,7 +348,7 @@ class FieldMappingTest {
 
             Money money = new com.example.model.v2.Money(proto);
 
-            assertThat(money.getWrapperVersion()).isEqualTo(2);
+            assertThat(money.getWrapperVersionId()).isEqualTo("v2");
         }
     }
 }

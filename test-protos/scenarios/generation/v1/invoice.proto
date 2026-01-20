@@ -6,7 +6,7 @@ syntax = "proto2";
 // nested type resolution when packages don't match
 package billing.v1;
 
-option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_package = "io.alnovis.protowrapper.it.proto.v1";
 option java_outer_classname = "Invoice";
 
 import "v1/common.proto";
@@ -17,7 +17,7 @@ message InvoiceDocument {
     message Fee {
         required int32 fee_code = 1;
         required int32 rate = 2;
-        required space.alnovis.protowrapper.it.proto.v1.Money calculated = 3;
+        required io.alnovis.protowrapper.it.proto.v1.Money calculated = 3;
     }
 
     // Nested line item with deeply nested types
@@ -37,8 +37,8 @@ message InvoiceDocument {
 
         required Article article = 1;
         required Measure measure = 2;
-        required space.alnovis.protowrapper.it.proto.v1.Money unit_cost = 3;
-        required space.alnovis.protowrapper.it.proto.v1.Money line_total = 4;
+        required io.alnovis.protowrapper.it.proto.v1.Money unit_cost = 3;
+        required io.alnovis.protowrapper.it.proto.v1.Money line_total = 4;
         repeated Fee fees = 5;
     }
 
@@ -51,20 +51,20 @@ message InvoiceDocument {
         }
 
         required SettlementType type = 1;
-        required space.alnovis.protowrapper.it.proto.v1.Money paid = 2;
+        required io.alnovis.protowrapper.it.proto.v1.Money paid = 2;
         optional string payment_ref = 3;
     }
 
     // Nested summary
     message Summary {
-        required space.alnovis.protowrapper.it.proto.v1.Money net_amount = 1;
-        required space.alnovis.protowrapper.it.proto.v1.Money fee_amount = 2;
-        required space.alnovis.protowrapper.it.proto.v1.Money total_due = 3;
-        optional space.alnovis.protowrapper.it.proto.v1.Money rebate = 4;
+        required io.alnovis.protowrapper.it.proto.v1.Money net_amount = 1;
+        required io.alnovis.protowrapper.it.proto.v1.Money fee_amount = 2;
+        required io.alnovis.protowrapper.it.proto.v1.Money total_due = 3;
+        optional io.alnovis.protowrapper.it.proto.v1.Money rebate = 4;
     }
 
     required string invoice_number = 1;
-    required space.alnovis.protowrapper.it.proto.v1.Date issue_date = 2;
+    required io.alnovis.protowrapper.it.proto.v1.Date issue_date = 2;
     repeated LineItem line_items = 3;
     repeated Settlement settlements = 4;
     repeated Fee all_fees = 5;
@@ -84,5 +84,5 @@ message InvoiceResult {
     required string invoice_number = 1;
     required Outcome outcome = 2;
     optional string confirmation_code = 3;
-    optional space.alnovis.protowrapper.it.proto.v1.Date finalized_at = 4;
+    optional io.alnovis.protowrapper.it.proto.v1.Date finalized_at = 4;
 }

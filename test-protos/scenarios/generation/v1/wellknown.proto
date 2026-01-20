@@ -2,9 +2,9 @@
 // Tests automatic conversion to Java types
 syntax = "proto3";
 
-package space.alnovis.protowrapper.it.proto.v1;
+package io.alnovis.protowrapper.it.proto.v1;
 
-option java_package = "space.alnovis.protowrapper.it.proto.v1";
+option java_package = "io.alnovis.protowrapper.it.proto.v1";
 option java_outer_classname = "Wellknown";
 
 import "google/protobuf/timestamp.proto";

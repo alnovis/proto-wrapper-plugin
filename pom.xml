@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-parent</artifactId>
-    <version>1.6.9</version>
+    <version>2.0.0</version>
     <packaging>pom</packaging>
 
     <!-- ==================== Project Info ==================== -->
@@ -30,8 +30,8 @@
         <developer>
             <id>alnovis</id>
             <name>Alexander Novikov</name>
-            <email>dev@alnovis.space</email>
-            <url>https://alnovis.space</url>
+            <email>dev@alnovis.io</email>
+            <url>https://alnovis.io</url>
             <roles>
                 <role>developer</role>
             </roles>
@@ -97,7 +97,7 @@
         <dependencies>
             <!-- Internal modules -->
             <dependency>
-                <groupId>space.alnovis</groupId>
+                <groupId>io.alnovis</groupId>
                 <artifactId>proto-wrapper-core</artifactId>
                 <version>${project.version}</version>
             </dependency>

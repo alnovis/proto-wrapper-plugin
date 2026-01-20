@@ -35,4 +35,4 @@ proto-wrapper:
 logging:
   level:
     com.example.demo: DEBUG
-    space.alnovis.protowrapper: DEBUG
+    io.alnovis.protowrapper: DEBUG

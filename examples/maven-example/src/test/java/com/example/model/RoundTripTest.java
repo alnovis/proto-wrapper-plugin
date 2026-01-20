@@ -384,8 +384,8 @@ class RoundTripTest {
             Money v1Wrapper = VersionContext.forVersionId("v1").wrapMoney(v1Proto);
             Money v2Wrapper = VersionContext.forVersionId("v2").wrapMoney(v2Proto);
 
-            assertThat(v1Wrapper.getWrapperVersion()).isEqualTo(1);
-            assertThat(v2Wrapper.getWrapperVersion()).isEqualTo(2);
+            assertThat(v1Wrapper.getWrapperVersionId()).isEqualTo("v1");
+            assertThat(v2Wrapper.getWrapperVersionId()).isEqualTo("v2");
         }
 
         @Test
@@ -396,9 +396,9 @@ class RoundTripTest {
 
             Money wrapper = VersionContext.forVersionId("v1").wrapMoney(proto);
 
-            String result = switch (wrapper.getWrapperVersion()) {
-                case 1 -> "Processing V1 format";
-                case 2 -> "Processing V2 format";
+            String result = switch (wrapper.getWrapperVersionId()) {
+                case "v1" -> "Processing V1 format";
+                case "v2" -> "Processing V2 format";
                 default -> "Unknown version";
             };
 

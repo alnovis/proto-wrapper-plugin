@@ -113,7 +113,7 @@ Configure as part of your build:
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <version>1.6.5</version>
     <executions>
@@ -164,11 +164,11 @@ Register and configure a `SchemaDiffTask`.
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.5"
+    id("io.alnovis.proto-wrapper") version "1.6.5"
 }
 
 // Register diff task
-tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
+tasks.register<io.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
     v1Directory.set(file("proto/v1"))
     v2Directory.set(file("proto/v2"))
     v1Name.set("production")
@@ -327,8 +327,8 @@ Breaking:  2 errors, 0 warnings
 Use the Schema Diff API directly in your code:
 
 ```java
-import space.alnovis.protowrapper.diff.SchemaDiff;
-import space.alnovis.protowrapper.diff.model.*;
+import io.alnovis.protowrapper.diff.SchemaDiff;
+import io.alnovis.protowrapper.diff.model.*;
 
 // Compare schemas
 SchemaDiff diff = SchemaDiff.compare(

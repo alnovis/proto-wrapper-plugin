@@ -3,9 +3,9 @@
 // Identical to v1 - tests cross-version consistency
 syntax = "proto3";
 
-package space.alnovis.protowrapper.golden.proto3.v2;
+package io.alnovis.protowrapper.golden.proto3.v2;
 
-option java_package = "space.alnovis.protowrapper.golden.proto3.v2";
+option java_package = "io.alnovis.protowrapper.golden.proto3.v2";
 option java_outer_classname = "AllFields";
 
 // Nested message for testing message fields

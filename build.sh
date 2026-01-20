@@ -228,6 +228,18 @@ bump_version() {
     sed -i "s/<version>$old_version<\/version>/<version>$new_version<\/version>/" proto-wrapper-maven-integration-tests/pom.xml
     print_success "proto-wrapper-maven-integration-tests/pom.xml (parent)"
 
+    # Update submodule parent versions
+    for submodule in proto-wrapper-core proto-wrapper-maven-plugin proto-wrapper-spring-boot-starter proto-wrapper-golden-tests; do
+        if [[ -f "$submodule/pom.xml" ]]; then
+            sed -i "s/<version>$old_version<\/version>/<version>$new_version<\/version>/" "$submodule/pom.xml"
+            print_success "$submodule/pom.xml (parent)"
+        fi
+    done
+
+    # Update examples/maven-example/pom.xml parent version
+    sed -i "0,/<version>$old_version<\/version>/s//<version>$new_version<\/version>/" examples/maven-example/pom.xml
+    print_success "examples/maven-example/pom.xml (parent)"
+
     # Update CLAUDE.md
     if [[ -f "../CLAUDE.md" ]]; then
         sed -i "s/$old_version/$new_version/g" ../CLAUDE.md

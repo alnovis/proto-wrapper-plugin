@@ -43,7 +43,7 @@ public class BuilderRoundTripDemo {
         Order.OrderItem parsedProto = Order.OrderItem.parseFrom(bytes);
         VersionContext ctx = VersionContext.forVersionId("v1");
         OrderItem wrapper = ctx.wrapOrderItem(parsedProto);
-        System.out.println("\n3. Wrapped with VersionContext (version " + wrapper.getWrapperVersion() + ")");
+        System.out.println("\n3. Wrapped with VersionContext (version " + wrapper.getWrapperVersionId() + ")");
 
         // Step 4: Modify using Builder (the new way!)
         System.out.println("\n4. Modifying via toBuilder()...");

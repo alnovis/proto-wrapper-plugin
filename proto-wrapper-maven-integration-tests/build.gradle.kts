@@ -1,10 +1,10 @@
 plugins {
     java
     id("com.google.protobuf") version "0.9.4"
-    id("space.alnovis.proto-wrapper")
+    id("io.alnovis.proto-wrapper")
 }
 
-group = "space.alnovis"
+group = "io.alnovis"
 version = "1.6.0"
 
 java {
@@ -21,7 +21,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:4.28.2")
 
     // Proto wrapper core (for exception classes in tests)
-    testImplementation("space.alnovis:proto-wrapper-core:${version}")
+    testImplementation("io.alnovis:proto-wrapper-core:${version}")
 
     // Testing
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
@@ -45,8 +45,8 @@ protobuf {
 
 // Configure proto-wrapper plugin
 protoWrapper {
-    basePackage.set("space.alnovis.protowrapper.it.model")
-    protoPackagePattern.set("space.alnovis.protowrapper.it.proto.{version}")
+    basePackage.set("io.alnovis.protowrapper.it.model")
+    protoPackagePattern.set("io.alnovis.protowrapper.it.proto.{version}")
     protoRoot.set(file("proto"))
     includeVersionSuffix.set(false)
     generateBuilders.set(true)

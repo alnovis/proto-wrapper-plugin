@@ -2,8 +2,8 @@ plugins {
     kotlin("jvm") version "2.0.21"
 }
 
-group = "space.alnovis"
-version = "1.6.9"
+group = "io.alnovis"
+version = "2.0.0"
 
 // Version of the plugin to test (must be published to mavenLocal first)
 val pluginVersion = version.toString()

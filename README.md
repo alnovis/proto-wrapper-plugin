@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml)
 [![Qodana](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/code_quality.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/code_quality.yml)
-[![Maven Central](https://maven-badges.sml.io/sonatype-central/space.alnovis/proto-wrapper-core/badge.svg)](https://central.sonatype.com/artifact/space.alnovis/proto-wrapper-core)
+[![Maven Central](https://maven-badges.sml.io/sonatype-central/io.alnovis/proto-wrapper-core/badge.svg)](https://central.sonatype.com/artifact/io.alnovis/proto-wrapper-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 > Generate version-agnostic Java wrappers from multiple protobuf schema versions.
@@ -91,9 +91,9 @@ byte[] bytes = order.toBytes();
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>1.6.9</version>
+    <version>2.0.0</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.9"
+    id("io.alnovis.proto-wrapper") version "2.0.0"
 }
 
 protoWrapper {
@@ -155,7 +155,7 @@ protoWrapper {
 | Embedded protoc | Auto-download protoc, no manual installation needed | v1.6.5 |
 | ProtoWrapper interface | Common base interface for type-safe proto access | v1.6.6 |
 | Spring Boot Starter | Auto-configuration for Spring Boot applications | v1.6.7 |
-| Java 8 compatibility | Generate Java 8 compatible code with `targetJavaVersion=8` | v1.6.9 |
+| Java 8 compatibility | Generate Java 8 compatible code with `targetJavaVersion=8` | v2.0.0 |
 
 ### Type Conflict Handling
 
@@ -229,9 +229,9 @@ Add dependency (plugins auto-download):
 
 ```xml
 <dependency>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>1.6.9</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 

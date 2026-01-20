@@ -313,8 +313,8 @@ class VersionEvolutionTest {
             Money moneyV1 = new com.example.model.v1.Money(protoV1);
             Money moneyV2 = new com.example.model.v2.Money(protoV2);
 
-            assertThat(moneyV1.getWrapperVersion()).isEqualTo(1);
-            assertThat(moneyV2.getWrapperVersion()).isEqualTo(2);
+            assertThat(moneyV1.getWrapperVersionId()).isEqualTo("v1");
+            assertThat(moneyV2.getWrapperVersionId()).isEqualTo("v2");
         }
     }
 }

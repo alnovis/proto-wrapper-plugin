@@ -43,7 +43,7 @@ public class RoundTripDemo {
         // Step 4: Wrap with version-agnostic interface
         VersionContext ctx = VersionContext.forVersionId("v1");
         OrderItem wrapper = ctx.wrapOrderItem(parsedProto);
-        System.out.println("\n4. Wrapped with VersionContext (version " + wrapper.getWrapperVersion() + ")");
+        System.out.println("\n4. Wrapped with VersionContext (version " + wrapper.getWrapperVersionId() + ")");
 
         // Step 5: Work with fields via interface
         System.out.println("\n5. Reading fields via interface:");
