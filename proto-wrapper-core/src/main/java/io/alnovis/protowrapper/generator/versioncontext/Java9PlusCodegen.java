@@ -7,6 +7,7 @@ import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import io.alnovis.protowrapper.generator.GeneratorConfig;
+import io.alnovis.protowrapper.generator.VersionReferenceFactory;
 
 import javax.lang.model.element.Modifier;
 import java.util.Collections;
@@ -102,11 +103,14 @@ public class Java9PlusCodegen implements JavaVersionCodegen {
                         Map.class, String.class, versionContextType,
                         LinkedHashMap.class);
 
+        VersionReferenceFactory vrf = VersionReferenceFactory.create(config);
+
         for (String version : versions) {
             String implPackage = config.getImplPackage(version);
             String contextClass = "VersionContext" + version.substring(0, 1).toUpperCase() + version.substring(1);
             ClassName contextClassName = ClassName.get(implPackage, contextClass);
-            methodBuilder.addStatement("map.put($S, $T.INSTANCE)", version, contextClassName);
+
+            vrf.addMapPut(methodBuilder, version, contextClassName, "INSTANCE");
         }
 
         methodBuilder.addStatement("return $T.unmodifiableMap(map)", Collections.class);

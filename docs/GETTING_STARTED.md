@@ -236,6 +236,7 @@ Create `pom.xml` with the following content:
 | `protoRoot` | `${basedir}/proto` | Directory containing version subdirectories |
 | `protoPackagePattern` | `com.example.proto.{version}` | Pattern for proto Java packages |
 | `generateBuilders` | `true` | Enable Builder pattern for modifications |
+| `generateProtocolVersions` | `false` | Generate `ProtocolVersions` class with version constants *(since 2.1.0)* |
 
 See [Configuration Reference](CONFIGURATION.md) for all options.
 
@@ -430,6 +431,24 @@ Order orderFromV2 = v2Ctx.wrapOrder(v2Proto);
 processOrder(orderFromV1);
 processOrder(orderFromV2);
 ```
+
+### ProtocolVersions (Optional)
+
+When `generateProtocolVersions=true`, a `ProtocolVersions` class is generated with constants:
+
+```java
+// With generateProtocolVersions=true, use constants instead of strings
+import com.example.model.api.ProtocolVersions;
+
+VersionContext ctx = VersionContext.forVersionId(ProtocolVersions.V1);
+
+// Benefits: IDE autocomplete, compile-time checking, easy refactoring
+if (ProtocolVersions.V2.equals(order.getWrapperVersionId())) {
+    // V2-specific logic
+}
+```
+
+See [Cookbook: Using ProtocolVersions Constants](COOKBOOK.md#using-protocolversions-constants) for more details.
 
 ---
 

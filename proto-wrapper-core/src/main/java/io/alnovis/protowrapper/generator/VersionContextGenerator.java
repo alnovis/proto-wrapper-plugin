@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+
 /**
  * Generates VersionContext interface and version-specific implementations.
  *
@@ -95,11 +96,14 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                         Map.class, String.class, versionContextType,
                         LinkedHashMap.class);
 
+        VersionReferenceFactory vrf = VersionReferenceFactory.create(config);
+
         for (String version : versions) {
             String implPackage = config.getImplPackage(version);
             String contextClass = "VersionContext" + version.substring(0, 1).toUpperCase() + version.substring(1);
             ClassName contextClassName = ClassName.get(implPackage, contextClass);
-            createContextsMethod.addStatement("map.put($S, $T.INSTANCE)", version, contextClassName);
+
+            vrf.addMapPut(createContextsMethod, version, contextClassName, "INSTANCE");
         }
 
         createContextsMethod.addStatement("return $T.unmodifiableMap(map)", Collections.class);
@@ -149,12 +153,14 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .build());
 
         // getVersionId() - primary method
-        classBuilder.addMethod(MethodSpec.methodBuilder("getVersionId")
+        VersionReferenceFactory vrf = VersionReferenceFactory.create(config);
+        MethodSpec.Builder getVersionIdMethod = MethodSpec.methodBuilder("getVersionId")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
-                .returns(String.class)
-                .addStatement("return $S", version)
-                .build());
+                .returns(String.class);
+
+        vrf.addReturnStatement(getVersionIdMethod, version);
+        classBuilder.addMethod(getVersionIdMethod.build());
 
         // Wrap methods
         for (MergedMessage message : schema.getMessages()) {

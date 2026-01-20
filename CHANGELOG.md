@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-01-20
+
+### Added
+
+#### ProtocolVersions Class Generation
+- **New `ProtocolVersions` utility class** - Provides compile-time constants for all supported protocol versions:
+  ```java
+  // Instead of magic strings
+  String version = ProtocolVersions.V1;
+
+  // Check if version is supported
+  if (ProtocolVersions.isSupported(versionId)) { ... }
+
+  // Get all supported versions
+  Set<String> versions = ProtocolVersions.supported();
+
+  // Validate version (throws if unsupported)
+  ProtocolVersions.requireSupported(versionId);
+  ```
+- Configuration: `generateProtocolVersions` (default: `true`)
+
+#### Parallel Generation
+- **New parallel generation mode** for improved build performance on large schemas:
+  ```xml
+  <configuration>
+      <parallelGeneration>true</parallelGeneration>
+      <generationThreads>4</generationThreads> <!-- 0 = auto -->
+  </configuration>
+  ```
+- Interfaces, abstract classes, and implementations are generated in parallel
+- Thread count auto-detected by default (number of available processors)
+
+---
+
 ## [2.0.0] - 2026-01-20
 
 ### Changed (Breaking Changes)

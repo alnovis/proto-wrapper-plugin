@@ -159,6 +159,16 @@ public class GenerateMojo extends AbstractMojo {
     private boolean generateVersionContext;
 
     /**
+     * Whether to generate ProtocolVersions utility class.
+     * ProtocolVersions provides compile-time constants for all supported
+     * protocol versions and utility methods for version validation.
+     *
+     * @since 2.1.0
+     */
+    @Parameter(defaultValue = "true")
+    private boolean generateProtocolVersions;
+
+    /**
      * Whether to include version suffix in implementation class names.
      * If true (default for backward compatibility): MoneyV1, DateTimeV2
      * If false: Money, DateTime (version is determined by package only)
@@ -260,6 +270,26 @@ public class GenerateMojo extends AbstractMojo {
      */
     @Parameter(property = "proto-wrapper.targetJavaVersion", defaultValue = "9")
     private int targetJavaVersion;
+
+    /**
+     * Enable parallel generation for improved build performance.
+     * When enabled, wrapper classes are generated in parallel using multiple threads.
+     * Default: false
+     *
+     * @since 2.1.0
+     */
+    @Parameter(property = "proto-wrapper.parallelGeneration", defaultValue = "false")
+    private boolean parallelGeneration;
+
+    /**
+     * Number of threads for parallel generation.
+     * Only used when parallelGeneration is enabled.
+     * Default: 0 (auto = number of available processors)
+     *
+     * @since 2.1.0
+     */
+    @Parameter(property = "proto-wrapper.generationThreads", defaultValue = "0")
+    private int generationThreads;
 
     /**
      * Maven project.
@@ -495,6 +525,7 @@ public class GenerateMojo extends AbstractMojo {
                 .generateAbstractClasses(generateAbstractClasses)
                 .generateImplClasses(generateImplClasses)
                 .generateVersionContext(generateVersionContext)
+                .generateProtocolVersions(generateProtocolVersions)
                 .includeVersionSuffix(includeVersionSuffix)
                 .generateBuilders(generateBuilders)
                 .defaultSyntax(protobufMajorVersion == 2 ? ProtoSyntax.PROTO2 : ProtoSyntax.PROTO3)
@@ -505,7 +536,10 @@ public class GenerateMojo extends AbstractMojo {
                 .cacheDirectory(cacheDirectory != null ? cacheDirectory.toPath() : null)
                 .forceRegenerate(forceRegenerate)
                 // Java version compatibility
-                .targetJavaVersion(targetJavaVersion);
+                .targetJavaVersion(targetJavaVersion)
+                // Parallel generation (since 2.1.0)
+                .parallelGeneration(parallelGeneration)
+                .generationThreads(generationThreads);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {

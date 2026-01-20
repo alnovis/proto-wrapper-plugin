@@ -156,6 +156,16 @@ abstract class GenerateWrappersTask : DefaultTask() {
     abstract val generateVersionContext: Property<Boolean>
 
     /**
+     * Whether to generate ProtocolVersions utility class.
+     * ProtocolVersions provides compile-time constants for all supported
+     * protocol versions and utility methods for version validation.
+     * Default: true
+     * @since 2.1.0
+     */
+    @get:Input
+    abstract val generateProtocolVersions: Property<Boolean>
+
+    /**
      * Whether to include version suffix in implementation class names.
      * If true: MoneyV1, DateTimeV2
      * If false: Money, DateTime (version is determined by package only)
@@ -256,6 +266,24 @@ abstract class GenerateWrappersTask : DefaultTask() {
      */
     @get:Input
     abstract val targetJavaVersion: Property<Int>
+
+    /**
+     * Enable parallel generation for improved build performance.
+     * When enabled, wrapper classes are generated in parallel using multiple threads.
+     * Default: false
+     * @since 2.1.0
+     */
+    @get:Input
+    abstract val parallelGeneration: Property<Boolean>
+
+    /**
+     * Number of threads for parallel generation.
+     * Only used when parallelGeneration is enabled.
+     * Default: 0 (auto = number of available processors)
+     * @since 2.1.0
+     */
+    @get:Input
+    abstract val generationThreads: Property<Int>
 
     // ============ Internal State ============
 
@@ -555,6 +583,7 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .generateAbstractClasses(generateAbstractClasses.get())
             .generateImplClasses(generateImplClasses.get())
             .generateVersionContext(generateVersionContext.get())
+            .generateProtocolVersions(generateProtocolVersions.get())
             .includeVersionSuffix(includeVersionSuffix.get())
             .generateBuilders(generateBuilders.get())
             .defaultSyntax(if (protobufMajorVersion.get() == 2) ProtoSyntax.PROTO2 else ProtoSyntax.PROTO3)
@@ -566,6 +595,9 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .forceRegenerate(forceRegenerate.get())
             // Java version compatibility
             .targetJavaVersion(targetJavaVersion.get())
+            // Parallel generation (since 2.1.0)
+            .parallelGeneration(parallelGeneration.get())
+            .generationThreads(generationThreads.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)

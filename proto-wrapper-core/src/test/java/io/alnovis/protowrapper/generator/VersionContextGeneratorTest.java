@@ -443,4 +443,108 @@ class VersionContextGeneratorTest {
             assertThat(code).contains("return \"legacy\"");
         }
     }
+
+    @Nested
+    @DisplayName("ProtocolVersions Integration")
+    class ProtocolVersionsIntegrationTest {
+
+        private GeneratorConfig protocolVersionsConfig;
+        private VersionContextGenerator pvGenerator;
+
+        @BeforeEach
+        void setUp() {
+            protocolVersionsConfig = GeneratorConfig.builder()
+                    .outputDirectory(tempDir)
+                    .apiPackage("org.example.api")
+                    .generateBuilders(true)
+                    .generateVersionContext(true)
+                    .generateProtocolVersions(true) // Enable ProtocolVersions references
+                    .build();
+            pvGenerator = new VersionContextGenerator(protocolVersionsConfig);
+        }
+
+        @Test
+        @DisplayName("uses ProtocolVersions constants in SUPPORTED_VERSIONS when enabled")
+        void useProtocolVersionsInSupportedVersionsList() {
+            JavaFile javaFile = pvGenerator.generateInterface(schema);
+            String code = javaFile.toString();
+
+            assertThat(code).contains("List.of(ProtocolVersions.V1, ProtocolVersions.V2)");
+        }
+
+        @Test
+        @DisplayName("uses ProtocolVersions constant in DEFAULT_VERSION when enabled")
+        void useProtocolVersionsInDefaultVersion() {
+            JavaFile javaFile = pvGenerator.generateInterface(schema);
+            String code = javaFile.toString();
+
+            assertThat(code).contains("DEFAULT_VERSION = ProtocolVersions.V2");
+        }
+
+        @Test
+        @DisplayName("uses ProtocolVersions constants in createContexts() when enabled")
+        void useProtocolVersionsInCreateContextsMethod() {
+            JavaFile javaFile = pvGenerator.generateInterface(schema);
+            String code = javaFile.toString();
+
+            assertThat(code).contains("map.put(ProtocolVersions.V1, VersionContextV1.INSTANCE)");
+            assertThat(code).contains("map.put(ProtocolVersions.V2, VersionContextV2.INSTANCE)");
+        }
+
+        @Test
+        @DisplayName("uses ProtocolVersions constant in getVersionId() implementation")
+        void useProtocolVersionsInImplGetVersionId() {
+            Map<String, String> protoMappings = new HashMap<>();
+            protoMappings.put("Money", "org.example.proto.v1.Common.Money");
+
+            JavaFile javaFile = pvGenerator.generateImpl(schema, "v1", protoMappings);
+            String code = javaFile.toString();
+
+            assertThat(code).contains("return ProtocolVersions.V1");
+            assertThat(code).doesNotContain("return \"v1\"");
+        }
+
+        @Test
+        @DisplayName("falls back to string literals when ProtocolVersions disabled")
+        void fallbackToStringLiteralsWhenDisabled() {
+            // Default config has generateProtocolVersions = false
+            JavaFile javaFile = generator.generateInterface(schema);
+            String code = javaFile.toString();
+
+            assertThat(code).contains("List.of(\"v1\", \"v2\")");
+            assertThat(code).contains("DEFAULT_VERSION = \"v2\"");
+            assertThat(code).contains("map.put(\"v1\"");
+            assertThat(code).contains("map.put(\"v2\"");
+        }
+
+        @Test
+        @DisplayName("handles custom version names with ProtocolVersions")
+        void handlesCustomVersionNamesWithProtocolVersions() {
+            MergedSchema customSchema = new MergedSchema(Arrays.asList("legacy", "current"));
+
+            MergedMessage money = new MergedMessage("Money");
+            money.addVersion("legacy");
+            money.addVersion("current");
+
+            FieldDescriptorProto amountProto = FieldDescriptorProto.newBuilder()
+                    .setName("amount")
+                    .setNumber(1)
+                    .setType(Type.TYPE_INT64)
+                    .setLabel(Label.LABEL_REQUIRED)
+                    .build();
+            money.addField(MergedField.builder()
+                    .addVersionField("legacy", new FieldInfo(amountProto))
+                    .addVersionField("current", new FieldInfo(amountProto))
+                    .build());
+
+            customSchema.addMessage(money);
+
+            JavaFile javaFile = pvGenerator.generateInterface(customSchema);
+            String code = javaFile.toString();
+
+            // Should use uppercase constant names
+            assertThat(code).contains("ProtocolVersions.LEGACY");
+            assertThat(code).contains("ProtocolVersions.CURRENT");
+        }
+    }
 }

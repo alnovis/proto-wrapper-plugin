@@ -5,12 +5,12 @@ import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeSpec;
 import io.alnovis.protowrapper.generator.GeneratorConfig;
+import io.alnovis.protowrapper.generator.VersionReferenceFactory;
 import io.alnovis.protowrapper.model.MergedSchema;
 
 import javax.lang.model.element.Modifier;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Component that generates static fields for VersionContext interface.
@@ -59,9 +59,8 @@ public class StaticFieldsComponent implements InterfaceComponent {
                 ClassName.get(List.class),
                 ClassName.get(String.class));
 
-        String versionsJoined = versions.stream()
-                .map(v -> "\"" + v + "\"")
-                .collect(Collectors.joining(", "));
+        // Create version reference factory for formatting versions
+        VersionReferenceFactory vrf = VersionReferenceFactory.create(config);
 
         // Add createContexts() method if needed (Java 9+)
         codegen.createContextsMethod(mapType, versionContextType, versions, config)
@@ -71,12 +70,13 @@ public class StaticFieldsComponent implements InterfaceComponent {
         builder.addField(codegen.createContextsField(mapType, versionContextType, versions, config));
 
         // Add SUPPORTED_VERSIONS field
+        String versionsJoined = vrf.formatVersionsList(versions);
         builder.addField(codegen.createSupportedVersionsField(listType, versionsJoined));
 
         // Add DEFAULT_VERSION field
         builder.addField(FieldSpec.builder(String.class, "DEFAULT_VERSION",
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                .initializer("$S", defaultVersion)
+                .initializer(vrf.fieldInitializer(defaultVersion))
                 .build());
     }
 }

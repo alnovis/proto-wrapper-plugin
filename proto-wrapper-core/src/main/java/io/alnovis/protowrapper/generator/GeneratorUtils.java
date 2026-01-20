@@ -290,6 +290,29 @@ public final class GeneratorUtils {
         return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
+    // ==================== ProtocolVersions Support ====================
+
+    /**
+     * Convert a version string to a constant name for ProtocolVersions class.
+     *
+     * <p>Examples:</p>
+     * <ul>
+     *   <li>"v1" → "V1"</li>
+     *   <li>"v2" → "V2"</li>
+     *   <li>"v3" → "V3"</li>
+     * </ul>
+     *
+     * @param version Version string (e.g., "v1", "v2")
+     * @return Constant name (e.g., "V1", "V2")
+     * @since 2.1.0
+     */
+    public static String versionToConstantName(String version) {
+        if (version == null || version.isEmpty()) {
+            return "";
+        }
+        return version.toUpperCase();
+    }
+
     /**
      * Convert snake_case to camelCase.
      *
