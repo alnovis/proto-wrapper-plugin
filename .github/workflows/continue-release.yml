@@ -1,0 +1,157 @@
+name: Continue Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 2.1.0)'
+        required: true
+        type: string
+      skip_gradle:
+        description: 'Skip Gradle Plugin Portal publish'
+        required: false
+        type: boolean
+        default: false
+      skip_github_release:
+        description: 'Skip GitHub Release creation'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  # Publish Gradle plugin to Gradle Plugin Portal
+  publish-gradle:
+    if: ${{ !inputs.skip_gradle }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
+      - name: Configure Gradle repositories
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/init.gradle << 'EOF'
+          allprojects {
+            repositories {
+              mavenCentral()
+              maven {
+                url = uri("https://repo1.maven.org/maven2/")
+              }
+              gradlePluginPortal()
+            }
+          }
+          settingsEvaluated { settings ->
+            settings.pluginManagement {
+              repositories {
+                gradlePluginPortal()
+                mavenCentral()
+                maven {
+                  url = uri("https://repo1.maven.org/maven2/")
+                }
+              }
+            }
+          }
+          EOF
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Check if Gradle plugin already published
+        id: check-gradle
+        run: |
+          VERSION=${{ inputs.version }}
+          URL="https://plugins.gradle.org/m2/io/alnovis/proto-wrapper-gradle-plugin/${VERSION}/proto-wrapper-gradle-plugin-${VERSION}.pom"
+          if curl --output /dev/null --silent --head --fail "$URL"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Gradle plugin ${VERSION} already published"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Gradle plugin ${VERSION} not found, will publish"
+          fi
+
+      - name: Publish to Gradle Plugin Portal
+        if: steps.check-gradle.outputs.exists != 'true'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: |
+            ./gradlew :proto-wrapper-gradle-plugin:publishPlugins \
+              -Pgradle.publish.key=${{ secrets.GRADLE_PUBLISH_KEY }} \
+              -Pgradle.publish.secret=${{ secrets.GRADLE_PUBLISH_SECRET }} \
+              -PuseMavenCentral=true \
+              --no-daemon
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+
+  # Create GitHub Release
+  create-release:
+    needs: publish-gradle
+    # Run even if publish-gradle was skipped, but not if skip_github_release is true
+    if: ${{ !inputs.skip_github_release && always() && (needs.publish-gradle.result == 'success' || needs.publish-gradle.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: Check if release already exists
+        id: check-release
+        run: |
+          if gh release view v${{ inputs.version }} &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release v${{ inputs.version }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release v${{ inputs.version }} not found, will create"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract changelog for version
+        if: steps.check-release.outputs.exists != 'true'
+        run: |
+          VERSION=${{ inputs.version }}
+          # Extract section for this version from CHANGELOG.md
+          awk "/## \[${VERSION}\]/{flag=1; next} /## \[/{flag=0} flag" CHANGELOG.md > release_notes.txt
+          echo "Release notes extracted for version ${VERSION}"
+          cat release_notes.txt
+
+      - name: Create GitHub Release
+        if: steps.check-release.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
