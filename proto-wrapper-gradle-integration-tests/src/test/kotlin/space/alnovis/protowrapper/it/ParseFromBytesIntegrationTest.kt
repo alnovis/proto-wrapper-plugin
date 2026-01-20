@@ -103,7 +103,7 @@ class ParseFromBytesIntegrationTest {
             plugins {
                 java
                 id("com.google.protobuf") version "0.9.4"
-                id("space.alnovis.proto-wrapper") version "$pluginVersion"
+                id("io.github.alnovis.proto-wrapper") version "$pluginVersion"
             }
 
             java {

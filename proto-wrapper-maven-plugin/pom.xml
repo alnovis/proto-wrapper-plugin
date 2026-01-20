@@ -5,12 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>space.alnovis</groupId>
+        <groupId>io.github.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
         <version>1.6.9</version>
     </parent>
 
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <!-- version inherited from parent -->
     <packaging>maven-plugin</packaging>
@@ -49,7 +49,7 @@
     <dependencies>
         <!-- Core library -->
         <dependency>
-            <groupId>space.alnovis</groupId>
+            <groupId>io.github.alnovis</groupId>
             <artifactId>proto-wrapper-core</artifactId>
         </dependency>
 

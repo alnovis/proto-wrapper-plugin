@@ -102,7 +102,7 @@ class DiffIntegrationTest {
         val buildFile = testProjectDir.resolve("build.gradle.kts").toFile()
         buildFile.writeText("""
             plugins {
-                id("space.alnovis.proto-wrapper") version "$pluginVersion"
+                id("io.github.alnovis.proto-wrapper") version "$pluginVersion"
             }
 
             tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {

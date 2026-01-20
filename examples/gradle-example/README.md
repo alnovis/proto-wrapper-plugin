@@ -85,7 +85,7 @@ The plugin is configured in `build.gradle.kts`:
 plugins {
     java
     id("com.google.protobuf") version "0.9.4"
-    id("space.alnovis.proto-wrapper")
+    id("io.github.alnovis.proto-wrapper")
 }
 
 protoWrapper {

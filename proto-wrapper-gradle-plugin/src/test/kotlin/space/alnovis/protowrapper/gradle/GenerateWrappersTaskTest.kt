@@ -72,7 +72,7 @@ class GenerateWrappersTaskTest {
         buildFile.writeText("""
             plugins {
                 id("java")
-                id("space.alnovis.proto-wrapper")
+                id("io.github.alnovis.proto-wrapper")
             }
 
             protoWrapper {

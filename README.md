@@ -91,7 +91,7 @@ byte[] bytes = order.toBytes();
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <version>1.6.9</version>
     <configuration>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.9"
+    id("io.github.alnovis.proto-wrapper") version "1.6.9"
 }
 
 protoWrapper {
@@ -229,7 +229,7 @@ Add dependency (plugins auto-download):
 
 ```xml
 <dependency>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
     <version>1.6.9</version>
 </dependency>

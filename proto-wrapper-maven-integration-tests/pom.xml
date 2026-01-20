@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>space.alnovis</groupId>
+        <groupId>io.github.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
         <version>1.6.9</version>
         <relativePath>../pom.xml</relativePath>
@@ -36,7 +36,7 @@
     <dependencies>
         <!-- Proto wrapper core (for exception classes) -->
         <dependency>
-            <groupId>space.alnovis</groupId>
+            <groupId>io.github.alnovis</groupId>
             <artifactId>proto-wrapper-core</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
@@ -111,7 +111,7 @@
 
             <!-- Generate version-agnostic wrappers -->
             <plugin>
-                <groupId>space.alnovis</groupId>
+                <groupId>io.github.alnovis</groupId>
                 <artifactId>proto-wrapper-maven-plugin</artifactId>
                 <version>${project.version}</version>
                 <configuration>

@@ -29,7 +29,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <version>1.6.9</version>
     <configuration>
@@ -167,7 +167,7 @@ mvn compile -Dproto-wrapper.incremental=false
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <version>1.6.9</version>
     <configuration>
@@ -228,7 +228,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.9"
+    id("io.github.alnovis.proto-wrapper") version "1.6.9"
 }
 ```
 
@@ -240,11 +240,11 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("space.alnovis:proto-wrapper-gradle-plugin:1.6.9")
+        classpath("io.github.alnovis:proto-wrapper-gradle-plugin:1.6.9")
     }
 }
 
-apply(plugin = "space.alnovis.proto-wrapper")
+apply(plugin = "io.github.alnovis.proto-wrapper")
 ```
 
 ### Extension Properties
@@ -355,7 +355,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("space.alnovis.proto-wrapper") version "1.6.9"
+    id("io.github.alnovis.proto-wrapper") version "1.6.9"
 }
 
 protoWrapper {
@@ -412,7 +412,7 @@ For multi-module projects where proto files are in a separate module:
 ```xml
 <!-- proto-definitions module -->
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <configuration>
         <basePackage>com.example.proto.wrapper</basePackage>
@@ -437,7 +437,7 @@ include("proto-definitions", "app")
 
 // proto-definitions/build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper")
+    id("io.github.alnovis.proto-wrapper")
 }
 
 protoWrapper {

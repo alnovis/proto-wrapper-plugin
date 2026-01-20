@@ -113,7 +113,7 @@ Configure as part of your build:
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <version>1.6.5</version>
     <executions>
@@ -164,7 +164,7 @@ Register and configure a `SchemaDiffTask`.
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("space.alnovis.proto-wrapper") version "1.6.5"
+    id("io.github.alnovis.proto-wrapper") version "1.6.5"
 }
 
 // Register diff task

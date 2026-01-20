@@ -14,7 +14,7 @@ val useMavenCentral = project.findProperty("useMavenCentral")?.toString()?.toBoo
 dependencies {
     if (useMavenCentral) {
         // For publishing: use Maven Central dependency
-        implementation("space.alnovis:proto-wrapper-core:${project.version}")
+        implementation("io.github.alnovis:proto-wrapper-core:${project.version}")
     } else {
         // For local development: use project dependency
         implementation(project(":proto-wrapper-core"))
@@ -39,7 +39,7 @@ gradlePlugin {
 
     plugins {
         create("protoWrapper") {
-            id = "space.alnovis.proto-wrapper"
+            id = "io.github.alnovis.proto-wrapper"
             displayName = "Proto Wrapper Plugin"
             description = """
                 Generates version-agnostic Java wrapper classes from multiple protobuf schema versions.

@@ -4,7 +4,7 @@ plugins {
 }
 
 allprojects {
-    group = "space.alnovis"
+    group = "io.github.alnovis"
     version = "1.6.9"
 
     repositories {

@@ -34,7 +34,7 @@
 
         <!-- Proto Wrapper Spring Boot Starter -->
         <dependency>
-            <groupId>space.alnovis</groupId>
+            <groupId>io.github.alnovis</groupId>
             <artifactId>proto-wrapper-spring-boot-starter</artifactId>
             <version>${proto-wrapper.version}</version>
         </dependency>
@@ -111,7 +111,7 @@
 
             <!-- Proto Wrapper Maven Plugin -->
             <plugin>
-                <groupId>space.alnovis</groupId>
+                <groupId>io.github.alnovis</groupId>
                 <artifactId>proto-wrapper-maven-plugin</artifactId>
                 <version>${proto-wrapper.version}</version>
                 <configuration>

@@ -27,9 +27,9 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `plugin can be applied by id`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
-            assertThat(project.plugins.hasPlugin("space.alnovis.proto-wrapper")).isTrue()
+            assertThat(project.plugins.hasPlugin("io.github.alnovis.proto-wrapper")).isTrue()
         }
 
         @Test
@@ -45,7 +45,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `extension is created with correct name`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.findByName("protoWrapper")
 
@@ -55,7 +55,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `extension can be accessed by type`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -68,7 +68,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `generateProtoWrappers task is registered`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val task = project.tasks.findByName("generateProtoWrappers")
 
@@ -78,7 +78,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `task has correct group`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val task = project.tasks.getByName("generateProtoWrappers")
 
@@ -87,7 +87,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `task has description`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val task = project.tasks.getByName("generateProtoWrappers")
 
@@ -100,7 +100,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `incremental is enabled by default`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -109,7 +109,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `forceRegenerate is disabled by default`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -118,7 +118,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `cacheDirectory has default value`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -128,7 +128,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `outputDirectory has default value`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -138,7 +138,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `generateInterfaces is enabled by default`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -147,7 +147,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `generateBuilders is disabled by default`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -156,7 +156,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `convertWellKnownTypes is enabled by default`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -165,7 +165,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `protobufMajorVersion defaults to 3`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -178,7 +178,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `incremental can be disabled`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
             extension.incremental.set(false)
@@ -188,7 +188,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `forceRegenerate can be enabled`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
             extension.forceRegenerate.set(true)
@@ -198,7 +198,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `cacheDirectory can be customized`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
             val customDir = project.layout.buildDirectory.dir("custom-cache")
@@ -209,7 +209,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `basePackage configures derived packages`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
             extension.basePackage.set("com.example.proto")
@@ -219,7 +219,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `versions container is available`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
 
@@ -229,7 +229,7 @@ class ProtoWrapperPluginTest {
 
         @Test
         fun `versions can be added`() {
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
             extension.versions.create("v1") { config ->
@@ -247,7 +247,7 @@ class ProtoWrapperPluginTest {
         @Test
         fun `compileJava depends on generateProtoWrappers when Java plugin is applied`() {
             project.pluginManager.apply("java")
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val compileJava = project.tasks.getByName("compileJava")
 
@@ -262,7 +262,7 @@ class ProtoWrapperPluginTest {
         @Test
         fun `generated sources are added to main source set`() {
             project.pluginManager.apply("java")
-            project.pluginManager.apply("space.alnovis.proto-wrapper")
+            project.pluginManager.apply("io.github.alnovis.proto-wrapper")
 
             val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
             val javaExtension = project.extensions.getByType(

@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm") version "2.0.21"
 }
 
-group = "space.alnovis"
+group = "io.github.alnovis"
 version = "1.6.9"
 
 // Version of the plugin to test (must be published to mavenLocal first)

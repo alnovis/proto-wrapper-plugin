@@ -1654,7 +1654,7 @@ jobs:
 ```xml
 <!-- Maven plugin integration -->
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <configuration>
         <bufIntegration>

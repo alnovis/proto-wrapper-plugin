@@ -142,7 +142,7 @@ See `pom.xml` for full configuration options:
 
 ```xml
 <plugin>
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
     <configuration>
         <basePackage>com.example.model</basePackage>

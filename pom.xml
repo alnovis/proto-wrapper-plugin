@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>space.alnovis</groupId>
+    <groupId>io.github.alnovis</groupId>
     <artifactId>proto-wrapper-parent</artifactId>
     <version>1.6.9</version>
     <packaging>pom</packaging>
@@ -97,7 +97,7 @@
         <dependencies>
             <!-- Internal modules -->
             <dependency>
-                <groupId>space.alnovis</groupId>
+                <groupId>io.github.alnovis</groupId>
                 <artifactId>proto-wrapper-core</artifactId>
                 <version>${project.version}</version>
             </dependency>

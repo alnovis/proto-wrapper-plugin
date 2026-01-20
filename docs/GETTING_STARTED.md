@@ -183,7 +183,7 @@ Create `pom.xml` with the following content:
 
             <!-- 2. Generate Proto Wrappers -->
             <plugin>
-                <groupId>space.alnovis</groupId>
+                <groupId>io.github.alnovis</groupId>
                 <artifactId>proto-wrapper-maven-plugin</artifactId>
                 <version>${proto-wrapper.version}</version>
                 <configuration>

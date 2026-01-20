@@ -72,7 +72,7 @@ class SchemaDiffTaskTest {
     private fun createBuildFile(taskConfig: String) {
         buildFile.writeText("""
             plugins {
-                id("space.alnovis.proto-wrapper")
+                id("io.github.alnovis.proto-wrapper")
             }
 
             tasks.register<space.alnovis.protowrapper.gradle.SchemaDiffTask>("diffSchemas") {
