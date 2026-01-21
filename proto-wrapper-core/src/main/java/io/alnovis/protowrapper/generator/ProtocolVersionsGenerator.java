@@ -79,6 +79,17 @@ public class ProtocolVersionsGenerator extends BaseGenerator<List<String>> {
                     .build());
         }
 
+        // Add DEFAULT constant
+        String defaultVersionId = getDefaultVersionId();
+        String defaultConstantName = toConstantName(defaultVersionId);
+        classBuilder.addField(FieldSpec.builder(String.class, "DEFAULT",
+                        Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$L", defaultConstantName)
+                .addJavadoc("Default protocol version.\n")
+                .addJavadoc("\n")
+                .addJavadoc("@see #$L\n", defaultConstantName)
+                .build());
+
         // Add SUPPORTED set field
         addSupportedField(classBuilder);
 
@@ -176,6 +187,20 @@ public class ProtocolVersionsGenerator extends BaseGenerator<List<String>> {
      */
     private String toConstantName(String versionId) {
         return versionId.toUpperCase();
+    }
+
+    /**
+     * Get the default version ID from config or fall back to last version in list.
+     *
+     * @return the default version ID
+     */
+    private String getDefaultVersionId() {
+        String configuredDefault = config.getDefaultVersion();
+        if (configuredDefault != null && !configuredDefault.isEmpty()) {
+            return configuredDefault;
+        }
+        // Fallback to last version in list
+        return versions.get(versions.size() - 1);
     }
 
     /**

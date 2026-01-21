@@ -103,6 +103,10 @@ public class GeneratorConfig {
     private boolean parallelGeneration = false;
     private int generationThreads = 0; // 0 = auto (available processors)
 
+    // Default version for VersionContext.DEFAULT_VERSION and ProtocolVersions.DEFAULT (since 2.1.1)
+    // If null, the last version in the list is used as default
+    private String defaultVersion = null;
+
     /**
      * Create a new builder for GeneratorConfig.
      *
@@ -211,6 +215,17 @@ public class GeneratorConfig {
      */
     public int getEffectiveGenerationThreads() {
         return generationThreads > 0 ? generationThreads : Runtime.getRuntime().availableProcessors();
+    }
+
+    /**
+     * Get the explicitly configured default version.
+     * If null, the last version in the versions list should be used as default.
+     *
+     * @return the default version ID, or null if not explicitly set
+     * @since 2.1.1
+     */
+    public String getDefaultVersion() {
+        return defaultVersion;
     }
 
     /**
@@ -602,6 +617,23 @@ public class GeneratorConfig {
                 throw new IllegalArgumentException("generationThreads must be >= 0, got: " + threads);
             }
             config.generationThreads = threads;
+            return this;
+        }
+
+        /**
+         * Set the default version for VersionContext.DEFAULT_VERSION and ProtocolVersions.DEFAULT.
+         * If not set, the last version in the versions list is used as default.
+         *
+         * <p>This is useful when the order of versions in configuration is chronological
+         * (oldest to newest), but you need a different version as the default
+         * (e.g., the stable version rather than the latest).</p>
+         *
+         * @param version the version ID to use as default (e.g., "v1", "v202")
+         * @return this builder
+         * @since 2.1.1
+         */
+        public Builder defaultVersion(String version) {
+            config.defaultVersion = version;
             return this;
         }
 

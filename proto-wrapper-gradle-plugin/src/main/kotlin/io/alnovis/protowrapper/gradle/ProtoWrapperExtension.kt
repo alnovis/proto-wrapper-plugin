@@ -103,6 +103,21 @@ abstract class ProtoWrapperExtension(private val project: Project) {
      */
     abstract val generationThreads: Property<Int>
 
+    /**
+     * The default version ID for VersionContext.DEFAULT_VERSION and ProtocolVersions.DEFAULT.
+     * If not set, the last version in the versions list is used as default.
+     *
+     * This is useful when versions are listed chronologically (oldest to newest)
+     * but you need a specific version (e.g., the stable one) as the default.
+     *
+     * Example: If you have versions [v1, v2, v3] but want v2 as default:
+     * ```
+     * defaultVersion.set("v2")
+     * ```
+     * @since 2.1.1
+     */
+    abstract val defaultVersion: Property<String>
+
     // Versions container
     val versions: NamedDomainObjectContainer<VersionConfig> =
         project.container(VersionConfig::class.java) { name ->

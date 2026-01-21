@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-01-21
+
+### Added
+
+#### Default Version Configuration
+- **New `defaultVersion` parameter** - Explicitly set the default protocol version for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`:
+  ```xml
+  <!-- Maven -->
+  <configuration>
+      <versions>
+          <version><protoDir>v1</protoDir></version>
+          <version><protoDir>v2</protoDir></version>
+      </versions>
+      <defaultVersion>v1</defaultVersion>
+  </configuration>
+  ```
+  ```kotlin
+  // Gradle
+  protoWrapper {
+      versions {
+          version("v1")
+          version("v2")
+      }
+      defaultVersion.set("v1")
+  }
+  ```
+- If not set, falls back to the last version in the list (previous behavior)
+- Validation ensures `defaultVersion` must be one of the configured version IDs
+
+#### ProtocolVersions.DEFAULT Constant
+- **New `DEFAULT` constant in `ProtocolVersions` class** - References the configured default version:
+  ```java
+  // Use the default version constant
+  String defaultVersion = ProtocolVersions.DEFAULT;  // equals ProtocolVersions.V1 if defaultVersion="v1"
+  ```
+
+---
+
 ## [2.1.0] - 2026-01-20
 
 ### Added

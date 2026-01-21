@@ -285,6 +285,18 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Input
     abstract val generationThreads: Property<Int>
 
+    /**
+     * The default version ID for VersionContext.DEFAULT_VERSION and ProtocolVersions.DEFAULT.
+     * If not set, the last version in the versions list is used as default.
+     *
+     * This is useful when versions are listed chronologically (oldest to newest)
+     * but you need a specific version (e.g., the stable one) as the default.
+     * @since 2.1.1
+     */
+    @get:Input
+    @get:Optional
+    abstract val defaultVersion: Property<String>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -489,6 +501,19 @@ abstract class GenerateWrappersTask : DefaultTask() {
             pluginLogger.info("Version ${config.getEffectiveName()}:")
             pluginLogger.info("  protoDir: ${protoDir.absolutePath}")
         }
+
+        // Validate defaultVersion if specified
+        val defVersion = defaultVersion.orNull
+        if (!defVersion.isNullOrEmpty()) {
+            val validVersionIds = versionList.map { it.getVersionId() }.toSet()
+            if (defVersion !in validVersionIds) {
+                throw GradleException(
+                    "defaultVersion '$defVersion' is not in the configured versions list. " +
+                    "Valid versions: $validVersionIds"
+                )
+            }
+            pluginLogger.info("Default version: $defVersion")
+        }
     }
 
     /**
@@ -598,6 +623,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
             // Parallel generation (since 2.1.0)
             .parallelGeneration(parallelGeneration.get())
             .generationThreads(generationThreads.get())
+            // Default version (since 2.1.1)
+            .defaultVersion(defaultVersion.orNull)
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)
