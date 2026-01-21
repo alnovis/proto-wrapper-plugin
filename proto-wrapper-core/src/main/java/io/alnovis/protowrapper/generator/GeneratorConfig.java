@@ -474,7 +474,8 @@ public class GeneratorConfig {
             if (version < 2 || version > 3) {
                 throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);
             }
-            config.defaultSyntax = ProtoSyntax.fromMajorVersion(version);
+            // Inline conversion to avoid calling deprecated ProtoSyntax.fromMajorVersion()
+            config.defaultSyntax = (version == 2) ? ProtoSyntax.PROTO2 : ProtoSyntax.PROTO3;
             return this;
         }
 

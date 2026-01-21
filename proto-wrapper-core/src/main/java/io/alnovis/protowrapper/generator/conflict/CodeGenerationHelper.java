@@ -386,8 +386,8 @@ public final class CodeGenerationHelper {
         if (version != null && schema != null && schema.hasVersionSyntax(version)) {
             return schema.getVersionSyntax(version).isProto2() ? "valueOf" : "forNumber";
         }
-        // Fallback to config default
-        return getEnumFromIntMethod(ctx.config());
+        // Fallback to config default (inlined to avoid calling deprecated method)
+        return ctx.config().getDefaultSyntax().isProto2() ? "valueOf" : "forNumber";
     }
 
     /**
