@@ -47,6 +47,16 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     abstract val generateProtocolVersions: Property<Boolean>
     abstract val includeVersionSuffix: Property<Boolean>
     abstract val generateBuilders: Property<Boolean>
+
+    /**
+     * @deprecated Since 2.2.0. Use per-version protoSyntax configuration instead.
+     *             Scheduled for removal in 3.0.0.
+     */
+    @Deprecated(
+        message = "Use per-version protoSyntax configuration instead. Scheduled for removal in 3.0.0.",
+        level = DeprecationLevel.WARNING
+    )
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     abstract val protobufMajorVersion: Property<Int>
 
     // Well-Known Types support (since 1.3.0)

@@ -317,7 +317,7 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 boolean versionIsEnum = versionField != null && versionField.isEnum();
                 if (versionIsEnum) {
                     String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                    String enumMethod = getEnumFromIntMethod(ctx.config());
+                    String enumMethod = getEnumFromIntMethod(ctx);
                     method.addStatement("protoBuilder.add$L($L.$L($L))",
                             versionJavaName, protoEnumType, enumMethod, field.getJavaName());
                 } else {
@@ -423,7 +423,7 @@ public final class RepeatedConflictHandler extends AbstractConflictHandler imple
                 boolean versionIsEnum = versionField != null && versionField.isEnum();
                 if (versionIsEnum) {
                     String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                    String enumMethod = getEnumFromIntMethod(ctx.config());
+                    String enumMethod = getEnumFromIntMethod(ctx);
                     method.addStatement("$L.forEach(e -> protoBuilder.add$L($L.$L(e)))",
                             field.getJavaName(), versionJavaName, protoEnumType, enumMethod);
                 } else {

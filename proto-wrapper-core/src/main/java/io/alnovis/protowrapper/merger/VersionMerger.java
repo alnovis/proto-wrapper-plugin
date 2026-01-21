@@ -79,6 +79,11 @@ public class VersionMerger {
 
         MergedSchema merged = new MergedSchema(versions);
 
+        // Copy detected syntax for each version
+        for (VersionSchema schema : schemas) {
+            merged.setVersionSyntax(schema.getVersion(), schema.getDetectedSyntax());
+        }
+
         // Collect all message names across versions using flatMap
         Set<String> allMessageNames = schemas.stream()
                 .flatMap(schema -> schema.getMessageNames().stream())

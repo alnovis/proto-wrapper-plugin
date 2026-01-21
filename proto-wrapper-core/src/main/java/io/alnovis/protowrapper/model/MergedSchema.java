@@ -17,6 +17,9 @@ public class MergedSchema {
     // Conflict enums for INT_ENUM type conflicts
     // Maps "MessageName.fieldName" -> ConflictEnumInfo
     private final Map<String, ConflictEnumInfo> conflictEnums;
+    // Proto syntax per version (PROTO2, PROTO3, or AUTO to be resolved later)
+    // Maps version ID (e.g., "v1") -> ProtoSyntax
+    private final Map<String, ProtoSyntax> versionSyntax;
 
     /**
      * Create a new MergedSchema.
@@ -29,6 +32,7 @@ public class MergedSchema {
         this.enums = new LinkedHashMap<>();
         this.equivalentEnumMappings = new LinkedHashMap<>();
         this.conflictEnums = new LinkedHashMap<>();
+        this.versionSyntax = new LinkedHashMap<>();
     }
 
     /**
@@ -154,6 +158,45 @@ public class MergedSchema {
      */
     public boolean hasConflictEnum(String messageName, String fieldName) {
         return conflictEnums.containsKey(messageName + "." + fieldName);
+    }
+
+    /**
+     * Set the proto syntax for a specific version.
+     *
+     * @param version version identifier (e.g., "v1")
+     * @param syntax the proto syntax for this version
+     */
+    public void setVersionSyntax(String version, ProtoSyntax syntax) {
+        versionSyntax.put(version, syntax);
+    }
+
+    /**
+     * Get the proto syntax for a specific version.
+     *
+     * @param version version identifier (e.g., "v1")
+     * @return the proto syntax, or PROTO3 if not set (proto3 is the modern default)
+     */
+    public ProtoSyntax getVersionSyntax(String version) {
+        return versionSyntax.getOrDefault(version, ProtoSyntax.PROTO3);
+    }
+
+    /**
+     * Get all version syntax mappings.
+     *
+     * @return unmodifiable map of version to syntax
+     */
+    public Map<String, ProtoSyntax> getAllVersionSyntax() {
+        return Collections.unmodifiableMap(versionSyntax);
+    }
+
+    /**
+     * Check if syntax is set for a specific version.
+     *
+     * @param version version identifier
+     * @return true if syntax is explicitly set for this version
+     */
+    public boolean hasVersionSyntax(String version) {
+        return versionSyntax.containsKey(version);
     }
 
     /**

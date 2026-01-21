@@ -188,8 +188,19 @@ abstract class GenerateWrappersTask : DefaultTask() {
      * Set to 2 for protobuf 2.x (uses valueOf() for enum conversion).
      * Set to 3 for protobuf 3.x (uses forNumber() for enum conversion).
      * Default: 3
+     *
+     * @since 2.2.0 Deprecated. Use per-version `protoSyntax` configuration instead.
+     *              The plugin now auto-detects proto syntax from .proto files and
+     *              uses the appropriate enum conversion method per version.
+     *              This global setting is only used as a fallback when syntax cannot be detected.
+     *              Scheduled for removal in 3.0.0.
      */
+    @Deprecated(
+        message = "Use per-version protoSyntax configuration instead. Scheduled for removal in 3.0.0.",
+        level = DeprecationLevel.WARNING
+    )
     @get:Input
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     abstract val protobufMajorVersion: Property<Int>
 
     /**
@@ -316,11 +327,13 @@ abstract class GenerateWrappersTask : DefaultTask() {
      * @property resolvedProtoDir Absolute path to the proto directory
      * @property descriptorFile Path to the generated descriptor file
      * @property detectedProtoPackage Auto-detected or computed proto package name
+     * @property resolvedSyntax Resolved proto syntax (never AUTO after resolution)
      */
     private data class VersionData(
         val resolvedProtoDir: File,
         val descriptorFile: File,
-        var detectedProtoPackage: String? = null
+        var detectedProtoPackage: String? = null,
+        var resolvedSyntax: ProtoSyntax = ProtoSyntax.PROTO2
     )
 
     // ============ Task Action ============
@@ -496,10 +509,25 @@ abstract class GenerateWrappersTask : DefaultTask() {
             val versionId = config.getVersionId()
             val descriptorFile = File(tempDir, "$versionId-descriptor.pb")
 
+            // Validate protoSyntax if specified
+            val syntaxStr = config.protoSyntax.orNull
+            if (!syntaxStr.isNullOrEmpty()) {
+                val normalized = syntaxStr.lowercase().trim()
+                if (normalized != "proto2" && normalized != "proto3" && normalized != "auto") {
+                    throw GradleException(
+                        "Invalid protoSyntax '$syntaxStr' for version ${config.getEffectiveName()}. " +
+                        "Valid values: proto2, proto3, auto"
+                    )
+                }
+            }
+
             versionDataCache[config.name] = VersionData(protoDir, descriptorFile)
 
             pluginLogger.info("Version ${config.getEffectiveName()}:")
             pluginLogger.info("  protoDir: ${protoDir.absolutePath}")
+            if (!syntaxStr.isNullOrEmpty()) {
+                pluginLogger.info("  protoSyntax: $syntaxStr")
+            }
         }
 
         // Validate defaultVersion if specified
@@ -575,6 +603,16 @@ abstract class GenerateWrappersTask : DefaultTask() {
         val sourcePrefix = "${versionConfig.protoDir.get()}/"
         val schema = analyzer.analyze(descriptorFile, version, sourcePrefix)
         pluginLogger.info("  ${schema.stats}")
+
+        // Resolve proto syntax for this version
+        val configuredSyntax = parseConfiguredSyntax(versionConfig.protoSyntax.orNull)
+        val resolvedSyntax = if (configuredSyntax.isAuto) {
+            schema.detectedSyntax
+        } else {
+            configuredSyntax
+        }
+        versionData.resolvedSyntax = resolvedSyntax
+        pluginLogger.info("  Proto syntax: ${resolvedSyntax.name} (configured: ${configuredSyntax.name})")
 
         val protoPackage = protoPackagePattern.get().replace("{version}", version)
         versionData.detectedProtoPackage = protoPackage
@@ -766,6 +804,24 @@ abstract class GenerateWrappersTask : DefaultTask() {
                 .replace("**", ".*")
                 .replace("*", "[^/]*")
             relativePath.matches(Regex(regex))
+        }
+    }
+
+    /**
+     * Parses the configured proto syntax string to ProtoSyntax enum.
+     *
+     * @param syntaxStr Syntax string from configuration ("proto2", "proto3", "auto", or null)
+     * @return ProtoSyntax enum value (AUTO if not specified or "auto")
+     * @since 2.2.0
+     */
+    private fun parseConfiguredSyntax(syntaxStr: String?): ProtoSyntax {
+        if (syntaxStr.isNullOrEmpty()) {
+            return ProtoSyntax.AUTO
+        }
+        return when (syntaxStr.lowercase().trim()) {
+            "proto2" -> ProtoSyntax.PROTO2
+            "proto3" -> ProtoSyntax.PROTO3
+            else -> ProtoSyntax.AUTO
         }
     }
 

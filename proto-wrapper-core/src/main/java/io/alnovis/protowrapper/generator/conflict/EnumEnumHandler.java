@@ -127,7 +127,7 @@ public final class EnumEnumHandler extends AbstractConflictHandler implements Co
         buildDoSetImpl(builder, field.getDoSetMethodName(), TypeName.INT, field.getJavaName(),
                 presentInVersion, m -> {
                     String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                    String enumMethod = getEnumFromIntMethod(ctx.config());
+                    String enumMethod = getEnumFromIntMethod(ctx);
                     m.addStatement("protoBuilder.set$L($L.$L($L))",
                             versionJavaName, protoEnumType, enumMethod, field.getJavaName());
                 });

@@ -31,6 +31,7 @@ public class FieldInfo {
     private final String oneofName;   // null if not in oneof
     private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
     private final boolean supportsHasMethod; // true if proto has*() method exists for this field
+    private final ProtoSyntax detectedSyntax; // Syntax of the proto file this field came from
 
     /**
      * Creates a FieldInfo from a field descriptor with default settings.
@@ -117,6 +118,7 @@ public class FieldInfo {
         // In proto3, only message types and fields in oneofs (including synthetic for optional) have has*()
         // In proto2, all optional fields have has*()
         this.supportsHasMethod = determineHasMethodSupport(proto, syntax);
+        this.detectedSyntax = syntax;
     }
 
     /**
@@ -248,6 +250,29 @@ public class FieldInfo {
     public FieldInfo(String protoName, String javaName, int number, Type type,
                      Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
                      WellKnownTypeInfo wellKnownType, boolean supportsHasMethod) {
+        this(protoName, javaName, number, type, label, typeName, mapInfo, oneofIndex, oneofName,
+                wellKnownType, supportsHasMethod, PROTO2);
+    }
+
+    /**
+     * Full constructor for merged fields with all info including supportsHasMethod and syntax.
+     *
+     * @param protoName the proto field name
+     * @param javaName the Java field name
+     * @param number the field number
+     * @param type the field type
+     * @param label the field label
+     * @param typeName the type name for message/enum types
+     * @param mapInfo the map info, or null if not a map
+     * @param oneofIndex the oneof index, or -1 if not in oneof
+     * @param oneofName the oneof name, or null if not in oneof
+     * @param wellKnownType the well-known type info, or null
+     * @param supportsHasMethod whether the field supports has method
+     * @param syntax the proto syntax version
+     */
+    public FieldInfo(String protoName, String javaName, int number, Type type,
+                     Label label, String typeName, MapInfo mapInfo, int oneofIndex, String oneofName,
+                     WellKnownTypeInfo wellKnownType, boolean supportsHasMethod, ProtoSyntax syntax) {
         this.protoName = protoName;
         this.javaName = javaName;
         this.number = number;
@@ -266,6 +291,7 @@ public class FieldInfo {
                         ? WellKnownTypeInfo.fromProtoType(typeName).orElse(null)
                         : null);
         this.supportsHasMethod = supportsHasMethod;
+        this.detectedSyntax = syntax;
     }
 
     private static String toJavaName(String protoName) {
@@ -610,6 +636,13 @@ public class FieldInfo {
      * @return true if has method is supported
      */
     public boolean supportsHasMethod() { return supportsHasMethod; }
+
+    /**
+     * Returns the detected proto syntax for the file this field came from.
+     *
+     * @return the proto syntax (PROTO2 or PROTO3)
+     */
+    public ProtoSyntax getDetectedSyntax() { return detectedSyntax; }
 
     @Override
     public boolean equals(Object o) {

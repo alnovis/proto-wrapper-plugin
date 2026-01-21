@@ -206,8 +206,16 @@ public class GenerateMojo extends AbstractMojo {
      * Set to 2 for protobuf 2.x projects (uses valueOf() for enum conversion).
      * Set to 3 for protobuf 3.x projects (uses forNumber() for enum conversion).
      * Default is 3.
+     *
+     * @deprecated Since 2.2.0. Use per-version {@code protoSyntax} configuration instead.
+     *             The plugin now auto-detects proto syntax from .proto files and
+     *             uses the appropriate enum conversion method per version.
+     *             This global setting is only used as a fallback when syntax cannot be detected.
+     *             Scheduled for removal in 3.0.0.
      */
+    @Deprecated(since = "2.2.0", forRemoval = true)
     @Parameter(defaultValue = "3")
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     private int protobufMajorVersion;
 
     /**
@@ -441,8 +449,22 @@ public class GenerateMojo extends AbstractMojo {
             File descriptorFile = new File(tempDirectory, versionId + "-descriptor.pb");
             config.setGeneratedDescriptorFile(descriptorFile);
 
+            // Validate protoSyntax if specified
+            String syntaxStr = config.getProtoSyntax();
+            if (syntaxStr != null && !syntaxStr.isEmpty()) {
+                String normalized = syntaxStr.toLowerCase().trim();
+                if (!normalized.equals("proto2") && !normalized.equals("proto3") && !normalized.equals("auto")) {
+                    throw new MojoExecutionException(
+                        "Invalid protoSyntax '" + syntaxStr + "' for version " + config.getEffectiveName() +
+                        ". Valid values: proto2, proto3, auto");
+                }
+            }
+
             getLog().info("Version " + config.getEffectiveName() + ":");
             getLog().info("  protoDir: " + protoDir.getAbsolutePath());
+            if (syntaxStr != null && !syntaxStr.isEmpty()) {
+                getLog().info("  protoSyntax: " + syntaxStr);
+            }
         }
 
         // Validate defaultVersion if specified
@@ -488,6 +510,18 @@ public class GenerateMojo extends AbstractMojo {
         String sourcePrefix = versionConfig.getProtoDir() + "/";  // e.g., "v1/"
         VersionSchema schema = analyzer.analyze(descriptorFile, version, sourcePrefix);
         getLog().info("  " + schema.getStats());
+
+        // Resolve proto syntax for this version
+        ProtoSyntax configuredSyntax = versionConfig.getConfiguredSyntax();
+        ProtoSyntax resolvedSyntax;
+        if (configuredSyntax.isAuto()) {
+            // Use syntax detected from schema analysis
+            resolvedSyntax = schema.getDetectedSyntax();
+            getLog().info("  Auto-detected syntax: " + resolvedSyntax.getSyntaxString());
+        } else {
+            resolvedSyntax = configuredSyntax;
+        }
+        versionConfig.setResolvedSyntax(resolvedSyntax);
 
         // Auto-generate proto mappings
         String protoPackage = protoPackagePattern.replace("{version}", version);

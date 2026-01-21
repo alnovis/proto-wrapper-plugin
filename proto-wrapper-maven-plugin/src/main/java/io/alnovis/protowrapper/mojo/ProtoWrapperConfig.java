@@ -1,6 +1,7 @@
 package io.alnovis.protowrapper.mojo;
 
 import io.alnovis.protowrapper.generator.GenerationOrchestrator;
+import io.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.io.File;
 
@@ -12,8 +13,11 @@ import java.io.File;
  * <version>
  *     <protoDir>v1</protoDir>
  *     <name>V1</name> <!-- optional, defaults to uppercase of directory name -->
+ *     <protoSyntax>proto2</protoSyntax> <!-- optional: proto2, proto3, or auto (default) -->
  * </version>
  * }</pre>
+ *
+ * @since 2.2.0 Added protoSyntax configuration
  */
 public class ProtoWrapperConfig implements GenerationOrchestrator.VersionConfig {
 
@@ -29,6 +33,13 @@ public class ProtoWrapperConfig implements GenerationOrchestrator.VersionConfig 
      * If not provided, derived from protoDir directory name in uppercase.
      */
     private String name;
+
+    /**
+     * Proto syntax for this version: "proto2", "proto3", or "auto".
+     * When "auto" (default), syntax is detected from .proto files.
+     * @since 2.2.0
+     */
+    private String protoSyntax;
 
     /**
      * Proto file patterns to exclude (glob patterns).
@@ -56,6 +67,13 @@ public class ProtoWrapperConfig implements GenerationOrchestrator.VersionConfig 
      */
     private transient File generatedDescriptorFile;
 
+    /**
+     * Resolved proto syntax (never AUTO after resolution).
+     * Computed by plugin from protoSyntax config or auto-detection.
+     * @since 2.2.0
+     */
+    private transient ProtoSyntax resolvedSyntax;
+
     // Getters and setters
 
     public String getProtoDir() {
@@ -80,6 +98,60 @@ public class ProtoWrapperConfig implements GenerationOrchestrator.VersionConfig 
 
     public void setExcludeProtos(String[] excludeProtos) {
         this.excludeProtos = excludeProtos;
+    }
+
+    /**
+     * Get the configured proto syntax string.
+     * @return "proto2", "proto3", "auto", or null (defaults to auto)
+     * @since 2.2.0
+     */
+    public String getProtoSyntax() {
+        return protoSyntax;
+    }
+
+    /**
+     * Set the proto syntax for this version.
+     * @param protoSyntax "proto2", "proto3", or "auto"
+     * @since 2.2.0
+     */
+    public void setProtoSyntax(String protoSyntax) {
+        this.protoSyntax = protoSyntax;
+    }
+
+    /**
+     * Get the resolved proto syntax (never AUTO).
+     * @return the resolved syntax, or null if not yet resolved
+     * @since 2.2.0
+     */
+    public ProtoSyntax getResolvedSyntax() {
+        return resolvedSyntax;
+    }
+
+    /**
+     * Set the resolved proto syntax.
+     * @param resolvedSyntax the resolved syntax (should not be AUTO)
+     * @since 2.2.0
+     */
+    public void setResolvedSyntax(ProtoSyntax resolvedSyntax) {
+        this.resolvedSyntax = resolvedSyntax;
+    }
+
+    /**
+     * Parse the configured protoSyntax string to ProtoSyntax enum.
+     * @return ProtoSyntax.AUTO if not set or "auto", otherwise PROTO2 or PROTO3
+     * @since 2.2.0
+     */
+    public ProtoSyntax getConfiguredSyntax() {
+        if (protoSyntax == null || protoSyntax.isEmpty() || protoSyntax.equalsIgnoreCase("auto")) {
+            return ProtoSyntax.AUTO;
+        } else if (protoSyntax.equalsIgnoreCase("proto2")) {
+            return ProtoSyntax.PROTO2;
+        } else if (protoSyntax.equalsIgnoreCase("proto3")) {
+            return ProtoSyntax.PROTO3;
+        } else {
+            // Invalid value - treat as auto
+            return ProtoSyntax.AUTO;
+        }
     }
 
     public File getResolvedProtoDir() {

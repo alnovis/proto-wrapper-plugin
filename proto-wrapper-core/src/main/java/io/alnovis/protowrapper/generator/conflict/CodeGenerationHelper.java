@@ -357,9 +357,37 @@ public final class CodeGenerationHelper {
      *
      * @param config the generator configuration
      * @return "valueOf" for proto2, "forNumber" for proto3
+     * @deprecated Since 2.2.0. Use {@link #getEnumFromIntMethod(ProcessingContext)} for per-version syntax support.
+     *             Scheduled for removal in 3.0.0.
      */
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public static String getEnumFromIntMethod(GeneratorConfig config) {
         return config.getDefaultSyntax().isProto2() ? "valueOf" : "forNumber";
+    }
+
+    /**
+     * Get the enum conversion method name based on version-specific proto syntax.
+     *
+     * <p>This method uses per-version syntax from MergedSchema when available,
+     * allowing different versions to use different enum conversion methods:</p>
+     * <ul>
+     *   <li>proto2: uses {@code valueOf(int)} which returns null for unknown values</li>
+     *   <li>proto3: uses {@code forNumber(int)} which also returns null for unknown values</li>
+     * </ul>
+     *
+     * @param ctx the processing context (must have version set for per-version support)
+     * @return "valueOf" for proto2, "forNumber" for proto3
+     * @since 2.2.0
+     */
+    public static String getEnumFromIntMethod(ProcessingContext ctx) {
+        String version = ctx.version();
+        MergedSchema schema = ctx.schema();
+        if (version != null && schema != null && schema.hasVersionSyntax(version)) {
+            return schema.getVersionSyntax(version).isProto2() ? "valueOf" : "forNumber";
+        }
+        // Fallback to config default (inlined to avoid calling deprecated method)
+        return ctx.config().getDefaultSyntax().isProto2() ? "valueOf" : "forNumber";
     }
 
     /**
@@ -566,7 +594,7 @@ public final class CodeGenerationHelper {
             // Enum
             (m, f, n, c) -> {
                 String protoEnumType = getProtoEnumTypeForField(f, c, null);
-                String enumMethod = getEnumFromIntMethod(c.config());
+                String enumMethod = getEnumFromIntMethod(c);
                 m.addStatement("protoBuilder.add$L($L.$L($L.getValue()))",
                         n, protoEnumType, enumMethod, f.getJavaName());
             },
@@ -591,7 +619,7 @@ public final class CodeGenerationHelper {
             // Enum
             (m, f, n, c) -> {
                 String protoEnumType = getProtoEnumTypeForField(f, c, null);
-                String enumMethod = getEnumFromIntMethod(c.config());
+                String enumMethod = getEnumFromIntMethod(c);
                 m.addStatement("$L.forEach(e -> protoBuilder.add$L($L.$L(e.getValue())))",
                         f.getJavaName(), n, protoEnumType, enumMethod);
             },
@@ -620,7 +648,7 @@ public final class CodeGenerationHelper {
             return "protoBuilder.set" + versionJavaName + "((" + protoTypeName + ") extractProto($L))";
         } else if (field.isEnum()) {
             String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-            String enumMethod = getEnumFromIntMethod(ctx.config());
+            String enumMethod = getEnumFromIntMethod(ctx);
             return "protoBuilder.set" + versionJavaName + "(" + protoEnumType + "." + enumMethod + "($L.getValue()))";
         } else if (isBytesType(field)) {
             // Convert byte[] to ByteString for protobuf
@@ -665,7 +693,7 @@ public final class CodeGenerationHelper {
                                                     String versionJavaName, String fieldParamName,
                                                     ProcessingContext ctx) {
         String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-        String enumMethod = getEnumFromIntMethod(ctx.config());
+        String enumMethod = getEnumFromIntMethod(ctx);
         String localVarName = "protoEnumValue";
         String enumTypeName = field.getGetterType();
 

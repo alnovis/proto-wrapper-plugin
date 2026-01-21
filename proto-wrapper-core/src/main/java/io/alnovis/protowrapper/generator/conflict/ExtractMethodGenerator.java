@@ -236,9 +236,11 @@ public final class ExtractMethodGenerator {
      * @param field the merged field
      * @param ctx the processing context containing version info
      * @return the FieldInfo for this version, or null if not present
-     * @deprecated Use {@link ProcessingContext#versionSnapshot(MergedField)} instead
+     * @deprecated Since 2.1.0. Use {@link ProcessingContext#versionSnapshot(MergedField)} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.1.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public static FieldInfo getVersionField(MergedField field, ProcessingContext ctx) {
         String version = ctx.version();
         if (version == null) return null;
@@ -252,9 +254,11 @@ public final class ExtractMethodGenerator {
      * @param returnType the return type for the method
      * @param ctx the processing context
      * @return configured MethodSpec.Builder
-     * @deprecated Use {@link MethodSpecFactory#protectedExtract(MergedField, TypeName, ProcessingContext)} instead
+     * @deprecated Since 2.1.0. Use {@link MethodSpecFactory#protectedExtract(MergedField, TypeName, ProcessingContext)} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.1.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public static MethodSpec.Builder createExtractMethodBuilder(MergedField field,
                                                                  TypeName returnType,
                                                                  ProcessingContext ctx) {
@@ -267,9 +271,11 @@ public final class ExtractMethodGenerator {
      * @param field the merged field definition
      * @param ctx the processing context
      * @return configured MethodSpec.Builder
-     * @deprecated Use {@link MethodSpecFactory#protectedExtractHas(MergedField, ProcessingContext)} instead
+     * @deprecated Since 2.1.0. Use {@link MethodSpecFactory#protectedExtractHas(MergedField, ProcessingContext)} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.1.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public static MethodSpec.Builder createExtractHasMethodBuilder(MergedField field,
                                                                     ProcessingContext ctx) {
         return MethodSpecFactory.protectedExtractHas(field, ctx);

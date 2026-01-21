@@ -324,6 +324,99 @@ class MergedSchemaTest {
         assertThat(partialField.isUniversal(message.getPresentInVersions())).isFalse();
     }
 
+    // MergedField syntax tests - PVPS-01
+
+    @Test
+    void mergedField_shouldTrackSyntaxPerVersion() {
+        FieldInfo v1Field = createFieldInfoWithSyntax("amount", 1, Type.TYPE_INT64, ProtoSyntax.PROTO2);
+        FieldInfo v2Field = createFieldInfoWithSyntax("amount", 1, Type.TYPE_INT64, ProtoSyntax.PROTO3);
+
+        MergedField field = MergedField.builder()
+                .addVersionField("v1", v1Field)
+                .addVersionField("v2", v2Field)
+                .build();
+
+        assertThat(field.getSyntaxForVersion("v1")).isEqualTo(ProtoSyntax.PROTO2);
+        assertThat(field.getSyntaxForVersion("v2")).isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void mergedField_shouldReturnProto3AsDefaultForUnknownVersion() {
+        FieldInfo v1Field = createFieldInfoWithSyntax("amount", 1, Type.TYPE_INT64, ProtoSyntax.PROTO2);
+
+        MergedField field = MergedField.builder()
+                .addVersionField("v1", v1Field)
+                .build();
+
+        assertThat(field.getSyntaxForVersion("v1")).isEqualTo(ProtoSyntax.PROTO2);
+        assertThat(field.getSyntaxForVersion("v999"))
+                .as("Unknown version should return PROTO3 as default")
+                .isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void mergedField_shouldReturnSyntaxPerVersionMap() {
+        FieldInfo v1Field = createFieldInfoWithSyntax("status", 1, Type.TYPE_ENUM, ProtoSyntax.PROTO2);
+        FieldInfo v2Field = createFieldInfoWithSyntax("status", 1, Type.TYPE_ENUM, ProtoSyntax.PROTO3);
+
+        MergedField field = MergedField.builder()
+                .addVersionField("v1", v1Field)
+                .addVersionField("v2", v2Field)
+                .build();
+
+        assertThat(field.getSyntaxPerVersion())
+                .hasSize(2)
+                .containsEntry("v1", ProtoSyntax.PROTO2)
+                .containsEntry("v2", ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void mergedField_shouldExtractSyntaxFromFieldInfo() {
+        // Test that Builder correctly extracts syntax from FieldInfo.getDetectedSyntax()
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("name")
+                .setNumber(1)
+                .setType(Type.TYPE_STRING)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo fieldWithProto3 = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        MergedField field = MergedField.builder()
+                .addVersionField("v1", fieldWithProto3)
+                .build();
+
+        assertThat(field.getSyntaxForVersion("v1"))
+                .as("Builder should extract syntax from FieldInfo.getDetectedSyntax()")
+                .isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void mergedField_syntaxMap_shouldBeImmutable() {
+        FieldInfo v1Field = createFieldInfoWithSyntax("id", 1, Type.TYPE_INT64, ProtoSyntax.PROTO2);
+
+        MergedField field = MergedField.builder()
+                .addVersionField("v1", v1Field)
+                .build();
+
+        // Verify that the returned map is unmodifiable
+        org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class,
+                () -> field.getSyntaxPerVersion().put("v2", ProtoSyntax.PROTO3),
+                "Syntax per version map should be unmodifiable"
+        );
+    }
+
+    private FieldInfo createFieldInfoWithSyntax(String name, int number, Type type, ProtoSyntax syntax) {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName(name)
+                .setNumber(number)
+                .setType(type)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+        return new FieldInfo(proto, -1, null, null, syntax);
+    }
+
     // MergedEnumValue tests
 
     @Test
@@ -336,6 +429,73 @@ class MergedSchemaTest {
         assertThat(mergedValue.getJavaName()).isEqualTo("CASH");
         assertThat(mergedValue.getNumber()).isEqualTo(0);
         assertThat(mergedValue.getPresentInVersions()).containsExactly("v1", "v2");
+    }
+
+    // ========================================================================
+    // Version syntax tests - PVPS-01
+    // ========================================================================
+
+    @Test
+    void shouldSetAndGetVersionSyntax() {
+        schema.setVersionSyntax("v1", ProtoSyntax.PROTO2);
+        schema.setVersionSyntax("v2", ProtoSyntax.PROTO3);
+
+        assertThat(schema.getVersionSyntax("v1")).isEqualTo(ProtoSyntax.PROTO2);
+        assertThat(schema.getVersionSyntax("v2")).isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void shouldReturnProto3AsDefaultForUnsetVersionSyntax() {
+        // v1 and v2 are in the schema but no syntax set
+        assertThat(schema.getVersionSyntax("v1"))
+                .as("Should return PROTO3 as default for version without explicit syntax")
+                .isEqualTo(ProtoSyntax.PROTO3);
+        assertThat(schema.getVersionSyntax("unknown"))
+                .as("Should return PROTO3 as default for unknown version")
+                .isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void shouldCheckIfVersionSyntaxIsSet() {
+        assertThat(schema.hasVersionSyntax("v1")).isFalse();
+
+        schema.setVersionSyntax("v1", ProtoSyntax.PROTO2);
+
+        assertThat(schema.hasVersionSyntax("v1")).isTrue();
+        assertThat(schema.hasVersionSyntax("v2")).isFalse();
+    }
+
+    @Test
+    void shouldGetAllVersionSyntax() {
+        schema.setVersionSyntax("v1", ProtoSyntax.PROTO2);
+        schema.setVersionSyntax("v2", ProtoSyntax.PROTO3);
+
+        assertThat(schema.getAllVersionSyntax())
+                .hasSize(2)
+                .containsEntry("v1", ProtoSyntax.PROTO2)
+                .containsEntry("v2", ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void shouldReturnEmptyMapWhenNoSyntaxSet() {
+        assertThat(schema.getAllVersionSyntax()).isEmpty();
+    }
+
+    @Test
+    void shouldAllowOverwritingVersionSyntax() {
+        schema.setVersionSyntax("v1", ProtoSyntax.PROTO2);
+        assertThat(schema.getVersionSyntax("v1")).isEqualTo(ProtoSyntax.PROTO2);
+
+        schema.setVersionSyntax("v1", ProtoSyntax.PROTO3);
+        assertThat(schema.getVersionSyntax("v1")).isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void shouldSupportAutoSyntax() {
+        schema.setVersionSyntax("v1", ProtoSyntax.AUTO);
+
+        assertThat(schema.getVersionSyntax("v1")).isEqualTo(ProtoSyntax.AUTO);
+        assertThat(schema.hasVersionSyntax("v1")).isTrue();
     }
 
     // Helper methods
