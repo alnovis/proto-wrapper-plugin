@@ -643,7 +643,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 } else if (versionMapInfo.hasEnumValue()) {
                     // Enum map value - convert wrapper enum to proto enum
                     String protoEnumType = getMapValueProtoEnumType(versionMapInfo, ctx);
-                    String enumMethod = CodeGenerationHelper.getEnumFromIntMethod(ctx.config());
+                    String enumMethod = CodeGenerationHelper.getEnumFromIntMethod(ctx);
                     doPut.addStatement("protoBuilder.put$L(key, $L.$L(value.getValue()))",
                             versionJavaName, protoEnumType, enumMethod);
                 } else {

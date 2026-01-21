@@ -617,4 +617,102 @@ class FieldInfoTest {
                 .as("Default constructor should use PROTO2 semantics for repeated fields")
                 .isFalse();
     }
+
+    // ========================================================================
+    // Tests for getDetectedSyntax() - PVPS-01
+    // ========================================================================
+
+    @Test
+    void getDetectedSyntax_proto2_shouldReturnProto2() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO2);
+
+        assertThat(field.getDetectedSyntax())
+                .as("Field created with PROTO2 syntax should return PROTO2")
+                .isEqualTo(ProtoSyntax.PROTO2);
+    }
+
+    @Test
+    void getDetectedSyntax_proto3_shouldReturnProto3() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        FieldInfo field = new FieldInfo(proto, -1, null, null, ProtoSyntax.PROTO3);
+
+        assertThat(field.getDetectedSyntax())
+                .as("Field created with PROTO3 syntax should return PROTO3")
+                .isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void getDetectedSyntax_defaultConstructor_shouldReturnProto2() {
+        FieldDescriptorProto proto = FieldDescriptorProto.newBuilder()
+                .setName("field")
+                .setNumber(1)
+                .setType(Type.TYPE_INT32)
+                .setLabel(Label.LABEL_OPTIONAL)
+                .build();
+
+        // Default constructor should default to PROTO2 for backwards compatibility
+        FieldInfo field = new FieldInfo(proto);
+
+        assertThat(field.getDetectedSyntax())
+                .as("Default constructor should default to PROTO2")
+                .isEqualTo(ProtoSyntax.PROTO2);
+    }
+
+    @Test
+    void getDetectedSyntax_mergedFieldConstructor_shouldReturnProvidedSyntax() {
+        // Using the full constructor for merged fields with syntax
+        FieldInfo field = new FieldInfo(
+                "test_field",
+                "testField",
+                1,
+                Type.TYPE_STRING,
+                Label.LABEL_OPTIONAL,
+                null,
+                null,
+                -1,
+                null,
+                null,
+                true,
+                ProtoSyntax.PROTO3
+        );
+
+        assertThat(field.getDetectedSyntax())
+                .as("Merged field constructor with syntax should preserve it")
+                .isEqualTo(ProtoSyntax.PROTO3);
+    }
+
+    @Test
+    void getDetectedSyntax_mergedFieldConstructorWithoutSyntax_shouldDefaultToProto2() {
+        // Using the constructor without explicit syntax
+        FieldInfo field = new FieldInfo(
+                "test_field",
+                "testField",
+                1,
+                Type.TYPE_STRING,
+                Label.LABEL_OPTIONAL,
+                null,
+                null,
+                -1,
+                null,
+                null,
+                true
+        );
+
+        assertThat(field.getDetectedSyntax())
+                .as("Merged field constructor without syntax should default to PROTO2")
+                .isEqualTo(ProtoSyntax.PROTO2);
+    }
 }

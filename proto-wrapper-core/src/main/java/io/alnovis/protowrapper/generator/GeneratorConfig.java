@@ -165,9 +165,11 @@ public class GeneratorConfig {
      * Get protobuf major version.
      *
      * @return the protobuf major version (2 or 3)
-     * @deprecated Use {@link #getDefaultSyntax()} instead
+     * @deprecated Since 2.2.0. Use {@link #getDefaultSyntax()} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public int getProtobufMajorVersion() {
         return defaultSyntax.isProto2() ? 2 : 3;
     }
@@ -176,18 +178,22 @@ public class GeneratorConfig {
      * Check if protobuf 2 syntax.
      *
      * @return true if proto2
-     * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto2() isProto2()} instead
+     * @deprecated Since 2.2.0. Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto2() isProto2()} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public boolean isProtobuf2() { return defaultSyntax.isProto2(); }
 
     /**
      * Check if protobuf 3 syntax.
      *
      * @return true if proto3
-     * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto3() isProto3()} instead
+     * @deprecated Since 2.2.0. Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto3() isProto3()} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public boolean isProtobuf3() { return defaultSyntax.isProto3() || defaultSyntax.isAuto(); }
 
     /** @return true if well-known types should be converted */
@@ -459,9 +465,11 @@ public class GeneratorConfig {
          *
          * @param version the protobuf major version (2 or 3)
          * @return this builder
-         * @deprecated Use {@link #defaultSyntax(ProtoSyntax)} instead
+         * @deprecated Since 2.2.0. Use {@link #defaultSyntax(ProtoSyntax)} instead.
+         *             Scheduled for removal in 3.0.0.
          */
-        @Deprecated
+        @Deprecated(since = "2.2.0", forRemoval = true)
+        // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
         public Builder protobufMajorVersion(int version) {
             if (version < 2 || version > 3) {
                 throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);

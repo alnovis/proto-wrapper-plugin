@@ -219,7 +219,7 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
                 presentInVersion, m -> {
                     if (versionIsEnum) {
                         String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                        String enumMethod = getEnumFromIntMethod(ctx.config());
+                        String enumMethod = getEnumFromIntMethod(ctx);
                         m.addStatement("protoBuilder.set$L($L.$L($L))",
                                 versionJavaName, protoEnumType, enumMethod, field.getJavaName());
                     } else {
@@ -237,7 +237,7 @@ public final class IntEnumHandler extends AbstractConflictHandler implements Con
                             presentInVersion, m -> {
                                 if (isEnumVersion) {
                                     String protoEnumType = getProtoEnumTypeForField(field, ctx, null);
-                                    String enumMethod = getEnumFromIntMethod(ctx.config());
+                                    String enumMethod = getEnumFromIntMethod(ctx);
                                     m.addStatement("protoBuilder.set$L($L.$L($L.getValue()))",
                                             javaName, protoEnumType, enumMethod, field.getJavaName());
                                 } else {

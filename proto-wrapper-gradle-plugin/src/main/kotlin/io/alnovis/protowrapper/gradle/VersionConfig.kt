@@ -51,6 +51,15 @@ abstract class VersionConfig @Inject constructor(private val name: String) : Nam
     abstract val excludeProtos: ListProperty<String>
 
     /**
+     * Proto syntax for this version: "proto2", "proto3", or "auto".
+     * When "auto" (default), syntax is detected from .proto files.
+     * @since 2.2.0
+     */
+    @get:Input
+    @get:Optional
+    abstract val protoSyntax: Property<String>
+
+    /**
      * Get the effective version name for code generation.
      * Derived from versionName property or name with first letter uppercased.
      */

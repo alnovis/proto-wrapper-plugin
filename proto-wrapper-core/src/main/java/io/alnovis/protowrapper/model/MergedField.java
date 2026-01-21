@@ -208,6 +208,7 @@ public class MergedField {
     private final Map<String, String> typesPerVersion; // Version -> javaType
     private final Map<String, String> oneofNamePerVersion; // Version -> oneof name (null if not in oneof)
     private final Map<String, Boolean> optionalityPerVersion; // Version -> isOptional
+    private final Map<String, ProtoSyntax> syntaxPerVersion; // Version -> ProtoSyntax
     private final boolean isInOneof; // true if in oneof in ANY version
     private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
     private final boolean allVersionsSupportHas; // true if ALL versions have has*() method available
@@ -238,6 +239,7 @@ public class MergedField {
         this.typesPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.typesPerVersion));
         this.oneofNamePerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.oneofNamePerVersion));
         this.optionalityPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.optionalityPerVersion));
+        this.syntaxPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.syntaxPerVersion));
         this.isInOneof = !builder.oneofNamePerVersion.isEmpty();
         this.wellKnownType = firstField.getWellKnownType();
         // Check if ALL versions support has*() method
@@ -262,6 +264,7 @@ public class MergedField {
         private final Map<String, String> typesPerVersion = new LinkedHashMap<>();
         private final Map<String, String> oneofNamePerVersion = new LinkedHashMap<>();
         private final Map<String, Boolean> optionalityPerVersion = new LinkedHashMap<>();
+        private final Map<String, ProtoSyntax> syntaxPerVersion = new LinkedHashMap<>();
         private String resolvedJavaType;
         private String resolvedGetterType;
         private ConflictType conflictType;
@@ -279,6 +282,7 @@ public class MergedField {
             versionFields.put(version, field);
             typesPerVersion.put(version, field.getJavaType());
             optionalityPerVersion.put(version, field.isOptional());
+            syntaxPerVersion.put(version, field.getDetectedSyntax());
             if (field.isInOneof()) {
                 oneofNamePerVersion.put(version, field.getOneofName());
             }
@@ -638,6 +642,25 @@ public class MergedField {
      */
     public Map<String, Boolean> getOptionalityPerVersion() {
         return optionalityPerVersion;
+    }
+
+    /**
+     * Get the proto syntax for a specific version.
+     *
+     * @param version Version identifier
+     * @return ProtoSyntax for that version, or PROTO3 as default
+     */
+    public ProtoSyntax getSyntaxForVersion(String version) {
+        return syntaxPerVersion.getOrDefault(version, ProtoSyntax.PROTO3);
+    }
+
+    /**
+     * Get syntax per version map.
+     *
+     * @return Unmodifiable map of version to ProtoSyntax
+     */
+    public Map<String, ProtoSyntax> getSyntaxPerVersion() {
+        return syntaxPerVersion;
     }
 
     /**
