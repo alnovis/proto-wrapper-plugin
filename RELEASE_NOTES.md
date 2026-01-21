@@ -1,176 +1,116 @@
-# Release Notes - Proto Wrapper Plugin v2.0.0
+# Release Notes - Proto Wrapper Plugin v2.1.1
 
-**Release Date:** January 2026 (Upcoming)
+**Release Date:** January 2026
 
 ## Overview
 
-Version 2.0.0 is a **breaking change release** that removes all deprecated integer-based version APIs. The plugin now exclusively uses **string-based version identifiers** for all version-related operations.
+Version 2.1.1 adds the `defaultVersion` configuration parameter, allowing explicit control over which protocol version is used as the default in generated `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT` constants.
 
-## Breaking Changes
+## New Features
 
-### Removed Methods
+### Default Version Configuration
 
-The following deprecated methods have been removed:
+Previously, the default version was always the **last version** in the configured versions list. This release adds explicit control via the `defaultVersion` parameter.
 
-| Interface | Removed Method | Replacement |
-|-----------|---------------|-------------|
-| `ProtoWrapper` | `getWrapperVersion()` | `getWrapperVersionId()` |
-| `ProtoWrapper` | `extractWrapperVersion()` | `extractWrapperVersionId()` |
-| `VersionContext` | `getVersion()` | `getVersionId()` |
-| `VersionContext` | `forVersion(int)` | `forVersionId(String)` |
-| `Builder` | `getVersion()` | `getVersionId()` |
-
-### Migration Guide
-
-Update all usages of deprecated methods:
-
-```java
-// Before (v1.6.x)
-int version = wrapper.getWrapperVersion();
-VersionContext ctx = VersionContext.forVersion(1);
-if (ctx.getVersion() == 2) { ... }
-
-// After (v2.0.0)
-String versionId = wrapper.getWrapperVersionId();  // "v1", "v2", etc.
-VersionContext ctx = VersionContext.forVersionId("v1");
-if ("v2".equals(ctx.getVersionId())) { ... }
+**Maven:**
+```xml
+<configuration>
+    <versions>
+        <version><protoDir>v202</protoDir></version>
+        <version><protoDir>v203</protoDir></version>
+    </versions>
+    <defaultVersion>v202</defaultVersion>
+</configuration>
 ```
 
-### Benefits of String-Based API
-
-- **Custom version names**: Supports non-numeric versions like `"legacy"`, `"v2beta"`, `"production"`
-- **Consistency**: Single API style across all interfaces
-- **Reliability**: No ambiguity with version number extraction from strings
-
-### Generated Interface Changes
-
-```java
-public interface Order extends ProtoWrapper<Order> {
-    // String-based version identifier (v2.0.0)
-    String getWrapperVersionId();  // "v1", "v2", "legacy", etc.
-
-    // Integer-based methods are REMOVED
-    // int getWrapperVersion();  // REMOVED in v2.0.0
+**Gradle:**
+```kotlin
+protoWrapper {
+    versions {
+        version("v202")
+        version("v203")
+    }
+    defaultVersion.set("v202")
 }
 ```
 
-### Extended JavaVersionCodegen Strategy
+### Generated Code Changes
 
-The `JavaVersionCodegen` interface has been extended with common code generation methods:
+With `defaultVersion=v202`, the generated code now contains:
 
 ```java
-public interface JavaVersionCodegen {
-    // Existing methods
-    FieldSpec createContextsField(...);
-    FieldSpec createSupportedVersionsField(...);
-    Optional<MethodSpec> createContextsMethod(...);
-    boolean requiresHelperClass();
+// ProtocolVersions.java
+public final class ProtocolVersions {
+    public static final String V202 = "v202";
+    public static final String V203 = "v203";
+    public static final String DEFAULT = V202;  // Explicitly configured
+    // ...
+}
 
-    // New methods (v1.6.9)
-    AnnotationSpec deprecatedAnnotation(String since, boolean forRemoval);
-    CodeBlock immutableListOf(String... elements);
-    CodeBlock immutableSetOf(String... elements);
-    boolean supportsPrivateInterfaceMethods();
+// VersionContext.java
+public interface VersionContext {
+    String DEFAULT_VERSION = ProtocolVersions.V202;  // Explicitly configured
+    // ...
 }
 ```
 
-#### Java 8 vs Java 9+ Differences
+### Validation
 
-| Method | Java 8 | Java 9+ |
-|--------|--------|---------|
-| `deprecatedAnnotation()` | `@Deprecated` | `@Deprecated(since="...", forRemoval=...)` |
-| `immutableListOf()` | `Collections.unmodifiableList(Arrays.asList(...))` | `List.of(...)` |
-| `immutableSetOf()` | `Collections.unmodifiableSet(new HashSet<>(Arrays.asList(...)))` | `Set.of(...)` |
-| `supportsPrivateInterfaceMethods()` | `false` | `true` |
+The plugin validates that `defaultVersion` is one of the configured version IDs:
 
-#### Refactored Generators
-
-The following generators now use `JavaVersionCodegen` strategy:
-
-- `ProtoWrapperGenerator` - uses `deprecatedAnnotation()` and `immutableListOf()`
-- `AbstractClassGenerator` - uses `deprecatedAnnotation()` and `immutableListOf()`
-- `VersionContextGenerator` - already used strategy (v1.6.8)
-
-This eliminates code duplication and ensures consistent Java version-specific code generation across all generators.
-
-### Build Automation Script
-
-New `build.sh` script automates version management and builds:
-
-```bash
-# Check version consistency across all files
-./build.sh --check
-
-# Update version in all files
-./build.sh --bump 1.7.0
-
-# Quick build (skip tests)
-./build.sh --quick
-
-# Run build with parallel execution
-./build.sh --parallel
-
-# CI-friendly output (no colors, exit on error)
-./build.sh --ci
-
-# Full build with tests (default)
-./build.sh
+```
+[ERROR] defaultVersion 'v999' is not in the configured versions list. Valid versions: [v202, v203]
 ```
 
-The script:
-- Checks version consistency across pom.xml, build.gradle.kts, examples, and integration tests
-- Builds Maven modules (core, maven plugin, tests, examples)
-- Builds Gradle plugin and runs tests
-- Runs standalone Gradle integration tests
-- Supports parallel execution and CI mode
+## Important Notes
 
-## Migration Guide
+### versionId vs name
 
-### From 1.6.8
+The `defaultVersion` parameter expects a **versionId** (derived from `protoDir`), not the version `name`:
 
-1. Update version number in your build file
-2. Replace `getWrapperVersion()` with `getWrapperVersionId()`:
+| Parameter | Source | Example | Used For |
+|-----------|--------|---------|----------|
+| `versionId` | `protoDir.toLowerCase()` | `v202` | `defaultVersion`, runtime identification |
+| `name` | explicit or `protoDir.toUpperCase()` | `V202`, `Legacy` | Class name suffixes |
 
-**Before:**
-```java
-if (wrapper.getWrapperVersion() == 2) {
-    // V2 handling
-}
+```xml
+<!-- Correct -->
+<version>
+    <protoDir>v202</protoDir>
+    <name>Legacy</name>
+</version>
+<defaultVersion>v202</defaultVersion>  <!-- Uses protoDir, not name -->
+
+<!-- WRONG - will fail validation -->
+<defaultVersion>Legacy</defaultVersion>
 ```
 
-**After:**
-```java
-if ("v2".equals(wrapper.getWrapperVersionId())) {
-    // V2 handling
-}
-```
+### Backward Compatibility
 
-3. No other changes required - existing code using `getWrapperVersion()` will continue to work with deprecation warnings
+If `defaultVersion` is not specified, the plugin falls back to the previous behavior (last version in the list).
 
-## Deprecations
+## Configuration Reference
 
-| Deprecated | Since | Replacement | Removal |
-|------------|-------|-------------|---------|
-| `wrapper.getWrapperVersion()` | 1.6.9 | `wrapper.getWrapperVersionId()` | v2.0 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `defaultVersion` | String | (last version) | Version ID for `DEFAULT_VERSION` and `ProtocolVersions.DEFAULT` |
 
-## Breaking Changes
+## Migration
 
-None. All existing APIs remain compatible.
+No migration required. Existing configurations continue to work unchanged.
 
-## New Tests
-
-| Test Class | Tests | Coverage |
-|------------|-------|----------|
-| `JavaVersionCodegenTest` | 18 | Extended strategy methods |
-| `ProtoWrapperGeneratorTest` | Updated | Strategy usage verification |
-| `AbstractClassGeneratorTest` | Updated | Strategy usage verification |
-
-## Documentation
-
-- [Configuration Guide](docs/CONFIGURATION.md) - All configuration parameters
-- [API Reference](docs/API_REFERENCE.md) - Generated code reference with `getWrapperVersionId()`
-- [Cookbook](docs/COOKBOOK.md) - Updated examples using new API
+To adopt the new feature:
+1. Update plugin version to `2.1.1`
+2. Add `<defaultVersion>` parameter if you need explicit control
 
 ## Full Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete list of changes.
+
+---
+
+## Previous Releases
+
+- [v2.1.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.1.0) - ProtocolVersions class generation, parallel generation
+- [v2.0.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.0.0) - Namespace migration to io.alnovis, removed deprecated APIs
+- [v1.6.9](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v1.6.9) - String-based version API

@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.1.0</version>
+    <version>2.1.1</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -65,9 +65,10 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types (Timestamp to Instant, etc.). |
 | `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for Well-Known Type fields. |
 | `protocPath` | (auto) | Path to protoc executable. If not set, resolved automatically: system PATH, then embedded download. |
-| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 2.1.0)* |
+| `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.5)* |
 | `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 2.1.0)* |
-| `generateProtocolVersions` | `false` | Generate `ProtocolVersions` class with version string constants. When enabled, generated code references constants instead of string literals. *(since 2.1.0)* |
+| `generateProtocolVersions` | `true` | Generate `ProtocolVersions` class with version string constants. When enabled, generated code references constants instead of string literals. *(since 2.1.0)* |
+| `defaultVersion` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. If not set, the last version in the list is used. *(since 2.1.1)* |
 
 #### Generation Flags
 
@@ -170,7 +171,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.1.0</version>
+    <version>2.1.1</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -205,6 +206,9 @@ mvn compile -Dproto-wrapper.incremental=false
             </version>
         </versions>
 
+        <!-- Default version (optional, defaults to last version) -->
+        <defaultVersion>v1</defaultVersion>
+
         <!-- Filtering -->
         <excludeMessages>
             <message>DebugMessage</message>
@@ -230,7 +234,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.1.0"
+    id("io.alnovis.proto-wrapper") version "2.1.1"
 }
 ```
 
@@ -242,7 +246,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.1.0")
+        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.1.1")
     }
 }
 
@@ -296,7 +300,8 @@ protoWrapper {
 | `generateRawProtoAccessors` | `Property<Boolean>` | `false` | Generate raw proto accessors for WKT. |
 | `protocPath` | `Property<String>` | (auto) | Path to protoc. |
 | `targetJavaVersion` | `Property<Int>` | `9` | Target Java version (use `8` for Java 8 compatibility). |
-| `generateProtocolVersions` | `Property<Boolean>` | `false` | Generate `ProtocolVersions` class with version constants. |
+| `generateProtocolVersions` | `Property<Boolean>` | `true` | Generate `ProtocolVersions` class with version constants. |
+| `defaultVersion` | `Property<String>` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. |
 
 ### Version Configuration
 
@@ -358,7 +363,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("io.alnovis.proto-wrapper") version "2.1.0"
+    id("io.alnovis.proto-wrapper") version "2.1.1"
 }
 
 protoWrapper {
@@ -389,6 +394,9 @@ protoWrapper {
         }
         version("v2")
     }
+
+    // Default version (optional, defaults to last version)
+    defaultVersion.set("v1")
 
     // Filtering
     excludeMessages.set(listOf("DebugMessage"))

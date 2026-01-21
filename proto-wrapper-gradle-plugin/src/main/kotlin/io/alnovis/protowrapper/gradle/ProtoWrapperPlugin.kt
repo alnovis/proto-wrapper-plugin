@@ -61,6 +61,9 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.parallelGeneration.set(extension.parallelGeneration)
             task.generationThreads.set(extension.generationThreads)
 
+            // Default version (since 2.1.1)
+            task.defaultVersion.set(extension.defaultVersion)
+
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }

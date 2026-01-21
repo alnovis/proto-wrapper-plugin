@@ -44,7 +44,7 @@ public class StaticFieldsComponent implements InterfaceComponent {
     @Override
     public void addTo(TypeSpec.Builder builder) {
         List<String> versions = schema.getVersions();
-        String defaultVersion = versions.get(versions.size() - 1);
+        String defaultVersion = getDefaultVersion(versions);
 
         ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
 
@@ -78,5 +78,20 @@ public class StaticFieldsComponent implements InterfaceComponent {
                         Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
                 .initializer(vrf.fieldInitializer(defaultVersion))
                 .build());
+    }
+
+    /**
+     * Get the default version from config or fall back to the last version in list.
+     *
+     * @param versions list of version IDs
+     * @return the default version ID
+     */
+    private String getDefaultVersion(List<String> versions) {
+        String configuredDefault = config.getDefaultVersion();
+        if (configuredDefault != null && !configuredDefault.isEmpty()) {
+            return configuredDefault;
+        }
+        // Fallback to last version in list
+        return versions.get(versions.size() - 1);
     }
 }

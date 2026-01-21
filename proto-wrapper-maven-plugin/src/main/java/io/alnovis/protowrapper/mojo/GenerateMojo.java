@@ -169,6 +169,23 @@ public class GenerateMojo extends AbstractMojo {
     private boolean generateProtocolVersions;
 
     /**
+     * The default version ID for VersionContext.DEFAULT_VERSION and ProtocolVersions.DEFAULT.
+     * If not set, the last version in the versions list is used as default.
+     *
+     * <p>This is useful when versions are listed chronologically (oldest to newest)
+     * but you need a specific version (e.g., the stable one) as the default.</p>
+     *
+     * <p>Example: If you have versions [v1, v2, v3] but want v2 as default:</p>
+     * <pre>
+     * &lt;defaultVersion&gt;v2&lt;/defaultVersion&gt;
+     * </pre>
+     *
+     * @since 2.1.1
+     */
+    @Parameter(property = "proto-wrapper.defaultVersion")
+    private String defaultVersion;
+
+    /**
      * Whether to include version suffix in implementation class names.
      * If true (default for backward compatibility): MoneyV1, DateTimeV2
      * If false: Money, DateTime (version is determined by package only)
@@ -427,6 +444,20 @@ public class GenerateMojo extends AbstractMojo {
             getLog().info("Version " + config.getEffectiveName() + ":");
             getLog().info("  protoDir: " + protoDir.getAbsolutePath());
         }
+
+        // Validate defaultVersion if specified
+        if (defaultVersion != null && !defaultVersion.isEmpty()) {
+            Set<String> validVersionIds = versions.stream()
+                .map(ProtoWrapperConfig::getVersionId)
+                .collect(Collectors.toSet());
+
+            if (!validVersionIds.contains(defaultVersion)) {
+                throw new MojoExecutionException(
+                    "defaultVersion '" + defaultVersion + "' is not in the configured versions list. " +
+                    "Valid versions: " + validVersionIds);
+            }
+            getLog().info("Default version: " + defaultVersion);
+        }
     }
 
     private VersionSchema processVersion(ProtoWrapperConfig versionConfig) throws IOException, MojoExecutionException {
@@ -539,7 +570,9 @@ public class GenerateMojo extends AbstractMojo {
                 .targetJavaVersion(targetJavaVersion)
                 // Parallel generation (since 2.1.0)
                 .parallelGeneration(parallelGeneration)
-                .generationThreads(generationThreads);
+                .generationThreads(generationThreads)
+                // Default version (since 2.1.1)
+                .defaultVersion(defaultVersion);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {
