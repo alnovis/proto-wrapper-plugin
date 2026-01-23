@@ -55,6 +55,10 @@ public class WrapMethodsComponent implements InterfaceComponent {
             // parseXxxFromBytes(byte[]) method
             builder.addMethod(createParseFromBytesMethod(message, returnType,
                     invalidProtocolBufferException, existsInAllVersions));
+
+            // parsePartialXxxFromBytes(byte[]) method - lenient parsing without required fields check
+            builder.addMethod(createParsePartialFromBytesMethod(message, returnType,
+                    invalidProtocolBufferException, existsInAllVersions));
         }
     }
 
@@ -80,6 +84,25 @@ public class WrapMethodsComponent implements InterfaceComponent {
                 .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
                 .addException(exceptionType)
                 .addJavadoc("Parse bytes and wrap as $L.\n", message.getName())
+                .addJavadoc("@param bytes Protobuf-encoded bytes\n")
+                .addJavadoc("@return Wrapped $L, or null if bytes is null\n", message.getName())
+                .addJavadoc("@throws InvalidProtocolBufferException if bytes cannot be parsed\n");
+
+        applyVersionAvailability(methodBuilder, message, existsInAllVersions);
+        return methodBuilder.build();
+    }
+
+    private MethodSpec createParsePartialFromBytesMethod(MergedMessage message, ClassName returnType,
+                                                          ClassName exceptionType, boolean existsInAllVersions) {
+        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder("parsePartial" + message.getName() + "FromBytes")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(returnType)
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                .addException(exceptionType)
+                .addJavadoc("Parse bytes and wrap as $L without checking required fields.\n\n", message.getName())
+                .addJavadoc("<p>This method uses lenient parsing that does not validate proto2 required fields.\n")
+                .addJavadoc("Use this when parsing messages that may have been serialized by a different\n")
+                .addJavadoc("protocol version or when required fields validation should be skipped.</p>\n\n")
                 .addJavadoc("@param bytes Protobuf-encoded bytes\n")
                 .addJavadoc("@return Wrapped $L, or null if bytes is null\n", message.getName())
                 .addJavadoc("@throws InvalidProtocolBufferException if bytes cannot be parsed\n");

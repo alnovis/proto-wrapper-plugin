@@ -214,6 +214,27 @@ public class InterfaceGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return ctx.$L(bytes)", parseMethodName)
                 .build());
 
+        // Add static parsePartialFromBytes(VersionContext ctx, byte[] bytes) method - lenient parsing
+        String parsePartialMethodName = "parsePartial" + message.getName() + "FromBytes";
+
+        interfaceBuilder.addMethod(MethodSpec.methodBuilder("parsePartialFromBytes")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addParameter(versionContextType, "ctx")
+                .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                .returns(interfaceType)
+                .addException(invalidProtocolBufferException)
+                .addJavadoc("Parse bytes into a $L without checking required fields.\n\n", message.getName())
+                .addJavadoc("<p>This method uses lenient parsing that does not validate proto2 required fields.\n")
+                .addJavadoc("Use this when parsing messages that may have been serialized by a different\n")
+                .addJavadoc("protocol version or when required fields validation should be skipped.</p>\n\n")
+                .addJavadoc("<p>This is a convenience method equivalent to {@code ctx.$L(bytes)}.</p>\n", parsePartialMethodName)
+                .addJavadoc("@param ctx Version context determining the protocol version\n")
+                .addJavadoc("@param bytes Serialized protobuf data\n")
+                .addJavadoc("@return Parsed $L instance\n", message.getName())
+                .addJavadoc("@throws InvalidProtocolBufferException if the bytes are not valid protobuf data\n")
+                .addStatement("return ctx.$L(bytes)", parsePartialMethodName)
+                .build());
+
         TypeSpec interfaceSpec = interfaceBuilder.build();
 
         return JavaFile.builder(ctx.getApiPackage(), interfaceSpec)

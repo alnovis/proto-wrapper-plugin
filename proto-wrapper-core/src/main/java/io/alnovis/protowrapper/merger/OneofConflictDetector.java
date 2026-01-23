@@ -219,14 +219,12 @@ public class OneofConflictDetector {
         }
 
         // Check if any fields disappear in later versions
-        Set<Integer> allFieldsSeen = new LinkedHashSet<>();
         Map<Integer, String> lastSeenVersion = new LinkedHashMap<>();
 
         for (String version : sortedVersions) {
             OneofInfo oneof = versionOneofs.get(version);
             for (int fieldNumber : oneof.getFieldNumbers()) {
                 lastSeenVersion.put(fieldNumber, version);
-                allFieldsSeen.add(fieldNumber);
             }
         }
 

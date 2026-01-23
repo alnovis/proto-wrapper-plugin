@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "io.alnovis"
-version = "2.1.1"
+version = "2.2.0"
 
 // Version of the plugin to test (must be published to mavenLocal first)
 val pluginVersion = version.toString()

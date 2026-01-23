@@ -1,0 +1,33 @@
+// Field mapping test scenarios for v2
+// Tests name-based and explicit field mapping across versions
+syntax = "proto2";
+
+package io.alnovis.protowrapper.it.proto.v2;
+
+option java_package = "io.alnovis.protowrapper.it.proto.v2";
+option java_outer_classname = "FieldMapping";
+
+// Parent reference -- enhanced in v2
+message ParentRef {
+    required int64 id = 1;
+    optional string code = 2;
+    optional string label = 3;            // NEW in v2
+}
+
+// Shipment request -- parent_ref moved to field 15 (was 17 in v1).
+// doc_number (field 15 in v1) is removed in v2.
+message ShipmentRequest {
+    required int64 id = 1;
+    required string title = 2;
+    optional ParentRef parent_ref = 15;   // same logical field, moved from 17 in v1
+    optional string priority = 16;        // NEW in v2
+}
+
+// Transfer record -- amount moved to field 8 (was 10 in v1).
+message TransferRecord {
+    required int64 id = 1;
+    required string description = 2;
+    optional string currency = 3;
+    optional string reference = 4;        // NEW in v2
+    optional int64 amount = 8;            // same logical field, moved from 10 in v1
+}

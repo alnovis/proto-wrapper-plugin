@@ -3,6 +3,7 @@ package io.alnovis.protowrapper.generator;
 import io.alnovis.protowrapper.generator.versioncontext.Java8Codegen;
 import io.alnovis.protowrapper.generator.versioncontext.Java9PlusCodegen;
 import io.alnovis.protowrapper.generator.versioncontext.JavaVersionCodegen;
+import io.alnovis.protowrapper.model.FieldMapping;
 import io.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.nio.file.Path;
@@ -107,6 +108,9 @@ public class GeneratorConfig {
     // If null, the last version in the list is used as default
     private String defaultVersion = null;
 
+    // Field mappings for name-based matching (since 2.2.0)
+    private final List<FieldMapping> fieldMappings = new ArrayList<>();
+
     /**
      * Create a new builder for GeneratorConfig.
      *
@@ -165,9 +169,11 @@ public class GeneratorConfig {
      * Get protobuf major version.
      *
      * @return the protobuf major version (2 or 3)
-     * @deprecated Use {@link #getDefaultSyntax()} instead
+     * @deprecated Since 2.2.0. Use {@link #getDefaultSyntax()} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public int getProtobufMajorVersion() {
         return defaultSyntax.isProto2() ? 2 : 3;
     }
@@ -176,18 +182,22 @@ public class GeneratorConfig {
      * Check if protobuf 2 syntax.
      *
      * @return true if proto2
-     * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto2() isProto2()} instead
+     * @deprecated Since 2.2.0. Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto2() isProto2()} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public boolean isProtobuf2() { return defaultSyntax.isProto2(); }
 
     /**
      * Check if protobuf 3 syntax.
      *
      * @return true if proto3
-     * @deprecated Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto3() isProto3()} instead
+     * @deprecated Since 2.2.0. Use {@link #getDefaultSyntax()}.{@link ProtoSyntax#isProto3() isProto3()} instead.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public boolean isProtobuf3() { return defaultSyntax.isProto3() || defaultSyntax.isAuto(); }
 
     /** @return true if well-known types should be converted */
@@ -226,6 +236,16 @@ public class GeneratorConfig {
      */
     public String getDefaultVersion() {
         return defaultVersion;
+    }
+
+    /**
+     * Get the configured field mappings for name-based field matching.
+     *
+     * @return unmodifiable list of field mappings
+     * @since 2.2.0
+     */
+    public List<FieldMapping> getFieldMappings() {
+        return Collections.unmodifiableList(fieldMappings);
     }
 
     /**
@@ -318,7 +338,9 @@ public class GeneratorConfig {
         sb.append(fieldNameOverrides).append("|");
         // Include message filters
         sb.append(includedMessages).append("|");
-        sb.append(excludedMessages);
+        sb.append(excludedMessages).append("|");
+        // Include field mappings (affects generated code)
+        sb.append(fieldMappings);
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -459,14 +481,17 @@ public class GeneratorConfig {
          *
          * @param version the protobuf major version (2 or 3)
          * @return this builder
-         * @deprecated Use {@link #defaultSyntax(ProtoSyntax)} instead
+         * @deprecated Since 2.2.0. Use {@link #defaultSyntax(ProtoSyntax)} instead.
+         *             Scheduled for removal in 3.0.0.
          */
-        @Deprecated
+        @Deprecated(since = "2.2.0", forRemoval = true)
+        // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
         public Builder protobufMajorVersion(int version) {
             if (version < 2 || version > 3) {
                 throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);
             }
-            config.defaultSyntax = ProtoSyntax.fromMajorVersion(version);
+            // Inline conversion to avoid calling deprecated ProtoSyntax.fromMajorVersion()
+            config.defaultSyntax = (version == 2) ? ProtoSyntax.PROTO2 : ProtoSyntax.PROTO3;
             return this;
         }
 
@@ -634,6 +659,35 @@ public class GeneratorConfig {
          */
         public Builder defaultVersion(String version) {
             config.defaultVersion = version;
+            return this;
+        }
+
+        /**
+         * Add a field mapping for name-based field matching.
+         *
+         * @param mapping the field mapping
+         * @return this builder
+         * @since 2.2.0
+         */
+        public Builder addFieldMapping(FieldMapping mapping) {
+            if (mapping != null) {
+                config.fieldMappings.add(mapping);
+            }
+            return this;
+        }
+
+        /**
+         * Set field mappings (replaces existing).
+         *
+         * @param mappings the list of field mappings
+         * @return this builder
+         * @since 2.2.0
+         */
+        public Builder fieldMappings(List<FieldMapping> mappings) {
+            config.fieldMappings.clear();
+            if (mappings != null) {
+                config.fieldMappings.addAll(mappings);
+            }
             return this;
         }
 

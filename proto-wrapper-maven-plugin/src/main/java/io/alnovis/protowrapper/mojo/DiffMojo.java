@@ -14,6 +14,7 @@ import io.alnovis.protowrapper.diff.formatter.JsonDiffFormatter;
 import io.alnovis.protowrapper.diff.formatter.MarkdownDiffFormatter;
 import io.alnovis.protowrapper.diff.formatter.TextDiffFormatter;
 import io.alnovis.protowrapper.diff.model.BreakingChange;
+import io.alnovis.protowrapper.model.FieldMapping;
 
 import java.io.File;
 import java.io.IOException;
@@ -124,6 +125,31 @@ public class DiffMojo extends AbstractMojo {
     @Parameter(property = "includePath")
     private File includePath;
 
+    /**
+     * Field mappings for fields that have been renumbered between versions.
+     * When configured, the diff tool reports these as NUMBER_CHANGED (non-breaking)
+     * instead of separate ADDED/REMOVED entries.
+     *
+     * <pre>{@code
+     * <fieldMappings>
+     *     <fieldMapping>
+     *         <message>Order</message>
+     *         <fieldName>parent_ref</fieldName>
+     *     </fieldMapping>
+     *     <fieldMapping>
+     *         <message>Payment</message>
+     *         <fieldName>amount</fieldName>
+     *         <versionNumbers>
+     *             <v1>17</v1>
+     *             <v2>15</v2>
+     *         </versionNumbers>
+     *     </fieldMapping>
+     * </fieldMappings>
+     * }</pre>
+     */
+    @Parameter
+    private List<FieldMapping> fieldMappings;
+
     private ProtocExecutor protocExecutor;
 
     @Override
@@ -146,8 +172,12 @@ public class DiffMojo extends AbstractMojo {
             VersionSchema v2Schema = analyzeVersion(v2Directory, v2Name);
 
             // Compare schemas
+            List<FieldMapping> mappings = fieldMappings != null ? fieldMappings : List.of();
+            if (!mappings.isEmpty()) {
+                getLog().info("Using " + mappings.size() + " field mapping(s)");
+            }
             getLog().info("Comparing schemas...");
-            SchemaDiff diff = SchemaDiff.compare(v1Schema, v2Schema);
+            SchemaDiff diff = SchemaDiff.compare(v1Schema, v2Schema, mappings);
 
             // Format output
             String output = formatOutput(diff);
@@ -239,7 +269,9 @@ public class DiffMojo extends AbstractMojo {
         Path descriptorFile = tempDirectory.toPath().resolve(versionName + "-descriptor.pb");
 
         // Determine include path
-        Path includeDir = includePath != null ? includePath.toPath() : protoDir.toPath();
+        Path includeDir = includePath != null
+            ? includePath.toPath()
+            : detectIncludePath(protoDir.toPath());
 
         protocExecutor.generateDescriptor(
             protoDir.toPath(),
@@ -256,6 +288,21 @@ public class DiffMojo extends AbstractMojo {
                       schema.getEnums().size() + " enums");
 
         return schema;
+    }
+
+    /**
+     * Detects the correct proto_path for protoc based on import patterns.
+     * Delegates to {@link ProtocExecutor#detectIncludePath(Path)}.
+     *
+     * @param protoDir the proto version directory
+     * @return the correct include path for protoc
+     */
+    private Path detectIncludePath(Path protoDir) throws IOException {
+        Path detected = ProtocExecutor.detectIncludePath(protoDir);
+        if (!detected.equals(protoDir)) {
+            getLog().debug("Detected prefixed imports, using parent as proto_path: " + detected);
+        }
+        return detected;
     }
 
     /**
@@ -313,6 +360,11 @@ public class DiffMojo extends AbstractMojo {
         getLog().info("Enums: +" + summary.addedEnums() +
                       " / -" + summary.removedEnums() +
                       " / ~" + summary.modifiedEnums());
+
+        if (summary.hasRenumbers()) {
+            getLog().info("Renumbered fields: " + summary.mappedRenumbers() + " mapped, " +
+                          summary.suspectedRenumbers() + " suspected");
+        }
 
         if (diff.hasBreakingChanges()) {
             getLog().warn("Breaking changes: " + summary.errorCount() + " errors, " +

@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.1.1</version>
+    <version>2.2.0</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -60,7 +60,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `outputDirectory` | `target/generated-sources/proto-wrapper` | Output directory for generated Java files. |
 | `protoPackagePattern` | `{basePackage}.proto.{version}` | Pattern for locating protobuf-generated Java classes. Use `{version}` placeholder. |
 | `generateBuilders` | `false` | Generate Builder interfaces for creating/modifying messages. |
-| `protobufMajorVersion` | `3` | Protobuf version (2 or 3). Affects enum conversion methods. |
+| `protobufMajorVersion` | `3` | **Deprecated since 2.2.0.** Protobuf version (2 or 3). Use per-version `protoSyntax` instead. Now only used as fallback when syntax cannot be auto-detected. |
 | `includeVersionSuffix` | `true` | Include version suffix in class names (`MoneyV1` vs `Money`). |
 | `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types (Timestamp to Instant, etc.). |
 | `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for Well-Known Type fields. |
@@ -68,7 +68,8 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.5)* |
 | `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 2.1.0)* |
 | `generateProtocolVersions` | `true` | Generate `ProtocolVersions` class with version string constants. When enabled, generated code references constants instead of string literals. *(since 2.1.0)* |
-| `defaultVersion` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. If not set, the last version in the list is used. *(since 2.1.1)* |
+| `defaultVersion` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. If not set, the last version in the list is used. *(since 2.2.0)* |
+| `fieldMappings` | (none) | List of field mappings for renumbered fields. See [Field Mappings](#field-mappings). *(since 2.2.0)* |
 
 #### Generation Flags
 
@@ -88,6 +89,15 @@ Each version entry supports:
 | `protoDir` | Yes | Directory name relative to `protoRoot` containing proto files. |
 | `name` | No | Version name for generated classes. Defaults to uppercase of `protoDir` (e.g., `v1` becomes `V1`). |
 | `excludeProtos` | No | List of proto files to exclude from this version. |
+| `protoSyntax` | No | Proto syntax for this version: `proto2`, `proto3`, or `auto` (default). When `auto`, syntax is detected from `.proto` files. *(since 2.2.0)* |
+
+#### Proto Syntax Auto-Detection *(since 2.2.0)*
+
+The plugin automatically detects proto syntax from `.proto` files by parsing the `syntax = "proto2|proto3";` declaration. Files without explicit syntax declaration default to proto2 per the Protocol Buffers specification.
+
+This affects:
+- **Enum conversion methods**: proto2 uses `valueOf(int)`, proto3 uses `forNumber(int)`
+- **`has*()` method availability**: proto2 has `has*()` for all optional fields, proto3 only for message types and fields with `optional` keyword
 
 #### Example
 
@@ -96,6 +106,7 @@ Each version entry supports:
     <version>
         <protoDir>v1</protoDir>
         <name>V1</name>
+        <protoSyntax>proto2</protoSyntax> <!-- Explicit proto2 -->
         <excludeProtos>
             <excludeProto>internal.proto</excludeProto>
             <excludeProto>deprecated.proto</excludeProto>
@@ -104,10 +115,12 @@ Each version entry supports:
     <version>
         <protoDir>v2</protoDir>
         <!-- name defaults to "V2" -->
+        <!-- protoSyntax defaults to auto (detected from .proto files) -->
     </version>
     <version>
         <protoDir>v3-beta</protoDir>
         <name>V3Beta</name>
+        <protoSyntax>proto3</protoSyntax> <!-- Explicit proto3 -->
     </version>
 </versions>
 ```
@@ -137,6 +150,43 @@ Filter which messages are processed:
 - If `includeMessages` is specified, only listed messages are processed
 - If `excludeMessages` is specified, listed messages are skipped
 - Both can be used together: include takes precedence, then exclude filters
+
+### Field Mappings
+
+When fields are renumbered between schema versions, configure explicit mappings to ensure correct cross-version wrapper generation:
+
+```xml
+<configuration>
+    <fieldMappings>
+        <fieldMapping>
+            <message>TicketRequest</message>
+            <fieldName>parent_ticket</fieldName>
+            <versionNumbers>
+                <v202>17</v202>
+                <v203>15</v203>
+            </versionNumbers>
+        </fieldMapping>
+    </fieldMappings>
+</configuration>
+```
+
+**Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `message` | Yes | Message name containing the renumbered field |
+| `fieldName` | Yes | Proto field name (used for name-based matching) |
+| `versionNumbers` | No | Explicit version-to-number mapping. If omitted, matches by name only. |
+
+**How it works:**
+- Without mapping: VersionMerger matches fields by number. A renumbered field is treated as two separate changes (REMOVED at old number, ADDED at new number)
+- With mapping: VersionMerger matches the field by name first (Phase 1), generating a single unified accessor that works correctly in both versions
+- The diff tool shows mapped renumbers as `[MAPPED]` (non-breaking)
+
+**Detecting renumbered fields:**
+Run the diff tool without field mappings. If renumbered fields exist, the tool outputs suggested mappings in the `SUSPECTED RENUMBERED FIELDS` section.
+
+*(since 2.2.0)*
 
 ### Incremental Build
 
@@ -171,7 +221,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.1.1</version>
+    <version>2.2.0</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -234,7 +284,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.1.1"
+    id("io.alnovis.proto-wrapper") version "2.2.0"
 }
 ```
 
@@ -246,7 +296,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.1.1")
+        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.2.0")
     }
 }
 
@@ -294,7 +344,7 @@ protoWrapper {
 | `outputDirectory` | `DirectoryProperty` | `build/generated/sources/proto-wrapper/main/java` | Output directory. |
 | `protoPackagePattern` | `Property<String>` | `{basePackage}.proto.{version}` | Proto class package pattern. |
 | `generateBuilders` | `Property<Boolean>` | `false` | Enable Builder generation. |
-| `protobufMajorVersion` | `Property<Int>` | `3` | Protobuf version. |
+| `protobufMajorVersion` | `Property<Int>` | `3` | **Deprecated since 2.2.0.** Use per-version `protoSyntax` instead. |
 | `includeVersionSuffix` | `Property<Boolean>` | `true` | Version suffix in class names. |
 | `convertWellKnownTypes` | `Property<Boolean>` | `true` | Convert WKT to Java types. |
 | `generateRawProtoAccessors` | `Property<Boolean>` | `false` | Generate raw proto accessors for WKT. |
@@ -303,27 +353,46 @@ protoWrapper {
 | `generateProtocolVersions` | `Property<Boolean>` | `true` | Generate `ProtocolVersions` class with version constants. |
 | `defaultVersion` | `Property<String>` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. |
 
+#### Field Mappings (Gradle)
+
+```kotlin
+protoWrapper {
+    fieldMappings {
+        mapping("TicketRequest", "parent_ticket") {
+            versionNumber("v202", 17)
+            versionNumber("v203", 15)
+        }
+    }
+}
+```
+
 ### Version Configuration
 
 ```kotlin
 protoWrapper {
     versions {
-        // Simple version
+        // Simple version (auto-detect syntax)
         version("v1")
 
         // Version with configuration
         version("v2") {
             name.set("V2")
+            protoSyntax.set("proto3")  // Explicit proto3 (since 2.2.0)
             excludeProtos.set(listOf("internal.proto"))
         }
 
-        // Custom name
+        // Custom name with proto2
         version("v3-beta") {
             name.set("V3Beta")
+            protoSyntax.set("proto2")  // Explicit proto2 (since 2.2.0)
         }
     }
 }
 ```
+
+#### Per-Version Proto Syntax *(since 2.2.0)*
+
+Each version can specify its own proto syntax via `protoSyntax.set("proto2|proto3|auto")`. This allows projects with mixed proto2/proto3 versions to generate correct code for each version.
 
 ### Message Filtering
 
@@ -363,7 +432,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("io.alnovis.proto-wrapper") version "2.1.1"
+    id("io.alnovis.proto-wrapper") version "2.2.0"
 }
 
 protoWrapper {

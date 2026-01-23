@@ -167,25 +167,23 @@ public final class ContractProvider {
     }
 
     /**
-     * Derive ProtoSyntax from a single FieldInfo based on observable properties.
+     * Derive ProtoSyntax from a single FieldInfo.
      *
-     * <p>Logic:</p>
-     * <ul>
-     *   <li>Message types: always have explicit presence, use PROTO3 (behavior same as PROTO2)</li>
-     *   <li>Oneof fields: always have explicit presence, use PROTO3 (behavior same as PROTO2)</li>
-     *   <li>Repeated fields: no presence tracking, use PROTO3</li>
-     *   <li>Scalar fields:
-     *     <ul>
-     *       <li>supportsHasMethod=true → PROTO2 (or PROTO3 with explicit optional)</li>
-     *       <li>supportsHasMethod=false → PROTO3 (implicit presence)</li>
-     *     </ul>
-     *   </li>
-     * </ul>
+     * <p>This method uses the detected syntax from the FieldInfo if available,
+     * otherwise falls back to inference from observable properties.</p>
      *
      * @param fieldInfo the field info
-     * @return inferred syntax
+     * @return the syntax for this field
+     * @since 2.2.0 Now uses FieldInfo.getDetectedSyntax() as primary source
      */
     private ProtoSyntax deriveSyntax(FieldInfo fieldInfo) {
+        // Use detected syntax from proto file if available
+        ProtoSyntax detected = fieldInfo.getDetectedSyntax();
+        if (detected != null && !detected.isAuto()) {
+            return detected;
+        }
+
+        // Fallback to inference from observable properties
         // Repeated fields - doesn't matter, use PROTO3
         if (fieldInfo.isRepeated()) {
             return ProtoSyntax.PROTO3;

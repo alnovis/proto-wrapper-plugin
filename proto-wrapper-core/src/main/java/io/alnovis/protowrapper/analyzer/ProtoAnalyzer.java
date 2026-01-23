@@ -93,6 +93,9 @@ public class ProtoAnalyzer {
     public VersionSchema analyze(FileDescriptorSet descriptorSet, String version, String sourcePrefix) {
         VersionSchema schema = new VersionSchema(version);
 
+        boolean hasProto2 = false;
+        boolean hasProto3 = false;
+
         for (FileDescriptorProto fileProto : descriptorSet.getFileList()) {
             String packageName = fileProto.getPackage();
             String sourceFileName = fileProto.getName();
@@ -110,6 +113,13 @@ public class ProtoAnalyzer {
             // Determine proto syntax version
             ProtoSyntax syntax = ProtoSyntax.fromSyntaxString(fileProto.getSyntax());
 
+            // Track syntax for version-level detection
+            if (syntax == ProtoSyntax.PROTO2) {
+                hasProto2 = true;
+            } else if (syntax == ProtoSyntax.PROTO3) {
+                hasProto3 = true;
+            }
+
             // Process top-level messages
             for (DescriptorProto messageProto : fileProto.getMessageTypeList()) {
                 MessageInfo messageInfo = new MessageInfo(messageProto, packageName, sourceFileName, syntax);
@@ -124,6 +134,14 @@ public class ProtoAnalyzer {
             }
         }
 
+        // Determine dominant syntax for this version
+        // If all files are proto3, use PROTO3; otherwise use PROTO2 (conservative)
+        if (hasProto3 && !hasProto2) {
+            schema.setDetectedSyntax(ProtoSyntax.PROTO3);
+        } else {
+            schema.setDetectedSyntax(ProtoSyntax.PROTO2);
+        }
+
         return schema;
     }
 
@@ -134,6 +152,7 @@ public class ProtoAnalyzer {
         private final String version;
         private final Map<String, MessageInfo> messages;
         private final Map<String, EnumInfo> enums;
+        private ProtoSyntax detectedSyntax;
 
         /**
          * Create a new VersionSchema for the specified version.
@@ -144,6 +163,7 @@ public class ProtoAnalyzer {
             this.version = version;
             this.messages = new LinkedHashMap<>();
             this.enums = new LinkedHashMap<>();
+            this.detectedSyntax = ProtoSyntax.PROTO2; // default
         }
 
         /**
@@ -171,6 +191,24 @@ public class ProtoAnalyzer {
          */
         public String getVersion() {
             return version;
+        }
+
+        /**
+         * Returns the detected proto syntax for this version.
+         *
+         * @return the detected syntax (PROTO2 or PROTO3)
+         */
+        public ProtoSyntax getDetectedSyntax() {
+            return detectedSyntax;
+        }
+
+        /**
+         * Sets the detected proto syntax for this version.
+         *
+         * @param syntax the detected syntax
+         */
+        public void setDetectedSyntax(ProtoSyntax syntax) {
+            this.detectedSyntax = syntax != null ? syntax : ProtoSyntax.PROTO2;
         }
 
         /**

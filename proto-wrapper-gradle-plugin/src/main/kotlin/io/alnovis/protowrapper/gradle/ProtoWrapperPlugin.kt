@@ -64,6 +64,9 @@ class ProtoWrapperPlugin : Plugin<Project> {
             // Default version (since 2.1.1)
             task.defaultVersion.set(extension.defaultVersion)
 
+            // Field mappings (since 2.2.0)
+            task.fieldMappings.set(project.provider { extension.fieldMappings.toList() })
+
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }

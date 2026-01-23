@@ -91,9 +91,11 @@ public enum ProtoSyntax {
      *
      * @param majorVersion 2 for proto2, 3 for proto3
      * @return corresponding ProtoSyntax value
-     * @deprecated Use ProtoSyntax enum directly instead of integer version
+     * @deprecated Since 2.2.0. Use ProtoSyntax enum directly instead of integer version.
+     *             Scheduled for removal in 3.0.0.
      */
-    @Deprecated
+    @Deprecated(since = "2.2.0", forRemoval = true)
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     public static ProtoSyntax fromMajorVersion(int majorVersion) {
         return majorVersion == 2 ? PROTO2 : PROTO3;
     }

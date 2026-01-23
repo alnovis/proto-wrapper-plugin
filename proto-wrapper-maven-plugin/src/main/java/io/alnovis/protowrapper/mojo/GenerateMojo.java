@@ -12,6 +12,8 @@ import io.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import io.alnovis.protowrapper.analyzer.ProtocExecutor;
 import io.alnovis.protowrapper.generator.*;
 import io.alnovis.protowrapper.merger.VersionMerger;
+import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig;
+import io.alnovis.protowrapper.model.FieldMapping;
 import io.alnovis.protowrapper.model.MergedField;
 import io.alnovis.protowrapper.model.MergedMessage;
 import io.alnovis.protowrapper.model.MergedSchema;
@@ -206,8 +208,16 @@ public class GenerateMojo extends AbstractMojo {
      * Set to 2 for protobuf 2.x projects (uses valueOf() for enum conversion).
      * Set to 3 for protobuf 3.x projects (uses forNumber() for enum conversion).
      * Default is 3.
+     *
+     * @deprecated Since 2.2.0. Use per-version {@code protoSyntax} configuration instead.
+     *             The plugin now auto-detects proto syntax from .proto files and
+     *             uses the appropriate enum conversion method per version.
+     *             This global setting is only used as a fallback when syntax cannot be detected.
+     *             Scheduled for removal in 3.0.0.
      */
+    @Deprecated(since = "2.2.0", forRemoval = true)
     @Parameter(defaultValue = "3")
+    // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
     private int protobufMajorVersion;
 
     /**
@@ -241,6 +251,26 @@ public class GenerateMojo extends AbstractMojo {
      */
     @Parameter
     private List<String> excludeMessages;
+
+    /**
+     * Field mappings for overriding number-based field matching.
+     * Allows matching fields by name or by explicit version-specific numbers.
+     *
+     * <p>Use when the same field has different field numbers across proto versions.</p>
+     *
+     * <pre>{@code
+     * <fieldMappings>
+     *     <fieldMapping>
+     *         <message>Order</message>
+     *         <fieldName>parent_order</fieldName>
+     *     </fieldMapping>
+     * </fieldMappings>
+     * }</pre>
+     *
+     * @since 2.2.0
+     */
+    @Parameter
+    private List<FieldMapping> fieldMappings;
 
     /**
      * Skip plugin execution.
@@ -361,7 +391,12 @@ public class GenerateMojo extends AbstractMojo {
 
             // Merge schemas
             getLog().info("Merging " + schemas.size() + " schemas...");
-            VersionMerger merger = new VersionMerger(MavenLogger.from(getLog()));
+            MergerConfig mergerConfig = new MergerConfig();
+            if (fieldMappings != null && !fieldMappings.isEmpty()) {
+                mergerConfig.setFieldMappings(fieldMappings);
+                getLog().info("Using " + fieldMappings.size() + " field mapping(s)");
+            }
+            VersionMerger merger = new VersionMerger(mergerConfig, MavenLogger.from(getLog()));
             MergedSchema mergedSchema = merger.merge(schemas);
 
             getLog().info("Merged schema: " + mergedSchema.getMessages().size() + " messages, " +
@@ -441,8 +476,22 @@ public class GenerateMojo extends AbstractMojo {
             File descriptorFile = new File(tempDirectory, versionId + "-descriptor.pb");
             config.setGeneratedDescriptorFile(descriptorFile);
 
+            // Validate protoSyntax if specified
+            String syntaxStr = config.getProtoSyntax();
+            if (syntaxStr != null && !syntaxStr.isEmpty()) {
+                String normalized = syntaxStr.toLowerCase().trim();
+                if (!normalized.equals("proto2") && !normalized.equals("proto3") && !normalized.equals("auto")) {
+                    throw new MojoExecutionException(
+                        "Invalid protoSyntax '" + syntaxStr + "' for version " + config.getEffectiveName() +
+                        ". Valid values: proto2, proto3, auto");
+                }
+            }
+
             getLog().info("Version " + config.getEffectiveName() + ":");
             getLog().info("  protoDir: " + protoDir.getAbsolutePath());
+            if (syntaxStr != null && !syntaxStr.isEmpty()) {
+                getLog().info("  protoSyntax: " + syntaxStr);
+            }
         }
 
         // Validate defaultVersion if specified
@@ -488,6 +537,18 @@ public class GenerateMojo extends AbstractMojo {
         String sourcePrefix = versionConfig.getProtoDir() + "/";  // e.g., "v1/"
         VersionSchema schema = analyzer.analyze(descriptorFile, version, sourcePrefix);
         getLog().info("  " + schema.getStats());
+
+        // Resolve proto syntax for this version
+        ProtoSyntax configuredSyntax = versionConfig.getConfiguredSyntax();
+        ProtoSyntax resolvedSyntax;
+        if (configuredSyntax.isAuto()) {
+            // Use syntax detected from schema analysis
+            resolvedSyntax = schema.getDetectedSyntax();
+            getLog().info("  Auto-detected syntax: " + resolvedSyntax.getSyntaxString());
+        } else {
+            resolvedSyntax = configuredSyntax;
+        }
+        versionConfig.setResolvedSyntax(resolvedSyntax);
 
         // Auto-generate proto mappings
         String protoPackage = protoPackagePattern.replace("{version}", version);
@@ -572,7 +633,9 @@ public class GenerateMojo extends AbstractMojo {
                 .parallelGeneration(parallelGeneration)
                 .generationThreads(generationThreads)
                 // Default version (since 2.1.1)
-                .defaultVersion(defaultVersion);
+                .defaultVersion(defaultVersion)
+                // Field mappings (since 2.2.0)
+                .fieldMappings(fieldMappings);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {

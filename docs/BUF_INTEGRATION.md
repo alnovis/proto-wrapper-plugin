@@ -831,6 +831,6 @@ message Order {
 
 ## See Also
 
-- [ROADMAP.md](ROADMAP.md) - Version 2.2.0 buf.build integration plans
+- [ROADMAP.md](archive/ROADMAP.md) - Version 2.2.0 buf.build integration plans
 - [SCHEMA_DIFF.md](SCHEMA_DIFF.md) - proto-wrapper's schema diff tool
 - [CONFIGURATION.md](CONFIGURATION.md) - Plugin configuration options

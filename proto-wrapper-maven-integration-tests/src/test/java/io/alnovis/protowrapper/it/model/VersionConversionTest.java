@@ -194,6 +194,185 @@ public class VersionConversionTest {
         }
     }
 
+    // ==================== asVersion(VersionContext) Tests ====================
+
+    @Nested
+    @DisplayName("asVersion(VersionContext)")
+    class AsVersionByContext {
+
+        @Test
+        @DisplayName("Convert Money from v1 to v2 using VersionContext")
+        void convertMoneyV1ToV2WithContext() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+            VersionContext ctx2 = VersionContext.forVersionId("v2");
+
+            Money v1 = ctx1.newMoneyBuilder()
+                    .setAmount(1500L)
+                    .setCurrency("AUD")
+                    .build();
+
+            // Convert using VersionContext instead of Class
+            Money v2 = v1.asVersion(ctx2);
+
+            assertNotNull(v2);
+            assertEquals("v2", v2.getWrapperVersionId());
+            assertEquals(1500L, v2.getAmount());
+            assertEquals("AUD", v2.getCurrency());
+        }
+
+        @Test
+        @DisplayName("Convert Money from v2 to v1 using VersionContext")
+        void convertMoneyV2ToV1WithContext() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+            VersionContext ctx2 = VersionContext.forVersionId("v2");
+
+            Money v2 = ctx2.newMoneyBuilder()
+                    .setAmount(2500L)
+                    .setCurrency("NZD")
+                    .setExchangeRate(1.5)
+                    .build();
+
+            // Convert using VersionContext
+            Money v1 = v2.asVersion(ctx1);
+
+            assertNotNull(v1);
+            assertEquals("v1", v1.getWrapperVersionId());
+            assertEquals(2500L, v1.getAmount());
+            assertEquals("NZD", v1.getCurrency());
+        }
+
+        @Test
+        @DisplayName("asVersion(VersionContext) returns same instance when same version")
+        void returnsSameInstanceWhenSameVersionContext() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+
+            Money v1 = ctx1.newMoneyBuilder()
+                    .setAmount(800L)
+                    .setCurrency("SEK")
+                    .build();
+
+            // Convert to same version should return same instance
+            Money result = v1.asVersion(ctx1);
+
+            assertSame(v1, result);
+        }
+
+        @Test
+        @DisplayName("Round-trip conversion using VersionContext preserves data")
+        void roundTripWithContextPreservesData() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+            VersionContext ctx2 = VersionContext.forVersionId("v2");
+
+            Money original = ctx1.newMoneyBuilder()
+                    .setAmount(3333L)
+                    .setCurrency("NOK")
+                    .build();
+
+            // v1 -> v2 -> v1 using VersionContext
+            Money v2 = original.asVersion(ctx2);
+            Money backToV1 = v2.asVersion(ctx1);
+
+            assertEquals(original.getAmount(), backToV1.getAmount());
+            assertEquals(original.getCurrency(), backToV1.getCurrency());
+            assertEquals("v1", backToV1.getWrapperVersionId());
+        }
+    }
+
+    // ==================== asVersion(String) Tests ====================
+
+    @Nested
+    @DisplayName("asVersion(String)")
+    class AsVersionByVersionId {
+
+        @Test
+        @DisplayName("Convert Money from v1 to v2 using version ID string")
+        void convertMoneyV1ToV2WithString() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+
+            Money v1 = ctx1.newMoneyBuilder()
+                    .setAmount(1800L)
+                    .setCurrency("DKK")
+                    .build();
+
+            // Convert using version ID string
+            Money v2 = v1.asVersion("v2");
+
+            assertNotNull(v2);
+            assertEquals("v2", v2.getWrapperVersionId());
+            assertEquals(1800L, v2.getAmount());
+            assertEquals("DKK", v2.getCurrency());
+        }
+
+        @Test
+        @DisplayName("Convert Money from v2 to v1 using version ID string")
+        void convertMoneyV2ToV1WithString() {
+            VersionContext ctx2 = VersionContext.forVersionId("v2");
+
+            Money v2 = ctx2.newMoneyBuilder()
+                    .setAmount(2800L)
+                    .setCurrency("PLN")
+                    .setExchangeRate(4.5)
+                    .build();
+
+            // Convert using version ID string
+            Money v1 = v2.asVersion("v1");
+
+            assertNotNull(v1);
+            assertEquals("v1", v1.getWrapperVersionId());
+            assertEquals(2800L, v1.getAmount());
+            assertEquals("PLN", v1.getCurrency());
+        }
+
+        @Test
+        @DisplayName("asVersion(String) returns same instance when same version")
+        void returnsSameInstanceWhenSameVersionId() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+
+            Money v1 = ctx1.newMoneyBuilder()
+                    .setAmount(900L)
+                    .setCurrency("CZK")
+                    .build();
+
+            // Convert to same version should return same instance
+            Money result = v1.asVersion("v1");
+
+            assertSame(v1, result);
+        }
+
+        @Test
+        @DisplayName("asVersion(String) throws for invalid version ID")
+        void throwsForInvalidVersionId() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+
+            Money v1 = ctx1.newMoneyBuilder()
+                    .setAmount(100L)
+                    .setCurrency("HUF")
+                    .build();
+
+            assertThrows(IllegalArgumentException.class, () -> v1.asVersion("v999"));
+        }
+
+        @Test
+        @DisplayName("Can mix asVersion(VersionContext) and asVersion(String)")
+        void canMixConversionMethods() {
+            VersionContext ctx1 = VersionContext.forVersionId("v1");
+            VersionContext ctx2 = VersionContext.forVersionId("v2");
+
+            Money original = ctx1.newMoneyBuilder()
+                    .setAmount(4444L)
+                    .setCurrency("RON")
+                    .build();
+
+            // Use VersionContext for first conversion, String for second
+            Money step1 = original.asVersion(ctx2);
+            Money step2 = step1.asVersion("v1");
+
+            assertEquals("v1", step2.getWrapperVersionId());
+            assertEquals(4444L, step2.getAmount());
+            assertEquals("RON", step2.getCurrency());
+        }
+    }
+
     @Nested
     @DisplayName("VersionContext parseFromBytes")
     class ParseFromBytes {

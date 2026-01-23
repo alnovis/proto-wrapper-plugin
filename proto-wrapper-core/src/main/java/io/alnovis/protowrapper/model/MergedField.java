@@ -208,7 +208,10 @@ public class MergedField {
     private final Map<String, String> typesPerVersion; // Version -> javaType
     private final Map<String, String> oneofNamePerVersion; // Version -> oneof name (null if not in oneof)
     private final Map<String, Boolean> optionalityPerVersion; // Version -> isOptional
+    private final Map<String, ProtoSyntax> syntaxPerVersion; // Version -> ProtoSyntax
+    private final Map<String, Integer> numberPerVersion; // Version -> field number (for name-mapped fields)
     private final boolean isInOneof; // true if in oneof in ANY version
+    private final boolean isNameMapped; // true if matched by field name (not number)
     private final WellKnownTypeInfo wellKnownType; // null if not a well-known type
     private final boolean allVersionsSupportHas; // true if ALL versions have has*() method available
 
@@ -238,6 +241,16 @@ public class MergedField {
         this.typesPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.typesPerVersion));
         this.oneofNamePerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.oneofNamePerVersion));
         this.optionalityPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.optionalityPerVersion));
+        this.syntaxPerVersion = Collections.unmodifiableMap(new LinkedHashMap<>(builder.syntaxPerVersion));
+        this.isNameMapped = builder.isNameMapped;
+        // Build numberPerVersion for name-mapped fields (different numbers across versions)
+        if (builder.isNameMapped) {
+            Map<String, Integer> numMap = new LinkedHashMap<>();
+            builder.versionFields.forEach((version, field) -> numMap.put(version, field.getNumber()));
+            this.numberPerVersion = Collections.unmodifiableMap(numMap);
+        } else {
+            this.numberPerVersion = Collections.emptyMap();
+        }
         this.isInOneof = !builder.oneofNamePerVersion.isEmpty();
         this.wellKnownType = firstField.getWellKnownType();
         // Check if ALL versions support has*() method
@@ -262,11 +275,13 @@ public class MergedField {
         private final Map<String, String> typesPerVersion = new LinkedHashMap<>();
         private final Map<String, String> oneofNamePerVersion = new LinkedHashMap<>();
         private final Map<String, Boolean> optionalityPerVersion = new LinkedHashMap<>();
+        private final Map<String, ProtoSyntax> syntaxPerVersion = new LinkedHashMap<>();
         private String resolvedJavaType;
         private String resolvedGetterType;
         private ConflictType conflictType;
         private ConflictType mapValueConflictType;
         private String resolvedMapValueType;
+        private boolean isNameMapped;
 
         /**
          * Add a version field.
@@ -279,6 +294,7 @@ public class MergedField {
             versionFields.put(version, field);
             typesPerVersion.put(version, field.getJavaType());
             optionalityPerVersion.put(version, field.isOptional());
+            syntaxPerVersion.put(version, field.getDetectedSyntax());
             if (field.isInOneof()) {
                 oneofNamePerVersion.put(version, field.getOneofName());
             }
@@ -350,6 +366,18 @@ public class MergedField {
         }
 
         /**
+         * Mark this field as name-mapped (matched by field name instead of number).
+         *
+         * @param nameMapped true if this field was matched by name
+         * @return This builder
+         * @since 2.2.0
+         */
+        public Builder nameMapped(boolean nameMapped) {
+            this.isNameMapped = nameMapped;
+            return this;
+        }
+
+        /**
          * Build the immutable MergedField.
          *
          * @return New MergedField instance
@@ -373,9 +401,49 @@ public class MergedField {
         return javaName;
     }
 
-    /** @return the proto field number */
+    /** @return the proto field number (from the first version; may differ across versions if name-mapped) */
     public int getNumber() {
         return number;
+    }
+
+    /**
+     * Check if this field was matched by name (via fieldMappings) instead of by field number.
+     *
+     * <p>Name-mapped fields may have different field numbers across versions.
+     * Use {@link #getNumberForVersion(String)} to get the correct number for a specific version.</p>
+     *
+     * @return true if this field was matched by name
+     * @since 2.2.0
+     */
+    public boolean isNameMapped() {
+        return isNameMapped;
+    }
+
+    /**
+     * Get the field number for a specific version.
+     *
+     * <p>For name-mapped fields, the field number may differ across versions.
+     * For number-matched fields, this returns the same number for all versions.</p>
+     *
+     * @param version Version identifier
+     * @return field number for that version, or the default number if not name-mapped
+     * @since 2.2.0
+     */
+    public int getNumberForVersion(String version) {
+        if (!isNameMapped || numberPerVersion.isEmpty()) {
+            return number;
+        }
+        return numberPerVersion.getOrDefault(version, number);
+    }
+
+    /**
+     * Get the field numbers per version map (only populated for name-mapped fields).
+     *
+     * @return unmodifiable map of version to field number, empty if not name-mapped
+     * @since 2.2.0
+     */
+    public Map<String, Integer> getNumberPerVersion() {
+        return numberPerVersion;
     }
 
     /** @return the Java type string */
@@ -638,6 +706,25 @@ public class MergedField {
      */
     public Map<String, Boolean> getOptionalityPerVersion() {
         return optionalityPerVersion;
+    }
+
+    /**
+     * Get the proto syntax for a specific version.
+     *
+     * @param version Version identifier
+     * @return ProtoSyntax for that version, or PROTO3 as default
+     */
+    public ProtoSyntax getSyntaxForVersion(String version) {
+        return syntaxPerVersion.getOrDefault(version, ProtoSyntax.PROTO3);
+    }
+
+    /**
+     * Get syntax per version map.
+     *
+     * @return Unmodifiable map of version to ProtoSyntax
+     */
+    public Map<String, ProtoSyntax> getSyntaxPerVersion() {
+        return syntaxPerVersion;
     }
 
     /**

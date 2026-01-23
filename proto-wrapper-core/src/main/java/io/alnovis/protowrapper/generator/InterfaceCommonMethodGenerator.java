@@ -55,6 +55,8 @@ public final class InterfaceCommonMethodGenerator {
         // and are not generated here to avoid duplication.
 
         addAsVersion(builder, message);
+        addAsVersionByContext(builder, message);
+        addAsVersionByVersionId(builder, message);
         addAsVersionStrict(builder, message);
         addGetContext(builder);
         addFieldsInaccessibleInVersion(builder);
@@ -99,6 +101,40 @@ public final class InterfaceCommonMethodGenerator {
                 .addJavadoc("@param versionClass Target version class\n")
                 .addJavadoc("@return Instance of the specified version\n")
                 .addJavadoc("@throws IllegalStateException if any populated fields would become inaccessible\n")
+                .build());
+    }
+
+    private void addAsVersionByContext(TypeSpec.Builder builder, MergedMessage message) {
+        ClassName interfaceType = ClassName.get(config.getApiPackage(), message.getInterfaceName());
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+
+        builder.addMethod(MethodSpec.methodBuilder("asVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(interfaceType)
+                .addParameter(versionContextType, "targetContext")
+                .addJavadoc("Convert to a specific version using VersionContext.\n")
+                .addJavadoc("<p>This is a convenient alternative to {@link #asVersion(Class)} that allows\n")
+                .addJavadoc("conversion without knowing the specific implementation class.</p>\n")
+                .addJavadoc("@param targetContext VersionContext for the target version\n")
+                .addJavadoc("@return Instance converted to the target version\n")
+                .build());
+    }
+
+    private void addAsVersionByVersionId(TypeSpec.Builder builder, MergedMessage message) {
+        ClassName interfaceType = ClassName.get(config.getApiPackage(), message.getInterfaceName());
+        ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+
+        builder.addMethod(MethodSpec.methodBuilder("asVersion")
+                .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                .returns(interfaceType)
+                .addParameter(String.class, "targetVersionId")
+                .addJavadoc("Convert to a specific version by version identifier.\n")
+                .addJavadoc("<p>This is a convenient alternative to {@link #asVersion(Class)} that allows\n")
+                .addJavadoc("conversion using just the version ID string (e.g., \"v202\", \"v203\").</p>\n")
+                .addJavadoc("@param targetVersionId Version identifier (e.g., \"v202\", \"v203\")\n")
+                .addJavadoc("@return Instance converted to the target version\n")
+                .addJavadoc("@throws IllegalArgumentException if targetVersionId is not supported\n")
+                .addStatement("return asVersion($T.forVersionId(targetVersionId))", versionContextType)
                 .build());
     }
 

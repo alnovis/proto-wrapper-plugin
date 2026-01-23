@@ -770,9 +770,10 @@ byte[] bytes = order.toBytes();
 ```xml
 <configuration>
     <generateBuilders>true</generateBuilders>
-    <protobufMajorVersion>3</protobufMajorVersion>
 </configuration>
 ```
+
+> **Note:** Proto syntax (proto2/proto3) is now auto-detected from `.proto` files. For mixed projects, use per-version `protoSyntax` configuration — see [Configuration Reference](CONFIGURATION.md). *(since 2.2.0)*
 
 Builder interfaces are generated for modification. Suitable for:
 - Creating new proto messages
@@ -1093,6 +1094,96 @@ void testCryptoOnlyInV2() {
     assertThat(v2Payment.getCrypto().getCurrency()).isEqualTo("ETH");
 }
 ```
+
+---
+
+## Working with Renumbered Fields
+
+When a field changes its number between schema versions, the plugin needs explicit configuration to generate correct wrappers.
+
+### Detecting Renumbered Fields
+
+Run the diff tool to identify suspected renumbers:
+
+```bash
+mvn proto-wrapper:diff -Dv1=proto/v202 -Dv2=proto/v203 -Dv1Name=v202 -Dv2Name=v203
+```
+
+The output includes a `SUSPECTED RENUMBERED FIELDS` section with suggested mappings:
+
+```
+SUSPECTED RENUMBERED FIELDS
+----------------------------
+  TicketRequest.parent_ticket: #17 -> #15 (HIGH confidence)
+    Suggested mapping:
+      <fieldMapping>
+          <message>TicketRequest</message>
+          <fieldName>parent_ticket</fieldName>
+          <versionNumbers><v202>17</v202><v203>15</v203></versionNumbers>
+      </fieldMapping>
+```
+
+### Configuring Field Mappings
+
+Add the suggested mappings to your plugin configuration:
+
+```xml
+<configuration>
+    <fieldMappings>
+        <fieldMapping>
+            <message>TicketRequest</message>
+            <fieldName>parent_ticket</fieldName>
+            <versionNumbers>
+                <v202>17</v202>
+                <v203>15</v203>
+            </versionNumbers>
+        </fieldMapping>
+    </fieldMappings>
+</configuration>
+```
+
+### Generated Code with Field Mappings
+
+With the mapping configured, the plugin generates a unified accessor:
+
+```java
+// Interface — works for both versions
+public interface TicketRequest {
+    ParentTicket getParentTicket();
+    boolean hasParentTicket();
+}
+
+// v202 implementation — reads from field #17
+protected ParentTicket extractParentTicket(Ticket.TicketRequest proto) {
+    return new ParentTicket(proto.getParentTicket()); // field 17
+}
+
+// v203 implementation — reads from field #15
+protected ParentTicket extractParentTicket(Ticket.TicketRequest proto) {
+    return new ParentTicket(proto.getParentTicket()); // field 15
+}
+```
+
+### Displaced Fields
+
+A common pattern is when a renumbered field takes the position of another field that was removed:
+
+```
+v202: shift_document_number = 15, parent_ticket = 17
+v203: parent_ticket = 15  (shift_document_number removed)
+```
+
+The diff tool detects this "displaced field" scenario automatically and suggests the correct mapping.
+
+### Verifying the Mapping
+
+After adding field mappings, run the diff tool again to confirm:
+
+```
+Renumbers: 1 mapped, 0 suspected
+```
+
+The mapped renumber is treated as non-breaking (INFO level).
 
 ---
 
