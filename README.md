@@ -267,4 +267,3 @@ Apache License 2.0 - see [LICENSE](LICENSE) for details.
 - [Roadmap](docs/archive/ROADMAP.md) - Planned features and releases
 - [Release Notes](RELEASE_NOTES.md) - Detailed release information
 
-![](https://static.scarf.sh/a.png?x-pxid=22046374-62ec-48ff-9d2c-09a500e91b78)

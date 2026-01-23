@@ -120,7 +120,7 @@ public final class NestedTypeGenerator {
 
         // Add enum constants
         for (MergedEnumValue value : enumInfo.getValues()) {
-            enumBuilder.addEnumConstant(value.getName(),
+            enumBuilder.addEnumConstant(enumInfo.getStrippedValueName(value),
                     TypeSpec.anonymousClassBuilder("$L", value.getNumber()).build());
         }
 
