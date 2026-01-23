@@ -41,6 +41,9 @@ dependency-reduced-pom.xml
 # Logs
 *.log
 
+# Qodana
+*.sarif.json
+
 # Service md documents
 *.ru.md
 docs/archive/
