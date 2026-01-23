@@ -205,6 +205,92 @@ class EnumGenerationTest {
         }
     }
 
+    @Nested
+    @DisplayName("Proto enum conversion methods")
+    class ProtoEnumConversionTest {
+
+        @Test
+        @DisplayName("fromProto converts v1 proto enum to wrapper enum")
+        void fromProtoConvertsV1() {
+            // V1 proto enum
+            com.example.proto.v1.Common.Status protoStatus = com.example.proto.v1.Common.Status.ACTIVE;
+
+            // Convert to wrapper enum
+            Status wrapperStatus = Status.fromProto(protoStatus);
+
+            assertThat(wrapperStatus).isEqualTo(Status.ACTIVE);
+            assertThat(wrapperStatus.getValue()).isEqualTo(protoStatus.getNumber());
+        }
+
+        @Test
+        @DisplayName("fromProto converts v2 proto enum to wrapper enum")
+        void fromProtoConvertsV2() {
+            // V2 proto enum
+            com.example.proto.v2.Common.Status protoStatus = com.example.proto.v2.Common.Status.SUSPENDED;
+
+            // Convert to wrapper enum
+            Status wrapperStatus = Status.fromProto(protoStatus);
+
+            assertThat(wrapperStatus).isEqualTo(Status.SUSPENDED);
+            assertThat(wrapperStatus.getValue()).isEqualTo(protoStatus.getNumber());
+        }
+
+        @Test
+        @DisplayName("fromProto returns null for null input")
+        void fromProtoReturnsNullForNull() {
+            assertThat(Status.fromProto(null)).isNull();
+        }
+
+        @Test
+        @DisplayName("fromProto throws for non-proto enum")
+        void fromProtoThrowsForNonProtoEnum() {
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> {
+                Status.fromProto("not an enum");
+            });
+        }
+
+        @Test
+        @DisplayName("matches returns true for matching v1 proto enum")
+        void matchesReturnsTrueForV1() {
+            com.example.proto.v1.Common.Status protoStatus = com.example.proto.v1.Common.Status.ACTIVE;
+
+            assertThat(Status.ACTIVE.matches(protoStatus)).isTrue();
+            assertThat(Status.INACTIVE.matches(protoStatus)).isFalse();
+        }
+
+        @Test
+        @DisplayName("matches returns true for matching v2 proto enum")
+        void matchesReturnsTrueForV2() {
+            com.example.proto.v2.Common.Status protoStatus = com.example.proto.v2.Common.Status.ACTIVE;
+
+            assertThat(Status.ACTIVE.matches(protoStatus)).isTrue();
+            assertThat(Status.DELETED.matches(protoStatus)).isFalse();
+        }
+
+        @Test
+        @DisplayName("matches works across different proto versions")
+        void matchesWorksCrossVersion() {
+            com.example.proto.v1.Common.Status v1Status = com.example.proto.v1.Common.Status.DELETED;
+            com.example.proto.v2.Common.Status v2Status = com.example.proto.v2.Common.Status.DELETED;
+
+            // Same wrapper enum matches both versions
+            assertThat(Status.DELETED.matches(v1Status)).isTrue();
+            assertThat(Status.DELETED.matches(v2Status)).isTrue();
+        }
+
+        @Test
+        @DisplayName("matches returns false for null")
+        void matchesReturnsFalseForNull() {
+            assertThat(Status.ACTIVE.matches(null)).isFalse();
+        }
+
+        @Test
+        @DisplayName("matches returns false for non-proto enum")
+        void matchesReturnsFalseForNonProtoEnum() {
+            assertThat(Status.ACTIVE.matches("not an enum")).isFalse();
+        }
+    }
+
     private <E extends Enum<E>> Set<String> getEnumValues(Class<E> enumClass) {
         return Arrays.stream(enumClass.getEnumConstants())
                 .map(Enum::name)

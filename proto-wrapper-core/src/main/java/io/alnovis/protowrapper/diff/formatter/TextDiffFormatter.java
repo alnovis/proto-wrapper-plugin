@@ -47,6 +47,15 @@ public class TextDiffFormatter implements DiffFormatter {
             formatBreakingChanges(diff.getBreakingChanges(), sb);
         }
 
+        // Suspected renumbered fields
+        if (diff.hasSuspectedRenumbers()) {
+            sb.append(SEPARATOR).append("\n");
+            sb.append("SUSPECTED RENUMBERED FIELDS\n");
+            sb.append(SEPARATOR).append("\n\n");
+
+            formatSuspectedRenumbers(diff, sb);
+        }
+
         // Summary
         sb.append(SEPARATOR).append("\n");
         sb.append("SUMMARY\n");
@@ -136,15 +145,26 @@ public class TextDiffFormatter implements DiffFormatter {
               .append(", #").append(fc.fieldNumber()).append(")\n");
         }
 
-        // Modified fields
+        // Modified fields (including renumbered)
         for (FieldChange fc : md.getModifiedFields()) {
-            sb.append(indent).append("~ Changed field: ").append(fc.fieldName()).append("\n");
-            for (String change : fc.changes()) {
-                sb.append(indent).append("    ").append(change);
-                if (fc.isBreaking()) {
-                    sb.append(" [BREAKING]");
+            if (fc.changeType() == ChangeType.NUMBER_CHANGED && fc.isRenumberedByMapping()) {
+                sb.append(indent).append("~ Renumbered field: ").append(fc.fieldName())
+                  .append(" ").append(fc.getRenumberDescription()).append(" [MAPPED]\n");
+                // Show any additional changes (type, label, etc.)
+                for (String change : fc.changes()) {
+                    if (!change.startsWith("Number:")) {
+                        sb.append(indent).append("    ").append(change).append("\n");
+                    }
                 }
-                sb.append("\n");
+            } else {
+                sb.append(indent).append("~ Changed field: ").append(fc.fieldName()).append("\n");
+                for (String change : fc.changes()) {
+                    sb.append(indent).append("    ").append(change);
+                    if (fc.isBreaking()) {
+                        sb.append(" [BREAKING]");
+                    }
+                    sb.append("\n");
+                }
             }
         }
 
@@ -283,6 +303,29 @@ public class TextDiffFormatter implements DiffFormatter {
         }
     }
 
+    private void formatSuspectedRenumbers(SchemaDiff diff, StringBuilder sb) {
+        for (SuspectedRenumber sr : diff.getSuspectedRenumbers()) {
+            sb.append("  [").append(sr.confidence()).append("] ")
+              .append(sr.messageName()).append(".").append(sr.fieldName())
+              .append(": #").append(sr.v1Number())
+              .append(" (").append(diff.getV1Name()).append(")")
+              .append(" -> #").append(sr.v2Number())
+              .append(" (").append(diff.getV2Name()).append(")");
+
+            if (sr.v1Field() != null) {
+                sb.append(" — ").append(FieldChange.formatType(sr.v1Field()));
+            }
+            sb.append("\n");
+
+            // Suggest mapping configuration
+            sb.append("         -> Add fieldMapping: <fieldMapping>")
+              .append("<message>").append(sr.messageName()).append("</message>")
+              .append("<fieldName>").append(sr.fieldName()).append("</fieldName>")
+              .append("</fieldMapping>\n");
+        }
+        sb.append("\n");
+    }
+
     private void formatSummary(SchemaDiff.DiffSummary summary, StringBuilder sb) {
         sb.append("Messages:  +").append(summary.addedMessages())
           .append(" added, ~").append(summary.modifiedMessages())
@@ -298,6 +341,12 @@ public class TextDiffFormatter implements DiffFormatter {
           .append(" errors, ").append(summary.warningCount())
           .append(" warnings, ").append(summary.infoCount())
           .append(" plugin-handled\n");
+
+        if (summary.hasRenumbers()) {
+            sb.append("Renumbers: ").append(summary.mappedRenumbers())
+              .append(" mapped, ").append(summary.suspectedRenumbers())
+              .append(" suspected\n");
+        }
 
         if (summary.infoCount() > 0) {
             sb.append("\nNote: Plugin-handled changes are type conversions that proto-wrapper\n");

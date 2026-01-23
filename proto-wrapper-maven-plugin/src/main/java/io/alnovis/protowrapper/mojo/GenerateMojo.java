@@ -12,6 +12,8 @@ import io.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import io.alnovis.protowrapper.analyzer.ProtocExecutor;
 import io.alnovis.protowrapper.generator.*;
 import io.alnovis.protowrapper.merger.VersionMerger;
+import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig;
+import io.alnovis.protowrapper.model.FieldMapping;
 import io.alnovis.protowrapper.model.MergedField;
 import io.alnovis.protowrapper.model.MergedMessage;
 import io.alnovis.protowrapper.model.MergedSchema;
@@ -251,6 +253,26 @@ public class GenerateMojo extends AbstractMojo {
     private List<String> excludeMessages;
 
     /**
+     * Field mappings for overriding number-based field matching.
+     * Allows matching fields by name or by explicit version-specific numbers.
+     *
+     * <p>Use when the same field has different field numbers across proto versions.</p>
+     *
+     * <pre>{@code
+     * <fieldMappings>
+     *     <fieldMapping>
+     *         <message>Order</message>
+     *         <fieldName>parent_order</fieldName>
+     *     </fieldMapping>
+     * </fieldMappings>
+     * }</pre>
+     *
+     * @since 2.2.0
+     */
+    @Parameter
+    private List<FieldMapping> fieldMappings;
+
+    /**
      * Skip plugin execution.
      */
     @Parameter(property = "proto-wrapper.skip", defaultValue = "false")
@@ -369,7 +391,12 @@ public class GenerateMojo extends AbstractMojo {
 
             // Merge schemas
             getLog().info("Merging " + schemas.size() + " schemas...");
-            VersionMerger merger = new VersionMerger(MavenLogger.from(getLog()));
+            MergerConfig mergerConfig = new MergerConfig();
+            if (fieldMappings != null && !fieldMappings.isEmpty()) {
+                mergerConfig.setFieldMappings(fieldMappings);
+                getLog().info("Using " + fieldMappings.size() + " field mapping(s)");
+            }
+            VersionMerger merger = new VersionMerger(mergerConfig, MavenLogger.from(getLog()));
             MergedSchema mergedSchema = merger.merge(schemas);
 
             getLog().info("Merged schema: " + mergedSchema.getMessages().size() + " messages, " +
@@ -606,7 +633,9 @@ public class GenerateMojo extends AbstractMojo {
                 .parallelGeneration(parallelGeneration)
                 .generationThreads(generationThreads)
                 // Default version (since 2.1.1)
-                .defaultVersion(defaultVersion);
+                .defaultVersion(defaultVersion)
+                // Field mappings (since 2.2.0)
+                .fieldMappings(fieldMappings);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {

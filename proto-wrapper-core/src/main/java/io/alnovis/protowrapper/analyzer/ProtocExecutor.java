@@ -486,6 +486,51 @@ public class ProtocExecutor {
         return mappings;
     }
 
+    /**
+     * Detects the correct proto_path for protoc based on import patterns in proto files.
+     *
+     * <p>Proto files may use imports with a version directory prefix
+     * (e.g., {@code import "v2/common.proto";}). In this case, the proto_path
+     * must be the parent of the version directory, not the version directory itself.</p>
+     *
+     * @param protoDir the proto version directory to analyze
+     * @return the correct include path for protoc
+     * @throws IOException if proto files cannot be read
+     */
+    public static Path detectIncludePath(Path protoDir) throws IOException {
+        String dirName = protoDir.getFileName().toString();
+        String prefix = "\"" + dirName + "/";
+
+        // Scan proto files for import statements
+        List<Path> protoFiles;
+        try (var stream = Files.walk(protoDir, 1)) {
+            protoFiles = stream
+                .filter(p -> p.toString().endsWith(".proto"))
+                .limit(5)  // Check only first few files
+                .toList();
+        }
+
+        for (Path protoFile : protoFiles) {
+            List<String> lines = Files.readAllLines(protoFile);
+            for (String line : lines) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("import ")) {
+                    if (trimmed.contains(prefix)) {
+                        // Import uses directory prefix — proto_path must be parent
+                        return protoDir.getParent();
+                    }
+                    // Found a non-prefixed import — use directory itself
+                    if (trimmed.matches("import\\s+\"[^/\"]+\\.proto\".*")) {
+                        return protoDir;
+                    }
+                }
+            }
+        }
+
+        // Default: use the directory itself
+        return protoDir;
+    }
+
     private String toCamelCase(String input) {
         StringBuilder result = new StringBuilder();
         boolean capitalizeNext = true;

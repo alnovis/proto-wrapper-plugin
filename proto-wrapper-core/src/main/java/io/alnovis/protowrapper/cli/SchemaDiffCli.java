@@ -273,7 +273,8 @@ public class SchemaDiffCli implements Callable<Integer> {
             // Generate descriptor file
             Path descriptorFile = tempDir.resolve(versionName + "-descriptor.pb");
 
-            protoc.generateDescriptor(protoDir, descriptorFile, protoDir);
+            Path includeDir = ProtocExecutor.detectIncludePath(protoDir);
+            protoc.generateDescriptor(protoDir, descriptorFile, includeDir);
 
             // Analyze descriptor
             ProtoAnalyzer analyzer = new ProtoAnalyzer();

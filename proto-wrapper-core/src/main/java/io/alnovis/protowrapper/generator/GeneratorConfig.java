@@ -3,6 +3,7 @@ package io.alnovis.protowrapper.generator;
 import io.alnovis.protowrapper.generator.versioncontext.Java8Codegen;
 import io.alnovis.protowrapper.generator.versioncontext.Java9PlusCodegen;
 import io.alnovis.protowrapper.generator.versioncontext.JavaVersionCodegen;
+import io.alnovis.protowrapper.model.FieldMapping;
 import io.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.nio.file.Path;
@@ -106,6 +107,9 @@ public class GeneratorConfig {
     // Default version for VersionContext.DEFAULT_VERSION and ProtocolVersions.DEFAULT (since 2.1.1)
     // If null, the last version in the list is used as default
     private String defaultVersion = null;
+
+    // Field mappings for name-based matching (since 2.2.0)
+    private final List<FieldMapping> fieldMappings = new ArrayList<>();
 
     /**
      * Create a new builder for GeneratorConfig.
@@ -235,6 +239,16 @@ public class GeneratorConfig {
     }
 
     /**
+     * Get the configured field mappings for name-based field matching.
+     *
+     * @return unmodifiable list of field mappings
+     * @since 2.2.0
+     */
+    public List<FieldMapping> getFieldMappings() {
+        return Collections.unmodifiableList(fieldMappings);
+    }
+
+    /**
      * Get the Java version-specific code generation strategy.
      *
      * <p>Returns appropriate strategy based on target Java version:</p>
@@ -324,7 +338,9 @@ public class GeneratorConfig {
         sb.append(fieldNameOverrides).append("|");
         // Include message filters
         sb.append(includedMessages).append("|");
-        sb.append(excludedMessages);
+        sb.append(excludedMessages).append("|");
+        // Include field mappings (affects generated code)
+        sb.append(fieldMappings);
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -643,6 +659,35 @@ public class GeneratorConfig {
          */
         public Builder defaultVersion(String version) {
             config.defaultVersion = version;
+            return this;
+        }
+
+        /**
+         * Add a field mapping for name-based field matching.
+         *
+         * @param mapping the field mapping
+         * @return this builder
+         * @since 2.2.0
+         */
+        public Builder addFieldMapping(FieldMapping mapping) {
+            if (mapping != null) {
+                config.fieldMappings.add(mapping);
+            }
+            return this;
+        }
+
+        /**
+         * Set field mappings (replaces existing).
+         *
+         * @param mappings the list of field mappings
+         * @return this builder
+         * @since 2.2.0
+         */
+        public Builder fieldMappings(List<FieldMapping> mappings) {
+            config.fieldMappings.clear();
+            if (mappings != null) {
+                config.fieldMappings.addAll(mappings);
+            }
             return this;
         }
 

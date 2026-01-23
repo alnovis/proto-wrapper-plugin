@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class VersionMerger {
 
     private final PluginLogger logger;
+    private final MergerConfig config;
 
     /**
      * Create a new VersionMerger with default configuration.
@@ -53,11 +54,11 @@ public class VersionMerger {
     /**
      * Create a new VersionMerger with the specified configuration and logger.
      *
-     * @param config the merger configuration (reserved for future use)
+     * @param config the merger configuration
      * @param logger the logger to use
      */
-    @SuppressWarnings("unused") // config parameter kept for API compatibility
     public VersionMerger(MergerConfig config, PluginLogger logger) {
+        this.config = config;
         this.logger = logger;
     }
 
@@ -372,9 +373,69 @@ public class VersionMerger {
             }
         });
 
-        // Merge fields with same number
+        // Apply field mappings (name-based matching before number-based)
+        List<FieldMapping> messageMappings = config.getFieldMappingsForMessage(messageName);
+        Set<FieldWithVersion> overriddenFields = new LinkedHashSet<>();
+        List<List<FieldWithVersion>> nameMatchedGroups = new ArrayList<>();
+
+        if (!messageMappings.isEmpty()) {
+            // Collect all fields as a flat list for mapping lookup
+            List<FieldWithVersion> allFields = fieldsByNumber.values().stream()
+                    .flatMap(Collection::stream)
+                    .toList();
+
+            for (FieldMapping mapping : messageMappings) {
+                List<FieldWithVersion> matched;
+
+                if (mapping.hasExplicitNumbers()) {
+                    // Explicit form: match by version-specific numbers
+                    matched = allFields.stream()
+                            .filter(fv -> {
+                                Integer expectedNumber = mapping.getVersionNumbers().get(fv.version());
+                                return expectedNumber != null && expectedNumber == fv.field().getNumber();
+                            })
+                            .toList();
+                } else {
+                    // Simple form: match by field name
+                    matched = allFields.stream()
+                            .filter(fv -> fv.field().getProtoName().equals(mapping.getFieldName()))
+                            .toList();
+                }
+
+                if (matched.size() >= 2) {
+                    nameMatchedGroups.add(matched);
+                    overriddenFields.addAll(matched);
+                    logger.info(String.format("FieldMapping applied: %s.%s matched %d fields across versions",
+                            messageName, mapping.getFieldName(), matched.size()));
+                } else if (matched.size() == 1) {
+                    logger.warn(String.format("FieldMapping %s.%s matched only 1 field (version: %s) - no effect",
+                            messageName, mapping.getFieldName(), matched.get(0).version()));
+                } else {
+                    logger.warn(String.format("FieldMapping %s.%s matched no fields - check configuration",
+                            messageName, mapping.getFieldName()));
+                }
+            }
+        }
+
+        // Merge fields by number (excluding overridden fields)
         fieldsByNumber.values().stream()
+                .map(fields -> {
+                    if (overriddenFields.isEmpty()) {
+                        return fields;
+                    }
+                    // Remove overridden fields from number-based groups
+                    return fields.stream()
+                            .filter(fv -> !overriddenFields.contains(fv))
+                            .toList();
+                })
+                .filter(fields -> !fields.isEmpty())
                 .map(this::mergeFields)
+                .filter(Objects::nonNull)
+                .forEach(merged::addField);
+
+        // Merge name-matched groups
+        nameMatchedGroups.stream()
+                .map(this::mergeNameMatchedFields)
                 .filter(Objects::nonNull)
                 .forEach(merged::addField);
 
@@ -382,6 +443,17 @@ public class VersionMerger {
         mergeOneofGroups(merged, messageName, schemas);
 
         return merged.getPresentInVersions().isEmpty() ? null : merged;
+    }
+
+    /**
+     * Merge fields matched by name (from fieldMappings).
+     * Similar to mergeFields() but marks the result as name-mapped.
+     */
+    private MergedField mergeNameMatchedFields(List<FieldWithVersion> fields) {
+        if (fields.isEmpty()) {
+            return null;
+        }
+        return mergeFields(fields, true);
     }
 
     /**
@@ -594,12 +666,17 @@ public class VersionMerger {
     }
 
     private MergedField mergeFields(List<FieldWithVersion> fields) {
+        return mergeFields(fields, false);
+    }
+
+    private MergedField mergeFields(List<FieldWithVersion> fields, boolean isNameMapped) {
         if (fields.isEmpty()) {
             return null;
         }
 
         // Build merged field using builder for proper conflict handling
         MergedField.Builder builder = MergedField.builder();
+        builder.nameMapped(isNameMapped);
 
         // Add all version fields
         fields.forEach(fv -> builder.addVersionField(fv.version(), fv.field()));
@@ -1114,6 +1191,7 @@ public class VersionMerger {
         private final Map<String, String> typeConflictResolutions = new HashMap<>();
         private final Set<String> excludedMessages = new HashSet<>();
         private final Set<String> excludedFields = new HashSet<>();
+        private final List<FieldMapping> fieldMappings = new ArrayList<>();
 
         /**
          * Add a field name mapping (for typos or renames).
@@ -1202,6 +1280,61 @@ public class VersionMerger {
          */
         public boolean isFieldExcluded(String messageName, String fieldName) {
             return excludedFields.contains(messageName + "." + fieldName);
+        }
+
+        /**
+         * Add a field mapping for name-based or explicit number-based field matching.
+         *
+         * @param mapping the field mapping to add
+         * @return this configuration for method chaining
+         * @since 2.2.0
+         */
+        public MergerConfig addFieldMapping(FieldMapping mapping) {
+            if (mapping != null) {
+                mapping.validate();
+                fieldMappings.add(mapping);
+            }
+            return this;
+        }
+
+        /**
+         * Set field mappings (replaces any existing mappings).
+         *
+         * @param mappings the list of field mappings
+         * @return this configuration for method chaining
+         * @since 2.2.0
+         */
+        public MergerConfig setFieldMappings(List<FieldMapping> mappings) {
+            fieldMappings.clear();
+            if (mappings != null) {
+                for (FieldMapping mapping : mappings) {
+                    addFieldMapping(mapping);
+                }
+            }
+            return this;
+        }
+
+        /**
+         * Get all field mappings.
+         *
+         * @return unmodifiable list of field mappings
+         * @since 2.2.0
+         */
+        public List<FieldMapping> getFieldMappings() {
+            return Collections.unmodifiableList(fieldMappings);
+        }
+
+        /**
+         * Get field mappings for a specific message.
+         *
+         * @param messageName the message name
+         * @return list of field mappings for the message (never null)
+         * @since 2.2.0
+         */
+        public List<FieldMapping> getFieldMappingsForMessage(String messageName) {
+            return fieldMappings.stream()
+                    .filter(m -> m.getMessage().equals(messageName))
+                    .toList();
         }
     }
 }

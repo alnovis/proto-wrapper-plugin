@@ -51,6 +51,15 @@ public class MarkdownDiffFormatter implements DiffFormatter {
             formatBreakingChangesTable(diff.getBreakingChanges(), sb);
         }
 
+        // Suspected renumbered fields
+        if (diff.hasSuspectedRenumbers()) {
+            sb.append("---\n\n");
+            sb.append("## Suspected Renumbered Fields\n\n");
+            sb.append("The following fields appear to have been renumbered between versions. ");
+            sb.append("Consider adding field mappings to the plugin configuration.\n\n");
+            formatSuspectedRenumbersTable(diff, sb);
+        }
+
         return sb.toString();
     }
 
@@ -84,6 +93,12 @@ public class MarkdownDiffFormatter implements DiffFormatter {
         sb.append("| Enums | ").append(summary.addedEnums())
           .append(" | ").append(summary.modifiedEnums())
           .append(" | ").append(summary.removedEnums()).append(" |\n");
+
+        if (summary.hasRenumbers()) {
+            sb.append("\n**Renumbered fields:** ")
+              .append(summary.mappedRenumbers()).append(" mapped, ")
+              .append(summary.suspectedRenumbers()).append(" suspected\n");
+        }
     }
 
     private void formatMessages(SchemaDiff diff, StringBuilder sb) {
@@ -162,17 +177,23 @@ public class MarkdownDiffFormatter implements DiffFormatter {
                   .append(FieldChange.formatType(fc.v2Field())).append("` |\n");
             }
 
-            // Modified fields
+            // Modified fields (including renumbered)
             for (FieldChange fc : md.getModifiedFields()) {
-                String details = String.join("; ", fc.changes());
-                if (fc.isBreaking()) {
-                    details += " **BREAKING**";
-                } else if (fc.getCompatibilityNote() != null) {
-                    details += " (" + fc.getCompatibilityNote() + ")";
+                if (fc.changeType() == ChangeType.NUMBER_CHANGED && fc.isRenumberedByMapping()) {
+                    sb.append("| ~ Renumbered | ").append(fc.fieldName())
+                      .append(" | ").append(fc.getRenumberDescription())
+                      .append(" `[MAPPED]` |\n");
+                } else {
+                    String details = String.join("; ", fc.changes());
+                    if (fc.isBreaking()) {
+                        details += " **BREAKING**";
+                    } else if (fc.getCompatibilityNote() != null) {
+                        details += " (" + fc.getCompatibilityNote() + ")";
+                    }
+                    sb.append("| ~ Changed | ").append(fc.fieldName())
+                      .append(" (#").append(fc.fieldNumber()).append(") | ")
+                      .append(details).append(" |\n");
                 }
-                sb.append("| ~ Changed | ").append(fc.fieldName())
-                  .append(" (#").append(fc.fieldNumber()).append(") | ")
-                  .append(details).append(" |\n");
             }
 
             // Removed fields
@@ -287,6 +308,27 @@ public class MarkdownDiffFormatter implements DiffFormatter {
             }
             sb.append(" |\n");
         }
+    }
+
+    private void formatSuspectedRenumbersTable(SchemaDiff diff, StringBuilder sb) {
+        sb.append("| Confidence | Message.Field | ").append(diff.getV1Name())
+          .append(" | ").append(diff.getV2Name()).append(" | Type | Suggested Mapping |\n");
+        sb.append("|------------|---------------|------|------|------|-------------------|\n");
+
+        for (SuspectedRenumber sr : diff.getSuspectedRenumbers()) {
+            sb.append("| ").append(sr.confidence().name())
+              .append(" | ").append(sr.messageName()).append(".").append(sr.fieldName())
+              .append(" | #").append(sr.v1Number())
+              .append(" | #").append(sr.v2Number())
+              .append(" | ");
+            if (sr.v1Field() != null) {
+                sb.append("`").append(FieldChange.formatType(sr.v1Field())).append("`");
+            }
+            sb.append(" | `<fieldMapping><message>").append(sr.messageName())
+              .append("</message><fieldName>").append(sr.fieldName())
+              .append("</fieldName></fieldMapping>` |\n");
+        }
+        sb.append("\n");
     }
 
     private String formatTypeForMarkdown(FieldInfo field) {

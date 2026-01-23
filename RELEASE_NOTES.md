@@ -4,11 +4,103 @@
 
 ## Overview
 
-Version 2.2.0 introduces **per-version proto syntax configuration**, enabling projects with mixed proto2/proto3 schemas to generate correct code for each version independently. The plugin now auto-detects syntax from `.proto` files and uses the appropriate enum conversion methods and `has*()` method generation per version.
+Version 2.2.0 introduces **field mapping support** for handling renumbered fields across schema versions, **heuristic renumber detection** in the diff tool, **version conversion API** improvements, and **per-version proto syntax configuration**.
 
-This release also establishes a formal **Deprecation Policy** for the project.
+Key highlights:
+- **Field Mappings** — explicitly map renumbered fields so the plugin generates correct cross-version wrappers
+- **Renumber Detection** — diff tool automatically detects suspected field renumbering and suggests mappings
+- **Version Conversion** — new `asVersion(VersionContext)` method for efficient cross-version conversion
+- **Enum Improvements** — `fromProto(Object)` and `matches(Object)` for version-agnostic enum handling
+- **Per-Version Proto Syntax** — mixed proto2/proto3 projects with auto-detection
+- **Deprecation Policy** — formal deprecation and removal policy
 
 ## New Features
+
+### Field Mapping Support
+
+When fields are renumbered between schema versions, the VersionMerger normally matches by field number, producing incorrect cross-version wrappers. Field mappings solve this by explicitly telling the plugin which fields correspond across versions:
+
+**Maven:**
+```xml
+<configuration>
+    <fieldMappings>
+        <fieldMapping>
+            <message>TicketRequest</message>
+            <fieldName>parent_ticket</fieldName>
+            <versionNumbers>
+                <v202>17</v202>
+                <v203>15</v203>
+            </versionNumbers>
+        </fieldMapping>
+    </fieldMappings>
+</configuration>
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    fieldMappings {
+        mapping("TicketRequest", "parent_ticket") {
+            versionNumber("v202", 17)
+            versionNumber("v203", 15)
+        }
+    }
+}
+```
+
+With field mappings:
+- Fields are matched by name (Phase 1) before number-based matching (Phase 2)
+- Each version's implementation correctly accesses its own field number
+- The diff tool shows mapped fields as `[MAPPED]` instead of breaking changes
+
+### Renumber Detection in Diff Tool
+
+The diff tool now heuristically detects fields that appear to have been renumbered:
+
+```
+~ MODIFIED: TicketRequest
+    ~ Renumbered field: parentTicket #17 -> #15 [MAPPED]
+    - Removed field: shiftDocumentNumber (#15) [BREAKING]
+```
+
+**Detection strategies:**
+1. **REMOVED+ADDED pairs** — same proto name in both removed and added fields
+2. **Displaced fields** — a removed field's name matches the v2 side of a renamed field (handles cases where a renumbered field takes the position of another removed field)
+
+**Confidence levels:**
+- **HIGH** — same name and same type
+- **MEDIUM** — same name with compatible type (integer widening, int-enum, float-double, string-bytes)
+
+When suspected renumbers are found, the diff report includes suggested `fieldMappings` configuration.
+
+### Version Conversion API
+
+New methods for efficient cross-version conversion:
+
+```java
+// Convert using VersionContext (no reflection)
+VersionContext v2Ctx = VersionContext.forVersionId("v203");
+TicketRequest v2Request = v1Request.asVersion(v2Ctx);
+
+// Parse from bytes via VersionContext
+TicketRequest request = ctx.parseTicketRequestFromBytes(protoBytes);
+```
+
+The new `asVersion(VersionContext)` overload is more efficient than the existing `asVersion(Class)` because it avoids reflection-based class lookup.
+
+### Enum API Improvements
+
+Generated enums now include version-agnostic conversion methods:
+
+```java
+// Convert any proto enum to wrapper enum
+CommandTypeEnum cmd = CommandTypeEnum.fromProto(v202Message.getCommand());
+
+// Compare wrapper enum with any proto enum
+if (CommandTypeEnum.COMMAND_TICKET.matches(protoCommand)) { ... }
+```
+
+These methods work with any version's proto enum by extracting the numeric value.
 
 ### Per-Version Proto Syntax
 

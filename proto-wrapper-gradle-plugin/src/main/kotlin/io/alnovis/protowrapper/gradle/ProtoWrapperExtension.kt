@@ -6,6 +6,7 @@ import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import io.alnovis.protowrapper.model.FieldMapping
 
 abstract class ProtoWrapperExtension(private val project: Project) {
 
@@ -127,6 +128,42 @@ abstract class ProtoWrapperExtension(private val project: Project) {
      * @since 2.1.1
      */
     abstract val defaultVersion: Property<String>
+
+    /**
+     * Field mappings for overriding number-based field matching.
+     * Use when the same field has different field numbers across proto versions.
+     *
+     * Example:
+     * ```kotlin
+     * fieldMappings {
+     *     fieldMapping("Order", "parent_order")
+     *     fieldMapping("Payment", "amount", mapOf("v1" to 17, "v2" to 15))
+     * }
+     * ```
+     * @since 2.2.0
+     */
+    val fieldMappings: MutableList<FieldMapping> = mutableListOf()
+
+    /**
+     * Add a name-based field mapping.
+     *
+     * @param message the message name
+     * @param fieldName the proto field name
+     */
+    fun fieldMapping(message: String, fieldName: String) {
+        fieldMappings.add(FieldMapping(message, fieldName))
+    }
+
+    /**
+     * Add an explicit field mapping with version-specific numbers.
+     *
+     * @param message the message name
+     * @param fieldName the proto field name
+     * @param versionNumbers map of version to field number
+     */
+    fun fieldMapping(message: String, fieldName: String, versionNumbers: Map<String, Int>) {
+        fieldMappings.add(FieldMapping(message, fieldName, versionNumbers))
+    }
 
     // Versions container
     val versions: NamedDomainObjectContainer<VersionConfig> =

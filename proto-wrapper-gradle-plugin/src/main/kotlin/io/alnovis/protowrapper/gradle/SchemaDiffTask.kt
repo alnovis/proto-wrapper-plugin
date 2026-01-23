@@ -4,6 +4,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
@@ -18,6 +19,7 @@ import io.alnovis.protowrapper.diff.formatter.DiffFormatter
 import io.alnovis.protowrapper.diff.formatter.JsonDiffFormatter
 import io.alnovis.protowrapper.diff.formatter.MarkdownDiffFormatter
 import io.alnovis.protowrapper.diff.formatter.TextDiffFormatter
+import io.alnovis.protowrapper.model.FieldMapping
 import java.io.File
 
 /**
@@ -128,6 +130,15 @@ abstract class SchemaDiffTask : DefaultTask() {
     @get:Optional
     abstract val includePath: DirectoryProperty
 
+    /**
+     * Field mappings for fields that have been renumbered between versions.
+     * When configured, the diff tool reports these as NUMBER_CHANGED (non-breaking)
+     * instead of separate ADDED/REMOVED entries.
+     */
+    @get:Input
+    @get:Optional
+    abstract val fieldMappings: ListProperty<FieldMapping>
+
     private lateinit var protocExecutor: ProtocExecutor
     private lateinit var pluginLogger: GradleLogger
 
@@ -153,8 +164,12 @@ abstract class SchemaDiffTask : DefaultTask() {
             val v1Schema = analyzeVersion(v1Dir, getV1Name())
             val v2Schema = analyzeVersion(v2Dir, getV2Name())
 
+            val mappings = fieldMappings.orNull ?: emptyList()
+            if (mappings.isNotEmpty()) {
+                pluginLogger.info("Using ${mappings.size} field mapping(s)")
+            }
             pluginLogger.info("Comparing schemas...")
-            val diff = SchemaDiff.compare(v1Schema, v2Schema)
+            val diff = SchemaDiff.compare(v1Schema, v2Schema, mappings)
 
             val output = formatOutput(diff)
 
@@ -220,7 +235,7 @@ abstract class SchemaDiffTask : DefaultTask() {
         val includeDir = if (includePath.isPresent) {
             includePath.get().asFile.toPath()
         } else {
-            protoDir.toPath()
+            ProtocExecutor.detectIncludePath(protoDir.toPath())
         }
 
         protocExecutor.generateDescriptor(
@@ -273,6 +288,10 @@ abstract class SchemaDiffTask : DefaultTask() {
         pluginLogger.info("=== Summary ===")
         pluginLogger.info("Messages: +${summary.addedMessages()} / -${summary.removedMessages()} / ~${summary.modifiedMessages()}")
         pluginLogger.info("Enums: +${summary.addedEnums()} / -${summary.removedEnums()} / ~${summary.modifiedEnums()}")
+
+        if (summary.hasRenumbers()) {
+            pluginLogger.info("Renumbered fields: ${summary.mappedRenumbers()} mapped, ${summary.suspectedRenumbers()} suspected")
+        }
 
         if (diff.hasBreakingChanges()) {
             pluginLogger.warn("Breaking changes: ${summary.errorCount()} errors, ${summary.warningCount()} warnings")

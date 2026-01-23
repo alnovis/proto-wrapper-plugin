@@ -149,17 +149,7 @@ public class TypeResolver {
             return ClassName.get(config.getApiPackage(), topLevelName);
         }
 
-        String[] parts = typePath.split("\\.");
-        String parentMessageName = parts[0];
-        MergedMessage topLevel = context.getTopLevelParent();
-
-        if (topLevel.getName().equals(parentMessageName)) {
-            // It's within our own message hierarchy
-            return buildNestedClassName(typePath);
-        }
-
-        // Cross-message reference - build nested class name
-        // Schema validation is informational only; we always use buildNestedClassName
+        // Both same-message and cross-message nested references use the same resolution
         return buildNestedClassName(typePath);
     }
 

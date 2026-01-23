@@ -50,11 +50,37 @@ public record FieldChange(
      */
     public boolean isBreaking() {
         return switch (changeType) {
-            case REMOVED, NUMBER_CHANGED -> true;
+            case REMOVED -> true;
+            case NUMBER_CHANGED -> !isRenumberedByMapping();
             case TYPE_CHANGED -> !isCompatibleTypeChange();
             case LABEL_CHANGED -> isBreakingLabelChange();
             default -> false;
         };
+    }
+
+    /**
+     * Returns true if this field was renumbered via a configured field mapping.
+     * A mapped renumber has NUMBER_CHANGED type with both v1 and v2 fields present
+     * and the same proto name (indicating it's the same logical field at different numbers).
+     *
+     * @return true if this is a mapped renumber (not breaking)
+     */
+    public boolean isRenumberedByMapping() {
+        return changeType == ChangeType.NUMBER_CHANGED &&
+               v1Field != null && v2Field != null &&
+               v1Field.getProtoName().equals(v2Field.getProtoName());
+    }
+
+    /**
+     * Returns a description of the renumbering for display purposes.
+     *
+     * @return formatted string like "#17 -> #15", or null if not a renumber
+     */
+    public String getRenumberDescription() {
+        if (changeType != ChangeType.NUMBER_CHANGED || v1Field == null || v2Field == null) {
+            return null;
+        }
+        return String.format("#%d -> #%d", v1Field.getNumber(), v2Field.getNumber());
     }
 
     /**
@@ -358,6 +384,8 @@ public record FieldChange(
             case LABEL_CHANGED -> "Label changed: " + (v1Field.isRepeated() ? "repeated" : "singular") +
                                   " -> " + (v2Field.isRepeated() ? "repeated" : "singular");
             case NAME_CHANGED -> "Renamed: " + v1Field.getProtoName() + " -> " + v2Field.getProtoName();
+            case NUMBER_CHANGED -> "Renumbered: " + getRenumberDescription() +
+                                   (isRenumberedByMapping() ? " (mapped)" : "");
             default -> String.join("; ", changes);
         };
     }

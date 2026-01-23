@@ -574,6 +574,154 @@ class MergedSchemaDiffAdapterTest {
         }
     }
 
+    // ========== Name-Mapped Renumber Tests ==========
+
+    @Nested
+    @DisplayName("Name-mapped field renumber detection")
+    class NameMappedRenumberTests {
+
+        @Test
+        @DisplayName("Should detect NUMBER_CHANGED for name-mapped field with different numbers")
+        void shouldDetectNumberChangedForNameMapped() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addSimpleField(message, "id", 1, Type.TYPE_INT64, V1, V2);
+            addNameMappedField(message, "parent_ref", 3, 5, Type.TYPE_INT64, Type.TYPE_INT64);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            assertThat(diff.getMessageDiffs()).hasSize(1);
+            MessageDiff msgDiff = diff.getMessageDiffs().get(0);
+            assertThat(msgDiff.changeType()).isEqualTo(ChangeType.MODIFIED);
+            assertThat(msgDiff.fieldChanges()).hasSize(1);
+
+            FieldChange fc = msgDiff.fieldChanges().get(0);
+            assertThat(fc.changeType()).isEqualTo(ChangeType.NUMBER_CHANGED);
+            assertThat(fc.fieldNumber()).isEqualTo(3); // Uses v1 number
+            assertThat(fc.isRenumberedByMapping()).isTrue();
+            assertThat(fc.isBreaking()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should include number change description in changes list")
+        void shouldIncludeNumberChangeDescription() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addNameMappedField(message, "amount", 4, 6, Type.TYPE_INT64, Type.TYPE_INT64);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            FieldChange fc = diff.getMessageDiffs().get(0).fieldChanges().get(0);
+            assertThat(fc.changes()).anyMatch(c -> c.contains("Number: #4 -> #6 (mapped)"));
+        }
+
+        @Test
+        @DisplayName("Should generate INFO-level breaking change for mapped renumber")
+        void shouldGenerateInfoLevelBreakingChange() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addNameMappedField(message, "parent_ref", 3, 5, Type.TYPE_INT64, Type.TYPE_INT64);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            assertThat(diff.getBreakingChanges()).hasSize(1);
+            BreakingChange bc = diff.getBreakingChanges().get(0);
+            assertThat(bc.type()).isEqualTo(BreakingChange.Type.FIELD_NUMBER_CHANGED);
+            assertThat(bc.severity()).isEqualTo(BreakingChange.Severity.INFO);
+            assertThat(bc.description()).contains("handled by field mapping");
+            assertThat(bc.v1Value()).isEqualTo("3");
+            assertThat(bc.v2Value()).isEqualTo("5");
+        }
+
+        @Test
+        @DisplayName("Should not treat mapped renumber as ERROR-level breaking")
+        void shouldNotTreatMappedRenumberAsError() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addNameMappedField(message, "ref", 3, 5, Type.TYPE_INT64, Type.TYPE_INT64);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            assertThat(diff.hasBreakingChanges()).isFalse();
+            assertThat(diff.getErrors()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should detect NUMBER_CHANGED with additional type conflict")
+        void shouldDetectNumberChangedWithTypeConflict() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addNameMappedFieldWithConflict(message, "amount", 4, 6,
+                Type.TYPE_INT32, Type.TYPE_INT64, MergedField.ConflictType.WIDENING);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            FieldChange fc = diff.getMessageDiffs().get(0).fieldChanges().get(0);
+            // Primary change type is NUMBER_CHANGED (detected first)
+            assertThat(fc.changeType()).isEqualTo(ChangeType.NUMBER_CHANGED);
+            // But should also have type change info in changes list
+            assertThat(fc.changes()).anyMatch(c -> c.contains("Number:"));
+            assertThat(fc.changes()).anyMatch(c -> c.contains("Type:"));
+        }
+
+        @Test
+        @DisplayName("Should use v1 field number as primary field number for name-mapped fields")
+        void shouldUseV1FieldNumberAsPrimary() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addNameMappedField(message, "ref", 17, 15, Type.TYPE_INT64, Type.TYPE_INT64);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            FieldChange fc = diff.getMessageDiffs().get(0).fieldChanges().get(0);
+            assertThat(fc.fieldNumber()).isEqualTo(17); // v1 number
+        }
+
+        @Test
+        @DisplayName("Should count mapped renumbers in summary")
+        void shouldCountMappedRenumbersInSummary() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            addNameMappedField(message, "ref1", 3, 5, Type.TYPE_INT64, Type.TYPE_INT64);
+            addNameMappedField(message, "ref2", 4, 6, Type.TYPE_STRING, Type.TYPE_STRING);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            assertThat(diff.getMappedRenumberCount()).isEqualTo(2);
+            assertThat(diff.getSummary().mappedRenumbers()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("Should not produce NUMBER_CHANGED for same number (name-mapped but same number)")
+        void shouldNotProduceNumberChangedForSameNumber() {
+            MergedMessage message = new MergedMessage("Order");
+            message.addVersion(V1);
+            message.addVersion(V2);
+            // Name-mapped but same number — no NUMBER_CHANGED
+            addNameMappedField(message, "ref", 5, 5, Type.TYPE_INT64, Type.TYPE_INT64);
+            schema.addMessage(message);
+
+            SchemaDiff diff = adapter.adapt(schema);
+
+            // No changes since field numbers are the same
+            assertThat(diff.getMessageDiffs()).isEmpty();
+        }
+    }
+
     // ========== Helper Methods ==========
 
     private void addSimpleField(MergedMessage message, String name, int number, Type type, String... versions) {
@@ -644,5 +792,37 @@ class MergedSchemaDiffAdapterTest {
             mergedValue.addVersion(versions[i]);
         }
         enumType.addValue(mergedValue);
+    }
+
+    private void addNameMappedField(MergedMessage message, String name,
+                                     int v1Number, int v2Number, Type v1Type, Type v2Type) {
+        addNameMappedFieldWithConflict(message, name, v1Number, v2Number, v1Type, v2Type,
+            MergedField.ConflictType.NONE);
+    }
+
+    private void addNameMappedFieldWithConflict(MergedMessage message, String name,
+                                                 int v1Number, int v2Number,
+                                                 Type v1Type, Type v2Type,
+                                                 MergedField.ConflictType conflictType) {
+        FieldDescriptorProto v1Proto = FieldDescriptorProto.newBuilder()
+            .setName(name)
+            .setNumber(v1Number)
+            .setType(v1Type)
+            .setLabel(Label.LABEL_OPTIONAL)
+            .build();
+        FieldDescriptorProto v2Proto = FieldDescriptorProto.newBuilder()
+            .setName(name)
+            .setNumber(v2Number)
+            .setType(v2Type)
+            .setLabel(Label.LABEL_OPTIONAL)
+            .build();
+
+        MergedField field = MergedField.builder()
+            .addVersionField(V1, new FieldInfo(v1Proto))
+            .addVersionField(V2, new FieldInfo(v2Proto))
+            .nameMapped(true)
+            .conflictType(conflictType)
+            .build();
+        message.addField(field);
     }
 }

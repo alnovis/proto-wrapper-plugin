@@ -5,6 +5,7 @@ Thank you for considering contributing to Proto Wrapper Plugin! This document pr
 ## Table of Contents
 
 - [Development Setup](#development-setup)
+- [Code Quality (Qodana)](#code-quality-qodana)
 - [Code Style](#code-style)
 - [Testing Requirements](#testing-requirements)
 - [Pull Request Process](#pull-request-process)
@@ -86,6 +87,68 @@ mvn clean install
 ./gradlew build publishToMavenLocal
 cd proto-wrapper-gradle-integration-tests && gradle test --no-daemon
 ```
+
+---
+
+## Code Quality (Qodana)
+
+The project uses [JetBrains Qodana](https://www.jetbrains.com/qodana/) for static code analysis.
+Qodana runs automatically on pull requests (see `.github/workflows/code_quality.yml`)
+and can also be run locally.
+
+### Prerequisites
+
+- Docker installed and running
+- Qodana CLI installed: see [installation guide](https://www.jetbrains.com/help/qodana/qodana-cli.html)
+
+### Running Locally
+
+```bash
+# 1. Compile project (Qodana needs bytecode)
+mvn compile test-compile -B -q
+
+# 2. Run analysis (results saved locally + uploaded to Qodana Cloud)
+qodana scan --property=project.open.type=Maven --results-dir=target/qodana-results
+```
+
+The SARIF report is saved to `target/qodana-results/qodana.sarif.json`.
+
+### Analyzing Results
+
+Use the included script to parse the SARIF report:
+
+```bash
+# Show all problems (sorted by severity)
+python3 tools/qodana-report.py
+
+# Show only errors and warnings
+python3 tools/qodana-report.py --severity warning
+
+# Group by rule
+python3 tools/qodana-report.py --group
+
+# Summary only
+python3 tools/qodana-report.py --quiet
+
+# Custom SARIF file
+python3 tools/qodana-report.py path/to/qodana.sarif.json
+```
+
+### Known False Positives
+
+| Rule | Location | Reason |
+|------|----------|--------|
+| MismatchedCollectionQueryUpdate | `GenerateMojo.java` | Maven `@Parameter` DI populates fields externally |
+| DeprecatedIsStillUsed | `GenerateMojo.java` | Deprecated parameter still supported for backwards compatibility |
+| DuplicatedCode | Various generators | Natural similarity in code generation patterns |
+
+### Configuration
+
+Qodana configuration is in `qodana.yaml`. Excluded paths:
+- `**/target/**`, `**/build/**` — build outputs
+- `**/generated-sources/**` — generated code
+- `examples/**`, `test-protos/**` — examples and test fixtures
+- Integration test modules
 
 ---
 
@@ -233,6 +296,7 @@ void shouldDetectIntEnumConflict() {
 - [ ] Code compiles without warnings
 - [ ] All existing tests pass
 - [ ] New tests added for new functionality
+- [ ] Qodana analysis passes without new issues (`python3 tools/qodana-report.py -s warning`)
 - [ ] JavaDoc added for public API
 - [ ] No deprecated API used (use new `GenerationContext`-based API)
 - [ ] Documentation updated if needed

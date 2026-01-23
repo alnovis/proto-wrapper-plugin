@@ -16,9 +16,9 @@ import java.util.*;
  *
  * // Generated unified enum:
  * public enum UnitType {
- *     CELSIUS(0),
- *     FAHRENHEIT(1),
- *     KELVIN(2);
+ *     UNIT_CELSIUS(0),
+ *     UNIT_FAHRENHEIT(1),
+ *     UNIT_KELVIN(2);
  *     ...
  * }
  * </pre>

@@ -157,6 +157,9 @@ protoWrapper {
 | Spring Boot Starter | Auto-configuration for Spring Boot applications | v1.6.7 |
 | Java 8 compatibility | Generate Java 8 compatible code with `targetJavaVersion=8` | v2.2.0 |
 | ProtocolVersions class | Centralized version constants with `generateProtocolVersions=true` | v2.2.0 |
+| Per-version proto syntax | Mixed proto2/proto3 projects with auto-detection | v2.2.0 |
+| Field mappings | Explicit mapping for renumbered fields across versions | v2.2.0 |
+| Renumber detection | Heuristic detection of field renumbering in diff tool | v2.2.0 |
 
 ### Type Conflict Handling
 
@@ -264,4 +267,3 @@ Apache License 2.0 - see [LICENSE](LICENSE) for details.
 - [Roadmap](docs/archive/ROADMAP.md) - Planned features and releases
 - [Release Notes](RELEASE_NOTES.md) - Detailed release information
 
-<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=22046374-62ec-48ff-9d2c-09a500e91b78" />

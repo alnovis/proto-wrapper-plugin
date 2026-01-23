@@ -495,6 +495,91 @@ class MarkdownDiffFormatterTest {
         assertTrue(result.contains("added: Status"));
     }
 
+    // ========== Renumber Tests ==========
+
+    @Test
+    void format_showsMappedRenumberedFieldInTable() {
+        MessageInfo v1 = createMessage("Order", "id", 1);
+        MessageInfo v2 = createMessage("Order", "id", 1);
+
+        FieldInfo v1Field = createField("parent_ref", 3, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+        FieldInfo v2Field = createField("parent_ref", 5, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+        FieldChange fieldChange = new FieldChange(3, "parentRef", ChangeType.NUMBER_CHANGED,
+            v1Field, v2Field, List.of("Number: #3 -> #5 (mapped)"));
+        MessageDiff messageDiff = MessageDiff.compared(v1, v2, List.of(fieldChange), List.of(), List.of());
+
+        SchemaDiff diff = new SchemaDiff("v1", "v2", List.of(messageDiff), List.of(), List.of());
+
+        String result = formatter.format(diff);
+
+        assertTrue(result.contains("~ Renumbered"));
+        assertTrue(result.contains("parentRef"));
+        assertTrue(result.contains("#3 -> #5"));
+        assertTrue(result.contains("`[MAPPED]`"));
+    }
+
+    @Test
+    void format_showsSuspectedRenumbersSection() {
+        FieldInfo v1Field = createField("parent_ref", 3, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+        FieldInfo v2Field = createField("parent_ref", 5, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+
+        SuspectedRenumber sr = new SuspectedRenumber(
+            "Order", "parent_ref", 3, 5, v1Field, v2Field,
+            SuspectedRenumber.Confidence.HIGH
+        );
+
+        SchemaDiff diff = new SchemaDiff("v1", "v2", List.of(), List.of(), List.of(), List.of(sr));
+
+        String result = formatter.format(diff);
+
+        assertTrue(result.contains("## Suspected Renumbered Fields"));
+        assertTrue(result.contains("HIGH"));
+        assertTrue(result.contains("Order.parent_ref"));
+        assertTrue(result.contains("#3"));
+        assertTrue(result.contains("#5"));
+        assertTrue(result.contains("fieldMapping"));
+    }
+
+    @Test
+    void format_showsSuspectedRenumbersAsTable() {
+        FieldInfo v1Field = createField("amount", 4, Type.TYPE_INT32, Label.LABEL_OPTIONAL);
+        FieldInfo v2Field = createField("amount", 6, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+
+        SuspectedRenumber sr = new SuspectedRenumber(
+            "Order", "amount", 4, 6, v1Field, v2Field,
+            SuspectedRenumber.Confidence.MEDIUM
+        );
+
+        SchemaDiff diff = new SchemaDiff("v1", "v2", List.of(), List.of(), List.of(), List.of(sr));
+
+        String result = formatter.format(diff);
+
+        // Table header
+        assertTrue(result.contains("| Confidence |"));
+        // Table row
+        assertTrue(result.contains("MEDIUM"));
+        assertTrue(result.contains("Order.amount"));
+    }
+
+    @Test
+    void format_showsRenumberCountsInSummary() {
+        MessageInfo v1 = createMessage("Order", "id", 1);
+        MessageInfo v2 = createMessage("Order", "id", 1);
+
+        FieldInfo v1Field = createField("ref", 3, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+        FieldInfo v2Field = createField("ref", 5, Type.TYPE_INT64, Label.LABEL_OPTIONAL);
+        FieldChange fieldChange = new FieldChange(3, "ref", ChangeType.NUMBER_CHANGED,
+            v1Field, v2Field, List.of("Number: #3 -> #5 (mapped)"));
+        MessageDiff messageDiff = MessageDiff.compared(v1, v2, List.of(fieldChange), List.of(), List.of());
+
+        SchemaDiff diff = new SchemaDiff("v1", "v2", List.of(messageDiff), List.of(), List.of());
+
+        String result = formatter.format(diff);
+
+        assertTrue(result.contains("Renumbered fields:"));
+        assertTrue(result.contains("1 mapped"));
+    }
+
     // Helper methods
     private SchemaDiff createEmptyDiff(String v1Name, String v2Name) {
         return new SchemaDiff(v1Name, v2Name, List.of(), List.of(), List.of());

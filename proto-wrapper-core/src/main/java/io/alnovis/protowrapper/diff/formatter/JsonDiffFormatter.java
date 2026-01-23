@@ -49,7 +49,17 @@ public class JsonDiffFormatter implements DiffFormatter {
         appendKey(sb, 1, "breakingChanges");
         sb.append("[\n");
         formatBreakingChanges(diff.getBreakingChanges(), sb, 2);
-        sb.append(indent(1)).append("]\n");
+        sb.append(indent(1)).append("]");
+
+        // Suspected renumbers
+        if (diff.hasSuspectedRenumbers()) {
+            sb.append(",\n");
+            appendKey(sb, 1, "suspectedRenumbers");
+            sb.append("[\n");
+            formatSuspectedRenumbers(diff, sb, 2);
+            sb.append(indent(1)).append("]");
+        }
+        sb.append("\n");
 
         sb.append("}\n");
         return sb.toString();
@@ -95,6 +105,10 @@ public class JsonDiffFormatter implements DiffFormatter {
         appendNumber(sb, depth, "errorCount", summary.errorCount());
         sb.append(",\n");
         appendNumber(sb, depth, "warningCount", summary.warningCount());
+        sb.append(",\n");
+        appendNumber(sb, depth, "mappedRenumbers", summary.mappedRenumbers());
+        sb.append(",\n");
+        appendNumber(sb, depth, "suspectedRenumbers", summary.suspectedRenumbers());
         sb.append("\n");
     }
 
@@ -205,13 +219,25 @@ public class JsonDiffFormatter implements DiffFormatter {
         if (fc.v1Field() != null) {
             sb.append(",\n");
             appendString(sb, depth + 1, "v1Type", FieldChange.formatType(fc.v1Field()));
+            if (fc.changeType() == ChangeType.NUMBER_CHANGED) {
+                sb.append(",\n");
+                appendNumber(sb, depth + 1, "v1Number", fc.v1Field().getNumber());
+            }
         }
         if (fc.v2Field() != null) {
             sb.append(",\n");
             appendString(sb, depth + 1, "v2Type", FieldChange.formatType(fc.v2Field()));
+            if (fc.changeType() == ChangeType.NUMBER_CHANGED) {
+                sb.append(",\n");
+                appendNumber(sb, depth + 1, "v2Number", fc.v2Field().getNumber());
+            }
         }
         sb.append(",\n");
         appendBoolean(sb, depth + 1, "breaking", fc.isBreaking());
+        if (fc.isRenumberedByMapping()) {
+            sb.append(",\n");
+            appendBoolean(sb, depth + 1, "mapped", true);
+        }
         if (fc.getCompatibilityNote() != null) {
             sb.append(",\n");
             appendString(sb, depth + 1, "compatibilityNote", fc.getCompatibilityNote());
@@ -329,6 +355,35 @@ public class JsonDiffFormatter implements DiffFormatter {
             sb.append("\n");
             sb.append(indent(depth)).append("}");
             if (i < changes.size() - 1) sb.append(",");
+            sb.append("\n");
+        }
+    }
+
+    private void formatSuspectedRenumbers(SchemaDiff diff, StringBuilder sb, int depth) {
+        List<SuspectedRenumber> suspected = diff.getSuspectedRenumbers();
+        for (int i = 0; i < suspected.size(); i++) {
+            SuspectedRenumber sr = suspected.get(i);
+            sb.append(indent(depth)).append("{\n");
+            appendString(sb, depth + 1, "messageName", sr.messageName());
+            sb.append(",\n");
+            appendString(sb, depth + 1, "fieldName", sr.fieldName());
+            sb.append(",\n");
+            appendNumber(sb, depth + 1, "v1Number", sr.v1Number());
+            sb.append(",\n");
+            appendNumber(sb, depth + 1, "v2Number", sr.v2Number());
+            sb.append(",\n");
+            appendString(sb, depth + 1, "confidence", sr.confidence().name());
+            if (sr.v1Field() != null) {
+                sb.append(",\n");
+                appendString(sb, depth + 1, "type", FieldChange.formatType(sr.v1Field()));
+            }
+            sb.append(",\n");
+            appendString(sb, depth + 1, "suggestedMapping",
+                String.format("<fieldMapping><message>%s</message><fieldName>%s</fieldName></fieldMapping>",
+                    sr.messageName(), sr.fieldName()));
+            sb.append("\n");
+            sb.append(indent(depth)).append("}");
+            if (i < suspected.size() - 1) sb.append(",");
             sb.append("\n");
         }
     }

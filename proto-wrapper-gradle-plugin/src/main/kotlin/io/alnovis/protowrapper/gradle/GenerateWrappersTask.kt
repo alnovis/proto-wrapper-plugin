@@ -17,6 +17,8 @@ import io.alnovis.protowrapper.analyzer.ProtocExecutor
 import io.alnovis.protowrapper.generator.GenerationOrchestrator
 import io.alnovis.protowrapper.generator.GeneratorConfig
 import io.alnovis.protowrapper.merger.VersionMerger
+import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig
+import io.alnovis.protowrapper.model.FieldMapping
 import io.alnovis.protowrapper.model.MergedField
 import io.alnovis.protowrapper.model.MergedMessage
 import io.alnovis.protowrapper.model.MergedSchema
@@ -308,6 +310,15 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Optional
     abstract val defaultVersion: Property<String>
 
+    /**
+     * Field mappings for overriding number-based field matching.
+     * Use when the same field has different field numbers across proto versions.
+     * @since 2.2.0
+     */
+    @get:Input
+    @get:Optional
+    abstract val fieldMappings: ListProperty<FieldMapping>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -373,7 +384,13 @@ abstract class GenerateWrappersTask : DefaultTask() {
             }
 
             pluginLogger.info("Merging ${schemas.size} schemas...")
-            val merger = VersionMerger(pluginLogger)
+            val mergerConfig = MergerConfig()
+            val mappings = fieldMappings.orNull
+            if (!mappings.isNullOrEmpty()) {
+                mergerConfig.setFieldMappings(mappings)
+                pluginLogger.info("Using ${mappings.size} field mapping(s)")
+            }
+            val merger = VersionMerger(mergerConfig, pluginLogger)
             val mergedSchema = merger.merge(schemas)
 
             pluginLogger.info("Merged schema: ${mergedSchema.messages.size} messages, ${mergedSchema.enums.size} enums")
@@ -663,6 +680,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .generationThreads(generationThreads.get())
             // Default version (since 2.1.1)
             .defaultVersion(defaultVersion.orNull)
+            // Field mappings (since 2.2.0)
+            .fieldMappings(fieldMappings.orNull)
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)

@@ -8,13 +8,14 @@ import io.alnovis.protowrapper.diff.formatter.MarkdownDiffFormatter;
 import io.alnovis.protowrapper.diff.formatter.TextDiffFormatter;
 import io.alnovis.protowrapper.diff.model.*;
 import io.alnovis.protowrapper.merger.VersionMerger;
+import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig;
 import io.alnovis.protowrapper.model.EnumInfo;
+import io.alnovis.protowrapper.model.FieldMapping;
 import io.alnovis.protowrapper.model.MergedSchema;
 import io.alnovis.protowrapper.model.MessageInfo;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -50,10 +51,12 @@ public class SchemaDiff {
     private final List<MessageDiff> messageDiffs;
     private final List<EnumDiff> enumDiffs;
     private final List<BreakingChange> breakingChanges;
+    private final List<SuspectedRenumber> suspectedRenumbers;
     private final DiffSummary summary;
 
     /**
      * Creates a new SchemaDiff result.
+     * Automatically detects suspected renumbered fields via heuristic analysis.
      *
      * @param v1Name the source version name
      * @param v2Name the target version name
@@ -67,11 +70,33 @@ public class SchemaDiff {
             List<MessageDiff> messageDiffs,
             List<EnumDiff> enumDiffs,
             List<BreakingChange> breakingChanges) {
+        this(v1Name, v2Name, messageDiffs, enumDiffs, breakingChanges,
+             new RenumberDetector().detect(messageDiffs));
+    }
+
+    /**
+     * Creates a new SchemaDiff result with explicit suspected renumbers.
+     *
+     * @param v1Name the source version name
+     * @param v2Name the target version name
+     * @param messageDiffs the list of message differences
+     * @param enumDiffs the list of enum differences
+     * @param breakingChanges the list of breaking changes
+     * @param suspectedRenumbers the list of heuristically detected renumbered fields
+     */
+    public SchemaDiff(
+            String v1Name,
+            String v2Name,
+            List<MessageDiff> messageDiffs,
+            List<EnumDiff> enumDiffs,
+            List<BreakingChange> breakingChanges,
+            List<SuspectedRenumber> suspectedRenumbers) {
         this.v1Name = v1Name;
         this.v2Name = v2Name;
         this.messageDiffs = List.copyOf(messageDiffs);
         this.enumDiffs = List.copyOf(enumDiffs);
         this.breakingChanges = List.copyOf(breakingChanges);
+        this.suspectedRenumbers = List.copyOf(suspectedRenumbers);
         this.summary = calculateSummary();
     }
 
@@ -131,10 +156,45 @@ public class SchemaDiff {
      * @return SchemaDiff containing all differences
      */
     public static SchemaDiff compareViaMerger(VersionSchema v1, VersionSchema v2) {
-        // Use VersionMerger to merge both schemas - this applies consistent conflict detection
-        MergedSchema merged = new VersionMerger().merge(List.of(v1, v2));
+        return compareViaMerger(v1, v2, List.of());
+    }
 
-        // Use the adapter to convert MergedSchema to SchemaDiff
+    /**
+     * Compare two version schemas with field mappings.
+     *
+     * <p>Field mappings allow matching fields that have different numbers across versions.
+     * Mapped fields are reported as NUMBER_CHANGED (non-breaking) instead of ADDED/REMOVED.</p>
+     *
+     * @param v1 Source version schema
+     * @param v2 Target version schema
+     * @param fieldMappings field mappings for renumbered fields
+     * @return SchemaDiff containing all differences
+     */
+    public static SchemaDiff compare(VersionSchema v1, VersionSchema v2,
+                                     List<FieldMapping> fieldMappings) {
+        return compareViaMerger(v1, v2, fieldMappings);
+    }
+
+    /**
+     * Compare two version schemas using the VersionMerger infrastructure with field mappings.
+     *
+     * <p>This method uses the same conflict detection logic as the code generator,
+     * ensuring consistent classification of type conflicts across the plugin.
+     * Field mappings are applied to correctly match fields that have been renumbered.</p>
+     *
+     * @param v1 Source version schema
+     * @param v2 Target version schema
+     * @param fieldMappings field mappings for renumbered fields
+     * @return SchemaDiff containing all differences
+     */
+    public static SchemaDiff compareViaMerger(VersionSchema v1, VersionSchema v2,
+                                              List<FieldMapping> fieldMappings) {
+        MergerConfig config = new MergerConfig();
+        if (fieldMappings != null && !fieldMappings.isEmpty()) {
+            config.setFieldMappings(fieldMappings);
+        }
+
+        MergedSchema merged = new VersionMerger(config).merge(List.of(v1, v2));
         return MergedSchemaDiffAdapter.toSchemaDiff(merged, v1.getVersion(), v2.getVersion());
     }
 
@@ -275,6 +335,41 @@ public class SchemaDiff {
             .toList();
     }
 
+    // ========== Renumbered Fields ==========
+
+    /**
+     * Returns heuristically detected suspected renumbered fields.
+     * These are fields that appear as ADDED+REMOVED pairs with the same name,
+     * suggesting they were renumbered without a configured field mapping.
+     *
+     * @return unmodifiable list of suspected renumbered fields
+     */
+    public List<SuspectedRenumber> getSuspectedRenumbers() {
+        return suspectedRenumbers;
+    }
+
+    /**
+     * Returns true if there are any suspected renumbered fields.
+     *
+     * @return true if suspected renumbers were detected
+     */
+    public boolean hasSuspectedRenumbers() {
+        return !suspectedRenumbers.isEmpty();
+    }
+
+    /**
+     * Returns the count of mapped renumbered fields (NUMBER_CHANGED with mapping).
+     *
+     * @return count of fields renumbered via configured mappings
+     */
+    public int getMappedRenumberCount() {
+        return (int) messageDiffs.stream()
+            .filter(md -> md.changeType() == ChangeType.MODIFIED)
+            .flatMap(md -> md.fieldChanges().stream())
+            .filter(FieldChange::isRenumberedByMapping)
+            .count();
+    }
+
     // ========== Breaking Changes ==========
 
     /**
@@ -351,10 +446,14 @@ public class SchemaDiff {
         int infos = (int) breakingChanges.stream()
             .filter(bc -> bc.severity() == BreakingChange.Severity.INFO).count();
 
+        int mapped = getMappedRenumberCount();
+        int suspected = suspectedRenumbers.size();
+
         return new DiffSummary(
             addedMessages, removedMessages, modifiedMessages,
             addedEnums, removedEnums, modifiedEnums,
-            errors, warnings, infos
+            errors, warnings, infos,
+            mapped, suspected
         );
     }
 
@@ -411,6 +510,8 @@ public class SchemaDiff {
      * @param errorCount count of error-level breaking changes
      * @param warningCount count of warning-level breaking changes
      * @param infoCount count of info-level breaking changes
+     * @param mappedRenumbers count of fields renumbered via configured mappings
+     * @param suspectedRenumbers count of heuristically detected renumbered fields
      */
     public record DiffSummary(
         int addedMessages,
@@ -421,7 +522,9 @@ public class SchemaDiff {
         int modifiedEnums,
         int errorCount,
         int warningCount,
-        int infoCount
+        int infoCount,
+        int mappedRenumbers,
+        int suspectedRenumbers
     ) {
         /**
          * Returns true if there are any differences.
@@ -452,14 +555,29 @@ public class SchemaDiff {
                    addedEnums + removedEnums + modifiedEnums;
         }
 
+        /**
+         * Returns true if there are any renumbered fields (mapped or suspected).
+         *
+         * @return true if renumbered fields exist
+         */
+        public boolean hasRenumbers() {
+            return mappedRenumbers > 0 || suspectedRenumbers > 0;
+        }
+
         @Override
         public String toString() {
-            return String.format(
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format(
                 "Messages: +%d/-%d/~%d, Enums: +%d/-%d/~%d, Breaking: %d errors, %d warnings",
                 addedMessages, removedMessages, modifiedMessages,
                 addedEnums, removedEnums, modifiedEnums,
                 errorCount, warningCount
-            );
+            ));
+            if (mappedRenumbers > 0 || suspectedRenumbers > 0) {
+                sb.append(String.format(", Renumbers: %d mapped, %d suspected",
+                    mappedRenumbers, suspectedRenumbers));
+            }
+            return sb.toString();
         }
     }
 

@@ -1,0 +1,33 @@
+syntax = "proto3";
+package test;
+
+// Scenario: Field renumbering between versions
+message Order {
+    int64 id = 1;
+    string name = 2;
+    // parent_ref moved from field 3 to field 5
+    int64 parent_ref = 5;     // Same name, same type (HIGH confidence)
+    // amount moved from field 4 to field 6, type widened
+    int64 amount = 6;         // Same name, compatible type int32->int64 (MEDIUM confidence)
+    string description = 8;   // Same name, same type (HIGH confidence)
+    bool active = 9;          // Same number — not renumbered
+    string new_field = 10;    // Truly new field (no match in v1)
+}
+
+message Payment {
+    int64 id = 1;
+    // currency moved from field 2 to field 4
+    string currency = 4;     // Same name, same type (HIGH confidence)
+    // total changed type incompatibly (int32 -> float)
+    float total = 5;         // Same name but incompatible type — NOT a suspected renumber
+}
+
+// Scenario: Displaced field — ref_id moved from #7 to #5, old_counter removed
+message Transaction {
+    int64 id = 1;
+    // old_counter removed, ref_id takes its position
+    int64 ref_id = 5;        // Displaced: was at #7 in v1, now at #5 (same type = HIGH confidence)
+    string name = 6;          // Unchanged
+    // ref_id no longer at #7
+    string status = 8;        // Unchanged
+}
