@@ -84,7 +84,7 @@ public class ConflictEnumGenerator extends BaseGenerator<ConflictEnumInfo> {
         for (ConflictEnumInfo.EnumValue value : enumInfo.getValues()) {
             TypeSpec constantSpec = TypeSpec.anonymousClassBuilder("$L", value.number())
                     .build();
-            enumBuilder.addEnumConstant(enumInfo.getStrippedValueName(value), constantSpec);
+            enumBuilder.addEnumConstant(value.name(), constantSpec);
         }
 
         // Add static fromProtoValue method

@@ -81,7 +81,7 @@ public class EnumGenerator extends BaseGenerator<MergedEnum> {
                 constantBuilder.addJavadoc("Present only in versions: $L\n", value.getPresentInVersions());
             }
 
-            enumBuilder.addEnumConstant(enumInfo.getStrippedValueName(value), constantBuilder.build());
+            enumBuilder.addEnumConstant(value.getJavaName(), constantBuilder.build());
         }
 
         // Add static fromProtoValue method

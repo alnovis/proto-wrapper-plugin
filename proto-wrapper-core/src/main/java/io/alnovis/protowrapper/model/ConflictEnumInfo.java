@@ -16,9 +16,9 @@ import java.util.*;
  *
  * // Generated unified enum:
  * public enum UnitType {
- *     CELSIUS(0),
- *     FAHRENHEIT(1),
- *     KELVIN(2);
+ *     UNIT_CELSIUS(0),
+ *     UNIT_FAHRENHEIT(1),
+ *     UNIT_KELVIN(2);
  *     ...
  * }
  * </pre>
@@ -118,50 +118,6 @@ public class ConflictEnumInfo {
      */
     public Set<EnumValue> getValues() {
         return values;
-    }
-
-    /**
-     * Compute the common prefix shared by all enum value names, truncated to the last underscore.
-     * Returns empty string if no common prefix ending with underscore is found.
-     */
-    public String getCommonValuePrefix() {
-        if (values.isEmpty()) return "";
-
-        String prefix = values.iterator().next().name();
-        for (EnumValue value : values) {
-            String valueName = value.name();
-            int commonLen = 0;
-            for (int j = 0; j < Math.min(prefix.length(), valueName.length()); j++) {
-                if (prefix.charAt(j) == valueName.charAt(j)) {
-                    commonLen++;
-                } else {
-                    break;
-                }
-            }
-            prefix = prefix.substring(0, commonLen);
-            if (prefix.isEmpty()) return "";
-        }
-
-        int lastUnderscore = prefix.lastIndexOf('_');
-        if (lastUnderscore <= 0) return "";
-        return prefix.substring(0, lastUnderscore + 1);
-    }
-
-    /**
-     * Get the stripped name for an enum value (common prefix removed).
-     *
-     * @param value the enum value
-     * @return the value name with common prefix removed
-     */
-    public String getStrippedValueName(EnumValue value) {
-        String prefix = getCommonValuePrefix();
-        if (!prefix.isEmpty() && value.name().startsWith(prefix)) {
-            String stripped = value.name().substring(prefix.length());
-            if (!stripped.isEmpty()) {
-                return stripped;
-            }
-        }
-        return value.name();
     }
 
     /**

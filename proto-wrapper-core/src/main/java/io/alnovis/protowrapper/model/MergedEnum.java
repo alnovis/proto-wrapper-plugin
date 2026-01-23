@@ -121,59 +121,6 @@ public class MergedEnum {
         return Collections.unmodifiableSet(presentInVersions);
     }
 
-    /**
-     * Compute the common prefix shared by all enum value names, truncated to the last underscore.
-     * Returns empty string if no common prefix ending with underscore is found.
-     *
-     * <p>Examples:</p>
-     * <ul>
-     *   <li>{@code ORDER_STATUS_PENDING, ORDER_STATUS_COMPLETED} → {@code "ORDER_STATUS_"}</li>
-     *   <li>{@code PAYMENT_CASH, PAYMENT_CARD} → {@code "PAYMENT_"}</li>
-     *   <li>{@code FOO, BAR} → {@code ""} (no common prefix)</li>
-     * </ul>
-     */
-    public String getCommonValuePrefix() {
-        if (values.isEmpty()) return "";
-
-        String prefix = values.get(0).getName();
-        for (int i = 1; i < values.size(); i++) {
-            String valueName = values.get(i).getName();
-            int commonLen = 0;
-            for (int j = 0; j < Math.min(prefix.length(), valueName.length()); j++) {
-                if (prefix.charAt(j) == valueName.charAt(j)) {
-                    commonLen++;
-                } else {
-                    break;
-                }
-            }
-            prefix = prefix.substring(0, commonLen);
-            if (prefix.isEmpty()) return "";
-        }
-
-        // Truncate to last underscore (prefix must end with _)
-        int lastUnderscore = prefix.lastIndexOf('_');
-        if (lastUnderscore <= 0) return "";
-        return prefix.substring(0, lastUnderscore + 1);
-    }
-
-    /**
-     * Get the stripped name for an enum value (common prefix removed).
-     * Falls back to the raw name if stripping would produce an empty string.
-     *
-     * @param value the enum value
-     * @return the value name with common prefix removed
-     */
-    public String getStrippedValueName(MergedEnumValue value) {
-        String prefix = getCommonValuePrefix();
-        if (!prefix.isEmpty() && value.getName().startsWith(prefix)) {
-            String stripped = value.getName().substring(prefix.length());
-            if (!stripped.isEmpty()) {
-                return stripped;
-            }
-        }
-        return value.getName();
-    }
-
     @Override
     public String toString() {
         return String.format("MergedEnum[%s, %d values]", name, values.size());
