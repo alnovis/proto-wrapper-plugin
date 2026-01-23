@@ -69,6 +69,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 2.1.0)* |
 | `generateProtocolVersions` | `true` | Generate `ProtocolVersions` class with version string constants. When enabled, generated code references constants instead of string literals. *(since 2.1.0)* |
 | `defaultVersion` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. If not set, the last version in the list is used. *(since 2.2.0)* |
+| `fieldMappings` | (none) | List of field mappings for renumbered fields. See [Field Mappings](#field-mappings). *(since 2.2.0)* |
 
 #### Generation Flags
 
@@ -149,6 +150,43 @@ Filter which messages are processed:
 - If `includeMessages` is specified, only listed messages are processed
 - If `excludeMessages` is specified, listed messages are skipped
 - Both can be used together: include takes precedence, then exclude filters
+
+### Field Mappings
+
+When fields are renumbered between schema versions, configure explicit mappings to ensure correct cross-version wrapper generation:
+
+```xml
+<configuration>
+    <fieldMappings>
+        <fieldMapping>
+            <message>TicketRequest</message>
+            <fieldName>parent_ticket</fieldName>
+            <versionNumbers>
+                <v202>17</v202>
+                <v203>15</v203>
+            </versionNumbers>
+        </fieldMapping>
+    </fieldMappings>
+</configuration>
+```
+
+**Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `message` | Yes | Message name containing the renumbered field |
+| `fieldName` | Yes | Proto field name (used for name-based matching) |
+| `versionNumbers` | No | Explicit version-to-number mapping. If omitted, matches by name only. |
+
+**How it works:**
+- Without mapping: VersionMerger matches fields by number. A renumbered field is treated as two separate changes (REMOVED at old number, ADDED at new number)
+- With mapping: VersionMerger matches the field by name first (Phase 1), generating a single unified accessor that works correctly in both versions
+- The diff tool shows mapped renumbers as `[MAPPED]` (non-breaking)
+
+**Detecting renumbered fields:**
+Run the diff tool without field mappings. If renumbered fields exist, the tool outputs suggested mappings in the `SUSPECTED RENUMBERED FIELDS` section.
+
+*(since 2.2.0)*
 
 ### Incremental Build
 
@@ -314,6 +352,19 @@ protoWrapper {
 | `targetJavaVersion` | `Property<Int>` | `9` | Target Java version (use `8` for Java 8 compatibility). |
 | `generateProtocolVersions` | `Property<Boolean>` | `true` | Generate `ProtocolVersions` class with version constants. |
 | `defaultVersion` | `Property<String>` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. |
+
+#### Field Mappings (Gradle)
+
+```kotlin
+protoWrapper {
+    fieldMappings {
+        mapping("TicketRequest", "parent_ticket") {
+            versionNumber("v202", 17)
+            versionNumber("v203", 15)
+        }
+    }
+}
+```
 
 ### Version Configuration
 

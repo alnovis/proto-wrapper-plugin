@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-01-23
+
+### Added
+
+#### Field Mapping Support
+- **New `fieldMappings` configuration** for both `generate` and `diff` goals — explicitly map fields that were renumbered between schema versions:
+  ```xml
+  <fieldMappings>
+      <fieldMapping>
+          <message>TicketRequest</message>
+          <fieldName>parent_ticket</fieldName>
+          <versionNumbers>
+              <v202>17</v202>
+              <v203>15</v203>
+          </versionNumbers>
+      </fieldMapping>
+  </fieldMappings>
+  ```
+- Mapped fields are matched by name in VersionMerger (Phase 1), before number-based matching
+- Generates correct version-specific accessors even when field numbers differ
+- Gradle DSL: `protoWrapper { fieldMappings { mapping("Message", "field") { ... } } }`
+
+#### Renumber Detection in Diff Tool
+- **Heuristic renumber detector** — automatically identifies fields that appear to have been renumbered:
+  - **Strategy 1**: Matches REMOVED+ADDED pairs with same proto name and compatible type
+  - **Strategy 2 (displaced fields)**: Detects fields that moved to the position of a removed field
+- **Confidence levels**: HIGH (same type), MEDIUM (compatible widening conversion)
+- **Suggested mappings**: Outputs `fieldMappings` XML/Gradle configuration for detected renumbers
+- Diff report shows `~ Renumbered field: fieldName #N -> #M [MAPPED]` for mapped fields
+- Summary includes renumber counts: `Renumbers: N mapped, M suspected`
+
+#### Version Conversion API
+- **New `asVersion(VersionContext)` method** on abstract wrapper classes — converts between protocol versions without reflection:
+  ```java
+  VersionContext v2Ctx = VersionContext.forVersionId("v203");
+  TicketRequest v2Request = v1Request.asVersion(v2Ctx);
+  ```
+- **New `parseXxxFromBytes(byte[])` methods** on VersionContext — parse proto bytes directly into wrappers
+- More efficient than the existing `asVersion(Class)` method (no reflection lookup)
+
+#### Enum API Improvements
+- **New `fromProto(Object)` static method** on generated enums — convert any proto enum to wrapper enum via reflection:
+  ```java
+  CommandTypeEnum cmd = CommandTypeEnum.fromProto(protoMessage.getCommand());
+  ```
+- **New `matches(Object)` method** on generated enums — compare wrapper enum with any proto enum by numeric value
+
+#### Per-Version Proto Syntax
+- **New `protoSyntax` per-version configuration** — each version can now specify its own proto syntax (`proto2`, `proto3`, or `auto`):
+  ```xml
+  <versions>
+      <version>
+          <protoDir>v1</protoDir>
+          <protoSyntax>proto2</protoSyntax>
+      </version>
+      <version>
+          <protoDir>v2</protoDir>
+          <protoSyntax>proto3</protoSyntax>
+      </version>
+  </versions>
+  ```
+- **Auto-detection mode** (default) — plugin parses `syntax` declarations in `.proto` files; files without explicit syntax default to proto2
+- Affects enum conversion (`valueOf` vs `forNumber`) and `has*()` method generation
+- Gradle DSL: `version("v1") { protoSyntax.set("proto2") }`
+
+### Deprecated
+
+- **`protobufMajorVersion` parameter** — use per-version `protoSyntax` instead. Scheduled for removal in **3.0.0**
+- **`GeneratorConfig.getProtobufMajorVersion()`** — use `getDefaultSyntax()`
+- **`GeneratorConfig.isProtobuf2()` / `isProtobuf3()`** — use `getDefaultSyntax().isProto2()` / `.isProto3()`
+- **`GeneratorConfig.Builder.protobufMajorVersion(int)`** — use `defaultSyntax(ProtoSyntax)`
+- **`ProtoSyntax.fromMajorVersion(int)`** — use `ProtoSyntax` enum directly
+- **`CodeGenerationHelper.getEnumFromIntMethod(GeneratorConfig)`** — use `getEnumFromIntMethod(ProcessingContext)`
+
+### Fixed
+
+#### Diff Tool
+- **Auto-detect proto include path** — when `-DincludePath` is not specified, the plugin now detects prefixed imports (e.g., `import "v202/common.proto"`) and uses the parent directory as `proto_path`
+- Previously failed with protoc errors when proto files used versioned import paths
+
+---
+
 ## [2.1.1] - 2026-01-21
 
 ### Added

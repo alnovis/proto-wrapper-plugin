@@ -127,7 +127,8 @@ public record MessageDiff(
             .filter(fc -> fc.changeType() == ChangeType.MODIFIED ||
                           fc.changeType() == ChangeType.TYPE_CHANGED ||
                           fc.changeType() == ChangeType.LABEL_CHANGED ||
-                          fc.changeType() == ChangeType.NAME_CHANGED)
+                          fc.changeType() == ChangeType.NAME_CHANGED ||
+                          fc.changeType() == ChangeType.NUMBER_CHANGED)
             .toList();
     }
 

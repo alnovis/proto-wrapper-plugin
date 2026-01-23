@@ -12,6 +12,7 @@ Compare protobuf schema versions and detect breaking changes. Available as CLI, 
 - [CLI Usage](#cli-usage)
 - [Maven Usage](#maven-usage)
 - [Gradle Usage](#gradle-usage)
+- [Field Mappings & Renumber Detection](#field-mappings--renumber-detection)
 - [Output Formats](#output-formats)
 - [Breaking Change Types](#breaking-change-types)
 - [Programmatic API](#programmatic-api)
@@ -25,6 +26,7 @@ The Schema Diff tool analyzes differences between two protobuf schema directorie
 - Added, modified, and removed messages and enums
 - Breaking changes that affect wire compatibility
 - Non-breaking changes (warnings)
+- Suspected field renumbering (with suggested mappings)
 
 ### Features
 
@@ -32,6 +34,9 @@ The Schema Diff tool analyzes differences between two protobuf schema directorie
 - **CI/CD integration**: Exit codes for breaking changes
 - **Custom version names**: Label versions in reports
 - **Breaking-only mode**: Filter to show only critical issues
+- **Field mappings**: Explicit mapping for renumbered fields
+- **Renumber detection**: Heuristic detection of field renumbering
+- **Auto-detect include path**: Resolves versioned proto imports automatically
 
 ---
 
@@ -152,6 +157,56 @@ Configure as part of your build:
 | `failOnBreaking` | `false` | Fail build on breaking changes |
 | `failOnWarning` | `false` | Treat warnings as errors |
 | `protoc.path` | (from PATH) | Custom protoc path |
+| `includePath` | (auto-detected) | Include path for proto imports |
+| `fieldMappings` | (none) | Field mapping configuration for renumbered fields |
+
+### Field Mappings
+
+Configure field mappings to handle renumbered fields:
+
+```xml
+<configuration>
+    <fieldMappings>
+        <fieldMapping>
+            <message>TicketRequest</message>
+            <fieldName>parent_ticket</fieldName>
+            <versionNumbers>
+                <v202>17</v202>
+                <v203>15</v203>
+            </versionNumbers>
+        </fieldMapping>
+    </fieldMappings>
+</configuration>
+```
+
+When configured:
+- Mapped fields are shown as `~ Renumbered field: fieldName #N -> #M [MAPPED]`
+- Renumbered fields are treated as INFO-level (not breaking)
+- The summary shows `Renumbers: N mapped, M suspected`
+
+### Renumber Detection
+
+Without explicit field mappings, the diff tool heuristically detects suspected renumbered fields:
+
+```
+SUSPECTED RENUMBERED FIELDS
+----------------------------
+  TicketRequest.parent_ticket: #17 -> #15 (HIGH confidence)
+    Suggested mapping:
+      <fieldMapping>
+          <message>TicketRequest</message>
+          <fieldName>parent_ticket</fieldName>
+          <versionNumbers><v202>17</v202><v203>15</v203></versionNumbers>
+      </fieldMapping>
+```
+
+Detection strategies:
+1. **REMOVED+ADDED pairs** — same proto name in both removed and added fields
+2. **Displaced fields** — a removed field's name matches the v2 side of a renamed field
+
+Confidence levels:
+- **HIGH** — same name and same type
+- **MEDIUM** — same name with compatible type conversion (integer widening, int-enum, float-double, string-bytes)
 
 ---
 
@@ -207,6 +262,7 @@ tasks.named("check") {
 | `outputFile` | `RegularFileProperty` | (console) | Output file |
 | `breakingOnly` | `Property<Boolean>` | `false` | Show only breaking changes |
 | `failOnBreaking` | `Property<Boolean>` | `false` | Fail task on breaking changes |
+| `fieldMappings` | `ListProperty<FieldMappingData>` | (none) | Field mapping configuration |
 
 ---
 
@@ -246,7 +302,8 @@ SUMMARY
 
 Messages:  +1 added, ~1 modified, -1 removed
 Enums:     +0 added, ~0 modified, -0 removed
-Breaking:  2 errors, 0 warnings
+Changes:   2 errors, 0 warnings, 0 plugin-handled
+Renumbers: 0 mapped, 0 suspected
 ```
 
 ### JSON Format
@@ -360,6 +417,24 @@ String markdownReport = diff.toMarkdown();
 SchemaDiff.DiffSummary summary = diff.getSummary();
 System.out.println("Added: " + summary.addedMessages() + " messages");
 System.out.println("Breaking: " + summary.errorCount() + " errors");
+
+// Compare with field mappings
+List<FieldMapping> mappings = List.of(
+    new FieldMapping("Order", "parent_ref",
+        Map.of("v1", 3, "v2", 5))
+);
+SchemaDiff diffWithMappings = SchemaDiff.compare(v1Schema, v2Schema, mappings);
+
+// Check suspected renumbers
+if (diff.hasSuspectedRenumbers()) {
+    for (SuspectedRenumber sr : diff.getSuspectedRenumbers()) {
+        System.out.println(sr.messageName() + "." + sr.fieldName() +
+            ": #" + sr.v1Number() + " -> #" + sr.v2Number() +
+            " (" + sr.confidence() + ")");
+        // Generate suggested mapping
+        FieldMapping suggested = sr.toSuggestedMapping("v1", "v2");
+    }
+}
 ```
 
 ---

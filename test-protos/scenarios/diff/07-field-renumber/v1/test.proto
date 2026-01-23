@@ -1,0 +1,27 @@
+syntax = "proto3";
+package test;
+
+// Scenario: Field renumbering between versions
+message Order {
+    int64 id = 1;
+    string name = 2;
+    int64 parent_ref = 3;     // Will move to field 5 in v2
+    int32 amount = 4;         // Will move to field 6 in v2 with type change to int64
+    string description = 7;   // Will move to field 8 in v2
+    bool active = 9;          // Same number in both versions
+}
+
+message Payment {
+    int64 id = 1;
+    string currency = 2;     // Will move to field 4 in v2 (same type = HIGH confidence)
+    int32 total = 3;         // Will move to field 5 in v2 with float type (incompatible = not detected)
+}
+
+// Scenario: Displaced field — a renumbered field takes the position of a removed field
+message Transaction {
+    int64 id = 1;
+    uint32 old_counter = 5;   // Will be removed in v2
+    string name = 6;          // Stays at same number
+    int64 ref_id = 7;         // Will move from #7 to #5 in v2, displacing old_counter
+    string status = 8;        // Stays at same number
+}

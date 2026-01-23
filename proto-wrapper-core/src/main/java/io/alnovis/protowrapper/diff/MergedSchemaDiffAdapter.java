@@ -155,13 +155,23 @@ public class MergedSchemaDiffAdapter {
         List<String> changes = new ArrayList<>();
         ChangeType primaryChangeType = ChangeType.UNCHANGED;
 
+        // Check for field number change (name-mapped fields with different numbers)
+        if (field.isNameMapped() && v1Field != null && v2Field != null &&
+                v1Field.getNumber() != v2Field.getNumber()) {
+            changes.add(String.format("Number: #%d -> #%d (mapped)",
+                v1Field.getNumber(), v2Field.getNumber()));
+            primaryChangeType = ChangeType.NUMBER_CHANGED;
+        }
+
         // Check for type conflict using the already-computed conflict type
         MergedField.ConflictType conflictType = field.getConflictType();
         if (conflictType != MergedField.ConflictType.NONE) {
             String v1Type = v1Field != null ? formatFieldType(v1Field) : "unknown";
             String v2Type = v2Field != null ? formatFieldType(v2Field) : "unknown";
             changes.add(String.format("Type: %s -> %s (%s)", v1Type, v2Type, conflictType));
-            primaryChangeType = ChangeType.TYPE_CHANGED;
+            if (primaryChangeType == ChangeType.UNCHANGED) {
+                primaryChangeType = ChangeType.TYPE_CHANGED;
+            }
         }
 
         // Check for label change (repeated/singular)
@@ -196,7 +206,12 @@ public class MergedSchemaDiffAdapter {
             }
         }
 
-        return new FieldChange(field.getNumber(), field.getJavaName(), primaryChangeType,
+        // For name-mapped fields, use v1 field number as the primary number
+        int fieldNumber = (field.isNameMapped() && v1Field != null)
+            ? v1Field.getNumber()
+            : field.getNumber();
+
+        return new FieldChange(fieldNumber, field.getJavaName(), primaryChangeType,
             v1Field, v2Field, changes);
     }
 
@@ -390,6 +405,30 @@ public class MergedSchemaDiffAdapter {
                             fieldChange.v2Field().isRepeated() ? "repeated" : "singular"
                         ));
                     }
+                }
+            }
+
+            case NUMBER_CHANGED -> {
+                if (fieldChange.isRenumberedByMapping()) {
+                    // Mapped renumber — handled by plugin, not breaking
+                    changes.add(new BreakingChange(
+                        BreakingChange.Type.FIELD_NUMBER_CHANGED,
+                        BreakingChange.Severity.INFO,
+                        fieldPath,
+                        "Field renumbered (handled by field mapping)",
+                        fieldChange.v1Field() != null ? String.valueOf(fieldChange.v1Field().getNumber()) : null,
+                        fieldChange.v2Field() != null ? String.valueOf(fieldChange.v2Field().getNumber()) : null
+                    ));
+                } else {
+                    // Unmapped number change — breaking
+                    changes.add(new BreakingChange(
+                        BreakingChange.Type.FIELD_NUMBER_CHANGED,
+                        BreakingChange.Severity.ERROR,
+                        fieldPath,
+                        "Field number changed",
+                        fieldChange.v1Field() != null ? String.valueOf(fieldChange.v1Field().getNumber()) : null,
+                        fieldChange.v2Field() != null ? String.valueOf(fieldChange.v2Field().getNumber()) : null
+                    ));
                 }
             }
 

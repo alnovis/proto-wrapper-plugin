@@ -30,14 +30,26 @@ class FieldChangeTest {
     }
 
     @Test
-    void isBreaking_returnsTrue_forNumberChanged() {
+    void isBreaking_returnsTrue_forUnmappedNumberChanged() {
+        FieldInfo v1 = createField("old_field", 1, Type.TYPE_STRING, Label.LABEL_OPTIONAL);
+        FieldInfo v2 = createField("new_field", 2, Type.TYPE_STRING, Label.LABEL_OPTIONAL);
+        FieldChange change = new FieldChange(
+            1, "old_field", ChangeType.NUMBER_CHANGED, v1, v2, List.of()
+        );
+
+        assertTrue(change.isBreaking());
+    }
+
+    @Test
+    void isBreaking_returnsFalse_forMappedNumberChanged() {
         FieldInfo v1 = createField("field", 1, Type.TYPE_STRING, Label.LABEL_OPTIONAL);
         FieldInfo v2 = createField("field", 2, Type.TYPE_STRING, Label.LABEL_OPTIONAL);
         FieldChange change = new FieldChange(
             1, "field", ChangeType.NUMBER_CHANGED, v1, v2, List.of()
         );
 
-        assertTrue(change.isBreaking());
+        assertFalse(change.isBreaking());
+        assertTrue(change.isRenumberedByMapping());
     }
 
     @Test

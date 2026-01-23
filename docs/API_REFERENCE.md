@@ -53,6 +53,9 @@ The Schema Diff Tool provides a programmatic API for comparing protobuf schemas 
 // Compare two VersionSchema objects
 static SchemaDiff compare(VersionSchema v1, VersionSchema v2);
 
+// Compare with field mappings (since 2.2.0)
+static SchemaDiff compare(VersionSchema v1, VersionSchema v2, List<FieldMapping> fieldMappings);
+
 // Compare two directories containing proto files
 static SchemaDiff compare(Path v1Dir, Path v2Dir) throws IOException;
 
@@ -74,6 +77,14 @@ static SchemaDiff compare(Path v1Dir, Path v2Dir, String v1Name, String v2Name) 
 | `getAddedEnums()` | `List<EnumInfo>` | Enums added in v2 |
 | `getRemovedEnums()` | `List<EnumInfo>` | Enums removed from v1 |
 | `getModifiedEnums()` | `List<EnumDiff>` | Enums changed between versions |
+
+#### Renumber Methods *(since 2.2.0)*
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `hasSuspectedRenumbers()` | `boolean` | True if heuristic renumber detection found matches |
+| `getSuspectedRenumbers()` | `List<SuspectedRenumber>` | All suspected renumbered fields |
+| `getMappedRenumberCount()` | `int` | Count of fields mapped via fieldMappings |
 
 #### Breaking Changes Methods
 
@@ -148,11 +159,42 @@ public record DiffSummary(
     int removedEnums,
     int modifiedEnums,
     int errorCount,
-    int warningCount
+    int warningCount,
+    int mappedRenumbers,      // since 2.2.0
+    int suspectedRenumbers    // since 2.2.0
 ) {
     boolean hasDifferences();
     boolean hasBreakingChanges();
+    boolean hasRenumbers();   // since 2.2.0
     int totalChanges();
+}
+```
+
+---
+
+### SuspectedRenumber *(since 2.2.0)*
+
+**Package:** `io.alnovis.protowrapper.diff.model`
+
+**Purpose:** Represents a heuristically detected renumbered field.
+
+```java
+public record SuspectedRenumber(
+    String messageName,
+    String fieldName,
+    int v1Number,
+    int v2Number,
+    FieldInfo v1Field,
+    FieldInfo v2Field,
+    Confidence confidence
+) {
+    public enum Confidence { HIGH, MEDIUM }
+
+    // Generate suggested FieldMapping configuration
+    FieldMapping toSuggestedMapping(String v1Name, String v2Name);
+
+    // Human-readable description
+    String getDescription();
 }
 ```
 
@@ -253,8 +295,10 @@ public record FieldChange(
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `isBreaking()` | `boolean` | True if change is breaking |
+| `isBreaking()` | `boolean` | True if change is breaking (false for mapped renumbers) |
 | `isCompatibleTypeChange()` | `boolean` | True if type change is compatible (widening) |
+| `isRenumberedByMapping()` | `boolean` | True if NUMBER_CHANGED with same name in v1/v2 *(since 2.2.0)* |
+| `getRenumberDescription()` | `String` | Formatted `"#N -> #M"` for renumbered fields *(since 2.2.0)* |
 | `getCompatibilityNote()` | `String` | Compatibility description for type changes |
 | `getSummary()` | `String` | Human-readable summary |
 | `formatType(FieldInfo)` | `String` | Static method to format field type |
@@ -1027,6 +1071,27 @@ public enum {FieldName}Enum {
 }
 ```
 
+**Version-agnostic conversion methods** *(since 2.2.0)*:
+```java
+public enum {EnumName} {
+    // Convert any proto enum to this wrapper enum (uses reflection on getNumber())
+    public static {EnumName} fromProto(Object protoEnum);
+
+    // Compare with any proto enum by numeric value
+    public boolean matches(Object protoEnum);
+}
+```
+
+`fromProto()` works with any version's proto enum by extracting the numeric value via reflection:
+```java
+// Works with any version's proto enum
+CommandTypeEnum cmd = CommandTypeEnum.fromProto(v202Message.getCommand());
+CommandTypeEnum cmd = CommandTypeEnum.fromProto(v203Message.getCommand());
+
+// Compare directly
+if (CommandTypeEnum.COMMAND_TICKET.matches(protoCommand)) { ... }
+```
+
 ---
 
 ## Generated Methods
@@ -1196,6 +1261,26 @@ Address.GeoLocation location = Address.GeoLocation.parseFromBytes(ctx, bytes);
 **Mechanism:** Serializes to bytes, then deserializes with target version's parser.
 
 **Data preservation:** All data is preserved via protobuf's unknown field handling. Fields not in target version become inaccessible through API but remain in the serialized form.
+
+---
+
+#### asVersion(VersionContext)
+
+**Signature:** `{Interface} asVersion(VersionContext targetContext)`
+
+**Purpose:** Converts wrapper to a different version using VersionContext. More efficient than class-based conversion (no reflection).
+
+**Mechanism:** Serializes to bytes via `toBytes()`, then parses with target context's `parseXxxFromBytes()` method.
+
+**Example:**
+```java
+VersionContext v203 = VersionContext.forVersionId("v203");
+TicketRequest v203Request = v202Request.asVersion(v203);
+```
+
+**Throws:** `RuntimeException` if conversion fails (e.g., `InvalidProtocolBufferException`).
+
+*(since 2.2.0)*
 
 ---
 

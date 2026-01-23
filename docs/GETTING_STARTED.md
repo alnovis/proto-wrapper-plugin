@@ -461,9 +461,11 @@ Now that you have a working setup:
    - Handling different conflict types
    - Working with nested messages
    - Oneof field handling
+   - Working with renumbered fields
+   - Mixed proto2/proto3 projects (per-version `protoSyntax`)
    - Well-known types (Timestamp, Duration)
 3. **[Examples](../examples/)** - Browse complete example projects
-4. **[Schema Diff](SCHEMA_DIFF.md)** - Compare schemas and detect breaking changes
+4. **[Schema Diff](SCHEMA_DIFF.md)** - Compare schemas, detect breaking changes and field renumbering
 5. **[Known Issues](KNOWN_ISSUES.md)** - Understand current limitations
 
 ---
