@@ -220,7 +220,7 @@ abstract class SchemaDiffTask : DefaultTask() {
         val includeDir = if (includePath.isPresent) {
             includePath.get().asFile.toPath()
         } else {
-            protoDir.toPath()
+            ProtocExecutor.detectIncludePath(protoDir.toPath())
         }
 
         protocExecutor.generateDescriptor(

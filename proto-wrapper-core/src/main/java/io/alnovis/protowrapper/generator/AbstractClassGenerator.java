@@ -379,9 +379,32 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return convertToVersion(versionClass)")
                 .build());
 
-        // Protected helper method for conversion via serialization
+        // asVersion(VersionContext) implementation - direct conversion without reflection
         ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
+        ClassName interfaceType = ClassName.get(config.getApiPackage(), interfaceName);
         String parseMethodName = "parse" + message.getName() + "FromBytes";
+        ClassName invalidProtocolBufferException = ClassName.get(
+                "com.google.protobuf", "InvalidProtocolBufferException");
+
+        classBuilder.addMethod(MethodSpec.methodBuilder("asVersion")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(interfaceType)
+                .addParameter(versionContextType, "targetContext")
+                .beginControlFlow("if (targetContext.getVersionId().equals(getWrapperVersionId()))")
+                .addStatement("return this")
+                .endControlFlow()
+                .beginControlFlow("try")
+                .addStatement("return targetContext.$L(this.toBytes())", parseMethodName)
+                .nextControlFlow("catch ($T e)", invalidProtocolBufferException)
+                .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), " +
+                        "getWrapperVersionId(), targetContext.getVersionId(), e.getMessage()), e)",
+                        RuntimeException.class, String.class,
+                        "Failed to convert %s from version %s to %s: %s")
+                .endControlFlow()
+                .build());
+
+        // Protected helper method for conversion via serialization
 
         classBuilder.addMethod(MethodSpec.methodBuilder("convertToVersion")
                 .addModifiers(Modifier.PROTECTED)

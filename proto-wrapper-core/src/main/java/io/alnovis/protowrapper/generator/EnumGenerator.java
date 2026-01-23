@@ -101,6 +101,52 @@ public class EnumGenerator extends BaseGenerator<MergedEnum> {
                 .addJavadoc("@return Matching enum constant or null if not found\n")
                 .build());
 
+        // Add static fromProto method for converting any proto enum
+        ClassName methodClass = ClassName.get("java.lang.reflect", "Method");
+        enumBuilder.addMethod(MethodSpec.methodBuilder("fromProto")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(enumClassName)
+                .addParameter(ClassName.OBJECT, "protoEnum")
+                .beginControlFlow("if (protoEnum == null)")
+                .addStatement("return null")
+                .endControlFlow()
+                .beginControlFlow("try")
+                .addStatement("$T getNumber = protoEnum.getClass().getMethod($S)", methodClass, "getNumber")
+                .addStatement("int number = (int) getNumber.invoke(protoEnum)")
+                .addStatement("return fromProtoValue(number)")
+                .nextControlFlow("catch ($T e)", ClassName.get(ReflectiveOperationException.class))
+                .addStatement("throw new $T($S + protoEnum.getClass().getName(), e)",
+                        ClassName.get(IllegalArgumentException.class),
+                        "Cannot convert to " + enumInfo.getName() + ": ")
+                .endControlFlow()
+                .addJavadoc("Convert any proto enum to this wrapper enum.\n\n")
+                .addJavadoc("<p>Works with any version's proto enum by extracting numeric value via reflection.</p>\n\n")
+                .addJavadoc("@param protoEnum Proto enum instance (e.g., v202.Message.CommandTypeEnum.COMMAND_INFO)\n")
+                .addJavadoc("@return Corresponding wrapper enum constant, or null if value not found\n")
+                .addJavadoc("@throws IllegalArgumentException if protoEnum is not a valid protobuf enum\n")
+                .build());
+
+        // Add matches method for comparing with proto enum
+        enumBuilder.addMethod(MethodSpec.methodBuilder("matches")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(TypeName.BOOLEAN)
+                .addParameter(ClassName.OBJECT, "protoEnum")
+                .beginControlFlow("if (protoEnum == null)")
+                .addStatement("return false")
+                .endControlFlow()
+                .beginControlFlow("try")
+                .addStatement("$T getNumber = protoEnum.getClass().getMethod($S)", methodClass, "getNumber")
+                .addStatement("int number = (int) getNumber.invoke(protoEnum)")
+                .addStatement("return this.value == number")
+                .nextControlFlow("catch ($T e)", ClassName.get(ReflectiveOperationException.class))
+                .addStatement("return false")
+                .endControlFlow()
+                .addJavadoc("Check if this wrapper enum matches a proto enum by numeric value.\n\n")
+                .addJavadoc("<p>Works with any version's proto enum.</p>\n\n")
+                .addJavadoc("@param protoEnum Proto enum to compare with\n")
+                .addJavadoc("@return true if numeric values match, false otherwise\n")
+                .build());
+
         TypeSpec enumSpec = enumBuilder.build();
 
         return JavaFile.builder(config.getApiPackage(), enumSpec)

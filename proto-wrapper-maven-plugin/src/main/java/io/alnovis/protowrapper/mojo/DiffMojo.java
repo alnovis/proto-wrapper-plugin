@@ -239,7 +239,9 @@ public class DiffMojo extends AbstractMojo {
         Path descriptorFile = tempDirectory.toPath().resolve(versionName + "-descriptor.pb");
 
         // Determine include path
-        Path includeDir = includePath != null ? includePath.toPath() : protoDir.toPath();
+        Path includeDir = includePath != null
+            ? includePath.toPath()
+            : detectIncludePath(protoDir.toPath());
 
         protocExecutor.generateDescriptor(
             protoDir.toPath(),
@@ -256,6 +258,21 @@ public class DiffMojo extends AbstractMojo {
                       schema.getEnums().size() + " enums");
 
         return schema;
+    }
+
+    /**
+     * Detects the correct proto_path for protoc based on import patterns.
+     * Delegates to {@link ProtocExecutor#detectIncludePath(Path)}.
+     *
+     * @param protoDir the proto version directory
+     * @return the correct include path for protoc
+     */
+    private Path detectIncludePath(Path protoDir) throws IOException {
+        Path detected = ProtocExecutor.detectIncludePath(protoDir);
+        if (!detected.equals(protoDir)) {
+            getLog().debug("Detected prefixed imports, using parent as proto_path: " + detected);
+        }
+        return detected;
     }
 
     /**

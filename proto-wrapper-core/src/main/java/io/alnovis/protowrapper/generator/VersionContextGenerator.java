@@ -205,6 +205,20 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                     .addStatement("return new $T($T.parseFrom(bytes))", implType, protoType)
                     .build());
 
+            // Add parsePartialXxxFromBytes() implementation - lenient parsing without required fields check
+            // Uses newBuilder().mergeFrom().buildPartial() to avoid required fields validation
+            classBuilder.addMethod(MethodSpec.methodBuilder("parsePartial" + message.getName() + "FromBytes")
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(returnType)
+                    .addParameter(ArrayTypeName.of(TypeName.BYTE), "bytes")
+                    .addException(invalidProtocolBufferException)
+                    .beginControlFlow("if (bytes == null)")
+                    .addStatement("return null")
+                    .endControlFlow()
+                    .addStatement("return new $T($T.newBuilder().mergeFrom(bytes).buildPartial())", implType, protoType)
+                    .build());
+
             // Add newXxxBuilder() implementation if builders are enabled
             if (config.isGenerateBuilders()) {
                 ClassName builderType = returnType.nestedClass("Builder");
