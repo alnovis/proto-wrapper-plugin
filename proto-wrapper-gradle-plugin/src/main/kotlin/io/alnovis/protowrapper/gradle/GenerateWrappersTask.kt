@@ -340,6 +340,21 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Input
     abstract val validationAnnotationStyle: Property<String>
 
+    /**
+     * Whether to generate runtime schema metadata classes.
+     * When enabled, generates SchemaInfo classes for each version and
+     * VersionSchemaDiff classes for version-to-version changes.
+     *
+     * Adds VersionContext methods:
+     * - getSchemaInfo() - returns SchemaInfo for the version
+     * - getDiffFrom(fromVersion) - returns Optional<VersionSchemaDiff> for version transition
+     *
+     * Default: false
+     * @since 2.3.1
+     */
+    @get:Input
+    abstract val generateSchemaMetadata: Property<Boolean>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -706,6 +721,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
             // Validation annotations (since 2.3.0)
             .generateValidationAnnotations(generateValidationAnnotations.get())
             .validationAnnotationStyle(validationAnnotationStyle.get())
+            // Schema metadata (since 2.3.1)
+            .generateSchemaMetadata(generateSchemaMetadata.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)

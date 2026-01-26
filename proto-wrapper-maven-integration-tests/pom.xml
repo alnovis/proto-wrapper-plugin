@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.alnovis</groupId>
         <artifactId>proto-wrapper-parent</artifactId>
-        <version>2.3.0</version>
+        <version>2.3.1</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -34,12 +34,11 @@
     </properties>
 
     <dependencies>
-        <!-- Proto wrapper core (for exception classes) -->
+        <!-- Proto wrapper core (for runtime interfaces and exception classes) -->
         <dependency>
             <groupId>io.alnovis</groupId>
             <artifactId>proto-wrapper-core</artifactId>
             <version>${project.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <!-- Protobuf runtime -->
@@ -122,6 +121,7 @@
                     <generateBuilders>true</generateBuilders>
                     <convertWellKnownTypes>true</convertWellKnownTypes>
                     <generateRawProtoAccessors>false</generateRawProtoAccessors>
+                    <generateSchemaMetadata>true</generateSchemaMetadata>
                     <fieldMappings>
                         <!-- Name-based: parent_ref has same name but different numbers -->
                         <fieldMapping>

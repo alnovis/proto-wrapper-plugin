@@ -395,6 +395,66 @@ class GenerateWrappersTaskTest {
         assertThat(result.task(":generateProtoWrappers")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     }
 
+    // ============ Schema Metadata Tests ============
+
+    @Test
+    @EnabledIf("isProtocAvailable")
+    fun `task generates schema metadata when enabled`() {
+        createBuildFile("""
+            generateSchemaMetadata.set(true)
+        """.trimIndent())
+
+        runTask("generateProtoWrappers")
+
+        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
+        val metadataDir = File(outputDir, "com/example/metadata")
+
+        // Schema metadata classes should be generated
+        assertThat(metadataDir).exists()
+
+        val schemaInfoV1 = File(metadataDir, "SchemaInfoV1.java")
+        assertThat(schemaInfoV1).exists()
+
+        val schemaInfoV2 = File(metadataDir, "SchemaInfoV2.java")
+        assertThat(schemaInfoV2).exists()
+    }
+
+    @Test
+    @EnabledIf("isProtocAvailable")
+    fun `schema metadata includes SchemaDiff classes`() {
+        createBuildFile("""
+            generateSchemaMetadata.set(true)
+        """.trimIndent())
+
+        runTask("generateProtoWrappers")
+
+        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
+        val metadataDir = File(outputDir, "com/example/metadata")
+
+        // SchemaDiff class should be generated for v1->v2 transition
+        val schemaDiffV1ToV2 = File(metadataDir, "SchemaDiffV1ToV2.java")
+        assertThat(schemaDiffV1ToV2).exists()
+    }
+
+    @Test
+    @EnabledIf("isProtocAvailable")
+    fun `schema metadata not generated when disabled`() {
+        createBuildFile("""
+            generateSchemaMetadata.set(false)
+        """.trimIndent())
+
+        runTask("generateProtoWrappers")
+
+        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
+        val metadataDir = File(outputDir, "com/example/metadata")
+
+        // Metadata directory should not exist or be empty
+        if (metadataDir.exists()) {
+            val schemaFiles = metadataDir.listFiles { f -> f.name.startsWith("Schema") }
+            assertThat(schemaFiles ?: emptyArray()).isEmpty()
+        }
+    }
+
     // ============ Integration with Java Plugin ============
 
     @Test

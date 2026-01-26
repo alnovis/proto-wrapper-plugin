@@ -93,7 +93,7 @@ byte[] bytes = order.toBytes();
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.0</version>
+    <version>2.3.1</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.3.0"
+    id("io.alnovis.proto-wrapper") version "2.3.1"
 }
 
 protoWrapper {
@@ -151,15 +151,17 @@ protoWrapper {
 | Well-known types | Convert Timestamp, Duration, wrappers to Java types | v1.3 |
 | Oneof support | Full oneof field handling with conflict detection | v1.2 |
 | Schema diff tool | Compare schemas, detect breaking changes | v1.5 |
-| Incremental build | Skip unchanged protos, 50%+ faster rebuilds | v1.6 |
+| Incremental build | Skip unchanged protos, 50%+ faster rebuilds | v1.6.0 |
 | Embedded protoc | Auto-download protoc, no manual installation needed | v1.6.5 |
 | ProtoWrapper interface | Common base interface for type-safe proto access | v1.6.6 |
 | Spring Boot Starter | Auto-configuration for Spring Boot applications | v1.6.7 |
-| Java 8 compatibility | Generate Java 8 compatible code with `targetJavaVersion=8` | v2.3.0 |
-| ProtocolVersions class | Centralized version constants with `generateProtocolVersions=true` | v2.3.0 |
-| Per-version proto syntax | Mixed proto2/proto3 projects with auto-detection | v2.3.0 |
-| Field mappings | Explicit mapping for renumbered fields across versions | v2.3.0 |
-| Renumber detection | Heuristic detection of field renumbering in diff tool | v2.3.0 |
+| Java 8 compatibility | Generate Java 8 compatible code with `targetJavaVersion=8` | v1.6.8 |
+| ProtocolVersions class | Centralized version constants with `generateProtocolVersions=true` | v2.1.0 |
+| Per-version proto syntax | Mixed proto2/proto3 projects with auto-detection | v2.2.0 |
+| Field mappings | Explicit mapping for renumbered fields across versions | v2.2.0 |
+| Renumber detection | Heuristic detection of field renumbering in diff tool | v2.2.0 |
+| Validation annotations | Auto-generated `@NotNull`, `@Valid` on interface getters | v2.3.0 |
+| Schema metadata | Runtime access to enum values, field info, and version diffs | v2.3.1 |
 
 ### Type Conflict Handling
 
@@ -179,6 +181,7 @@ protoWrapper {
 | **[Getting Started](docs/GETTING_STARTED.md)** | Step-by-step tutorial (15 min) |
 | [Configuration](docs/CONFIGURATION.md) | All plugin options for Maven and Gradle |
 | [Spring Boot Starter](docs/SPRING_BOOT_STARTER.md) | Integration with Spring Boot |
+| [Schema Metadata](docs/SCHEMA_METADATA.md) | Runtime access to enum values and version diffs |
 | [Cookbook](docs/COOKBOOK.md) | Practical examples and patterns |
 | [Contract Matrix](docs/CONTRACT-MATRIX.md) | Field behavior reference (getter/has for all types) |
 | [Schema Diff](docs/SCHEMA_DIFF.md) | Compare schemas and detect breaking changes |
@@ -207,6 +210,10 @@ target/generated-sources/proto-wrapper/
     │   ├── ProtocolVersions.java   # Version constants (optional)
     │   └── impl/
     │       └── AbstractOrder.java  # Template methods
+    ├── metadata/                   # Schema metadata (optional)
+    │   ├── SchemaInfoV1.java       # V1 enum/message metadata
+    │   ├── SchemaInfoV2.java       # V2 enum/message metadata
+    │   └── SchemaDiffV1ToV2.java   # V1→V2 schema changes
     ├── v1/
     │   ├── OrderV1.java            # V1 implementation
     │   └── VersionContextV1.java
@@ -236,7 +243,7 @@ Add dependency (plugins auto-download):
 <dependency>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>2.3.0</version>
+    <version>2.3.1</version>
 </dependency>
 ```
 

@@ -164,6 +164,20 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     abstract val validationAnnotationStyle: Property<String>
 
     /**
+     * Whether to generate runtime schema metadata classes.
+     * When enabled, generates SchemaInfo classes for each version and
+     * VersionSchemaDiff classes for version-to-version changes.
+     *
+     * Adds VersionContext methods:
+     * - getSchemaInfo() - returns SchemaInfo for the version
+     * - getDiffFrom(fromVersion) - returns Optional<VersionSchemaDiff> for version transition
+     *
+     * Default: false
+     * @since 2.3.1
+     */
+    abstract val generateSchemaMetadata: Property<Boolean>
+
+    /**
      * Add a name-based field mapping.
      *
      * @param message the message name
@@ -226,5 +240,7 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         // Validation annotations (since 2.3.0)
         generateValidationAnnotations.convention(false)
         validationAnnotationStyle.convention("jakarta")
+        // Schema metadata (since 2.3.1)
+        generateSchemaMetadata.convention(false)
     }
 }

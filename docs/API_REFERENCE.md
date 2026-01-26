@@ -11,6 +11,9 @@ This document describes the API of proto-wrapper plugin, including generated cod
   - [Model Classes](#model-classes)
   - [Formatter Classes](#formatter-classes)
   - [Breaking Change Types](#breaking-change-types)
+- [Schema Metadata API](#schema-metadata-api) **(New in v2.3.1)**
+  - [SchemaInfo](#schemainfo)
+  - [VersionSchemaDiff](#versionschemadiff)
 - [Generated Code Overview](#overview)
 - [Package Structure](#package-structure)
 - [Generated Class Types](#generated-class-types)
@@ -680,6 +683,145 @@ public class XmlDiffFormatter implements DiffFormatter {
 
 // Usage
 String xml = diff.format(new XmlDiffFormatter());
+```
+
+---
+
+## Schema Metadata API
+
+*New in v2.3.1*
+
+Runtime API for schema introspection. Enable with `generateSchemaMetadata=true`.
+
+### SchemaInfo
+
+**Package:** `io.alnovis.protowrapper.runtime`
+
+**Purpose:** Runtime access to enum values and message metadata for a specific version.
+
+#### Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getVersionId()` | `String` | Version identifier (e.g., "v1") |
+| `getEnums()` | `Map<String, EnumInfo>` | All enums keyed by name |
+| `getMessages()` | `Map<String, MessageInfo>` | All messages keyed by name |
+| `getEnum(String)` | `Optional<EnumInfo>` | Find enum by name |
+| `getMessage(String)` | `Optional<MessageInfo>` | Find message by name |
+
+#### Nested Types
+
+```java
+interface EnumInfo {
+    String getName();           // Simple name (e.g., "TaxTypeEnum")
+    String getFullName();       // Fully qualified (e.g., "com.example.v1.TaxTypeEnum")
+    List<EnumValue> getValues(); // All enum values
+}
+
+record EnumValue(String name, int number) {}
+
+interface MessageInfo {
+    String getName();
+    String getFullName();
+    Map<String, FieldInfo> getFields();
+}
+```
+
+#### Example Usage
+
+```java
+VersionContext ctx = VersionContext.forVersionId("v2");
+SchemaInfo schema = ctx.getSchemaInfo();
+
+schema.getEnum("TaxTypeEnum").ifPresent(e -> {
+    for (SchemaInfo.EnumValue v : e.getValues()) {
+        System.out.println(v.name() + " = " + v.number());
+    }
+});
+```
+
+---
+
+### VersionSchemaDiff
+
+**Package:** `io.alnovis.protowrapper.runtime`
+
+**Purpose:** Runtime access to schema changes between two versions.
+
+#### Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getFromVersion()` | `String` | Source version ID |
+| `getToVersion()` | `String` | Target version ID |
+| `getFieldChanges()` | `List<FieldChange>` | All field changes |
+| `getEnumChanges()` | `List<EnumChange>` | All enum changes |
+| `findFieldChange(String, String)` | `Optional<FieldChange>` | Find by message and field name |
+| `getAddedFields()` | `List<FieldChange>` | Fields added in target |
+| `getRemovedFields()` | `List<FieldChange>` | Fields removed from source |
+| `getTypeChangedFields()` | `List<FieldChange>` | Fields with type changes |
+| `getRenamedFields()` | `List<FieldChange>` | Renamed fields |
+| `hasChanges()` | `boolean` | True if any changes exist |
+
+#### Change Types
+
+```java
+enum FieldChangeType {
+    ADDED, REMOVED, RENAMED, TYPE_CHANGED, NUMBER_CHANGED, MOVED
+}
+
+enum EnumChangeType {
+    ADDED, REMOVED, VALUES_CHANGED
+}
+```
+
+#### Change Records
+
+```java
+record FieldChange(
+    String messageName,
+    String fieldName,
+    FieldChangeType changeType,
+    String oldType,
+    String newType,
+    String oldFieldName,
+    String newFieldName,
+    String newMessageName,
+    String migrationHint
+) {
+    // Factory methods
+    static FieldChange added(String msg, String field, String type, String hint);
+    static FieldChange removed(String msg, String field, String type, String hint);
+    static FieldChange typeChanged(String msg, String field, String oldType, String newType, String hint);
+    static FieldChange renamed(String msg, String oldName, String newName, String hint);
+}
+
+record EnumChange(
+    String enumName,
+    EnumChangeType changeType,
+    List<String> addedValues,
+    List<String> removedValues,
+    String migrationHint
+) {}
+```
+
+#### Example Usage
+
+```java
+VersionContext ctx = VersionContext.forVersionId("v2");
+
+ctx.getDiffFrom("v1").ifPresent(diff -> {
+    // Find specific field change
+    diff.findFieldChange("Tax", "type").ifPresent(fc -> {
+        System.out.println("Change: " + fc.changeType());
+        System.out.println("Migration hint: " + fc.migrationHint());
+    });
+
+    // List removed fields
+    for (var fc : diff.getRemovedFields()) {
+        System.out.println("Removed: " + fc.messageName() + "." + fc.fieldName());
+    }
+});
 ```
 
 ---

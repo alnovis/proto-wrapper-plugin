@@ -10,7 +10,11 @@ import org.apache.maven.project.MavenProject;
 import io.alnovis.protowrapper.analyzer.ProtoAnalyzer;
 import io.alnovis.protowrapper.analyzer.ProtoAnalyzer.VersionSchema;
 import io.alnovis.protowrapper.analyzer.ProtocExecutor;
+import io.alnovis.protowrapper.diff.SchemaDiff;
+import io.alnovis.protowrapper.diff.SchemaDiffEngine;
 import io.alnovis.protowrapper.generator.*;
+import io.alnovis.protowrapper.generator.metadata.SchemaDiffGenerator;
+import io.alnovis.protowrapper.generator.metadata.SchemaInfoGenerator;
 import io.alnovis.protowrapper.merger.VersionMerger;
 import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig;
 import io.alnovis.protowrapper.model.FieldMapping;
@@ -362,6 +366,18 @@ public class GenerateMojo extends AbstractMojo {
     private String validationAnnotationStyle;
 
     /**
+     * Whether to generate schema metadata classes for runtime introspection.
+     * When enabled, generates SchemaInfoVx classes (enum/message metadata) and
+     * SchemaDiffVxToVy classes (schema change diffs between versions).
+     * Also adds getSchemaInfo() and getDiffFrom() methods to VersionContext.
+     * Default: false
+     *
+     * @since 2.3.0
+     */
+    @Parameter(property = "proto-wrapper.generateSchemaMetadata", defaultValue = "false")
+    private boolean generateSchemaMetadata;
+
+    /**
      * Maven project.
      */
     @Parameter(defaultValue = "${project}", readonly = true)
@@ -450,6 +466,12 @@ public class GenerateMojo extends AbstractMojo {
                 getLog().info("No changes detected, generation skipped");
             } else {
                 getLog().info("Generated " + generatedFiles + " files in " + outputDirectory);
+            }
+
+            // Generate schema metadata if enabled
+            if (generateSchemaMetadata && generatedFiles > 0) {
+                int metadataFiles = generateSchemaMetadata(schemas, generatorConfig);
+                getLog().info("Generated " + metadataFiles + " schema metadata files");
             }
 
             // Add generated sources to compile path
@@ -661,7 +683,9 @@ public class GenerateMojo extends AbstractMojo {
                 .fieldMappings(fieldMappings)
                 // Validation annotations (since 2.3.0)
                 .generateValidationAnnotations(generateValidationAnnotations)
-                .validationAnnotationStyle(validationAnnotationStyle);
+                .validationAnnotationStyle(validationAnnotationStyle)
+                // Schema metadata (since 2.3.0)
+                .generateSchemaMetadata(generateSchemaMetadata);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {
@@ -812,5 +836,42 @@ public class GenerateMojo extends AbstractMojo {
         }
 
         return false;
+    }
+
+    /**
+     * Generate schema metadata files (SchemaInfo and SchemaDiff classes).
+     *
+     * @param schemas list of version schemas
+     * @param config generator configuration
+     * @return number of generated files
+     * @throws IOException if generation fails
+     */
+    private int generateSchemaMetadata(List<VersionSchema> schemas, GeneratorConfig config) throws IOException {
+        int count = 0;
+
+        // Generate SchemaInfo for each version
+        for (VersionSchema schema : schemas) {
+            SchemaInfoGenerator infoGenerator = new SchemaInfoGenerator(config, schema);
+            Path path = infoGenerator.generateAndWrite();
+            getLog().debug("Generated schema metadata: " + path);
+            count++;
+        }
+
+        // Generate SchemaDiff for consecutive version pairs
+        if (schemas.size() > 1) {
+            SchemaDiffEngine diffEngine = new SchemaDiffEngine();
+            for (int i = 0; i < schemas.size() - 1; i++) {
+                VersionSchema v1 = schemas.get(i);
+                VersionSchema v2 = schemas.get(i + 1);
+
+                SchemaDiff diff = diffEngine.compare(v1, v2);
+                SchemaDiffGenerator diffGenerator = new SchemaDiffGenerator(config, diff);
+                Path path = diffGenerator.generateAndWrite();
+                getLog().debug("Generated schema diff: " + path);
+                count++;
+            }
+        }
+
+        return count;
     }
 }

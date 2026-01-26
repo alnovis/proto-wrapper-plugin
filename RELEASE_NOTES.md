@@ -1,22 +1,134 @@
-# Release Notes - Proto Wrapper Plugin v2.3.0
+# Release Notes - Proto Wrapper Plugin v2.3.1
 
 **Release Date:** January 2026
 
 ## Overview
 
-Version 2.3.0 introduces **Validation Annotations** support — automatic generation of Bean Validation (JSR-380) annotations on wrapper interfaces based on proto field metadata.
+Version 2.3.1 introduces **Schema Metadata** — runtime access to enum values, message metadata, and version diffs without hardcoding.
 
 Key highlights:
-- **@NotNull Auto-Detection** — automatically added to repeated/map fields and universal non-optional message fields
-- **@Valid Auto-Detection** — automatically added to message-type fields for nested validation
-- **Jakarta/Javax Support** — configurable validation namespace with auto-switch for Java 8
-- **Smart Skip Logic** — primitives, type conflicts, oneof, and version-specific fields are correctly excluded
+- **Runtime Schema Introspection** — access enum values and message info at runtime via `SchemaInfo`
+- **Version Diff API** — programmatically query what changed between versions via `VersionSchemaDiff`
+- **Dynamic Validation** — validate enum values against actual schema without magic numbers
+- **Migration Tooling** — understand field changes, type changes, and get migration hints
 
-> **Note:** This release implements Phase 1 (auto-detection). Phase 2 (custom constraints via buf.validate) is planned for v2.7.0.
+> **Note:** This builds on v2.3.0 which added Validation Annotations support.
 
 ## New Features
 
-### Validation Annotations
+### Schema Metadata
+
+Generate runtime metadata classes for schema introspection:
+
+**Maven:**
+```xml
+<configuration>
+    <generateSchemaMetadata>true</generateSchemaMetadata>
+</configuration>
+```
+
+**Gradle:**
+```kotlin
+protoWrapper {
+    generateSchemaMetadata.set(true)
+}
+```
+
+### Usage Examples
+
+#### Access Enum Values at Runtime
+
+```java
+VersionContext ctx = VersionContext.forVersionId(ProtocolVersions.V2);
+SchemaInfo schema = ctx.getSchemaInfo();
+
+// Get enum values without hardcoding
+schema.getEnum("TaxTypeEnum").ifPresent(enumInfo -> {
+    for (SchemaInfo.EnumValue value : enumInfo.getValues()) {
+        System.out.println(value.name() + " = " + value.number());
+    }
+});
+// Output: VAT = 100, EXCISE = 200, NO_TAX = 0
+```
+
+#### Query Version Differences
+
+```java
+VersionContext v2Ctx = VersionContext.forVersionId(ProtocolVersions.V2);
+
+v2Ctx.getDiffFrom(ProtocolVersions.V1).ifPresent(diff -> {
+    // Find what changed for a specific field
+    diff.findFieldChange("Tax", "type").ifPresent(fc -> {
+        System.out.println("Change: " + fc.changeType());
+        System.out.println("Old type: " + fc.oldType());
+        System.out.println("New type: " + fc.newType());
+        System.out.println("Hint: " + fc.migrationHint());
+    });
+
+    // Get all removed fields
+    for (var fc : diff.getRemovedFields()) {
+        System.out.println("Removed: " + fc.messageName() + "." + fc.fieldName());
+    }
+});
+```
+
+#### Dynamic Enum Validation
+
+```java
+public void validateEnumValue(int rawValue, String enumName, String versionId) {
+    VersionContext ctx = VersionContext.forVersionId(versionId);
+    SchemaInfo schema = ctx.getSchemaInfo();
+
+    schema.getEnum(enumName).ifPresent(enumInfo -> {
+        boolean isValid = enumInfo.getValues().stream()
+                .anyMatch(v -> v.number() == rawValue);
+
+        if (!isValid) {
+            String validValues = enumInfo.getValues().stream()
+                    .map(v -> v.name() + "(" + v.number() + ")")
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException(
+                "Invalid " + enumName + " value " + rawValue +
+                ". Valid values: " + validValues);
+        }
+    });
+}
+```
+
+### Generated Code Structure
+
+```
+com.example.model/
+├── api/
+│   └── VersionContext.java     # + getSchemaInfo(), getDiffFrom()
+├── metadata/                   # NEW package
+│   ├── SchemaInfoV1.java       # Enum/message metadata for V1
+│   ├── SchemaInfoV2.java       # Enum/message metadata for V2
+│   └── SchemaDiffV1ToV2.java   # Changes from V1 to V2
+├── v1/
+│   └── VersionContextV1.java   # Implements metadata methods
+└── v2/
+    └── VersionContextV2.java   # Implements metadata methods
+```
+
+### API Summary
+
+| Interface | Description |
+|-----------|-------------|
+| `SchemaInfo` | Access enum values and message metadata |
+| `SchemaInfo.EnumInfo` | Enum name, full name, and values |
+| `SchemaInfo.EnumValue` | Enum value name and number |
+| `VersionSchemaDiff` | Schema changes between versions |
+| `VersionSchemaDiff.FieldChange` | Field addition, removal, type change, etc. |
+| `VersionSchemaDiff.EnumChange` | Enum value additions and removals |
+
+---
+
+## Previous Release: v2.3.0 - Validation Annotations
+
+Version 2.3.0 introduced **Validation Annotations** — automatic generation of Bean Validation (JSR-380) annotations.
+
+### Configuration
 
 Generate Bean Validation annotations on wrapper interface getters based on proto field analysis:
 

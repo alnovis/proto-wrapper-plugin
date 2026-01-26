@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.0</version>
+    <version>2.3.1</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -60,7 +60,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `outputDirectory` | `target/generated-sources/proto-wrapper` | Output directory for generated Java files. |
 | `protoPackagePattern` | `{basePackage}.proto.{version}` | Pattern for locating protobuf-generated Java classes. Use `{version}` placeholder. |
 | `generateBuilders` | `false` | Generate Builder interfaces for creating/modifying messages. |
-| `protobufMajorVersion` | `3` | **Deprecated since 2.3.0.** Protobuf version (2 or 3). Use per-version `protoSyntax` instead. Now only used as fallback when syntax cannot be auto-detected. |
+| `protobufMajorVersion` | `3` | **Deprecated since 2.2.0.** Protobuf version (2 or 3). Use per-version `protoSyntax` instead. Now only used as fallback when syntax cannot be auto-detected. |
 | `includeVersionSuffix` | `true` | Include version suffix in class names (`MoneyV1` vs `Money`). |
 | `convertWellKnownTypes` | `true` | Convert Google Well-Known Types to Java types (Timestamp to Instant, etc.). |
 | `generateRawProtoAccessors` | `false` | Generate `getXxxProto()` methods for Well-Known Type fields. |
@@ -68,8 +68,8 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 | `protocVersion` | (from plugin) | Version of protoc for embedded downloads. Only used if system protoc not found. *(since 1.6.5)* |
 | `targetJavaVersion` | `9` | Target Java version for generated code. Use `8` for Java 8 compatibility (avoids private interface methods and `List.of()`). *(since 2.1.0)* |
 | `generateProtocolVersions` | `true` | Generate `ProtocolVersions` class with version string constants. When enabled, generated code references constants instead of string literals. *(since 2.1.0)* |
-| `defaultVersion` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. If not set, the last version in the list is used. *(since 2.3.0)* |
-| `fieldMappings` | (none) | List of field mappings for renumbered fields. See [Field Mappings](#field-mappings). *(since 2.3.0)* |
+| `defaultVersion` | (last version) | Default version ID for `VersionContext.DEFAULT_VERSION` and `ProtocolVersions.DEFAULT`. If not set, the last version in the list is used. *(since 2.1.1)* |
+| `fieldMappings` | (none) | List of field mappings for renumbered fields. See [Field Mappings](#field-mappings). *(since 2.2.0)* |
 
 #### Generation Flags
 
@@ -106,6 +106,30 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 - Version-specific fields (not present in all versions)
 - Oneof fields
 
+#### Schema Metadata *(since 2.3.1)*
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `generateSchemaMetadata` | `false` | Generate runtime schema introspection classes (`SchemaInfo`, `VersionSchemaDiff`). |
+
+**Example:**
+
+```xml
+<configuration>
+    <generateSchemaMetadata>true</generateSchemaMetadata>
+</configuration>
+```
+
+**Generated classes:**
+- `SchemaInfoV1`, `SchemaInfoV2`, etc. — enum/message metadata for each version
+- `SchemaDiffV1ToV2`, etc. — schema changes between consecutive versions
+
+**New VersionContext methods:**
+- `getSchemaInfo()` — returns `SchemaInfo` for this version
+- `getDiffFrom(String)` — returns `Optional<VersionSchemaDiff>` from a previous version
+
+See [Schema Metadata](SCHEMA_METADATA.md) for detailed usage examples.
+
 ### Version Configuration
 
 Each version entry supports:
@@ -115,9 +139,9 @@ Each version entry supports:
 | `protoDir` | Yes | Directory name relative to `protoRoot` containing proto files. |
 | `name` | No | Version name for generated classes. Defaults to uppercase of `protoDir` (e.g., `v1` becomes `V1`). |
 | `excludeProtos` | No | List of proto files to exclude from this version. |
-| `protoSyntax` | No | Proto syntax for this version: `proto2`, `proto3`, or `auto` (default). When `auto`, syntax is detected from `.proto` files. *(since 2.3.0)* |
+| `protoSyntax` | No | Proto syntax for this version: `proto2`, `proto3`, or `auto` (default). When `auto`, syntax is detected from `.proto` files. *(since 2.2.0)* |
 
-#### Proto Syntax Auto-Detection *(since 2.3.0)*
+#### Proto Syntax Auto-Detection *(since 2.2.0)*
 
 The plugin automatically detects proto syntax from `.proto` files by parsing the `syntax = "proto2|proto3";` declaration. Files without explicit syntax declaration default to proto2 per the Protocol Buffers specification.
 
@@ -212,7 +236,7 @@ When fields are renumbered between schema versions, configure explicit mappings 
 **Detecting renumbered fields:**
 Run the diff tool without field mappings. If renumbered fields exist, the tool outputs suggested mappings in the `SUSPECTED RENUMBERED FIELDS` section.
 
-*(since 2.3.0)*
+*(since 2.2.0)*
 
 ### Incremental Build
 
@@ -247,7 +271,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.0</version>
+    <version>2.3.1</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -310,7 +334,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.3.0"
+    id("io.alnovis.proto-wrapper") version "2.3.1"
 }
 ```
 
@@ -322,7 +346,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.3.0")
+        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.3.1")
     }
 }
 
@@ -370,7 +394,7 @@ protoWrapper {
 | `outputDirectory` | `DirectoryProperty` | `build/generated/sources/proto-wrapper/main/java` | Output directory. |
 | `protoPackagePattern` | `Property<String>` | `{basePackage}.proto.{version}` | Proto class package pattern. |
 | `generateBuilders` | `Property<Boolean>` | `false` | Enable Builder generation. |
-| `protobufMajorVersion` | `Property<Int>` | `3` | **Deprecated since 2.3.0.** Use per-version `protoSyntax` instead. |
+| `protobufMajorVersion` | `Property<Int>` | `3` | **Deprecated since 2.2.0.** Use per-version `protoSyntax` instead. |
 | `includeVersionSuffix` | `Property<Boolean>` | `true` | Version suffix in class names. |
 | `convertWellKnownTypes` | `Property<Boolean>` | `true` | Convert WKT to Java types. |
 | `generateRawProtoAccessors` | `Property<Boolean>` | `false` | Generate raw proto accessors for WKT. |
@@ -406,6 +430,18 @@ protoWrapper {
 }
 ```
 
+#### Schema Metadata (Gradle) *(since 2.3.1)*
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `generateSchemaMetadata` | `Property<Boolean>` | `false` | Generate runtime schema introspection classes. |
+
+```kotlin
+protoWrapper {
+    generateSchemaMetadata.set(true)
+}
+```
+
 ### Version Configuration
 
 ```kotlin
@@ -417,20 +453,20 @@ protoWrapper {
         // Version with configuration
         version("v2") {
             name.set("V2")
-            protoSyntax.set("proto3")  // Explicit proto3 (since 2.3.0)
+            protoSyntax.set("proto3")  // Explicit proto3 (since 2.2.0)
             excludeProtos.set(listOf("internal.proto"))
         }
 
         // Custom name with proto2
         version("v3-beta") {
             name.set("V3Beta")
-            protoSyntax.set("proto2")  // Explicit proto2 (since 2.3.0)
+            protoSyntax.set("proto2")  // Explicit proto2 (since 2.2.0)
         }
     }
 }
 ```
 
-#### Per-Version Proto Syntax *(since 2.3.0)*
+#### Per-Version Proto Syntax *(since 2.2.0)*
 
 Each version can specify its own proto syntax via `protoSyntax.set("proto2|proto3|auto")`. This allows projects with mixed proto2/proto3 versions to generate correct code for each version.
 
@@ -472,7 +508,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("io.alnovis.proto-wrapper") version "2.3.0"
+    id("io.alnovis.proto-wrapper") version "2.3.1"
 }
 
 protoWrapper {
@@ -673,6 +709,10 @@ com.example.model/
 │   ├── ProtocolVersions.java     # Version constants (if generateProtocolVersions=true)
 │   └── impl/
 │       └── AbstractOrder.java    # Abstract base class
+├── metadata/                     # Schema metadata (if generateSchemaMetadata=true)
+│   ├── SchemaInfoV1.java         # V1 enum/message metadata
+│   ├── SchemaInfoV2.java         # V2 enum/message metadata
+│   └── SchemaDiffV1ToV2.java     # V1→V2 schema changes
 ├── v1/
 │   ├── OrderV1.java              # V1 implementation
 │   └── VersionContextV1.java     # V1 factory
@@ -702,5 +742,6 @@ com.example.model/
 
 - [Getting Started](GETTING_STARTED.md) - Step-by-step tutorial
 - [Cookbook](COOKBOOK.md) - Practical examples
+- [Schema Metadata](SCHEMA_METADATA.md) - Runtime schema introspection
 - [Schema Diff](SCHEMA_DIFF.md) - Diff configuration
 - [Incremental Build](INCREMENTAL_BUILD.md) - Build optimization details

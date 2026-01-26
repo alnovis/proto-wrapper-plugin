@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 public class EnumInfo {
 
     private final String name;
+    private final String fullName;
     private final List<EnumValue> values;
     private final String sourceFileName;
 
@@ -23,7 +24,7 @@ public class EnumInfo {
      * @param proto the enum descriptor proto
      */
     public EnumInfo(EnumDescriptorProto proto) {
-        this(proto, null);
+        this(proto, null, null);
     }
 
     /**
@@ -33,7 +34,21 @@ public class EnumInfo {
      * @param sourceFileName the source proto file name
      */
     public EnumInfo(EnumDescriptorProto proto, String sourceFileName) {
+        this(proto, null, sourceFileName);
+    }
+
+    /**
+     * Creates EnumInfo from protobuf descriptor with package and source file name.
+     *
+     * @param proto the enum descriptor proto
+     * @param packageName the protobuf package name
+     * @param sourceFileName the source proto file name
+     */
+    public EnumInfo(EnumDescriptorProto proto, String packageName, String sourceFileName) {
         this.name = proto.getName();
+        this.fullName = packageName != null && !packageName.isEmpty()
+                ? packageName + "." + proto.getName()
+                : proto.getName();
         this.values = proto.getValueList().stream()
                 .map(EnumValue::fromProto)
                 .toList();
@@ -47,7 +62,19 @@ public class EnumInfo {
      * @param values the list of enum values
      */
     public EnumInfo(String name, List<EnumValue> values) {
+        this(name, name, values);
+    }
+
+    /**
+     * Creates EnumInfo for merged enums with full name.
+     *
+     * @param name the enum name
+     * @param fullName the fully qualified enum name
+     * @param values the list of enum values
+     */
+    public EnumInfo(String name, String fullName, List<EnumValue> values) {
         this.name = name;
+        this.fullName = fullName != null ? fullName : name;
         this.values = new ArrayList<>(values);
         this.sourceFileName = null;
     }
@@ -60,6 +87,11 @@ public class EnumInfo {
     /** @return the enum name */
     public String getName() {
         return name;
+    }
+
+    /** @return the fully qualified enum name (package.EnumName) */
+    public String getFullName() {
+        return fullName;
     }
 
     /** @return unmodifiable list of enum values */

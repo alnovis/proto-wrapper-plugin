@@ -126,6 +126,19 @@ public class VersionContextInterfaceComposer {
     }
 
     /**
+     * Add schema metadata methods (getSchemaInfo, getDiffFrom).
+     *
+     * <p>Only adds methods if generateSchemaMetadata is enabled in configuration.</p>
+     *
+     * @return this composer for chaining
+     * @since 2.3.0
+     */
+    public VersionContextInterfaceComposer addMetadataMethods() {
+        new MetadataMethodsComponent(config).addTo(builder);
+        return this;
+    }
+
+    /**
      * Add a custom component.
      *
      * @param component the component to add
