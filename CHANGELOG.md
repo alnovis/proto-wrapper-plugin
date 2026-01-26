@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-01-26
+
+### Added
+
+#### Validation Annotations Support
+- **New `generateValidationAnnotations` configuration** — enables generation of Bean Validation (JSR-380) annotations on interface getters:
+  ```xml
+  <configuration>
+      <generateValidationAnnotations>true</generateValidationAnnotations>
+      <validationAnnotationStyle>jakarta</validationAnnotationStyle>
+  </configuration>
+  ```
+- **Auto-detection rules** for `@NotNull`:
+  - Repeated and map fields (never null, empty list/map instead)
+  - Required fields in all versions (proto2)
+  - Universal non-optional message fields
+- **Auto-detection rules** for `@Valid`:
+  - Message-type fields (cascading validation)
+  - Repeated message fields
+  - Map fields with message values
+- **Skips `@NotNull`** for:
+  - Primitive return types (`int`, `long`, `boolean`, etc.)
+  - Fields with type conflicts
+  - Version-specific fields (not present in all versions)
+  - Oneof fields
+- **Namespace support** via `validationAnnotationStyle`:
+  - `"jakarta"` (default) — uses `jakarta.validation.constraints.*` (Jakarta EE 9+)
+  - `"javax"` — uses `javax.validation.constraints.*` (Java EE 8 and earlier)
+- **Java 8 compatibility** — automatically uses `javax` namespace when `targetJavaVersion=8`
+- Gradle DSL: `protoWrapper { generateValidationAnnotations.set(true) }`
+
+### New Classes
+- `FieldConstraints` — model for validation constraint metadata
+- `ValidationConstraintResolver` — resolves constraints from merged field metadata
+- `ValidationAnnotationGenerator` — converts constraints to JavaPoet AnnotationSpec
+
 ## [2.2.0] - 2026-01-23
 
 ### Added

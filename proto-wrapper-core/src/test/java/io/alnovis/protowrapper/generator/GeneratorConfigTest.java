@@ -202,4 +202,103 @@ class GeneratorConfigTest {
 
         assertThat(config1.computeConfigHash()).isEqualTo(config2.computeConfigHash());
     }
+
+    // ==================== Validation Annotations Tests (since 2.3.0) ====================
+
+    @Test
+    void builder_setsValidationAnnotationDefaults() {
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .build();
+
+        assertThat(config.isGenerateValidationAnnotations()).isFalse();
+        assertThat(config.getValidationAnnotationStyle()).isEqualTo("jakarta");
+    }
+
+    @Test
+    void builder_setsValidationAnnotationSettings() {
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .generateValidationAnnotations(true)
+            .validationAnnotationStyle("javax")
+            .build();
+
+        assertThat(config.isGenerateValidationAnnotations()).isTrue();
+        assertThat(config.getValidationAnnotationStyle()).isEqualTo("javax");
+    }
+
+    @Test
+    void getValidationPackage_returnsJakartaPackageByDefault() {
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .validationAnnotationStyle("jakarta")
+            .build();
+
+        assertThat(config.getValidationPackage()).isEqualTo("jakarta.validation.constraints");
+        assertThat(config.getValidationBasePackage()).isEqualTo("jakarta.validation");
+    }
+
+    @Test
+    void getValidationPackage_returnsJavaxPackageWhenConfigured() {
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .validationAnnotationStyle("javax")
+            .build();
+
+        assertThat(config.getValidationPackage()).isEqualTo("javax.validation.constraints");
+        assertThat(config.getValidationBasePackage()).isEqualTo("javax.validation");
+    }
+
+    @Test
+    void getValidationPackage_forcesJavaxForJava8() {
+        GeneratorConfig config = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .validationAnnotationStyle("jakarta") // Should be overridden
+            .targetJavaVersion(8)
+            .build();
+
+        assertThat(config.getValidationPackage()).isEqualTo("javax.validation.constraints");
+        assertThat(config.getValidationBasePackage()).isEqualTo("javax.validation");
+    }
+
+    @Test
+    void builder_validatesValidationAnnotationStyle() {
+        assertThatThrownBy(() -> GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .validationAnnotationStyle("invalid")
+            .build())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("jakarta")
+            .hasMessageContaining("javax");
+    }
+
+    @Test
+    void computeConfigHash_includesValidationAnnotationSettings() {
+        GeneratorConfig config1 = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .generateValidationAnnotations(true)
+            .build();
+
+        GeneratorConfig config2 = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .generateValidationAnnotations(false)
+            .build();
+
+        assertThat(config1.computeConfigHash()).isNotEqualTo(config2.computeConfigHash());
+    }
+
+    @Test
+    void computeConfigHash_includesValidationAnnotationStyle() {
+        GeneratorConfig config1 = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .validationAnnotationStyle("jakarta")
+            .build();
+
+        GeneratorConfig config2 = GeneratorConfig.builder()
+            .outputDirectory(tempDir)
+            .validationAnnotationStyle("javax")
+            .build();
+
+        assertThat(config1.computeConfigHash()).isNotEqualTo(config2.computeConfigHash());
+    }
 }

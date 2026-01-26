@@ -319,6 +319,27 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Optional
     abstract val fieldMappings: ListProperty<FieldMapping>
 
+    /**
+     * Whether to generate Bean Validation (JSR-380) annotations on interface getters.
+     * When enabled, annotations like @NotNull, @Valid, @Min, @Max are added based on
+     * proto field metadata.
+     * Default: false
+     * @since 2.3.0
+     */
+    @get:Input
+    abstract val generateValidationAnnotations: Property<Boolean>
+
+    /**
+     * Validation annotation namespace style.
+     * Use "jakarta" (default) for Jakarta EE 9+ (jakarta.validation.constraints)
+     * or "javax" for Java EE 8 and earlier (javax.validation.constraints).
+     * Note: When targetJavaVersion=8, automatically uses "javax" for compatibility.
+     * Default: "jakarta"
+     * @since 2.3.0
+     */
+    @get:Input
+    abstract val validationAnnotationStyle: Property<String>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -682,6 +703,9 @@ abstract class GenerateWrappersTask : DefaultTask() {
             .defaultVersion(defaultVersion.orNull)
             // Field mappings (since 2.2.0)
             .fieldMappings(fieldMappings.orNull)
+            // Validation annotations (since 2.3.0)
+            .generateValidationAnnotations(generateValidationAnnotations.get())
+            .validationAnnotationStyle(validationAnnotationStyle.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)

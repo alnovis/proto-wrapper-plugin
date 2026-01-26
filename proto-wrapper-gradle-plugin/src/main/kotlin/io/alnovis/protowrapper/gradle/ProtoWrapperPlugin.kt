@@ -67,6 +67,10 @@ class ProtoWrapperPlugin : Plugin<Project> {
             // Field mappings (since 2.2.0)
             task.fieldMappings.set(project.provider { extension.fieldMappings.toList() })
 
+            // Validation annotations (since 2.3.0)
+            task.generateValidationAnnotations.set(extension.generateValidationAnnotations)
+            task.validationAnnotationStyle.set(extension.validationAnnotationStyle)
+
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }

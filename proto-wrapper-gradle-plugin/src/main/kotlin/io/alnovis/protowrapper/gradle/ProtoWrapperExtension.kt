@@ -145,6 +145,25 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     val fieldMappings: MutableList<FieldMapping> = mutableListOf()
 
     /**
+     * Whether to generate Bean Validation (JSR-380) annotations on interface getters.
+     * When enabled, annotations like @NotNull, @Valid, @Min, @Max are added based on
+     * proto field metadata.
+     * Default: false
+     * @since 2.3.0
+     */
+    abstract val generateValidationAnnotations: Property<Boolean>
+
+    /**
+     * Validation annotation namespace style.
+     * Use "jakarta" (default) for Jakarta EE 9+ (jakarta.validation.constraints)
+     * or "javax" for Java EE 8 and earlier (javax.validation.constraints).
+     * Note: When targetJavaVersion=8, automatically uses "javax" for compatibility.
+     * Default: "jakarta"
+     * @since 2.3.0
+     */
+    abstract val validationAnnotationStyle: Property<String>
+
+    /**
      * Add a name-based field mapping.
      *
      * @param message the message name
@@ -204,5 +223,8 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         // Parallel generation (since 2.1.0)
         parallelGeneration.convention(false)
         generationThreads.convention(0)
+        // Validation annotations (since 2.3.0)
+        generateValidationAnnotations.convention(false)
+        validationAnnotationStyle.convention("jakarta")
     }
 }

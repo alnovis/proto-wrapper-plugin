@@ -339,6 +339,29 @@ public class GenerateMojo extends AbstractMojo {
     private int generationThreads;
 
     /**
+     * Whether to generate Bean Validation (JSR-380) annotations on interface getters.
+     * When enabled, annotations like @NotNull, @Valid, @Min, @Max are added based on
+     * proto field metadata.
+     * Default: false
+     *
+     * @since 2.3.0
+     */
+    @Parameter(property = "proto-wrapper.generateValidationAnnotations", defaultValue = "false")
+    private boolean generateValidationAnnotations;
+
+    /**
+     * Validation annotation namespace style.
+     * Use "jakarta" (default) for Jakarta EE 9+ (jakarta.validation.constraints)
+     * or "javax" for Java EE 8 and earlier (javax.validation.constraints).
+     * Note: When targetJavaVersion=8, automatically uses "javax" for compatibility.
+     * Default: "jakarta"
+     *
+     * @since 2.3.0
+     */
+    @Parameter(property = "proto-wrapper.validationAnnotationStyle", defaultValue = "jakarta")
+    private String validationAnnotationStyle;
+
+    /**
      * Maven project.
      */
     @Parameter(defaultValue = "${project}", readonly = true)
@@ -635,7 +658,10 @@ public class GenerateMojo extends AbstractMojo {
                 // Default version (since 2.1.1)
                 .defaultVersion(defaultVersion)
                 // Field mappings (since 2.2.0)
-                .fieldMappings(fieldMappings);
+                .fieldMappings(fieldMappings)
+                // Validation annotations (since 2.3.0)
+                .generateValidationAnnotations(generateValidationAnnotations)
+                .validationAnnotationStyle(validationAnnotationStyle);
 
         if (includeMessages != null) {
             for (String msg : includeMessages) {

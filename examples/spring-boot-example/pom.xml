@@ -21,7 +21,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <proto-wrapper.version>2.2.0</proto-wrapper.version>
+        <proto-wrapper.version>2.3.0</proto-wrapper.version>
         <protobuf.version>4.28.2</protobuf.version>
     </properties>
 
