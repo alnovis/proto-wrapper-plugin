@@ -3,12 +3,14 @@ package io.alnovis.protowrapper.generator;
 import com.squareup.javapoet.*;
 import io.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import io.alnovis.protowrapper.model.ConflictEnumInfo;
+import io.alnovis.protowrapper.model.FieldConstraints;
 import io.alnovis.protowrapper.model.FieldInfo;
 import io.alnovis.protowrapper.model.MapInfo;
 import io.alnovis.protowrapper.model.MergedField;
 import io.alnovis.protowrapper.model.MergedMessage;
 
 import javax.lang.model.element.Modifier;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,6 +39,8 @@ import static io.alnovis.protowrapper.generator.TypeUtils.*;
 public final class InterfaceMethodGenerator {
 
     private final GeneratorConfig config;
+    private final ValidationConstraintResolver validationResolver;
+    private final ValidationAnnotationGenerator validationAnnotationGenerator;
 
     /**
      * Create a new InterfaceMethodGenerator.
@@ -45,6 +49,8 @@ public final class InterfaceMethodGenerator {
      */
     public InterfaceMethodGenerator(GeneratorConfig config) {
         this.config = config;
+        this.validationResolver = new ValidationConstraintResolver(config);
+        this.validationAnnotationGenerator = new ValidationAnnotationGenerator(config);
     }
 
     // ==================== Standard Getters ====================
@@ -63,6 +69,14 @@ public final class InterfaceMethodGenerator {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(field.getGetterName())
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .returns(returnType);
+
+        // Add validation annotations if enabled
+        if (config.isGenerateValidationAnnotations()) {
+            FieldConstraints constraints = validationResolver.resolve(
+                    field, message, message.getPresentInVersions());
+            List<AnnotationSpec> annotations = validationAnnotationGenerator.generate(constraints);
+            annotations.forEach(builder::addAnnotation);
+        }
 
         MergedField.ConflictType conflictType = field.getConflictType();
         if (conflictType != null && conflictType != MergedField.ConflictType.NONE) {

@@ -1,247 +1,217 @@
-# Release Notes - Proto Wrapper Plugin v2.2.0
+# Release Notes - Proto Wrapper Plugin v2.3.0
 
 **Release Date:** January 2026
 
 ## Overview
 
-Version 2.2.0 introduces **field mapping support** for handling renumbered fields across schema versions, **heuristic renumber detection** in the diff tool, **version conversion API** improvements, and **per-version proto syntax configuration**.
+Version 2.3.0 introduces **Validation Annotations** support — automatic generation of Bean Validation (JSR-380) annotations on wrapper interfaces based on proto field metadata.
 
 Key highlights:
-- **Field Mappings** — explicitly map renumbered fields so the plugin generates correct cross-version wrappers
-- **Renumber Detection** — diff tool automatically detects suspected field renumbering and suggests mappings
-- **Version Conversion** — new `asVersion(VersionContext)` method for efficient cross-version conversion
-- **Enum Improvements** — `fromProto(Object)` and `matches(Object)` for version-agnostic enum handling
-- **Per-Version Proto Syntax** — mixed proto2/proto3 projects with auto-detection
-- **Deprecation Policy** — formal deprecation and removal policy
+- **@NotNull Auto-Detection** — automatically added to repeated/map fields and universal non-optional message fields
+- **@Valid Auto-Detection** — automatically added to message-type fields for nested validation
+- **Jakarta/Javax Support** — configurable validation namespace with auto-switch for Java 8
+- **Smart Skip Logic** — primitives, type conflicts, oneof, and version-specific fields are correctly excluded
+
+> **Note:** This release implements Phase 1 (auto-detection). Phase 2 (custom constraints via buf.validate) is planned for v2.7.0.
 
 ## New Features
 
-### Field Mapping Support
+### Validation Annotations
 
-When fields are renumbered between schema versions, the VersionMerger normally matches by field number, producing incorrect cross-version wrappers. Field mappings solve this by explicitly telling the plugin which fields correspond across versions:
+Generate Bean Validation annotations on wrapper interface getters based on proto field analysis:
 
 **Maven:**
 ```xml
 <configuration>
-    <fieldMappings>
-        <fieldMapping>
-            <message>TicketRequest</message>
-            <fieldName>parent_ticket</fieldName>
-            <versionNumbers>
-                <v202>17</v202>
-                <v203>15</v203>
-            </versionNumbers>
-        </fieldMapping>
-    </fieldMappings>
+    <generateValidationAnnotations>true</generateValidationAnnotations>
+    <validationAnnotationStyle>jakarta</validationAnnotationStyle>
 </configuration>
 ```
 
 **Gradle:**
 ```kotlin
 protoWrapper {
-    fieldMappings {
-        mapping("TicketRequest", "parent_ticket") {
-            versionNumber("v202", 17)
-            versionNumber("v203", 15)
-        }
-    }
+    generateValidationAnnotations.set(true)
+    validationAnnotationStyle.set("jakarta")
 }
 ```
 
-With field mappings:
-- Fields are matched by name (Phase 1) before number-based matching (Phase 2)
-- Each version's implementation correctly accesses its own field number
-- The diff tool shows mapped fields as `[MAPPED]` instead of breaking changes
+### Generated Code Example
 
-### Renumber Detection in Diff Tool
-
-The diff tool now heuristically detects fields that appear to have been renumbered:
-
-```
-~ MODIFIED: TicketRequest
-    ~ Renumbered field: parentTicket #17 -> #15 [MAPPED]
-    - Removed field: shiftDocumentNumber (#15) [BREAKING]
-```
-
-**Detection strategies:**
-1. **REMOVED+ADDED pairs** — same proto name in both removed and added fields
-2. **Displaced fields** — a removed field's name matches the v2 side of a renamed field (handles cases where a renumbered field takes the position of another removed field)
-
-**Confidence levels:**
-- **HIGH** — same name and same type
-- **MEDIUM** — same name with compatible type (integer widening, int-enum, float-double, string-bytes)
-
-When suspected renumbers are found, the diff report includes suggested `fieldMappings` configuration.
-
-### Version Conversion API
-
-New methods for efficient cross-version conversion:
-
-```java
-// Convert using VersionContext (no reflection)
-VersionContext v2Ctx = VersionContext.forVersionId("v203");
-TicketRequest v2Request = v1Request.asVersion(v2Ctx);
-
-// Parse from bytes via VersionContext
-TicketRequest request = ctx.parseTicketRequestFromBytes(protoBytes);
-```
-
-The new `asVersion(VersionContext)` overload is more efficient than the existing `asVersion(Class)` because it avoids reflection-based class lookup.
-
-### Enum API Improvements
-
-Generated enums now include version-agnostic conversion methods:
-
-```java
-// Convert any proto enum to wrapper enum
-CommandTypeEnum cmd = CommandTypeEnum.fromProto(v202Message.getCommand());
-
-// Compare wrapper enum with any proto enum
-if (CommandTypeEnum.COMMAND_TICKET.matches(protoCommand)) { ... }
-```
-
-These methods work with any version's proto enum by extracting the numeric value.
-
-### Per-Version Proto Syntax
-
-Previously, `protobufMajorVersion` was a global setting affecting all versions. Now each version can specify its own proto syntax:
-
-**Maven:**
-```xml
-<versions>
-    <version>
-        <protoDir>v1</protoDir>
-        <protoSyntax>proto2</protoSyntax>
-    </version>
-    <version>
-        <protoDir>v2</protoDir>
-        <protoSyntax>proto3</protoSyntax>
-    </version>
-    <version>
-        <protoDir>v3</protoDir>
-        <!-- protoSyntax defaults to "auto" (detected from .proto files) -->
-    </version>
-</versions>
-```
-
-**Gradle:**
-```kotlin
-protoWrapper {
-    versions {
-        version("v1") {
-            protoSyntax.set("proto2")
-        }
-        version("v2") {
-            protoSyntax.set("proto3")
-        }
-        version("v3")  // Auto-detect from .proto files
-    }
+Given this proto:
+```protobuf
+message Order {
+    string order_id = 1;
+    repeated OrderItem items = 2;
+    Customer customer = 3;
+    int64 total_amount = 4;
 }
 ```
 
-### Syntax Auto-Detection
+Generated interface:
+```java
+public interface Order {
+    String getOrderId();  // No @NotNull - optional scalar
 
-When `protoSyntax` is not specified or set to `"auto"`, the plugin automatically detects syntax by parsing the `syntax = "proto2|proto3";` declaration in `.proto` files. Files without explicit syntax declaration default to proto2 per the Protocol Buffers specification.
+    @NotNull  // Repeated field - always returns List, never null
+    List<@Valid OrderItem> getItems();  // @Valid for nested message validation
 
-### What This Affects
+    @Valid
+    @NotNull  // Message field present in all versions
+    Customer getCustomer();
 
-| Aspect | proto2 | proto3 |
-|--------|--------|--------|
-| Enum conversion | `EnumType.valueOf(int)` | `EnumType.forNumber(int)` |
-| `has*()` methods | All optional fields | Only message types and `optional` keyword fields |
-
-### Deprecation of `protobufMajorVersion`
-
-The global `protobufMajorVersion` parameter is now **deprecated**. Use per-version `protoSyntax` configuration instead.
-
-```xml
-<!-- DEPRECATED -->
-<protobufMajorVersion>2</protobufMajorVersion>
-
-<!-- RECOMMENDED -->
-<versions>
-    <version>
-        <protoDir>v1</protoDir>
-        <protoSyntax>proto2</protoSyntax>
-    </version>
-</versions>
+    long getTotalAmount();  // No @NotNull - primitive type
+}
 ```
 
-The deprecated parameter will be removed in version **3.0.0**.
+### Auto-Detection Rules
 
-## Deprecation Policy
+#### @NotNull Applied To:
+| Field Type | Condition |
+|------------|-----------|
+| Repeated fields | Always (List is never null) |
+| Map fields | Always (Map is never null) |
+| Message fields | When present in all versions and non-optional |
 
-This release establishes a formal deprecation policy documented in [docs/DEPRECATION_POLICY.md](docs/DEPRECATION_POLICY.md):
+#### @NotNull Skipped For:
+| Field Type | Reason |
+|------------|--------|
+| Primitive types | `int`, `long`, `boolean`, etc. cannot be null |
+| Type conflicts | Field has different types across versions |
+| Oneof fields | Only one field in oneof can be set |
+| Version-specific | Field not present in all schema versions |
 
-- **Major-only removal**: Deprecated APIs are removed only in major versions (e.g., 2.x → 3.0)
-- **Minimum grace period**: APIs must be deprecated for at least 3 minor releases before removal
-- **Clear documentation**: All deprecations include `@Deprecated(since, forRemoval)`, TODO comments, and migration guides
+#### @Valid Applied To:
+| Field Type | Condition |
+|------------|-----------|
+| Message fields | Always (enables nested validation) |
+| Repeated message | On list element type: `List<@Valid Item>` |
 
-### APIs Deprecated in 2.2.0
+### Namespace Configuration
 
-| API | Alternative |
-|-----|-------------|
-| `protobufMajorVersion` (plugins) | Per-version `protoSyntax` |
-| `GeneratorConfig.getProtobufMajorVersion()` | `getDefaultSyntax()` |
-| `GeneratorConfig.isProtobuf2()` | `getDefaultSyntax().isProto2()` |
-| `GeneratorConfig.isProtobuf3()` | `getDefaultSyntax().isProto3()` |
-| `GeneratorConfig.Builder.protobufMajorVersion(int)` | `defaultSyntax(ProtoSyntax)` |
-| `ProtoSyntax.fromMajorVersion(int)` | Use `ProtoSyntax` enum directly |
-| `CodeGenerationHelper.getEnumFromIntMethod(GeneratorConfig)` | `getEnumFromIntMethod(ProcessingContext)` |
+| Style | Package | Use Case |
+|-------|---------|----------|
+| `jakarta` | `jakarta.validation.constraints` | Java 9+, Spring Boot 3.x |
+| `javax` | `javax.validation.constraints` | Java 8, Spring Boot 2.x |
 
-All deprecated APIs are scheduled for removal in **3.0.0**.
+> **Auto-Switch:** When `targetJavaVersion` is set to `8`, the plugin automatically uses `javax` namespace regardless of the configured style.
 
 ## Configuration Reference
 
-### Version Configuration
+### New Parameters
 
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `protoDir` | Yes | - | Directory name relative to `protoRoot` |
-| `name` | No | (from protoDir) | Version name for generated classes |
-| `excludeProtos` | No | - | List of proto files to exclude |
-| `protoSyntax` | No | `auto` | Proto syntax: `proto2`, `proto3`, or `auto` |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `generateValidationAnnotations` | `false` | Enable validation annotation generation |
+| `validationAnnotationStyle` | `jakarta` | Namespace: `jakarta` or `javax` |
 
-### protoSyntax Values
+### Maven Configuration
 
-| Value | Description |
-|-------|-------------|
-| `proto2` | Force proto2 semantics (valueOf, has* for all fields) |
-| `proto3` | Force proto3 semantics (forNumber, has* only for messages/optional) |
-| `auto` | Detect from `.proto` file syntax declaration (default) |
+```xml
+<plugin>
+    <groupId>io.alnovis</groupId>
+    <artifactId>proto-wrapper-maven-plugin</artifactId>
+    <version>2.3.0</version>
+    <configuration>
+        <basePackage>com.example.model</basePackage>
+        <protoRoot>${basedir}/proto</protoRoot>
+        <generateValidationAnnotations>true</generateValidationAnnotations>
+        <validationAnnotationStyle>jakarta</validationAnnotationStyle>
+        <versions>
+            <version><protoDir>v1</protoDir></version>
+            <version><protoDir>v2</protoDir></version>
+        </versions>
+    </configuration>
+</plugin>
+```
+
+### Gradle Configuration
+
+```kotlin
+protoWrapper {
+    basePackage.set("com.example.model")
+    protoRoot.set(file("proto"))
+    generateValidationAnnotations.set(true)
+    validationAnnotationStyle.set("jakarta")
+    versions {
+        version("v1")
+        version("v2")
+    }
+}
+```
+
+## Dependencies
+
+To use validation annotations, add the validation API to your project:
+
+**Jakarta (Java 9+, Spring Boot 3.x):**
+```xml
+<dependency>
+    <groupId>jakarta.validation</groupId>
+    <artifactId>jakarta.validation-api</artifactId>
+    <version>3.0.2</version>
+</dependency>
+```
+
+**Javax (Java 8, Spring Boot 2.x):**
+```xml
+<dependency>
+    <groupId>javax.validation</groupId>
+    <artifactId>validation-api</artifactId>
+    <version>2.0.1.Final</version>
+</dependency>
+```
+
+For runtime validation, add a validator implementation (e.g., Hibernate Validator).
 
 ## Migration
 
-### From 2.1.x
+### From 2.2.x
 
-1. Update plugin version to `2.2.0`
-2. (Optional) Remove global `protobufMajorVersion` and add per-version `protoSyntax` if needed
-3. If all versions use the same syntax, you can omit `protoSyntax` entirely (auto-detection)
+1. Update plugin version to `2.3.0`
+2. (Optional) Enable validation annotations:
+   ```xml
+   <generateValidationAnnotations>true</generateValidationAnnotations>
+   ```
+3. Add validation API dependency if using annotations
 
-### Mixed Proto2/Proto3 Projects
+### No Breaking Changes
 
-If your project has versions with different proto syntaxes:
+This release is fully backward compatible. Validation annotations are opt-in and disabled by default.
 
-```xml
-<versions>
-    <version>
-        <protoDir>legacy</protoDir>
-        <protoSyntax>proto2</protoSyntax>
-    </version>
-    <version>
-        <protoDir>current</protoDir>
-        <protoSyntax>proto3</protoSyntax>
-    </version>
-</versions>
+## Implementation Details
+
+New classes added to `proto-wrapper-core`:
+
+| Class | Description |
+|-------|-------------|
+| `FieldConstraints` | Record model for validation constraint metadata |
+| `ValidationConstraintResolver` | Resolves constraints from MergedField based on auto-detection rules |
+| `ValidationAnnotationGenerator` | Converts FieldConstraints to JavaPoet AnnotationSpec |
+
+## Roadmap: Phase 2
+
+Phase 2 (planned for v2.7.0) will add support for custom constraints via buf.validate:
+
+```protobuf
+import "buf/validate/validate.proto";
+
+message User {
+    string email = 1 [(buf.validate.field).string.email = true];
+    int32 age = 2 [(buf.validate.field).int32 = {gte: 0, lte: 150}];
+}
 ```
 
-## Internal Changes
+Generated:
+```java
+public interface User {
+    @Email
+    String getEmail();
 
-- New `SyntaxDetector` class for parsing syntax from `.proto` files
-- `FieldInfo` now tracks `detectedSyntax` per field
-- `MergedSchema` tracks syntax per version via `versionSyntax` map
-- `ContractProvider` uses detected syntax for correct `has*()` method generation
-- All enum conversion code uses `ProcessingContext` for per-version syntax lookup
+    @Min(0) @Max(150)
+    int getAge();
+}
+```
 
 ## Full Changelog
 
@@ -251,6 +221,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of changes.
 
 ## Previous Releases
 
+- [v2.2.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.2.0) - Per-version proto syntax, field mappings
 - [v2.1.1](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.1.1) - defaultVersion configuration
 - [v2.1.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.1.0) - ProtocolVersions class generation, parallel generation
 - [v2.0.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.0.0) - Namespace migration to io.alnovis, removed deprecated APIs

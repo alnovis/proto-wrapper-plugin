@@ -111,6 +111,10 @@ public class GeneratorConfig {
     // Field mappings for name-based matching (since 2.2.0)
     private final List<FieldMapping> fieldMappings = new ArrayList<>();
 
+    // Validation annotations settings (since 2.3.0)
+    private boolean generateValidationAnnotations = false;
+    private String validationAnnotationStyle = "jakarta";
+
     /**
      * Create a new builder for GeneratorConfig.
      *
@@ -249,6 +253,60 @@ public class GeneratorConfig {
     }
 
     /**
+     * Check if validation annotations should be generated on interface getters.
+     *
+     * @return true if validation annotations should be generated
+     * @since 2.3.0
+     */
+    public boolean isGenerateValidationAnnotations() {
+        return generateValidationAnnotations;
+    }
+
+    /**
+     * Get the validation annotation style (namespace).
+     *
+     * @return "jakarta" for Jakarta EE (jakarta.validation.constraints) or
+     *         "javax" for Java EE (javax.validation.constraints)
+     * @since 2.3.0
+     */
+    public String getValidationAnnotationStyle() {
+        return validationAnnotationStyle;
+    }
+
+    /**
+     * Get the validation constraints package based on annotation style.
+     *
+     * <p>Returns the appropriate package for validation constraint annotations:</p>
+     * <ul>
+     *   <li>"jakarta" style: {@code jakarta.validation.constraints}</li>
+     *   <li>"javax" style: {@code javax.validation.constraints}</li>
+     * </ul>
+     *
+     * <p>Note: For Java 8 compatibility ({@code targetJavaVersion=8}), the style
+     * is automatically switched to "javax" regardless of the configured value.</p>
+     *
+     * @return the fully qualified package name for constraint annotations
+     * @since 2.3.0
+     */
+    public String getValidationPackage() {
+        String effectiveStyle = targetJavaVersion <= 8 ? "javax" : validationAnnotationStyle;
+        return "javax".equals(effectiveStyle)
+                ? "javax.validation.constraints"
+                : "jakarta.validation.constraints";
+    }
+
+    /**
+     * Get the base validation package (for @Valid annotation).
+     *
+     * @return "jakarta.validation" or "javax.validation" based on style
+     * @since 2.3.0
+     */
+    public String getValidationBasePackage() {
+        String effectiveStyle = targetJavaVersion <= 8 ? "javax" : validationAnnotationStyle;
+        return "javax".equals(effectiveStyle) ? "javax.validation" : "jakarta.validation";
+    }
+
+    /**
      * Get the Java version-specific code generation strategy.
      *
      * <p>Returns appropriate strategy based on target Java version:</p>
@@ -340,7 +398,10 @@ public class GeneratorConfig {
         sb.append(includedMessages).append("|");
         sb.append(excludedMessages).append("|");
         // Include field mappings (affects generated code)
-        sb.append(fieldMappings);
+        sb.append(fieldMappings).append("|");
+        // Include validation settings (since 2.3.0)
+        sb.append(generateValidationAnnotations).append("|");
+        sb.append(validationAnnotationStyle);
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -688,6 +749,56 @@ public class GeneratorConfig {
             if (mappings != null) {
                 config.fieldMappings.addAll(mappings);
             }
+            return this;
+        }
+
+        /**
+         * Enable or disable validation annotation generation.
+         *
+         * <p>When enabled, generates Bean Validation (JSR-380) annotations on
+         * interface getters based on proto field metadata:</p>
+         * <ul>
+         *   <li>{@code @NotNull} - for required fields and collections</li>
+         *   <li>{@code @Valid} - for message-type fields (cascading validation)</li>
+         *   <li>{@code @Min}, {@code @Max} - for numeric constraints (custom options)</li>
+         *   <li>{@code @Size} - for collection/string size constraints (custom options)</li>
+         *   <li>{@code @Pattern} - for regex constraints (custom options)</li>
+         * </ul>
+         *
+         * <p>Default: false</p>
+         *
+         * @param generateValidationAnnotations true to enable validation annotations
+         * @return this builder
+         * @since 2.3.0
+         */
+        public Builder generateValidationAnnotations(boolean generateValidationAnnotations) {
+            config.generateValidationAnnotations = generateValidationAnnotations;
+            return this;
+        }
+
+        /**
+         * Set the validation annotation namespace style.
+         *
+         * <p>Determines which package to use for validation annotations:</p>
+         * <ul>
+         *   <li>"jakarta" (default) - uses {@code jakarta.validation.constraints} (Jakarta EE 9+)</li>
+         *   <li>"javax" - uses {@code javax.validation.constraints} (Java EE 8 and earlier)</li>
+         * </ul>
+         *
+         * <p>Note: When {@code targetJavaVersion=8}, the style is automatically
+         * switched to "javax" for compatibility.</p>
+         *
+         * @param style "jakarta" or "javax"
+         * @return this builder
+         * @throws IllegalArgumentException if style is not "jakarta" or "javax"
+         * @since 2.3.0
+         */
+        public Builder validationAnnotationStyle(String style) {
+            if (style != null && !"jakarta".equals(style) && !"javax".equals(style)) {
+                throw new IllegalArgumentException(
+                        "validationAnnotationStyle must be 'jakarta' or 'javax', got: " + style);
+            }
+            config.validationAnnotationStyle = style != null ? style : "jakarta";
             return this;
         }
 
