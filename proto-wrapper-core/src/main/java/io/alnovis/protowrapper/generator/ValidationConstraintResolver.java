@@ -131,11 +131,7 @@ public class ValidationConstraintResolver {
         }
 
         // Universal non-optional message field
-        if (field.isMessage() && !field.isEffectivelyOptional()) {
-            return true;
-        }
-
-        return false;
+        return field.isMessage() && !field.isEffectivelyOptional();
     }
 
     /**
@@ -164,11 +160,7 @@ public class ValidationConstraintResolver {
         }
 
         // @Valid for map with message values
-        if (field.isMap() && field.getMapInfo() != null && field.getMapInfo().hasMessageValue()) {
-            return true;
-        }
-
-        return false;
+        return field.isMap() && field.getMapInfo() != null && field.getMapInfo().hasMessageValue();
     }
 
     /**
@@ -181,9 +173,9 @@ public class ValidationConstraintResolver {
      * @return true if required in all versions
      */
     private boolean isRequiredInAllVersions(MergedField field) {
-        // Check optionality per version - all must be false (required)
+        // Check optionality per version - none must be optional (all required)
         return field.getOptionalityPerVersion().values().stream()
-                .allMatch(isOptional -> !isOptional);
+                .noneMatch(Boolean::booleanValue);
     }
 
     /**

@@ -1,7 +1,5 @@
 package io.alnovis.protowrapper.model;
 
-import java.util.Objects;
-
 /**
  * Validation constraints for a merged field.
  *

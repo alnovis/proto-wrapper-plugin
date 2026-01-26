@@ -32,8 +32,6 @@ import java.util.List;
  */
 public class ValidationAnnotationGenerator {
 
-    private final GeneratorConfig config;
-
     // Annotation class names (resolved based on style)
     private final ClassName notNullClass;
     private final ClassName validClass;
@@ -48,8 +46,6 @@ public class ValidationAnnotationGenerator {
      * @param config Generator configuration
      */
     public ValidationAnnotationGenerator(GeneratorConfig config) {
-        this.config = config;
-
         String constraintsPackage = config.getValidationPackage();
         String basePackage = config.getValidationBasePackage();
 
