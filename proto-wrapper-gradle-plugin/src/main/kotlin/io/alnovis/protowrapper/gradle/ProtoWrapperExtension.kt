@@ -178,6 +178,21 @@ abstract class ProtoWrapperExtension(private val project: Project) {
     abstract val generateSchemaMetadata: Property<Boolean>
 
     /**
+     * Target language for code generation.
+     * Selects the generator factory to use. Built-in: "java" (default).
+     * Additional languages can be registered via SPI (ServiceLoader).
+     *
+     * Example for Kotlin (requires proto-wrapper-kotlin dependency):
+     * ```kotlin
+     * language.set("kotlin")
+     * ```
+     *
+     * Default: "java"
+     * @since 2.4.0
+     */
+    abstract val language: Property<String>
+
+    /**
      * Add a name-based field mapping.
      *
      * @param message the message name
@@ -242,5 +257,7 @@ abstract class ProtoWrapperExtension(private val project: Project) {
         validationAnnotationStyle.convention("jakarta")
         // Schema metadata (since 2.3.1)
         generateSchemaMetadata.convention(false)
+        // Target language (since 2.4.0)
+        language.convention("java")
     }
 }

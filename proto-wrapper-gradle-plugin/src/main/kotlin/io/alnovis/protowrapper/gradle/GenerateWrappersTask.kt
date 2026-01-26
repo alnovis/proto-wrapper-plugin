@@ -16,6 +16,7 @@ import io.alnovis.protowrapper.analyzer.ProtoAnalyzer
 import io.alnovis.protowrapper.analyzer.ProtocExecutor
 import io.alnovis.protowrapper.generator.GenerationOrchestrator
 import io.alnovis.protowrapper.generator.GeneratorConfig
+import io.alnovis.protowrapper.generator.factory.GeneratorFactoryRegistry
 import io.alnovis.protowrapper.merger.VersionMerger
 import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig
 import io.alnovis.protowrapper.model.FieldMapping
@@ -355,6 +356,22 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Input
     abstract val generateSchemaMetadata: Property<Boolean>
 
+    /**
+     * Target language for code generation.
+     * Selects the generator factory to use. Built-in: "java" (default).
+     * Additional languages can be registered via SPI (ServiceLoader).
+     *
+     * Example for Kotlin (requires proto-wrapper-kotlin dependency):
+     * ```kotlin
+     * language.set("kotlin")
+     * ```
+     *
+     * Default: "java"
+     * @since 2.4.0
+     */
+    @get:Input
+    abstract val language: Property<String>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -433,7 +450,12 @@ abstract class GenerateWrappersTask : DefaultTask() {
             logConflictStatistics(mergedSchema)
 
             val generatorConfig = buildGeneratorConfig()
-            val orchestrator = GenerationOrchestrator(generatorConfig, pluginLogger)
+
+            // Get generator factory for target language
+            val generatorFactory = GeneratorFactoryRegistry.getOrDefault(language.get())
+            pluginLogger.info("Using generator factory: ${generatorFactory.languageId}")
+
+            val orchestrator = GenerationOrchestrator(generatorConfig, pluginLogger, generatorFactory)
 
             val versionConfigs = versions.get().map { GradleVersionConfigAdapter(it) }
             val protoFiles = collectAllProtoFiles()

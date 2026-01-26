@@ -13,6 +13,8 @@ import io.alnovis.protowrapper.analyzer.ProtocExecutor;
 import io.alnovis.protowrapper.diff.SchemaDiff;
 import io.alnovis.protowrapper.diff.SchemaDiffEngine;
 import io.alnovis.protowrapper.generator.*;
+import io.alnovis.protowrapper.generator.factory.GeneratorFactory;
+import io.alnovis.protowrapper.generator.factory.GeneratorFactoryRegistry;
 import io.alnovis.protowrapper.generator.metadata.SchemaDiffGenerator;
 import io.alnovis.protowrapper.generator.metadata.SchemaInfoGenerator;
 import io.alnovis.protowrapper.merger.VersionMerger;
@@ -378,6 +380,21 @@ public class GenerateMojo extends AbstractMojo {
     private boolean generateSchemaMetadata;
 
     /**
+     * Target language for code generation.
+     * Selects the generator factory to use. Built-in: "java" (default).
+     * Additional languages can be registered via SPI (ServiceLoader).
+     *
+     * <p>Example for Kotlin (requires proto-wrapper-kotlin dependency):</p>
+     * <pre>
+     * &lt;language&gt;kotlin&lt;/language&gt;
+     * </pre>
+     *
+     * @since 2.4.0
+     */
+    @Parameter(property = "proto-wrapper.language", defaultValue = "java")
+    private String language;
+
+    /**
      * Maven project.
      */
     @Parameter(defaultValue = "${project}", readonly = true)
@@ -450,9 +467,13 @@ public class GenerateMojo extends AbstractMojo {
             // Collect all proto files for incremental generation
             Set<Path> allProtoFiles = collectAllProtoFiles();
 
+            // Get generator factory for target language
+            GeneratorFactory generatorFactory = GeneratorFactoryRegistry.getOrDefault(language);
+            getLog().info("Using generator factory: " + generatorFactory.getLanguageId());
+
             // Use orchestrator for generation
             GenerationOrchestrator orchestrator = new GenerationOrchestrator(
-                    generatorConfig, MavenLogger.from(getLog()));
+                    generatorConfig, MavenLogger.from(getLog()), generatorFactory);
 
             int generatedFiles = orchestrator.generateAllIncremental(
                     mergedSchema,
