@@ -1,6 +1,6 @@
 # Release Notes - Proto Wrapper Plugin v2.3.1
 
-**Release Date:** January 2026
+**Release Date:** January 29, 2026
 
 ## Overview
 
@@ -13,6 +13,10 @@ Key highlights:
 - **Migration Tooling** — understand field changes, type changes, and get migration hints
 
 > **Note:** This builds on v2.3.0 which added Validation Annotations support.
+
+## Bug Fixes
+
+- **Gradle plugin now generates SchemaInfo and SchemaDiff classes** — previously the Gradle plugin accepted `generateSchemaMetadata=true` configuration but did not actually generate the metadata files (`SchemaInfoVx.java`, `SchemaDiffVxToVy.java`). Now both Maven and Gradle plugins generate metadata classes identically.
 
 ## New Features
 
