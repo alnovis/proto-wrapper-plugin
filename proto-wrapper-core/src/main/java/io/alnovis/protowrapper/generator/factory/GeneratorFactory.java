@@ -2,7 +2,6 @@ package io.alnovis.protowrapper.generator.factory;
 
 import com.squareup.javapoet.JavaFile;
 import io.alnovis.protowrapper.generator.*;
-import io.alnovis.protowrapper.model.MergedSchema;
 
 import java.util.List;
 
