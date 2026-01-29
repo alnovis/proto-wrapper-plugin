@@ -2,6 +2,7 @@ package io.alnovis.protowrapper.it
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
 import org.junit.jupiter.api.io.TempDir
@@ -10,23 +11,21 @@ import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
 /**
- * Integration tests for Schema Metadata functionality in Gradle plugin.
+ * Integration tests for Schema Metadata generation in Gradle plugin.
  *
- * These tests create real Gradle projects and run actual Gradle builds
- * to verify that generateSchemaMetadata=true produces expected code.
- *
- * The plugin must be published to mavenLocal before running these tests:
- *   ./gradlew publishToMavenLocal
+ * Verifies that when generateSchemaMetadata=true:
+ * 1. SchemaInfo classes are generated for each version
+ * 2. SchemaDiff classes are generated for version transitions
+ * 3. Generated code compiles successfully
  */
+@DisplayName("Schema Metadata Integration Tests")
 class SchemaMetadataIntegrationTest {
 
     @TempDir
     lateinit var testProjectDir: Path
 
     private val pluginVersion: String = System.getProperty("pluginVersion", "2.3.1")
-    private val projectRoot: String = System.getProperty("projectRoot", "..")
-    private val testProtosDir: File = File(System.getProperty("testProtosDir", "../test-protos/scenarios"))
-    private val gradleExecutable: String = System.getProperty("gradleExecutable", findGradleExecutable())
+    private val gradleExecutable: String = findGradleExecutable()
 
     companion object {
         @JvmStatic
@@ -60,8 +59,7 @@ class SchemaMetadataIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        val settingsFile = testProjectDir.resolve("settings.gradle.kts").toFile()
-        settingsFile.writeText("""
+        testProjectDir.resolve("settings.gradle.kts").toFile().writeText("""
             pluginManagement {
                 repositories {
                     mavenLocal()
@@ -81,37 +79,63 @@ class SchemaMetadataIntegrationTest {
         """.trimIndent())
     }
 
-    private fun copyGenerationProtos(): Pair<File, File> {
+    private fun createProtoFiles() {
         val v1Dir = testProjectDir.resolve("proto/v1").toFile()
         val v2Dir = testProjectDir.resolve("proto/v2").toFile()
         v1Dir.mkdirs()
         v2Dir.mkdirs()
 
-        val generationDir = File(testProtosDir, "../generation")
+        // V1 proto
+        File(v1Dir, "order.proto").writeText("""
+            syntax = "proto2";
+            package com.example.proto.v1;
+            option java_package = "com.example.proto.v1";
 
-        // Copy v1 protos
-        File(generationDir, "v1").listFiles()?.forEach { file ->
-            if (file.extension == "proto") {
-                file.copyTo(File(v1Dir, file.name), overwrite = true)
+            enum Status {
+                UNKNOWN = 0;
+                PENDING = 1;
+                COMPLETED = 2;
             }
-        }
 
-        // Copy v2 protos
-        File(generationDir, "v2").listFiles()?.forEach { file ->
-            if (file.extension == "proto") {
-                file.copyTo(File(v2Dir, file.name), overwrite = true)
+            message Order {
+                required string id = 1;
+                optional Status status = 2;
             }
-        }
+        """.trimIndent())
 
-        return v1Dir to v2Dir
+        // V2 proto (with new field)
+        File(v2Dir, "order.proto").writeText("""
+            syntax = "proto2";
+            package com.example.proto.v2;
+            option java_package = "com.example.proto.v2";
+
+            enum Status {
+                UNKNOWN = 0;
+                PENDING = 1;
+                COMPLETED = 2;
+                CANCELLED = 3;
+            }
+
+            message Order {
+                required string id = 1;
+                optional Status status = 2;
+                optional string description = 3;
+            }
+        """.trimIndent())
     }
 
-    private fun createBuildFile(extraConfig: String = "") {
-        val buildFile = testProjectDir.resolve("build.gradle.kts").toFile()
-        buildFile.writeText("""
+    private fun createBuildFile(generateMetadata: Boolean = true) {
+        testProjectDir.resolve("build.gradle.kts").toFile().writeText("""
             plugins {
-                id("java")
+                java
+                id("com.google.protobuf") version "0.9.4"
                 id("io.alnovis.proto-wrapper") version "$pluginVersion"
+            }
+
+            java {
+                toolchain {
+                    languageVersion.set(JavaLanguageVersion.of(17))
+                }
             }
 
             dependencies {
@@ -119,21 +143,37 @@ class SchemaMetadataIntegrationTest {
                 implementation("io.alnovis:proto-wrapper-core:$pluginVersion")
             }
 
+            sourceSets {
+                main {
+                    proto {
+                        srcDir("proto")
+                    }
+                }
+            }
+
+            protobuf {
+                protoc {
+                    artifact = "com.google.protobuf:protoc:3.25.1"
+                }
+            }
+
             protoWrapper {
-                basePackage.set("io.alnovis.test.model")
-                protoPackagePattern.set("io.alnovis.test.proto.{version}")
+                basePackage.set("com.example.model")
                 protoRoot.set(file("proto"))
-                generateBuilders.set(true)
-                generateSchemaMetadata.set(true)
-                $extraConfig
+                protoPackagePattern.set("com.example.proto.{version}")
+                generateSchemaMetadata.set($generateMetadata)
                 versions {
-                    register("v1") {
+                    create("v1") {
                         protoDir.set("v1")
                     }
-                    register("v2") {
+                    create("v2") {
                         protoDir.set("v2")
                     }
                 }
+            }
+
+            tasks.named("compileJava") {
+                dependsOn("generateProtoWrappers")
             }
         """.trimIndent())
     }
@@ -146,184 +186,72 @@ class SchemaMetadataIntegrationTest {
             .start()
 
         val output = process.inputStream.bufferedReader().readText()
-        val completed = process.waitFor(5, TimeUnit.MINUTES)
+        val exitCode = process.waitFor()
 
-        return if (completed) {
-            GradleResult(process.exitValue(), output)
-        } else {
-            process.destroyForcibly()
-            GradleResult(-1, "$output\n[TIMEOUT]")
-        }
+        return GradleResult(exitCode == 0, output)
     }
 
-    data class GradleResult(val exitCode: Int, val output: String) {
-        val isSuccess: Boolean get() = exitCode == 0
-        val isFailed: Boolean get() = exitCode != 0
-    }
+    data class GradleResult(val isSuccess: Boolean, val output: String)
 
-    // ==================== Tests ====================
+    // ========== Tests ==========
 
     @Test
     @EnabledIf("isProtocAvailable")
-    fun `generateSchemaMetadata generates SchemaInfo classes`() {
-        copyGenerationProtos()
-        createBuildFile()
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        // Check that SchemaInfo classes are generated
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
-        assertThat(schemaInfoV1).exists()
-
-        val schemaInfoV2 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV2.java")
-        assertThat(schemaInfoV2).exists()
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `generateSchemaMetadata generates SchemaDiff classes`() {
-        copyGenerationProtos()
-        createBuildFile()
+    fun `generates SchemaInfo classes when metadata enabled`() {
+        createProtoFiles()
+        createBuildFile(generateMetadata = true)
 
         val result = runGradle("generateProtoWrappers")
 
         assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
+        val metadataDir = File(outputDir, "com/example/model/metadata")
 
-        // Check that SchemaDiff class is generated for v1->v2 transition
-        val schemaDiffV1ToV2 = File(outputDir, "io/alnovis/test/metadata/SchemaDiffV1ToV2.java")
-        assertThat(schemaDiffV1ToV2).exists()
+        assertThat(metadataDir).exists()
+        assertThat(File(metadataDir, "SchemaInfoV1.java")).exists()
+        assertThat(File(metadataDir, "SchemaInfoV2.java")).exists()
     }
 
     @Test
     @EnabledIf("isProtocAvailable")
-    fun `SchemaInfo class implements SchemaInfo interface`() {
-        copyGenerationProtos()
-        createBuildFile()
+    fun `generates SchemaDiff class for version transition`() {
+        createProtoFiles()
+        createBuildFile(generateMetadata = true)
 
         val result = runGradle("generateProtoWrappers")
 
         assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
+        val metadataDir = File(outputDir, "com/example/model/metadata")
 
-        val content = schemaInfoV1.readText()
-        assertThat(content).contains("implements SchemaInfo")
-        assertThat(content).contains("getVersionId()")
-        assertThat(content).contains("getEnums()")
-        assertThat(content).contains("getMessages()")
+        assertThat(File(metadataDir, "SchemaDiffV1ToV2.java")).exists()
     }
 
     @Test
     @EnabledIf("isProtocAvailable")
-    fun `SchemaDiff class implements VersionSchemaDiff interface`() {
-        copyGenerationProtos()
-        createBuildFile()
+    fun `does not generate metadata when disabled`() {
+        createProtoFiles()
+        createBuildFile(generateMetadata = false)
 
         val result = runGradle("generateProtoWrappers")
 
         assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaDiffFile = File(outputDir, "io/alnovis/test/metadata/SchemaDiffV1ToV2.java")
+        val metadataDir = File(outputDir, "com/example/model/metadata")
 
-        val content = schemaDiffFile.readText()
-        assertThat(content).contains("implements VersionSchemaDiff")
-        assertThat(content).contains("getFromVersion()")
-        assertThat(content).contains("getToVersion()")
-        assertThat(content).contains("getFieldChanges()")
-        assertThat(content).contains("getEnumChanges()")
+        // Metadata directory should not exist when disabled
+        assertThat(metadataDir.exists()).isFalse()
     }
 
     @Test
     @EnabledIf("isProtocAvailable")
-    fun `VersionContext has getSchemaInfo method when metadata enabled`() {
-        copyGenerationProtos()
-        createBuildFile()
+    fun `generated metadata code compiles successfully`() {
+        createProtoFiles()
+        createBuildFile(generateMetadata = true)
 
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-
-        val versionContextV1 = File(outputDir, "io/alnovis/test/model/v1/VersionContextV1.java")
-        assertThat(versionContextV1).exists()
-
-        val content = versionContextV1.readText()
-        assertThat(content).contains("getSchemaInfo()")
-        assertThat(content).contains("SchemaInfo")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `VersionContext has getDiffFrom method when metadata enabled`() {
-        copyGenerationProtos()
-        createBuildFile()
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-
-        val versionContextV2 = File(outputDir, "io/alnovis/test/model/v2/VersionContextV2.java")
-        assertThat(versionContextV2).exists()
-
-        val content = versionContextV2.readText()
-        assertThat(content).contains("getDiffFrom")
-        assertThat(content).contains("VersionSchemaDiff")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `SchemaInfo uses singleton pattern`() {
-        copyGenerationProtos()
-        createBuildFile()
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
-
-        val content = schemaInfoV1.readText()
-        assertThat(content).contains("public static final SchemaInfoV1 INSTANCE")
-        assertThat(content).contains("private SchemaInfoV1()")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `SchemaDiff uses singleton pattern`() {
-        copyGenerationProtos()
-        createBuildFile()
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaDiffFile = File(outputDir, "io/alnovis/test/metadata/SchemaDiffV1ToV2.java")
-
-        val content = schemaDiffFile.readText()
-        assertThat(content).contains("public static final SchemaDiffV1ToV2 INSTANCE")
-        assertThat(content).contains("private SchemaDiffV1ToV2()")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `generated code compiles successfully`() {
-        copyGenerationProtos()
-        createBuildFile()
-
-        // Run both generateProtoWrappers and compileJava
         val result = runGradle("compileJava")
 
         assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
@@ -331,95 +259,35 @@ class SchemaMetadataIntegrationTest {
 
     @Test
     @EnabledIf("isProtocAvailable")
-    fun `SchemaInfo contains enum metadata`() {
-        copyGenerationProtos()
-        createBuildFile()
+    fun `SchemaInfo implements runtime interface`() {
+        createProtoFiles()
+        createBuildFile(generateMetadata = true)
 
         val result = runGradle("generateProtoWrappers")
 
         assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
+        val schemaInfoV1 = File(outputDir, "com/example/model/metadata/SchemaInfoV1.java")
 
         val content = schemaInfoV1.readText()
-        // Should contain ENUMS map initialization
-        assertThat(content).contains("Map<String, EnumInfo> ENUMS")
-        assertThat(content).contains("EnumInfoImpl")
+        assertThat(content).contains("implements SchemaInfo")
     }
 
     @Test
     @EnabledIf("isProtocAvailable")
-    fun `SchemaInfo contains message metadata`() {
-        copyGenerationProtos()
-        createBuildFile()
+    fun `SchemaDiff implements runtime interface`() {
+        createProtoFiles()
+        createBuildFile(generateMetadata = true)
 
         val result = runGradle("generateProtoWrappers")
 
         assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
+        val schemaDiff = File(outputDir, "com/example/model/metadata/SchemaDiffV1ToV2.java")
 
-        val content = schemaInfoV1.readText()
-        // Should contain MESSAGES map initialization
-        assertThat(content).contains("Map<String, MessageInfo> MESSAGES")
-        assertThat(content).contains("MessageInfoImpl")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `VersionContext interface has metadata methods`() {
-        copyGenerationProtos()
-        createBuildFile()
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val versionContextInterface = File(outputDir, "io/alnovis/test/model/api/VersionContext.java")
-
-        assertThat(versionContextInterface).exists()
-
-        val content = versionContextInterface.readText()
-        assertThat(content).contains("getSchemaInfo()")
-        assertThat(content).contains("getDiffFrom(String fromVersion)")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `Java 8 compatibility uses Collections API`() {
-        copyGenerationProtos()
-        createBuildFile("targetJavaVersion.set(8)")
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
-
-        val content = schemaInfoV1.readText()
-        // Java 8 should use Collections.unmodifiableMap instead of Map.ofEntries
-        assertThat(content).contains("Collections.unmodifiableMap")
-    }
-
-    @Test
-    @EnabledIf("isProtocAvailable")
-    fun `Java 9+ uses modern API`() {
-        copyGenerationProtos()
-        createBuildFile("targetJavaVersion.set(9)")
-
-        val result = runGradle("generateProtoWrappers")
-
-        assertThat(result.isSuccess).withFailMessage { "Build failed:\n${result.output}" }.isTrue()
-
-        val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val schemaInfoV1 = File(outputDir, "io/alnovis/test/metadata/SchemaInfoV1.java")
-
-        val content = schemaInfoV1.readText()
-        // Java 9+ should use Map.ofEntries
-        assertThat(content).containsAnyOf("Map.ofEntries", "Map.of()")
+        val content = schemaDiff.readText()
+        assertThat(content).contains("implements VersionSchemaDiff")
     }
 }

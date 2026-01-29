@@ -407,7 +407,8 @@ class GenerateWrappersTaskTest {
         runTask("generateProtoWrappers")
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val metadataDir = File(outputDir, "com/example/metadata")
+        // Metadata package is basePackage + ".metadata" = "com.example.model.metadata"
+        val metadataDir = File(outputDir, "com/example/model/metadata")
 
         // Schema metadata classes should be generated
         assertThat(metadataDir).exists()
@@ -429,7 +430,8 @@ class GenerateWrappersTaskTest {
         runTask("generateProtoWrappers")
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val metadataDir = File(outputDir, "com/example/metadata")
+        // Metadata package is basePackage + ".metadata" = "com.example.model.metadata"
+        val metadataDir = File(outputDir, "com/example/model/metadata")
 
         // SchemaDiff class should be generated for v1->v2 transition
         val schemaDiffV1ToV2 = File(metadataDir, "SchemaDiffV1ToV2.java")
@@ -446,7 +448,8 @@ class GenerateWrappersTaskTest {
         runTask("generateProtoWrappers")
 
         val outputDir = testProjectDir.resolve("build/generated/sources/proto-wrapper/main/java").toFile()
-        val metadataDir = File(outputDir, "com/example/metadata")
+        // Metadata package is basePackage + ".metadata" = "com.example.model.metadata"
+        val metadataDir = File(outputDir, "com/example/model/metadata")
 
         // Metadata directory should not exist or be empty
         if (metadataDir.exists()) {
