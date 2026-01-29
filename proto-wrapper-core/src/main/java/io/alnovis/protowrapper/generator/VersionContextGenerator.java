@@ -4,6 +4,8 @@ import com.squareup.javapoet.*;
 import io.alnovis.protowrapper.generator.versioncontext.VersionContextInterfaceComposer;
 import io.alnovis.protowrapper.model.MergedMessage;
 import io.alnovis.protowrapper.model.MergedSchema;
+import io.alnovis.protowrapper.runtime.SchemaInfo;
+import io.alnovis.protowrapper.runtime.VersionSchemaDiff;
 
 import static io.alnovis.protowrapper.generator.ProtobufConstants.*;
 
@@ -14,6 +16,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 
 /**
@@ -53,6 +56,7 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
                 .addWrapMethods()
                 .addBuilderMethods()
                 .addConvenienceMethods()
+                .addMetadataMethods()
                 .build();
     }
 
@@ -161,6 +165,11 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
 
         vrf.addReturnStatement(getVersionIdMethod, version);
         classBuilder.addMethod(getVersionIdMethod.build());
+
+        // Add metadata methods if enabled
+        if (config.isGenerateSchemaMetadata()) {
+            addMetadataImplMethods(classBuilder, schema, version);
+        }
 
         // Wrap methods
         for (MergedMessage message : schema.getMessages()) {
@@ -312,6 +321,56 @@ public class VersionContextGenerator extends BaseGenerator<MergedSchema> {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    /**
+     * Add getSchemaInfo() and getDiffFrom() implementations.
+     */
+    private void addMetadataImplMethods(TypeSpec.Builder classBuilder, MergedSchema schema, String version) {
+        String metadataPackage = config.getMetadataPackage();
+        String versionClassName = version.substring(0, 1).toUpperCase() + version.substring(1);
+
+        // getSchemaInfo() implementation
+        ClassName schemaInfoClass = ClassName.get(metadataPackage, "SchemaInfo" + versionClassName);
+        classBuilder.addMethod(MethodSpec.methodBuilder("getSchemaInfo")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(SchemaInfo.class)
+                .addStatement("return $T.INSTANCE", schemaInfoClass)
+                .build());
+
+        // getDiffFrom(String) implementation
+        List<String> versions = schema.getVersions();
+        int currentIndex = versions.indexOf(version);
+
+        ParameterizedTypeName optionalDiffType = ParameterizedTypeName.get(
+                ClassName.get(Optional.class),
+                ClassName.get(VersionSchemaDiff.class));
+
+        MethodSpec.Builder getDiffMethod = MethodSpec.methodBuilder("getDiffFrom")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(optionalDiffType)
+                .addParameter(String.class, "previousVersion");
+
+        // Only add diff references if this is not the first version
+        if (currentIndex > 0) {
+            String previousVersion = versions.get(currentIndex - 1);
+            String prevClassName = previousVersion.substring(0, 1).toUpperCase() + previousVersion.substring(1);
+            ClassName schemaDiffClass = ClassName.get(metadataPackage,
+                    "SchemaDiff" + prevClassName + "To" + versionClassName);
+
+            ClassName protocolVersionsClass = ClassName.get(config.getApiPackage(), "ProtocolVersions");
+            String prevConstant = previousVersion.toUpperCase();
+
+            getDiffMethod.beginControlFlow("if ($T.$L.equals(previousVersion))",
+                            protocolVersionsClass, prevConstant)
+                    .addStatement("return $T.of($T.INSTANCE)", Optional.class, schemaDiffClass)
+                    .endControlFlow();
+        }
+
+        getDiffMethod.addStatement("return $T.empty()", Optional.class);
+        classBuilder.addMethod(getDiffMethod.build());
     }
 
     /**

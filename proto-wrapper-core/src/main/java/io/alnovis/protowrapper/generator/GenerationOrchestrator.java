@@ -3,7 +3,8 @@ package io.alnovis.protowrapper.generator;
 import com.squareup.javapoet.JavaFile;
 import io.alnovis.protowrapper.PluginLogger;
 import io.alnovis.protowrapper.PluginVersion;
-import io.alnovis.protowrapper.generator.wellknown.StructConverterGenerator;
+import io.alnovis.protowrapper.generator.factory.GeneratorFactory;
+import io.alnovis.protowrapper.generator.factory.GeneratorFactoryRegistry;
 import io.alnovis.protowrapper.generator.wellknown.WellKnownTypeInfo;
 import io.alnovis.protowrapper.incremental.ChangeDetector;
 import io.alnovis.protowrapper.incremental.IncrementalStateManager;
@@ -41,26 +42,44 @@ public class GenerationOrchestrator {
 
     private final GeneratorConfig config;
     private final PluginLogger logger;
+    private final GeneratorFactory factory;
     private IncrementalStateManager stateManager;
 
     /**
+     * Create a new GenerationOrchestrator with the given config, logger, and factory.
+     *
+     * @param config the generator configuration
+     * @param logger the plugin logger
+     * @param factory the generator factory for creating language-specific generators
+     * @since 2.4.0
+     */
+    public GenerationOrchestrator(GeneratorConfig config, PluginLogger logger, GeneratorFactory factory) {
+        this.config = config;
+        this.logger = logger != null ? logger : PluginLogger.console();
+        this.factory = factory != null ? factory : GeneratorFactoryRegistry.getDefault();
+    }
+
+    /**
      * Create a new GenerationOrchestrator with the given config and logger.
+     *
+     * <p>Uses the default Java generator factory.</p>
      *
      * @param config the generator configuration
      * @param logger the plugin logger
      */
     public GenerationOrchestrator(GeneratorConfig config, PluginLogger logger) {
-        this.config = config;
-        this.logger = logger != null ? logger : PluginLogger.console();
+        this(config, logger, GeneratorFactoryRegistry.getDefault());
     }
 
     /**
      * Create a new GenerationOrchestrator with console logging.
      *
+     * <p>Uses the default Java generator factory.</p>
+     *
      * @param config the generator configuration
      */
     public GenerationOrchestrator(GeneratorConfig config) {
-        this(config, PluginLogger.console());
+        this(config, PluginLogger.console(), GeneratorFactoryRegistry.getDefault());
     }
 
     /**
@@ -285,7 +304,7 @@ public class GenerationOrchestrator {
      * @throws IOException if generation fails
      */
     public int generateEnums(MergedSchema schema) throws IOException {
-        EnumGenerator generator = new EnumGenerator(config);
+        EnumGenerator generator = factory.createEnumGenerator(config);
 
         try {
             // Note: Using forEach instead of map().count() because Java 9+ optimizes
@@ -313,7 +332,7 @@ public class GenerationOrchestrator {
      * @throws IOException if generation fails
      */
     public int generateConflictEnums(MergedSchema schema) throws IOException {
-        ConflictEnumGenerator generator = new ConflictEnumGenerator(config);
+        ConflictEnumGenerator generator = factory.createConflictEnumGenerator(config);
 
         try {
             int[] count = {0};
@@ -345,7 +364,7 @@ public class GenerationOrchestrator {
      * @since 1.6.6
      */
     public int generateProtoWrapper(MergedSchema schema) throws IOException {
-        ProtoWrapperGenerator generator = new ProtoWrapperGenerator(config, schema.getVersions());
+        ProtoWrapperGenerator generator = factory.createProtoWrapperGenerator(config, schema.getVersions());
 
         try {
             generateWithLogging(
@@ -367,7 +386,7 @@ public class GenerationOrchestrator {
      * @throws IOException if generation fails
      */
     public int generateInterfaces(MergedSchema schema) throws IOException {
-        InterfaceGenerator generator = new InterfaceGenerator(config);
+        InterfaceGenerator generator = factory.createInterfaceGenerator(config);
         GenerationContext ctx = GenerationContext.create(schema, config);
 
         List<MergedMessage> toGenerate = schema.getMessages().stream()
@@ -392,7 +411,7 @@ public class GenerationOrchestrator {
      * @throws IOException if generation fails
      */
     public int generateAbstractClasses(MergedSchema schema) throws IOException {
-        AbstractClassGenerator generator = new AbstractClassGenerator(config);
+        AbstractClassGenerator generator = factory.createAbstractClassGenerator(config);
         GenerationContext ctx = GenerationContext.create(schema, config);
 
         List<MergedMessage> toGenerate = schema.getMessages().stream()
@@ -421,7 +440,7 @@ public class GenerationOrchestrator {
     public int generateImplClasses(MergedSchema schema,
                                     List<VersionConfig> versionConfigs,
                                     ProtoClassNameResolver protoClassNameResolver) throws IOException {
-        ImplClassGenerator generator = new ImplClassGenerator(config);
+        ImplClassGenerator generator = factory.createImplClassGenerator(config);
         GenerationContext baseCtx = GenerationContext.create(schema, config);
 
         try {
@@ -467,7 +486,7 @@ public class GenerationOrchestrator {
     public int generateVersionContext(MergedSchema schema,
                                        List<VersionConfig> versionConfigs,
                                        ProtoClassNameResolver protoClassNameResolver) throws IOException {
-        VersionContextGenerator generator = new VersionContextGenerator(config);
+        VersionContextGenerator generator = factory.createVersionContextGenerator(config);
 
         try {
             // Generate interface
@@ -510,7 +529,7 @@ public class GenerationOrchestrator {
      * @since 2.1.0
      */
     public int generateProtocolVersions(MergedSchema schema) throws IOException {
-        ProtocolVersionsGenerator generator = new ProtocolVersionsGenerator(config, schema.getVersions());
+        ProtocolVersionsGenerator generator = factory.createProtocolVersionsGenerator(config, schema.getVersions());
 
         try {
             generateWithLogging(
@@ -657,7 +676,7 @@ public class GenerationOrchestrator {
         }
 
         // Generate StructConverter
-        JavaFile structConverterFile = StructConverterGenerator.generate(config.getApiPackage());
+        JavaFile structConverterFile = factory.generateStructConverter(config.getApiPackage());
         Path outputPath = structConverterFile.writeToPath(config.getOutputDirectory());
         logger.info("Generated utility class: " + outputPath);
 

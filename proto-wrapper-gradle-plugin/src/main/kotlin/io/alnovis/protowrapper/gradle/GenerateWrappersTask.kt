@@ -14,8 +14,12 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import io.alnovis.protowrapper.analyzer.ProtoAnalyzer
 import io.alnovis.protowrapper.analyzer.ProtocExecutor
+import io.alnovis.protowrapper.diff.SchemaDiffEngine
 import io.alnovis.protowrapper.generator.GenerationOrchestrator
 import io.alnovis.protowrapper.generator.GeneratorConfig
+import io.alnovis.protowrapper.generator.factory.GeneratorFactoryRegistry
+import io.alnovis.protowrapper.generator.metadata.SchemaDiffGenerator
+import io.alnovis.protowrapper.generator.metadata.SchemaInfoGenerator
 import io.alnovis.protowrapper.merger.VersionMerger
 import io.alnovis.protowrapper.merger.VersionMerger.MergerConfig
 import io.alnovis.protowrapper.model.FieldMapping
@@ -340,6 +344,37 @@ abstract class GenerateWrappersTask : DefaultTask() {
     @get:Input
     abstract val validationAnnotationStyle: Property<String>
 
+    /**
+     * Whether to generate runtime schema metadata classes.
+     * When enabled, generates SchemaInfo classes for each version and
+     * VersionSchemaDiff classes for version-to-version changes.
+     *
+     * Adds VersionContext methods:
+     * - getSchemaInfo() - returns SchemaInfo for the version
+     * - getDiffFrom(fromVersion) - returns Optional<VersionSchemaDiff> for version transition
+     *
+     * Default: false
+     * @since 2.3.1
+     */
+    @get:Input
+    abstract val generateSchemaMetadata: Property<Boolean>
+
+    /**
+     * Target language for code generation.
+     * Selects the generator factory to use. Built-in: "java" (default).
+     * Additional languages can be registered via SPI (ServiceLoader).
+     *
+     * Example for Kotlin (requires proto-wrapper-kotlin dependency):
+     * ```kotlin
+     * language.set("kotlin")
+     * ```
+     *
+     * Default: "java"
+     * @since 2.4.0
+     */
+    @get:Input
+    abstract val language: Property<String>
+
     // ============ Internal State ============
 
     private lateinit var protocExecutor: ProtocExecutor
@@ -418,7 +453,12 @@ abstract class GenerateWrappersTask : DefaultTask() {
             logConflictStatistics(mergedSchema)
 
             val generatorConfig = buildGeneratorConfig()
-            val orchestrator = GenerationOrchestrator(generatorConfig, pluginLogger)
+
+            // Get generator factory for target language
+            val generatorFactory = GeneratorFactoryRegistry.getOrDefault(language.get())
+            pluginLogger.info("Using generator factory: ${generatorFactory.languageId}")
+
+            val orchestrator = GenerationOrchestrator(generatorConfig, pluginLogger, generatorFactory)
 
             val versionConfigs = versions.get().map { GradleVersionConfigAdapter(it) }
             val protoFiles = collectAllProtoFiles()
@@ -435,6 +475,12 @@ abstract class GenerateWrappersTask : DefaultTask() {
             )
 
             pluginLogger.info("Generated $generatedFiles files in ${outputDirectory.get().asFile}")
+
+            // Generate schema metadata if enabled
+            if (generateSchemaMetadata.get() && generatedFiles > 0) {
+                val metadataFiles = generateSchemaMetadata(schemas, generatorConfig)
+                pluginLogger.info("Generated $metadataFiles schema metadata files")
+            }
 
         } catch (e: Exception) {
             throw GradleException("Failed to generate code: ${e.message}", e)
@@ -706,6 +752,8 @@ abstract class GenerateWrappersTask : DefaultTask() {
             // Validation annotations (since 2.3.0)
             .generateValidationAnnotations(generateValidationAnnotations.get())
             .validationAnnotationStyle(validationAnnotationStyle.get())
+            // Schema metadata (since 2.3.1)
+            .generateSchemaMetadata(generateSchemaMetadata.get())
 
         includeMessages.orNull?.forEach { msg ->
             builder.includeMessage(msg)
@@ -848,6 +896,46 @@ abstract class GenerateWrappersTask : DefaultTask() {
                 .replace("*", "[^/]*")
             relativePath.matches(Regex(regex))
         }
+    }
+
+    /**
+     * Generates schema metadata files (SchemaInfo and SchemaDiff classes).
+     *
+     * @param schemas list of version schemas
+     * @param config generator configuration
+     * @return number of generated files
+     * @since 2.3.1
+     */
+    private fun generateSchemaMetadata(
+        schemas: List<ProtoAnalyzer.VersionSchema>,
+        config: GeneratorConfig
+    ): Int {
+        var count = 0
+
+        // Generate SchemaInfo for each version
+        for (schema in schemas) {
+            val infoGenerator = SchemaInfoGenerator(config, schema)
+            val path = infoGenerator.generateAndWrite()
+            pluginLogger.debug("Generated schema metadata: $path")
+            count++
+        }
+
+        // Generate SchemaDiff for consecutive version pairs
+        if (schemas.size > 1) {
+            val diffEngine = SchemaDiffEngine()
+            for (i in 0 until schemas.size - 1) {
+                val v1 = schemas[i]
+                val v2 = schemas[i + 1]
+
+                val diff = diffEngine.compare(v1, v2)
+                val diffGenerator = SchemaDiffGenerator(config, diff)
+                val path = diffGenerator.generateAndWrite()
+                pluginLogger.debug("Generated schema diff: $path")
+                count++
+            }
+        }
+
+        return count
     }
 
     /**

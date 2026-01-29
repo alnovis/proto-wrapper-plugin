@@ -5,7 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] - 2026-01-26
+## [2.3.1] - 2026-01-29
+
+### Fixed
+- **Gradle plugin now generates SchemaInfo and SchemaDiff classes** — previously the Gradle plugin accepted `generateSchemaMetadata=true` but did not actually generate the metadata files. Now both Maven and Gradle plugins generate metadata classes identically.
+
+### Added
+
+#### Schema Metadata Support
+- **New `generateSchemaMetadata` configuration** — enables generation of runtime schema introspection classes:
+  ```xml
+  <configuration>
+      <generateSchemaMetadata>true</generateSchemaMetadata>
+  </configuration>
+  ```
+- **SchemaInfo interface** — runtime access to enum values and message metadata:
+  ```java
+  SchemaInfo schema = ctx.getSchemaInfo();
+  schema.getEnum("TaxTypeEnum").ifPresent(e -> {
+      for (SchemaInfo.EnumValue v : e.getValues()) {
+          System.out.println(v.name() + " = " + v.number());
+      }
+  });
+  ```
+- **VersionSchemaDiff interface** — runtime access to schema changes between versions:
+  ```java
+  ctx.getDiffFrom(ProtocolVersions.V1).ifPresent(diff -> {
+      diff.findFieldChange("Tax", "type").ifPresent(fc -> {
+          System.out.println("Hint: " + fc.migrationHint());
+      });
+  });
+  ```
+- **New methods on VersionContext**:
+  - `getSchemaInfo()` — returns schema metadata for this version
+  - `getDiffFrom(String)` — returns diff from a previous version
+- **Generated metadata classes**:
+  - `SchemaInfoV1`, `SchemaInfoV2`, etc. — implementing `SchemaInfo`
+  - `SchemaDiffV1ToV2`, etc. — implementing `VersionSchemaDiff`
+- **Metadata package** — generated classes placed in `{basePackage}/metadata/`
+- Gradle DSL: `protoWrapper { generateSchemaMetadata.set(true) }`
+
+### New Classes
+- `io.alnovis.protowrapper.runtime.SchemaInfo` — runtime interface for schema metadata
+- `io.alnovis.protowrapper.runtime.VersionSchemaDiff` — runtime interface for version diffs
+- `io.alnovis.protowrapper.generator.metadata.SchemaInfoGenerator` — generates SchemaInfoVx classes
+- `io.alnovis.protowrapper.generator.metadata.SchemaDiffGenerator` — generates SchemaDiffVxToVy classes
+- `io.alnovis.protowrapper.generator.versioncontext.MetadataMethodsComponent` — adds metadata methods to VersionContext
+
+### Changed
+- `GeneratorConfig` — added `generateSchemaMetadata` flag and `getMetadataPackage()` method
+- `VersionContext` interface — added `getSchemaInfo()` and `getDiffFrom()` methods (when metadata enabled)
+- `EnumInfo` model — added `fullName` field for fully qualified enum names
+
+---
+
+## [2.3.0] - 2026-01-25
 
 ### Added
 

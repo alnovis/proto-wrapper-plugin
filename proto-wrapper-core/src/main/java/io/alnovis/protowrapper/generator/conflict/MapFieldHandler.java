@@ -86,122 +86,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
         // Singleton
     }
 
-    /**
-     * Get the proto value type for a map field, handling enum types correctly.
-     * For enums, constructs the full class name using the proto outer class.
-     */
-    private TypeName getProtoValueType(MapInfo mapInfo, ProcessingContext ctx) {
-        if (mapInfo.hasEnumValue()) {
-            // For enum types, construct full class name: OuterClass.EnumName
-            ClassName protoClass = ctx.protoClassName();
-            String outerClass = protoClass.simpleNames().get(0);
-            String enumName = mapInfo.getSimpleValueTypeName();
-            return ClassName.get(protoClass.packageName(), outerClass, enumName);
-        }
-        return parseSimpleType(mapInfo.getValueJavaType());
-    }
-
-    /**
-     * Get the appropriate map type, considering map value conflicts and WKT.
-     * If there's a WIDENING or INT_ENUM conflict in map values, uses the resolved type.
-     * If convertWellKnownTypes is enabled, converts WKT values to Java types.
-     */
-    private TypeName getResolvedMapType(MergedField field, ProcessingContext ctx) {
-        MapInfo mapInfo = field.getMapInfo();
-        if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
-            return createMapTypeWithResolvedValue(mapInfo, field.getResolvedMapValueType());
-        }
-        // Check for WKT map values
-        boolean convertWkt = ctx.config() != null && ctx.config().isConvertWellKnownTypes();
-        return createMapTypeWithWkt(mapInfo, convertWkt);
-    }
-
-    /**
-     * Get the appropriate value type, considering map value conflicts and WKT.
-     */
-    private TypeName getResolvedValueType(MergedField field, ProcessingContext ctx) {
-        MapInfo mapInfo = field.getMapInfo();
-        if (field.hasMapValueConflict() && field.getResolvedMapValueType() != null) {
-            return parseSimpleType(field.getResolvedMapValueType());
-        }
-        // Check for WKT map values
-        boolean convertWkt = ctx.config() != null && ctx.config().isConvertWellKnownTypes();
-        return parseMapValueTypeWithWkt(mapInfo, convertWkt);
-    }
-
-    /**
-     * Check if map value is a Well-Known Type that should be converted.
-     */
-    private boolean isWktMapValue(MapInfo mapInfo, ProcessingContext ctx) {
-        if (ctx.config() == null || !ctx.config().isConvertWellKnownTypes()) {
-            return false;
-        }
-        return isMapValueWellKnownType(mapInfo);
-    }
-
-    /**
-     * Get WellKnownTypeInfo for map value if applicable.
-     */
-    private Optional<WellKnownTypeInfo> getWktForMapValue(MapInfo mapInfo, ProcessingContext ctx) {
-        if (!isWktMapValue(mapInfo, ctx)) {
-            return Optional.empty();
-        }
-        return getMapValueWellKnownType(mapInfo);
-    }
-
-    /**
-     * Get version-specific MapInfo for the current processing context.
-     * Falls back to unified MapInfo if version-specific is not available.
-     *
-     * @param field the merged field
-     * @param unifiedMapInfo the unified map info from merged field
-     * @param ctx the processing context with version info
-     * @return version-specific MapInfo or unified MapInfo as fallback
-     */
-    private MapInfo getVersionSpecificMapInfo(MergedField field, MapInfo unifiedMapInfo, ProcessingContext ctx) {
-        String version = ctx.requireVersion();
-        io.alnovis.protowrapper.model.FieldInfo versionField = field.getVersionFields().get(version);
-        if (versionField != null) {
-            MapInfo versionMapInfo = versionField.getMapInfo();
-            if (versionMapInfo != null) {
-                return versionMapInfo;
-            }
-        }
-        return unifiedMapInfo;
-    }
-
-    /**
-     * Get the cache field name for a map field.
-     */
-    private String getCacheFieldName(MergedField field) {
-        return "cached" + capitalize(field.getJavaName()) + "Map";
-    }
-
-    private String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
-    }
-
-    /**
-     * Check if this map field needs type conversion and thus can benefit from caching.
-     */
-    private boolean needsTypeConversion(MergedField field, MapInfo versionMapInfo, TypeName resolvedValueType) {
-        if (!field.hasMapValueConflict()) {
-            return false;
-        }
-        TypeName protoValueType = parseSimpleType(versionMapInfo.getValueJavaType());
-        if (resolvedValueType.equals(protoValueType)) {
-            return false;
-        }
-        // WIDENING: int -> long conversion
-        if (field.getMapValueConflictType() == MergedField.ConflictType.WIDENING
-                && protoValueType.equals(TypeName.INT)) {
-            return true;
-        }
-        // INT_ENUM: enum -> int conversion
-        return field.getMapValueConflictType() == MergedField.ConflictType.INT_ENUM
-                && versionMapInfo.hasEnumValue();
-    }
+    // Type resolution methods delegated to MapTypeResolver
 
     @Override
     public HandlerType getHandlerType() {
@@ -215,7 +100,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
 
     @Override
     public void addAbstractExtractMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
-        TypeName mapType = getResolvedMapType(field, ctx);
+        TypeName mapType = MapTypeResolver.getResolvedMapType(field, ctx);
 
         // Add abstract extractXxxMap(proto) method
         builder.addMethod(MethodSpec.methodBuilder(field.getMapExtractMethodName())
@@ -229,20 +114,20 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     public void addExtractImplementation(TypeSpec.Builder builder, MergedField field,
                                           boolean presentInVersion, ProcessingContext ctx) {
         MapInfo unifiedMapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field, ctx);
-        TypeName resolvedValueType = getResolvedValueType(field, ctx);
+        TypeName mapType = MapTypeResolver.getResolvedMapType(field, ctx);
+        TypeName resolvedValueType = MapTypeResolver.getResolvedValueType(field, ctx);
         String versionJavaName = CodeGenerationHelper.getVersionSpecificJavaName(field, ctx);
         boolean hasValueConflict = field.hasMapValueConflict();
 
         // Get version-specific MapInfo for correct proto type detection
-        MapInfo versionMapInfo = getVersionSpecificMapInfo(field, unifiedMapInfo, ctx);
+        MapInfo versionMapInfo = MapTypeResolver.getVersionSpecificMapInfo(field, unifiedMapInfo, ctx);
 
         // Proto value type for THIS version (not unified type)
         TypeName protoValueType = parseSimpleType(versionMapInfo.getValueJavaType());
 
         // Check if this map needs type conversion (benefits from caching)
-        boolean useCache = presentInVersion && needsTypeConversion(field, versionMapInfo, resolvedValueType);
-        String cacheFieldName = getCacheFieldName(field);
+        boolean useCache = presentInVersion && MapTypeResolver.needsTypeConversion(field, versionMapInfo, resolvedValueType);
+        String cacheFieldName = MapTypeResolver.getCacheFieldName(field);
 
         // Add cache field for maps that need type conversion (volatile for thread safety)
         if (useCache) {
@@ -304,7 +189,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 }
             } else {
                 // No type conflict - check for WKT conversion
-                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                Optional<WellKnownTypeInfo> wktOpt = MapTypeResolver.getWktForMapValue(versionMapInfo, ctx);
                 if (wktOpt.isPresent()) {
                     // WKT map value - need to convert proto WKT to Java type
                     WellKnownTypeInfo wkt = wktOpt.get();
@@ -315,14 +200,14 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                             Map.class, keyType.box(), resolvedValueType.box(),
                             ClassName.get("java.util", "LinkedHashMap"));
                     // Generate conversion lambda based on WKT type
-                    String conversionCode = generateWktMapValueExtraction(wkt);
+                    String conversionCode = MapWktConverter.generateWktMapValueExtraction(wkt);
                     extract.addStatement("source.forEach((k, v) -> result.put(k, $L))", conversionCode);
                     extract.addStatement("return result");
                 } else if (versionMapInfo.hasMessageValue()) {
                     // Message map value - wrap each value with impl wrapper class
                     TypeName keyType = parseSimpleType(versionMapInfo.getKeyJavaType());
-                    String wrapperClass = getMapValueWrapperClass(versionMapInfo, ctx);
-                    String protoType = getMapValueProtoType(versionMapInfo, ctx);
+                    String wrapperClass = MapTypeNameProvider.getMapValueWrapperClass(versionMapInfo, ctx);
+                    String protoType = MapTypeNameProvider.getMapValueProtoType(versionMapInfo, ctx);
                     extract.addStatement("$T<$T, ?> source = proto.get$LMap()",
                             Map.class, keyType.box(), versionJavaName);
                     extract.addStatement("$T<$T, $T> result = new $T<>(source.size())",
@@ -333,7 +218,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 } else if (versionMapInfo.hasEnumValue()) {
                     // Enum map value - convert each value with fromProtoValue
                     TypeName keyType = parseSimpleType(versionMapInfo.getKeyJavaType());
-                    String enumType = getMapValueEnumType(versionMapInfo, ctx);
+                    String enumType = MapTypeNameProvider.getMapValueEnumType(versionMapInfo, ctx);
                     extract.addStatement("$T<$T, ?> source = proto.get$LMap()",
                             Map.class, keyType.box(), versionJavaName);
                     extract.addStatement("$T<$T, $T> result = new $T<>(source.size())",
@@ -356,76 +241,14 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
         builder.addMethod(extract.build());
     }
 
-    /**
-     * Generate extraction code for WKT map value.
-     */
-    private String generateWktMapValueExtraction(WellKnownTypeInfo wkt) {
-        return switch (wkt) {
-            case TIMESTAMP -> "v != null ? java.time.Instant.ofEpochSecond(((com.google.protobuf.Timestamp) v).getSeconds(), ((com.google.protobuf.Timestamp) v).getNanos()) : null";
-            case DURATION -> "v != null ? java.time.Duration.ofSeconds(((com.google.protobuf.Duration) v).getSeconds(), ((com.google.protobuf.Duration) v).getNanos()) : null";
-            case STRING_VALUE -> "v != null ? ((com.google.protobuf.StringValue) v).getValue() : null";
-            case INT32_VALUE -> "v != null ? ((com.google.protobuf.Int32Value) v).getValue() : null";
-            case INT64_VALUE -> "v != null ? ((com.google.protobuf.Int64Value) v).getValue() : null";
-            case UINT32_VALUE -> "v != null ? Integer.toUnsignedLong(((com.google.protobuf.UInt32Value) v).getValue()) : null";
-            case UINT64_VALUE -> "v != null ? ((com.google.protobuf.UInt64Value) v).getValue() : null";
-            case BOOL_VALUE -> "v != null ? ((com.google.protobuf.BoolValue) v).getValue() : null";
-            case FLOAT_VALUE -> "v != null ? ((com.google.protobuf.FloatValue) v).getValue() : null";
-            case DOUBLE_VALUE -> "v != null ? ((com.google.protobuf.DoubleValue) v).getValue() : null";
-            case BYTES_VALUE -> "v != null ? ((com.google.protobuf.BytesValue) v).getValue().toByteArray() : null";
-            default -> "v"; // For complex types like Struct, Value - pass through
-        };
-    }
-
-    /**
-     * Generate building code for WKT map value (Java to proto).
-     */
-    private String generateWktMapValueBuild(WellKnownTypeInfo wkt, String valueName, String fieldName) {
-        return switch (wkt) {
-            case TIMESTAMP -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Timestamp.newBuilder()" +
-                            ".setSeconds(%s.getEpochSecond()).setNanos(%s.getNano()).build()); }",
-                    valueName, fieldName, valueName, valueName);
-            case DURATION -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Duration.newBuilder()" +
-                            ".setSeconds(%s.getSeconds()).setNanos(%s.getNano()).build()); }",
-                    valueName, fieldName, valueName, valueName);
-            case STRING_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.StringValue.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case INT32_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Int32Value.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case INT64_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.Int64Value.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case UINT32_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.UInt32Value.of(%s.intValue())); }",
-                    valueName, fieldName, valueName);
-            case UINT64_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.UInt64Value.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case BOOL_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.BoolValue.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case FLOAT_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.FloatValue.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case DOUBLE_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.DoubleValue.of(%s)); }",
-                    valueName, fieldName, valueName);
-            case BYTES_VALUE -> String.format(
-                    "if (%s != null) { protoBuilder.put%s(key, com.google.protobuf.BytesValue.of(com.google.protobuf.ByteString.copyFrom(%s))); }",
-                    valueName, fieldName, valueName);
-            default -> String.format("protoBuilder.put%s(key, %s)", fieldName, valueName);
-        };
-    }
+    // WKT conversion methods delegated to MapWktConverter
 
     @Override
     public void addGetterImplementation(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field, ctx);
+        TypeName mapType = MapTypeResolver.getResolvedMapType(field, ctx);
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field, ctx);
+        TypeName valueType = MapTypeResolver.getResolvedValueType(field, ctx);
         String capitalizedName = ctx.capitalize(field.getJavaName());
 
         // 1. getXxxMap() - delegate to extract
@@ -482,9 +305,9 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     @Override
     public void addAbstractBuilderMethods(TypeSpec.Builder builder, MergedField field, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field, ctx);
+        TypeName mapType = MapTypeResolver.getResolvedMapType(field, ctx);
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field, ctx);
+        TypeName valueType = MapTypeResolver.getResolvedValueType(field, ctx);
         String capitalizedName = ctx.capitalize(field.getJavaName());
 
         // doPut
@@ -523,8 +346,8 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                                            TypeName builderReturnType, ProcessingContext ctx) {
         MapInfo mapInfo = field.getMapInfo();
         TypeName keyType = parseSimpleType(mapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field, ctx);
-        TypeName mapType = getResolvedMapType(field, ctx);
+        TypeName valueType = MapTypeResolver.getResolvedValueType(field, ctx);
+        TypeName mapType = MapTypeResolver.getResolvedMapType(field, ctx);
 
         // put(key, value) -> Builder
         builder.addMethod(MethodSpec.methodBuilder(field.getMapPutMethodName())
@@ -579,16 +402,16 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
     public void addBuilderImplMethods(TypeSpec.Builder builder, MergedField field,
                                        boolean presentInVersion, ProcessingContext ctx) {
         MapInfo unifiedMapInfo = field.getMapInfo();
-        TypeName mapType = getResolvedMapType(field, ctx);
+        TypeName mapType = MapTypeResolver.getResolvedMapType(field, ctx);
         TypeName keyType = parseSimpleType(unifiedMapInfo.getKeyJavaType());
-        TypeName valueType = getResolvedValueType(field, ctx);
+        TypeName valueType = MapTypeResolver.getResolvedValueType(field, ctx);
         String capitalizedName = ctx.capitalize(field.getJavaName());
         String versionJavaName = CodeGenerationHelper.getVersionSpecificJavaName(field, ctx);
         boolean hasValueConflict = field.hasMapValueConflict();
 
         // Get version-specific MapInfo for correct proto type detection
-        MapInfo versionMapInfo = getVersionSpecificMapInfo(field, unifiedMapInfo, ctx);
-        TypeName protoValueType = getProtoValueType(versionMapInfo, ctx);
+        MapInfo versionMapInfo = MapTypeResolver.getVersionSpecificMapInfo(field, unifiedMapInfo, ctx);
+        TypeName protoValueType = MapTypeResolver.getProtoValueType(versionMapInfo, ctx);
 
         // doPut
         MethodSpec.Builder doPut = MethodSpec.methodBuilder(field.getMapDoPutMethodName())
@@ -629,20 +452,20 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 }
             } else {
                 // No type conflict - check for WKT conversion
-                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                Optional<WellKnownTypeInfo> wktOpt = MapTypeResolver.getWktForMapValue(versionMapInfo, ctx);
                 if (wktOpt.isPresent()) {
                     // WKT map value - need to convert Java type to proto WKT
                     WellKnownTypeInfo wkt = wktOpt.get();
-                    String buildCode = generateWktMapValueBuild(wkt, "value", versionJavaName);
+                    String buildCode = MapWktConverter.generateWktMapValueBuild(wkt, "value", versionJavaName);
                     doPut.addStatement(buildCode);
                 } else if (versionMapInfo.hasMessageValue()) {
                     // Message map value - extract proto from wrapper
-                    String protoType = getMapValueProtoType(versionMapInfo, ctx);
+                    String protoType = MapTypeNameProvider.getMapValueProtoType(versionMapInfo, ctx);
                     doPut.addStatement("protoBuilder.put$L(key, ($L) extractProto(value))",
                             versionJavaName, protoType);
                 } else if (versionMapInfo.hasEnumValue()) {
                     // Enum map value - convert wrapper enum to proto enum
-                    String protoEnumType = getMapValueProtoEnumType(versionMapInfo, ctx);
+                    String protoEnumType = MapTypeNameProvider.getMapValueProtoEnumType(versionMapInfo, ctx);
                     String enumMethod = CodeGenerationHelper.getEnumFromIntMethod(ctx);
                     doPut.addStatement("protoBuilder.put$L(key, $L.$L(value.getValue()))",
                             versionJavaName, protoEnumType, enumMethod);
@@ -683,7 +506,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 }
             } else {
                 // No type conflict - check for WKT conversion
-                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                Optional<WellKnownTypeInfo> wktOpt = MapTypeResolver.getWktForMapValue(versionMapInfo, ctx);
                 if (wktOpt.isPresent()) {
                     // WKT - delegate to doPut for each entry (for conversion)
                     doPutAll.addStatement("values.forEach((k, v) -> $L(k, v))", field.getMapDoPutMethodName());
@@ -770,7 +593,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                 }
             } else {
                 // No type conflict - check for WKT conversion
-                Optional<WellKnownTypeInfo> wktOpt = getWktForMapValue(versionMapInfo, ctx);
+                Optional<WellKnownTypeInfo> wktOpt = MapTypeResolver.getWktForMapValue(versionMapInfo, ctx);
                 if (wktOpt.isPresent()) {
                     // WKT map value - need to convert proto WKT to Java type
                     WellKnownTypeInfo wkt = wktOpt.get();
@@ -779,13 +602,13 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                     doGet.addStatement("$T<$T, $T> result = new $T<>(source.size())",
                             Map.class, keyType.box(), valueType.box(),
                             ClassName.get("java.util", "LinkedHashMap"));
-                    String conversionCode = generateWktMapValueExtraction(wkt);
+                    String conversionCode = MapWktConverter.generateWktMapValueExtraction(wkt);
                     doGet.addStatement("source.forEach((k, v) -> result.put(k, $L))", conversionCode);
                     doGet.addStatement("return result");
                 } else if (versionMapInfo.hasMessageValue()) {
                     // Message map value - wrap each value with impl wrapper class
-                    String wrapperClass = getMapValueWrapperClass(versionMapInfo, ctx);
-                    String protoType = getMapValueProtoType(versionMapInfo, ctx);
+                    String wrapperClass = MapTypeNameProvider.getMapValueWrapperClass(versionMapInfo, ctx);
+                    String protoType = MapTypeNameProvider.getMapValueProtoType(versionMapInfo, ctx);
                     doGet.addStatement("$T<$T, ?> source = protoBuilder.get$LMap()",
                             Map.class, keyType.box(), versionJavaName);
                     doGet.addStatement("$T<$T, $T> result = new $T<>(source.size())",
@@ -795,7 +618,7 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
                     doGet.addStatement("return result");
                 } else if (versionMapInfo.hasEnumValue()) {
                     // Enum map value - convert each value with fromProtoValue
-                    String enumType = getMapValueEnumType(versionMapInfo, ctx);
+                    String enumType = MapTypeNameProvider.getMapValueEnumType(versionMapInfo, ctx);
                     doGet.addStatement("$T<$T, ?> source = protoBuilder.get$LMap()",
                             Map.class, keyType.box(), versionJavaName);
                     doGet.addStatement("$T<$T, $T> result = new $T<>(source.size())",
@@ -814,97 +637,5 @@ public final class MapFieldHandler extends AbstractConflictHandler implements Co
         builder.addMethod(doGet.build());
     }
 
-    /**
-     * Get the wrapper class name for a map value of message type.
-     * Returns the fully qualified implementation class name.
-     *
-     * @param mapInfo Map field information with message value
-     * @param ctx Processing context with package information
-     * @return Fully qualified wrapper class name (e.g., "com.example.impl.v1.NestedMessage")
-     */
-    private String getMapValueWrapperClass(MapInfo mapInfo, ProcessingContext ctx) {
-        String simpleTypeName = mapInfo.getSimpleValueTypeName();
-        String implPackage = ctx.implPackage();
-        return implPackage + "." + simpleTypeName;
-    }
-
-    /**
-     * Get the enum type name for a map value of enum type.
-     * Returns the fully qualified API enum class name.
-     *
-     * @param mapInfo Map field information with enum value
-     * @param ctx Processing context with package information
-     * @return Fully qualified API enum class name (e.g., "com.example.api.TestEnum")
-     */
-    private String getMapValueEnumType(MapInfo mapInfo, ProcessingContext ctx) {
-        String simpleTypeName = mapInfo.getSimpleValueTypeName();
-        String apiPackage = ctx.apiPackage();
-        return apiPackage + "." + simpleTypeName;
-    }
-
-    /**
-     * Get the proto message type name for a map value of message type.
-     * Returns the fully qualified proto class name including outer class.
-     *
-     * @param mapInfo Map field information with message value
-     * @param ctx Processing context with package information
-     * @return Fully qualified proto class name (e.g., "com.example.proto.v1.OuterClass.NestedMessage")
-     */
-    private String getMapValueProtoType(MapInfo mapInfo, ProcessingContext ctx) {
-        String valueTypeName = mapInfo.getValueTypeName();
-        if (valueTypeName == null || valueTypeName.isEmpty()) {
-            return "com.google.protobuf.Message";
-        }
-
-        // Extract simple type name (e.g., "NestedMessage" from "io.alnovis...NestedMessage")
-        String simpleTypeName = mapInfo.getSimpleValueTypeName();
-
-        // Get Java proto package for this version
-        String version = ctx.requireVersion();
-        String javaProtoPackage = ctx.config().getProtoPackage(version);
-
-        // Try to find outer class using schema
-        String outerClassName = CodeGenerationHelper.findOuterClassForType(
-                simpleTypeName, ctx.schema(), version);
-
-        if (outerClassName != null) {
-            return javaProtoPackage + "." + outerClassName + "." + simpleTypeName;
-        }
-
-        // Fallback: use simple type name directly
-        return javaProtoPackage + "." + simpleTypeName;
-    }
-
-    /**
-     * Get the proto enum type name for a map value of enum type.
-     * Returns the fully qualified proto enum class name including outer class.
-     *
-     * @param mapInfo Map field information with enum value
-     * @param ctx Processing context with package information
-     * @return Fully qualified proto enum class name (e.g., "com.example.proto.v1.OuterClass.TestEnum")
-     */
-    private String getMapValueProtoEnumType(MapInfo mapInfo, ProcessingContext ctx) {
-        String valueTypeName = mapInfo.getValueTypeName();
-        if (valueTypeName == null || valueTypeName.isEmpty()) {
-            return "Object";
-        }
-
-        // Extract simple type name (e.g., "TestEnum" from "io.alnovis...TestEnum")
-        String simpleTypeName = mapInfo.getSimpleValueTypeName();
-
-        // Get Java proto package for this version
-        String version = ctx.requireVersion();
-        String javaProtoPackage = ctx.config().getProtoPackage(version);
-
-        // Try to find outer class using schema
-        String outerClassName = CodeGenerationHelper.findOuterClassForEnum(
-                simpleTypeName, ctx.schema(), version);
-
-        if (outerClassName != null) {
-            return javaProtoPackage + "." + outerClassName + "." + simpleTypeName;
-        }
-
-        // Fallback: use simple type name directly
-        return javaProtoPackage + "." + simpleTypeName;
-    }
+    // Type name methods delegated to MapTypeNameProvider
 }

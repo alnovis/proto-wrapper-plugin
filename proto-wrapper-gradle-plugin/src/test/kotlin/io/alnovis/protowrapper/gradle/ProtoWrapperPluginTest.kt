@@ -171,6 +171,15 @@ class ProtoWrapperPluginTest {
 
             assertThat(extension.protobufMajorVersion.get()).isEqualTo(3)
         }
+
+        @Test
+        fun `generateSchemaMetadata is disabled by default`() {
+            project.pluginManager.apply("io.alnovis.proto-wrapper")
+
+            val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
+
+            assertThat(extension.generateSchemaMetadata.get()).isFalse()
+        }
     }
 
     @Nested
@@ -238,6 +247,16 @@ class ProtoWrapperPluginTest {
 
             assertThat(extension.versions.size).isEqualTo(1)
             assertThat(extension.versions.getByName("v1").protoDir.get()).isEqualTo("proto/v1")
+        }
+
+        @Test
+        fun `generateSchemaMetadata can be enabled`() {
+            project.pluginManager.apply("io.alnovis.proto-wrapper")
+
+            val extension = project.extensions.getByType(ProtoWrapperExtension::class.java)
+            extension.generateSchemaMetadata.set(true)
+
+            assertThat(extension.generateSchemaMetadata.get()).isTrue()
         }
     }
 

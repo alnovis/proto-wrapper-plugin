@@ -210,14 +210,12 @@ public class ProtoWrapperDemo {
                         .build();
 
         // Through the interface, you get common fields
-        Address address = new com.example.model.v2.Address(protoAddress);
+        com.example.model.v2.Address address = new com.example.model.v2.Address(protoAddress);
         System.out.println("Street: " + address.getStreet());
         System.out.println("City: " + address.getCity());
 
-        // V2-specific fields are available through the V2 implementation
-        // (when you know you're working with V2)
-        com.example.model.v2.Address addressV2 = (com.example.model.v2.Address) address;
-        Address.GeoLocation geo = addressV2.getLocation();
+        // V2-specific fields are available directly (since we know it's V2)
+        Address.GeoLocation geo = address.getLocation();
         if (geo != null) {
             System.out.println("Latitude: " + geo.getLatitude());
             System.out.println("Longitude: " + geo.getLongitude());

@@ -71,6 +71,12 @@ class ProtoWrapperPlugin : Plugin<Project> {
             task.generateValidationAnnotations.set(extension.generateValidationAnnotations)
             task.validationAnnotationStyle.set(extension.validationAnnotationStyle)
 
+            // Schema metadata (since 2.3.1)
+            task.generateSchemaMetadata.set(extension.generateSchemaMetadata)
+
+            // Target language (since 2.4.0)
+            task.language.set(extension.language)
+
             // Pass versions via provider
             task.versions.set(project.provider { extension.versions.toList() })
         }

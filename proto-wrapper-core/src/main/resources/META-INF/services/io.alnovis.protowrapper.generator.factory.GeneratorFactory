@@ -1,0 +1,8 @@
+# Generator factory service provider configuration
+#
+# The default Java factory is registered programmatically in GeneratorFactoryRegistry.
+# Additional custom factories can be auto-discovered by adding their fully qualified
+# class names here. Each factory implementation must have a public no-arg constructor.
+#
+# Example:
+# com.example.kotlin.KotlinGeneratorFactory

@@ -7,8 +7,6 @@ import io.alnovis.protowrapper.model.FieldMapping;
 import io.alnovis.protowrapper.model.ProtoSyntax;
 
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
@@ -115,6 +113,9 @@ public class GeneratorConfig {
     private boolean generateValidationAnnotations = false;
     private String validationAnnotationStyle = "jakarta";
 
+    // Schema metadata generation settings (since 2.3.0)
+    private boolean generateSchemaMetadata = false;
+
     /**
      * Create a new builder for GeneratorConfig.
      *
@@ -148,6 +149,8 @@ public class GeneratorConfig {
     }
     /** @return the proto package pattern */
     public String getProtoPackagePattern() { return protoPackagePattern; }
+    /** @return the impl package pattern */
+    public String getImplPackagePattern() { return implPackagePattern; }
     /** @return the abstract class package */
     public String getAbstractClassPackage() {
         return abstractClassPackage != null ? abstractClassPackage : apiPackage + ".impl";
@@ -307,6 +310,30 @@ public class GeneratorConfig {
     }
 
     /**
+     * Check if schema metadata should be generated.
+     *
+     * <p>When enabled, generates SchemaInfo and VersionSchemaDiff classes
+     * providing runtime access to enum values, field information, and
+     * schema differences between versions.</p>
+     *
+     * @return true if schema metadata should be generated
+     * @since 2.3.0
+     */
+    public boolean isGenerateSchemaMetadata() {
+        return generateSchemaMetadata;
+    }
+
+    /**
+     * Get the metadata package for generated SchemaInfo and SchemaDiff classes.
+     *
+     * @return metadata package name (basePackage + ".metadata")
+     * @since 2.3.0
+     */
+    public String getMetadataPackage() {
+        return apiPackage.replace(".api", "") + ".metadata";
+    }
+
+    /**
      * Get the Java version-specific code generation strategy.
      *
      * <p>Returns appropriate strategy based on target Java version:</p>
@@ -370,47 +397,53 @@ public class GeneratorConfig {
     }
 
     /**
+     * Get all custom type mappings.
+     * Package-private for ConfigHasher access.
+     *
+     * @return unmodifiable view of custom type mappings
+     */
+    Map<String, String> getCustomTypeMappings() {
+        return Collections.unmodifiableMap(customTypeMappings);
+    }
+
+    /**
+     * Get all field name overrides.
+     * Package-private for ConfigHasher access.
+     *
+     * @return unmodifiable view of field name overrides
+     */
+    Map<String, String> getFieldNameOverrides() {
+        return Collections.unmodifiableMap(fieldNameOverrides);
+    }
+
+    /**
+     * Get all included messages.
+     * Package-private for ConfigHasher access.
+     *
+     * @return unmodifiable view of included messages
+     */
+    Set<String> getIncludedMessages() {
+        return Collections.unmodifiableSet(includedMessages);
+    }
+
+    /**
+     * Get all excluded messages.
+     * Package-private for ConfigHasher access.
+     *
+     * @return unmodifiable view of excluded messages
+     */
+    Set<String> getExcludedMessages() {
+        return Collections.unmodifiableSet(excludedMessages);
+    }
+
+    /**
      * Compute hash of configuration for cache invalidation.
      * Changes in these settings invalidate the cache.
      *
      * @return 16-character hex string representing configuration hash
      */
     public String computeConfigHash() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(apiPackage).append("|");
-        sb.append(implPackagePattern).append("|");
-        sb.append(protoPackagePattern).append("|");
-        sb.append(abstractClassPackage).append("|");
-        sb.append(generateInterfaces).append("|");
-        sb.append(generateAbstractClasses).append("|");
-        sb.append(generateImplClasses).append("|");
-        sb.append(generateVersionContext).append("|");
-        sb.append(generateBuilders).append("|");
-        sb.append(includeVersionSuffix).append("|");
-        sb.append(convertWellKnownTypes).append("|");
-        sb.append(generateRawProtoAccessors).append("|");
-        sb.append(defaultSyntax).append("|");
-        sb.append(targetJavaVersion).append("|");
-        // Include custom mappings
-        sb.append(customTypeMappings).append("|");
-        sb.append(fieldNameOverrides).append("|");
-        // Include message filters
-        sb.append(includedMessages).append("|");
-        sb.append(excludedMessages).append("|");
-        // Include field mappings (affects generated code)
-        sb.append(fieldMappings).append("|");
-        // Include validation settings (since 2.3.0)
-        sb.append(generateValidationAnnotations).append("|");
-        sb.append(validationAnnotationStyle);
-
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash).substring(0, 16);
-        } catch (NoSuchAlgorithmException e) {
-            // Fallback to simple hashCode (should never happen as SHA-256 is always available)
-            return String.format("%016x", sb.toString().hashCode());
-        }
+        return ConfigHasher.computeHash(this);
     }
 
     /** Builder for GeneratorConfig. */
@@ -548,9 +581,7 @@ public class GeneratorConfig {
         @Deprecated(since = "2.2.0", forRemoval = true)
         // TODO: Remove in 3.0.0 - see docs/DEPRECATION_POLICY.md
         public Builder protobufMajorVersion(int version) {
-            if (version < 2 || version > 3) {
-                throw new IllegalArgumentException("protobufMajorVersion must be 2 or 3, got: " + version);
-            }
+            ConfigValidator.validateProtobufMajorVersion(version);
             // Inline conversion to avoid calling deprecated ProtoSyntax.fromMajorVersion()
             config.defaultSyntax = (version == 2) ? ProtoSyntax.PROTO2 : ProtoSyntax.PROTO3;
             return this;
@@ -668,9 +699,7 @@ public class GeneratorConfig {
          * @return this builder
          */
         public Builder targetJavaVersion(int version) {
-            if (version < 8) {
-                throw new IllegalArgumentException("targetJavaVersion must be at least 8, got: " + version);
-            }
+            ConfigValidator.validateTargetJavaVersion(version);
             config.targetJavaVersion = version;
             return this;
         }
@@ -699,9 +728,7 @@ public class GeneratorConfig {
          * @since 2.1.0
          */
         public Builder generationThreads(int threads) {
-            if (threads < 0) {
-                throw new IllegalArgumentException("generationThreads must be >= 0, got: " + threads);
-            }
+            ConfigValidator.validateGenerationThreads(threads);
             config.generationThreads = threads;
             return this;
         }
@@ -794,11 +821,32 @@ public class GeneratorConfig {
          * @since 2.3.0
          */
         public Builder validationAnnotationStyle(String style) {
-            if (style != null && !"jakarta".equals(style) && !"javax".equals(style)) {
-                throw new IllegalArgumentException(
-                        "validationAnnotationStyle must be 'jakarta' or 'javax', got: " + style);
-            }
+            ConfigValidator.validateValidationStyle(style);
             config.validationAnnotationStyle = style != null ? style : "jakarta";
+            return this;
+        }
+
+        /**
+         * Enable or disable schema metadata generation.
+         *
+         * <p>When enabled, generates SchemaInfo classes for each version
+         * and VersionSchemaDiff classes for each version pair, providing
+         * runtime access to:</p>
+         * <ul>
+         *   <li>Enum names and values</li>
+         *   <li>Message field information</li>
+         *   <li>Schema differences between versions</li>
+         *   <li>Migration hints for field changes</li>
+         * </ul>
+         *
+         * <p>Default: false</p>
+         *
+         * @param generateSchemaMetadata true to enable schema metadata generation
+         * @return this builder
+         * @since 2.3.0
+         */
+        public Builder generateSchemaMetadata(boolean generateSchemaMetadata) {
+            config.generateSchemaMetadata = generateSchemaMetadata;
             return this;
         }
 
@@ -808,7 +856,7 @@ public class GeneratorConfig {
          * @return the built configuration
          */
         public GeneratorConfig build() {
-            Objects.requireNonNull(config.outputDirectory, "Output directory is required");
+            ConfigValidator.validate(config);
             return config;
         }
     }
