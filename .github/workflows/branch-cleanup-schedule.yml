@@ -3,12 +3,12 @@ name: Schedule Branch Cleanup
 on:
   pull_request:
     types: [closed]
-    branches: [develop, main, master]
+    branches: [develop, main]
 
 env:
   CLEANUP_DELAY_HOURS: 24
   DELETABLE_PREFIXES: 'feature/,fix/,bugfix/,chore/,hotfix/,refactor/,docs/'
-  PROTECTED_BRANCHES: 'main,master,develop,release,staging'
+  PROTECTED_BRANCHES: 'main,develop,release,staging'
 
 jobs:
   schedule-cleanup:
