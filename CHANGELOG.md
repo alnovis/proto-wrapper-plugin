@@ -1584,7 +1584,7 @@ OrderRequest order = OrderRequest.newBuilder(ctx)
   - Automatic protoc installation
   - Maven dependency caching
   - Build artifact upload (JAR files)
-  - Triggered on push/PR to `master` and `develop` branches
+  - Triggered on push/PR to `main` and `develop` branches
 
 ### Changed
 - Minor documentation improvements
