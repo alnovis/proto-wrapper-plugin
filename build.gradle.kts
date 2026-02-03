@@ -11,8 +11,8 @@ allprojects {
     version = projectVersion
 
     repositories {
+        mavenLocal() // For proto-wrapper-core built by Maven (must be first!)
         mavenCentral()
-        mavenLocal() // For proto-wrapper-core from Maven during development
     }
 }
 
