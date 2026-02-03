@@ -491,6 +491,9 @@ start_module() {
     MODULE_STATUS[$module]="running"
     MODULE_START[$module]=$(date +%s)
 
+    # CI mode: print when starting
+    [[ "$CI_MODE" == "true" ]] && echo "  [....] $module (starting)"
+
     # Subprocess: run, write exit code, end time, done marker
     (
         run_module_command "$module" "${log}.log" "$RUN_TESTS"
@@ -515,10 +518,14 @@ check_completions() {
 
         if [[ "$exit_code" -eq 0 ]]; then
             MODULE_STATUS[$module]="success"
+            # CI mode: print success
+            [[ "$CI_MODE" == "true" ]] && echo "  [OK]   $module (${MODULE_TIME[$module]}s)"
         else
             MODULE_STATUS[$module]="failed"
             BUILD_HAS_FAILURE=true
             [[ -z "$EXECUTOR_FAILED_MODULE" ]] && EXECUTOR_FAILED_MODULE="$module"
+            # CI mode: print failure
+            [[ "$CI_MODE" == "true" ]] && echo "  [FAIL] $module"
         fi
     done
 }
