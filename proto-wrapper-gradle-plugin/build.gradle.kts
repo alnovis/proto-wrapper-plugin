@@ -5,20 +5,9 @@ plugins {
     id("com.gradle.plugin-publish") version "1.2.1"
 }
 
-// Property to switch between local project and Maven Central dependency
-// Usage:
-//   Local development: ./gradlew build (default)
-//   Publishing:        ./gradlew publishPlugins -PuseMavenCentral=true
-val useMavenCentral = project.findProperty("useMavenCentral")?.toString()?.toBoolean() ?: false
-
 dependencies {
-    if (useMavenCentral) {
-        // For publishing: use Maven Central dependency
-        implementation("io.alnovis:proto-wrapper-core:${project.version}")
-    } else {
-        // For local development: use project dependency
-        implementation(project(":proto-wrapper-core"))
-    }
+    // proto-wrapper-core is built with Maven and installed to mavenLocal()
+    implementation("io.alnovis:proto-wrapper-core:${project.version}")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.0")
@@ -135,8 +124,3 @@ tasks.register("allTests") {
     dependsOn("test", "slowTest")
 }
 
-// Print dependency mode on configuration
-gradle.taskGraph.whenReady {
-    val mode = if (useMavenCentral) "Maven Central" else "local project"
-    logger.lifecycle("proto-wrapper-core dependency mode: $mode")
-}

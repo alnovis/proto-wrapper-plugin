@@ -11,8 +11,7 @@ pluginManagement {
 
 rootProject.name = "proto-wrapper"
 
-// Modules for Gradle build
-include("proto-wrapper-core")
+// Gradle modules (proto-wrapper-core is Maven-only, built separately)
 include("proto-wrapper-gradle-plugin")
 
 // Maven-only modules NOT included in Gradle build:

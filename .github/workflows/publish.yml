@@ -23,6 +23,11 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
       - name: Configure Maven settings
         run: |
           mkdir -p ~/.m2
@@ -37,65 +42,7 @@ jobs:
                 <mirrorOf>central</mirrorOf>
               </mirror>
             </mirrors>
-            <profiles>
-              <profile>
-                <id>default</id>
-                <repositories>
-                  <repository>
-                    <id>central</id>
-                    <url>https://repo1.maven.org/maven2/</url>
-                    <releases>
-                      <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                      <enabled>false</enabled>
-                    </snapshots>
-                  </repository>
-                </repositories>
-                <pluginRepositories>
-                  <pluginRepository>
-                    <id>central</id>
-                    <url>https://repo1.maven.org/maven2/</url>
-                    <releases>
-                      <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                      <enabled>false</enabled>
-                    </snapshots>
-                  </pluginRepository>
-                </pluginRepositories>
-              </profile>
-            </profiles>
-            <activeProfiles>
-              <activeProfile>default</activeProfile>
-            </activeProfiles>
           </settings>
-          EOF
-
-      - name: Configure Gradle repositories
-        run: |
-          mkdir -p ~/.gradle
-          cat > ~/.gradle/init.gradle << 'EOF'
-          allprojects {
-            repositories {
-              mavenCentral()
-              maven {
-                url = uri("https://repo1.maven.org/maven2/")
-              }
-              gradlePluginPortal()
-            }
-          }
-          settingsEvaluated { settings ->
-            settings.pluginManagement {
-              repositories {
-                gradlePluginPortal()
-                mavenCentral()
-                maven {
-                  url = uri("https://repo1.maven.org/maven2/")
-                }
-              }
-            }
-          }
           EOF
 
       - name: Install protoc
@@ -103,50 +50,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
 
-      - name: Build Core and Plugin
+      - name: Grant execute permissions
+        run: |
+          chmod +x gradlew
+          chmod +x examples/gradle-example/gradlew
+
+      - name: Build Maven modules
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
+          timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
             mvn install -B -N
-            mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
+            mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin,proto-wrapper-spring-boot-starter
+            mvn verify -B -pl proto-wrapper-maven-integration-tests
 
-      - name: Run Maven Integration Tests
+      - name: Build Gradle plugin
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: |
-            cd proto-wrapper-maven-integration-tests
-            mvn verify -B
-
-      - name: Run Maven Example
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            cd examples/maven-example
-            mvn verify -B
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.5'
-
-      - name: Run Gradle tests
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            chmod +x gradlew
-            ./gradlew build --no-daemon
+          command: ./gradlew :proto-wrapper-gradle-plugin:build --no-daemon
 
   # Publish Maven modules to Maven Central
   publish-maven:
