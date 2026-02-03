@@ -8,6 +8,9 @@ version: "1.0"
 # JVM linter for Java + Kotlin
 linter: jetbrains/qodana-jvm:2025.2
 
+# Project JDK - use bundled JDK inside the container
+projectJDK: "21"
+
 # Project profile (inspections to run)
 profile:
   name: qodana.recommended
@@ -27,4 +30,5 @@ exclude:
   - name: "test-protos/**"
 
 # Fail CI if threshold exceeded
+# Current baseline: ~90 issues (mostly duplicated code in generators, vulnerable deps, JavaDoc refs)
 failThreshold: 100

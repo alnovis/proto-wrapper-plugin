@@ -61,6 +61,9 @@ jobs:
       - name: Install parent pom
         run: mvn install -B -N
 
+      - name: Build and test IR module
+        run: mvn install -B -pl proto-wrapper-ir
+
       - name: Build and install core
         run: mvn install -B -pl proto-wrapper-core
 
@@ -109,6 +112,7 @@ jobs:
         with:
           name: maven-artifacts
           path: |
+            proto-wrapper-ir/target/*.jar
             proto-wrapper-core/target/*.jar
             proto-wrapper-maven-plugin/target/*.jar
             proto-wrapper-spring-boot-starter/target/*.jar
