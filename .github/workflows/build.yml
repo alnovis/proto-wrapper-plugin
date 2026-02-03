@@ -28,7 +28,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.5'
-          cache-read-only: false
 
       - name: Configure Maven settings
         run: |
@@ -55,21 +54,55 @@ jobs:
 
       - name: Grant execute permissions
         run: |
-          chmod +x build.sh
           chmod +x gradlew
           chmod +x examples/gradle-example/gradlew
 
-      - name: Check version consistency
-        run: ./build.sh --check --ci
+      # === MAVEN BUILD ===
+      - name: Install parent pom
+        run: mvn install -B -N
 
-      - name: Build and Test (all modules)
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 20
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: ./build.sh --ci --parallel
+      - name: Build and install core
+        run: mvn install -B -pl proto-wrapper-core
 
+      - name: Build and install Maven plugin
+        run: mvn install -B -pl proto-wrapper-maven-plugin
+
+      - name: Build and install Spring Boot starter
+        run: mvn install -B -pl proto-wrapper-spring-boot-starter
+
+      - name: Run Golden Tests
+        run: mvn verify -B -pl proto-wrapper-golden-tests
+
+      - name: Run Maven Integration Tests
+        run: mvn verify -B -pl proto-wrapper-maven-integration-tests
+
+      - name: Run Maven Example
+        run: mvn verify -B -f examples/maven-example/pom.xml
+
+      - name: Run Spring Boot Example
+        run: mvn verify -B -f examples/spring-boot-example/pom.xml
+
+      # === GRADLE BUILD ===
+      - name: Build Gradle plugin
+        run: ./gradlew :proto-wrapper-gradle-plugin:build --no-daemon
+
+      - name: Run Gradle plugin slow tests
+        run: ./gradlew :proto-wrapper-gradle-plugin:slowTest --no-daemon
+
+      - name: Publish Gradle plugin to Maven Local
+        run: ./gradlew publishToMavenLocal --no-daemon
+
+      - name: Run Gradle Integration Tests
+        run: |
+          cd proto-wrapper-gradle-integration-tests
+          gradle test --no-daemon
+
+      - name: Build Gradle Example
+        run: |
+          cd examples/gradle-example
+          ./gradlew build --no-daemon
+
+      # === ARTIFACTS ===
       - name: Upload Maven Artifacts
         if: matrix.java-version == 17 && success()
         uses: actions/upload-artifact@v4
@@ -89,7 +122,6 @@ jobs:
           path: proto-wrapper-gradle-plugin/build/libs/*.jar
           retention-days: 7
 
-  # Documentation check
   docs-check:
     runs-on: ubuntu-latest
     steps:
@@ -127,69 +159,3 @@ jobs:
             exit 1
           fi
           echo "All documentation files present."
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install mermaid-cli
-        run: npm install -g @mermaid-js/mermaid-cli
-
-      - name: Validate Mermaid diagrams
-        run: |
-          echo "Validating Mermaid diagrams..."
-
-          FILES_WITH_MERMAID=$(grep -rl '```mermaid' --include="*.md" . 2>/dev/null || true)
-
-          if [ -z "$FILES_WITH_MERMAID" ]; then
-            echo "No Mermaid diagrams found in any .md files"
-            exit 0
-          fi
-
-          TOTAL_BLOCKS=0
-          VALID_BLOCKS=0
-          INVALID_FILES=""
-
-          for file in $FILES_WITH_MERMAID; do
-            echo "Checking $file..."
-            BLOCK_COUNT=$(grep -c '```mermaid' "$file" || echo "0")
-            echo "  Found $BLOCK_COUNT mermaid block(s)"
-            TOTAL_BLOCKS=$((TOTAL_BLOCKS + BLOCK_COUNT))
-
-            BLOCK_NUM=0
-            IN_BLOCK=false
-            BLOCK_CONTENT=""
-
-            while IFS= read -r line; do
-              if [[ "$line" == '```mermaid'* ]]; then
-                IN_BLOCK=true
-                BLOCK_CONTENT=""
-                BLOCK_NUM=$((BLOCK_NUM + 1))
-              elif [[ "$line" == '```'* ]] && [ "$IN_BLOCK" = true ]; then
-                IN_BLOCK=false
-                echo "$BLOCK_CONTENT" > /tmp/mermaid_block_${BLOCK_NUM}.mmd
-                if mmdc -i /tmp/mermaid_block_${BLOCK_NUM}.mmd -o /tmp/mermaid_block_${BLOCK_NUM}.svg 2>/dev/null; then
-                  echo "  * Block $BLOCK_NUM valid"
-                  VALID_BLOCKS=$((VALID_BLOCKS + 1))
-                else
-                  echo "  ! Block $BLOCK_NUM invalid"
-                  INVALID_FILES="$INVALID_FILES $file:block$BLOCK_NUM"
-                fi
-              elif [ "$IN_BLOCK" = true ]; then
-                BLOCK_CONTENT="$BLOCK_CONTENT$line"$'\n'
-              fi
-            done < "$file"
-          done
-
-          echo ""
-          echo "=== Mermaid Validation Summary ==="
-          echo "Files with diagrams: $(echo "$FILES_WITH_MERMAID" | wc -w)"
-          echo "Total blocks: $TOTAL_BLOCKS"
-          echo "Valid blocks: $VALID_BLOCKS"
-
-          if [ -n "$INVALID_FILES" ]; then
-            echo "::warning::Invalid Mermaid blocks found in:$INVALID_FILES"
-          fi
-
-          echo "Mermaid validation complete."

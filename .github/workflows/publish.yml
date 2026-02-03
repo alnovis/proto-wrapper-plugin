@@ -52,17 +52,27 @@ jobs:
 
       - name: Grant execute permissions
         run: |
-          chmod +x build.sh
           chmod +x gradlew
           chmod +x examples/gradle-example/gradlew
 
-      - name: Build and Test (all modules)
+      - name: Build Maven modules
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 20
+          timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 30
-          command: ./build.sh --ci --parallel
+          command: |
+            mvn install -B -N
+            mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin,proto-wrapper-spring-boot-starter
+            mvn verify -B -pl proto-wrapper-maven-integration-tests
+
+      - name: Build Gradle plugin
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: ./gradlew :proto-wrapper-gradle-plugin:build --no-daemon
 
   # Publish Maven modules to Maven Central
   publish-maven:
