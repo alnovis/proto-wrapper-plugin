@@ -12,6 +12,7 @@ import io.alnovis.protowrapper.ir.type.TypeRef;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -244,9 +245,7 @@ public final class Enum_ {
      * @return this builder
      */
     public Enum_ implements_(TypeRef... interfaceTypes) {
-        for (TypeRef it : interfaceTypes) {
-            interfaces.add(it);
-        }
+        Collections.addAll(interfaces, interfaceTypes);
         return this;
     }
 
@@ -307,9 +306,7 @@ public final class Enum_ {
      * @return this builder
      */
     public Enum_ members(MemberDeclaration... members) {
-        for (MemberDeclaration m : members) {
-            this.members.add(m);
-        }
+        Collections.addAll(this.members, members);
         return this;
     }
 

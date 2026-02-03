@@ -1,7 +1,5 @@
 package io.alnovis.protowrapper.ir.expr;
 
-import io.alnovis.protowrapper.ir.type.*;
-
 /**
  * Enumeration of binary operators for {@link BinaryExpr}.
  *

@@ -9,6 +9,7 @@ import io.alnovis.protowrapper.ir.type.TypeRef;
 import io.alnovis.protowrapper.ir.type.TypeVariable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -160,9 +161,7 @@ public final class Interface_ {
      * @return this builder
      */
     public Interface_ extends_(TypeRef... superInterfaces) {
-        for (TypeRef si : superInterfaces) {
-            this.superInterfaces.add(si);
-        }
+        Collections.addAll(this.superInterfaces, superInterfaces);
         return this;
     }
 
@@ -199,9 +198,7 @@ public final class Interface_ {
      * @return this builder
      */
     public Interface_ typeParameters(TypeVariable... typeParameters) {
-        for (TypeVariable tp : typeParameters) {
-            this.typeParameters.add(tp);
-        }
+        Collections.addAll(this.typeParameters, typeParameters);
         return this;
     }
 
@@ -238,9 +235,7 @@ public final class Interface_ {
      * @return this builder
      */
     public Interface_ members(MemberDeclaration... members) {
-        for (MemberDeclaration m : members) {
-            this.members.add(m);
-        }
+        Collections.addAll(this.members, members);
         return this;
     }
 
@@ -266,9 +261,7 @@ public final class Interface_ {
      * @return this builder
      */
     public Interface_ nestedTypes(TypeDeclaration... nestedTypes) {
-        for (TypeDeclaration nt : nestedTypes) {
-            this.nestedTypes.add(nt);
-        }
+        Collections.addAll(this.nestedTypes, nestedTypes);
         return this;
     }
 

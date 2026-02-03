@@ -1,7 +1,6 @@
 package io.alnovis.protowrapper.ir.stmt;
 
-import io.alnovis.protowrapper.ir.type.*;
-import io.alnovis.protowrapper.ir.expr.Expression;
+import io.alnovis.protowrapper.ir.type.TypeRef;
 
 import java.util.List;
 import java.util.Objects;

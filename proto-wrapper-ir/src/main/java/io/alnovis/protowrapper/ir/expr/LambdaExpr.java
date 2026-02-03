@@ -1,6 +1,5 @@
 package io.alnovis.protowrapper.ir.expr;
 
-import io.alnovis.protowrapper.ir.type.*;
 import io.alnovis.protowrapper.ir.decl.ParameterDecl;
 
 import java.util.List;

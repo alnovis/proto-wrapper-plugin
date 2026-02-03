@@ -1,8 +1,5 @@
 package io.alnovis.protowrapper.ir.stmt;
 
-import io.alnovis.protowrapper.ir.type.*;
-import io.alnovis.protowrapper.ir.expr.Expression;
-
 /**
  * Represents a break statement in the IR.
  *

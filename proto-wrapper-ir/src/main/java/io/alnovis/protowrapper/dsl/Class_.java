@@ -12,6 +12,7 @@ import io.alnovis.protowrapper.ir.type.TypeRef;
 import io.alnovis.protowrapper.ir.type.TypeVariable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -240,9 +241,7 @@ public final class Class_ {
      * @return this builder
      */
     public Class_ modifiers(Modifier... modifiers) {
-        for (Modifier m : modifiers) {
-            this.modifiers.add(m);
-        }
+        Collections.addAll(this.modifiers, modifiers);
         return this;
     }
 
@@ -279,9 +278,7 @@ public final class Class_ {
      * @return this builder
      */
     public Class_ implements_(TypeRef... interfaceTypes) {
-        for (TypeRef it : interfaceTypes) {
-            interfaces.add(it);
-        }
+        Collections.addAll(interfaces, interfaceTypes);
         return this;
     }
 
@@ -318,9 +315,7 @@ public final class Class_ {
      * @return this builder
      */
     public Class_ typeParameters(TypeVariable... typeParameters) {
-        for (TypeVariable tp : typeParameters) {
-            this.typeParameters.add(tp);
-        }
+        Collections.addAll(this.typeParameters, typeParameters);
         return this;
     }
 
@@ -379,9 +374,7 @@ public final class Class_ {
      * @return this builder
      */
     public Class_ members(MemberDeclaration... members) {
-        for (MemberDeclaration m : members) {
-            this.members.add(m);
-        }
+        Collections.addAll(this.members, members);
         return this;
     }
 
@@ -407,9 +400,7 @@ public final class Class_ {
      * @return this builder
      */
     public Class_ nestedTypes(TypeDeclaration... nestedTypes) {
-        for (TypeDeclaration nt : nestedTypes) {
-            this.nestedTypes.add(nt);
-        }
+        Collections.addAll(this.nestedTypes, nestedTypes);
         return this;
     }
 

@@ -7,6 +7,7 @@ import io.alnovis.protowrapper.ir.expr.Expression;
 import io.alnovis.protowrapper.ir.type.TypeRef;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -196,9 +197,7 @@ public final class Field {
      * @return this builder
      */
     public Field modifiers(Modifier... modifiers) {
-        for (Modifier m : modifiers) {
-            this.modifiers.add(m);
-        }
+        Collections.addAll(this.modifiers, modifiers);
         return this;
     }
 

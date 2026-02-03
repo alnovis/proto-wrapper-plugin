@@ -1,9 +1,5 @@
 package io.alnovis.protowrapper.ir.decl;
 
-import io.alnovis.protowrapper.ir.type.*;
-import io.alnovis.protowrapper.ir.expr.Expression;
-import io.alnovis.protowrapper.ir.stmt.Statement;
-
 /**
  * Represents a member declaration within a class or interface in the IR.
  *

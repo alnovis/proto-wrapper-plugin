@@ -8,6 +8,7 @@ import io.alnovis.protowrapper.ir.stmt.Statement;
 import io.alnovis.protowrapper.ir.type.TypeRef;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -210,9 +211,7 @@ public final class Constructor {
      * @return this builder
      */
     public Constructor parameters(ParameterDecl... parameters) {
-        for (ParameterDecl p : parameters) {
-            this.parameters.add(p);
-        }
+        Collections.addAll(this.parameters, parameters);
         return this;
     }
 
@@ -264,9 +263,7 @@ public final class Constructor {
      * @return this builder
      */
     public Constructor throws_(TypeRef... exceptionTypes) {
-        for (TypeRef ex : exceptionTypes) {
-            thrownExceptions.add(ex);
-        }
+        Collections.addAll(thrownExceptions, exceptionTypes);
         return this;
     }
 

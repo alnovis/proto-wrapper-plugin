@@ -1,7 +1,8 @@
 package io.alnovis.protowrapper.ir.decl;
 
-import io.alnovis.protowrapper.ir.type.*;
-import io.alnovis.protowrapper.ir.expr.Expression;
+import io.alnovis.protowrapper.ir.type.TypeRef;
+import io.alnovis.protowrapper.ir.type.TypeVariable;
+import io.alnovis.protowrapper.ir.type.VoidType;
 import io.alnovis.protowrapper.ir.stmt.Statement;
 
 import java.util.List;

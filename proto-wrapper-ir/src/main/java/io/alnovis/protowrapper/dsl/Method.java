@@ -9,6 +9,7 @@ import io.alnovis.protowrapper.ir.type.TypeRef;
 import io.alnovis.protowrapper.ir.type.TypeVariable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -240,9 +241,7 @@ public final class Method {
      * @return this builder
      */
     public Method modifiers(Modifier... modifiers) {
-        for (Modifier m : modifiers) {
-            this.modifiers.add(m);
-        }
+        Collections.addAll(this.modifiers, modifiers);
         return this;
     }
 
@@ -279,9 +278,7 @@ public final class Method {
      * @return this builder
      */
     public Method typeParameters(TypeVariable... typeParameters) {
-        for (TypeVariable tp : typeParameters) {
-            this.typeParameters.add(tp);
-        }
+        Collections.addAll(this.typeParameters, typeParameters);
         return this;
     }
 
@@ -361,9 +358,7 @@ public final class Method {
      * @return this builder
      */
     public Method parameters(ParameterDecl... parameters) {
-        for (ParameterDecl p : parameters) {
-            this.parameters.add(p);
-        }
+        Collections.addAll(this.parameters, parameters);
         return this;
     }
 
@@ -417,9 +412,7 @@ public final class Method {
      * @return this builder
      */
     public Method throws_(TypeRef... exceptionTypes) {
-        for (TypeRef ex : exceptionTypes) {
-            thrownExceptions.add(ex);
-        }
+        Collections.addAll(thrownExceptions, exceptionTypes);
         return this;
     }
 
