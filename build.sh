@@ -80,8 +80,9 @@ register_module() {
 
 init_modules() {
     # === CORE ===
+    # Note: -N installs parent pom first (required for -pl to work)
     register_module "core" "" "maven" \
-        "mvn clean install -pl proto-wrapper-core -DskipTests -q" \
+        "mvn install -N -q && mvn clean install -pl proto-wrapper-core -DskipTests -q" \
         "Core library (analysis, merging, models)" \
         "." \
         "build,maven" \
