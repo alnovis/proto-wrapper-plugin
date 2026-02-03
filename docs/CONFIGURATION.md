@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.1</version>
+    <version>2.4.0</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -106,7 +106,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 - Version-specific fields (not present in all versions)
 - Oneof fields
 
-#### Schema Metadata *(since 2.3.1)*
+#### Schema Metadata *(since 2.4.0)*
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -213,7 +213,7 @@ When fields are renumbered between schema versions, configure explicit mappings 
             <fieldName>parent_ticket</fieldName>
             <versionNumbers>
                 <v202>17</v202>
-                <v203>15</v203>
+                <v2.4.05</v203>
             </versionNumbers>
         </fieldMapping>
     </fieldMappings>
@@ -271,7 +271,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.1</version>
+    <version>2.4.0</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -334,7 +334,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.3.1"
+    id("io.alnovis.proto-wrapper") version "2.4.0"
 }
 ```
 
@@ -346,7 +346,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.3.1")
+        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.4.0")
     }
 }
 
@@ -430,7 +430,7 @@ protoWrapper {
 }
 ```
 
-#### Schema Metadata (Gradle) *(since 2.3.1)*
+#### Schema Metadata (Gradle) *(since 2.4.0)*
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -508,7 +508,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("io.alnovis.proto-wrapper") version "2.3.1"
+    id("io.alnovis.proto-wrapper") version "2.4.0"
 }
 
 protoWrapper {

@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        mavenLocal()  // For proto-wrapper-core built by Maven
         gradlePluginPortal()
         mavenCentral()
         maven {

@@ -7,8 +7,7 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  # Maven Build
-  build-maven:
+  build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,9 +23,12 @@ jobs:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
           cache: 'maven'
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+          cache-read-only: false
 
       - name: Configure Maven settings
         run: |
@@ -42,38 +44,6 @@ jobs:
                 <mirrorOf>central</mirrorOf>
               </mirror>
             </mirrors>
-            <profiles>
-              <profile>
-                <id>default</id>
-                <repositories>
-                  <repository>
-                    <id>central</id>
-                    <url>https://repo1.maven.org/maven2/</url>
-                    <releases>
-                      <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                      <enabled>false</enabled>
-                    </snapshots>
-                  </repository>
-                </repositories>
-                <pluginRepositories>
-                  <pluginRepository>
-                    <id>central</id>
-                    <url>https://repo1.maven.org/maven2/</url>
-                    <releases>
-                      <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                      <enabled>false</enabled>
-                    </snapshots>
-                  </pluginRepository>
-                </pluginRepositories>
-              </profile>
-            </profiles>
-            <activeProfiles>
-              <activeProfile>default</activeProfile>
-            </activeProfiles>
           </settings>
           EOF
 
@@ -83,196 +53,40 @@ jobs:
           sudo apt-get install -y protobuf-compiler
           protoc --version
 
-      - name: Build Core and Plugin (install to local repo)
+      - name: Grant execute permissions
+        run: |
+          chmod +x build.sh
+          chmod +x gradlew
+          chmod +x examples/gradle-example/gradlew
+
+      - name: Check version consistency
+        run: ./build.sh --check --ci
+
+      - name: Build and Test (all modules)
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
+          timeout_minutes: 20
           max_attempts: 3
           retry_wait_seconds: 30
-          command: |
-            mvn install -B -N
-            mvn install -B -pl proto-wrapper-core,proto-wrapper-maven-plugin
-            echo "Installed plugins:"
-            ls ~/.m2/repository/io/alnovis/proto-wrapper-maven-plugin/
+          command: ./build.sh --ci --parallel
 
-      - name: Run Golden Tests
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            cd proto-wrapper-golden-tests
-            mvn verify -B
-
-      - name: Run Maven Integration Tests
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            cd proto-wrapper-maven-integration-tests
-            mvn verify -B
-
-      - name: Run Maven Example
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            cd examples/maven-example
-            mvn verify -B
-
-      - name: Upload Maven Plugin Artifact
+      - name: Upload Maven Artifacts
         if: matrix.java-version == 17 && success()
         uses: actions/upload-artifact@v4
         with:
-          name: proto-wrapper-maven-plugin
-          path: proto-wrapper-maven-plugin/target/*.jar
+          name: maven-artifacts
+          path: |
+            proto-wrapper-core/target/*.jar
+            proto-wrapper-maven-plugin/target/*.jar
+            proto-wrapper-spring-boot-starter/target/*.jar
           retention-days: 7
-
-      - name: Upload Core Artifact
-        if: matrix.java-version == 17 && success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: proto-wrapper-core-maven
-          path: proto-wrapper-core/target/*.jar
-          retention-days: 7
-
-  # Gradle Build
-  build-gradle:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        java-version: [ 17, 21 ]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK ${{ matrix.java-version }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ matrix.java-version }}
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.5'
-          cache-read-only: false
-          cache-write-only: false
-
-      - name: Configure Gradle repositories
-        run: |
-          mkdir -p ~/.gradle
-          cat > ~/.gradle/init.gradle << 'EOF'
-          allprojects {
-            repositories {
-              mavenLocal()
-              mavenCentral()
-              // Multiple mirrors to avoid rate limiting
-              maven {
-                url = uri("https://repo1.maven.org/maven2/")
-                name = "MavenCentral1"
-              }
-              maven {
-                url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
-                name = "GoogleMirror"
-              }
-              gradlePluginPortal()
-            }
-          }
-          settingsEvaluated { settings ->
-            settings.pluginManagement {
-              repositories {
-                mavenLocal()
-                gradlePluginPortal()
-                mavenCentral()
-                maven {
-                  url = uri("https://repo1.maven.org/maven2/")
-                  name = "MavenCentral1"
-                }
-                maven {
-                  url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
-                  name = "GoogleMirror"
-                }
-              }
-            }
-          }
-          EOF
-
-      - name: Install protoc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Download dependencies
-        run: ./gradlew dependencies --no-daemon || true
-
-      - name: Build with Gradle
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 5
-          retry_wait_seconds: 60
-          command: ./gradlew build --no-daemon
-
-      - name: Run Slow TestKit Tests
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 5
-          retry_wait_seconds: 60
-          command: ./gradlew :proto-wrapper-gradle-plugin:slowTest --no-daemon
-
-      - name: Publish to Maven Local
-        run: ./gradlew publishToMavenLocal --no-daemon
-
-      - name: Run Gradle Integration Tests
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 5
-          retry_wait_seconds: 60
-          command: |
-            cd proto-wrapper-gradle-integration-tests
-            gradle test --no-daemon
-
-      - name: Grant execute permission for example gradlew
-        run: chmod +x examples/gradle-example/gradlew
-
-      - name: Build Gradle Example
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 5
-          retry_wait_seconds: 60
-          command: |
-            cd examples/gradle-example
-            ./gradlew build --no-daemon
 
       - name: Upload Gradle Plugin Artifact
         if: matrix.java-version == 17 && success()
         uses: actions/upload-artifact@v4
         with:
-          name: proto-wrapper-gradle-plugin
+          name: gradle-plugin-artifact
           path: proto-wrapper-gradle-plugin/build/libs/*.jar
-          retention-days: 7
-
-      - name: Upload Core Artifact (Gradle)
-        if: matrix.java-version == 17 && success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: proto-wrapper-core-gradle
-          path: proto-wrapper-core/build/libs/*.jar
           retention-days: 7
 
   # Documentation check
@@ -306,7 +120,7 @@ jobs:
               echo "::error::Missing: $file"
               MISSING=$((MISSING + 1))
             else
-              echo "✓ $file"
+              echo "* $file"
             fi
           done
           if [ $MISSING -gt 0 ]; then
@@ -326,7 +140,6 @@ jobs:
         run: |
           echo "Validating Mermaid diagrams..."
 
-          # Find all markdown files containing mermaid blocks
           FILES_WITH_MERMAID=$(grep -rl '```mermaid' --include="*.md" . 2>/dev/null || true)
 
           if [ -z "$FILES_WITH_MERMAID" ]; then
@@ -340,13 +153,10 @@ jobs:
 
           for file in $FILES_WITH_MERMAID; do
             echo "Checking $file..."
-
-            # Count mermaid blocks in this file
             BLOCK_COUNT=$(grep -c '```mermaid' "$file" || echo "0")
             echo "  Found $BLOCK_COUNT mermaid block(s)"
             TOTAL_BLOCKS=$((TOTAL_BLOCKS + BLOCK_COUNT))
 
-            # Extract and validate each mermaid block separately
             BLOCK_NUM=0
             IN_BLOCK=false
             BLOCK_CONTENT=""
@@ -358,13 +168,12 @@ jobs:
                 BLOCK_NUM=$((BLOCK_NUM + 1))
               elif [[ "$line" == '```'* ]] && [ "$IN_BLOCK" = true ]; then
                 IN_BLOCK=false
-                # Validate this block
                 echo "$BLOCK_CONTENT" > /tmp/mermaid_block_${BLOCK_NUM}.mmd
                 if mmdc -i /tmp/mermaid_block_${BLOCK_NUM}.mmd -o /tmp/mermaid_block_${BLOCK_NUM}.svg 2>/dev/null; then
-                  echo "  ✓ Block $BLOCK_NUM valid"
+                  echo "  * Block $BLOCK_NUM valid"
                   VALID_BLOCKS=$((VALID_BLOCKS + 1))
                 else
-                  echo "  ✗ Block $BLOCK_NUM invalid"
+                  echo "  ! Block $BLOCK_NUM invalid"
                   INVALID_FILES="$INVALID_FILES $file:block$BLOCK_NUM"
                 fi
               elif [ "$IN_BLOCK" = true ]; then
