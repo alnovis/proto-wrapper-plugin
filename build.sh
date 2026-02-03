@@ -79,10 +79,18 @@ register_module() {
 }
 
 init_modules() {
-    # === CORE ===
+    # === FOUNDATION ===
     # Note: -N installs parent pom first (required for -pl to work)
-    register_module "core" "" "maven" \
-        "mvn install -N -q && mvn clean install -pl proto-wrapper-core -DskipTests -q" \
+    register_module "ir" "" "maven" \
+        "mvn install -N -q && mvn clean install -pl proto-wrapper-ir -DskipTests -q" \
+        "IR module (AST types, DSL)" \
+        "." \
+        "build,maven" \
+        "mvn test -pl proto-wrapper-ir -q"
+
+    # === CORE ===
+    register_module "core" "ir" "maven" \
+        "mvn clean install -pl proto-wrapper-core -DskipTests -q" \
         "Core library (analysis, merging, models)" \
         "." \
         "build,maven" \
@@ -817,6 +825,7 @@ check_versions() {
 
     # Submodule parent versions
     local submodule_poms=(
+        "proto-wrapper-ir/pom.xml"
         "proto-wrapper-core/pom.xml"
         "proto-wrapper-maven-plugin/pom.xml"
         "proto-wrapper-spring-boot-starter/pom.xml"
@@ -866,6 +875,7 @@ bump_version() {
 
     # Submodule parent versions
     local submodule_poms=(
+        "proto-wrapper-ir/pom.xml"
         "proto-wrapper-core/pom.xml"
         "proto-wrapper-maven-plugin/pom.xml"
         "proto-wrapper-spring-boot-starter/pom.xml"

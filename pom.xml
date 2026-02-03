@@ -54,6 +54,7 @@
     <!-- ==================== Modules ==================== -->
     <modules>
         <module>proto-wrapper-core</module>
+        <module>proto-wrapper-ir</module>
         <module>proto-wrapper-maven-plugin</module>
         <!-- Spring Boot auto-configuration -->
         <module>proto-wrapper-spring-boot-starter</module>
@@ -99,6 +100,11 @@
             <dependency>
                 <groupId>io.alnovis</groupId>
                 <artifactId>proto-wrapper-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.alnovis</groupId>
+                <artifactId>proto-wrapper-ir</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
