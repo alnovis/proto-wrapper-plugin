@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2026-02-18
+
+### Changed
+
+#### Message field getters return default instance instead of null
+- **Message getters now return a non-null default wrapper instance when unset**, consistent with protobuf behavior where `getXxx()` always returns a non-null default instance.
+  - `hasXxx()` still returns `false` for unset fields — use it to check if the field was explicitly set
+  - Oneof message fields are **not affected** — they still return `null` when the oneof case is not active
+  - Primitive optional fields are **not affected** — they still return `null` when unset
+  - This reverts the v1.6.4 decision to return `null` for unset messages, which caused NPEs in code that assumed protobuf-like behavior (e.g., `request.getTicket().hasParentTicket()` on a message where `ticket` is not set)
+
+**Before (v2.3.1):**
+```java
+AllFieldTypes msg = ctx.newAllFieldTypesBuilder().build();
+msg.getSingularMessage()           // → null
+msg.getSingularMessage().getId()   // → NPE!
+msg.hasSingularMessage()           // → false
+```
+
+**After (v2.3.2):**
+```java
+AllFieldTypes msg = ctx.newAllFieldTypesBuilder().build();
+msg.getSingularMessage()           // → non-null default instance
+msg.getSingularMessage().getId()   // → 0 (default)
+msg.getSingularMessage().getName() // → "" (default)
+msg.hasSingularMessage()           // → false
+```
+
+- Updated `MergedField.needsHasCheck()` — returns `false` for non-oneof message fields
+- Updated `FieldContract` — message fields are no longer nullable, default value is `DEFAULT_INSTANCE`
+- Updated `CONTRACT-MATRIX.md` — reflects new message field behavior
+
+### Fixed
+- **Eliminated NPE risk for unset message fields** — code like `request.getTicket().hasParentTicket()` no longer throws NPE when `ticket` is not set
+
+---
+
 ## [2.3.1] - 2026-01-29
 
 ### Fixed

@@ -190,8 +190,8 @@ class ProcessingContextContractIntegrationTest {
     class HasCheckPatternTests {
 
         @Test
-        @DisplayName("shouldUseHasCheckInGetter true for nullable message")
-        void shouldUseHasCheckInGetter_nullableMessage() {
+        @DisplayName("shouldUseHasCheckInGetter false for message field (returns default instance)")
+        void shouldUseHasCheckInGetter_messageField() {
             FieldInfo fieldInfo = new FieldInfo(
                     "config", "config", 1, Type.TYPE_MESSAGE,
                     Label.LABEL_OPTIONAL, ".example.Config");
@@ -203,7 +203,7 @@ class ProcessingContextContractIntegrationTest {
 
             ProcessingContext ctx = createContext();
 
-            assertTrue(ctx.shouldUseHasCheckInGetter(field));
+            assertFalse(ctx.shouldUseHasCheckInGetter(field));
         }
 
         @Test

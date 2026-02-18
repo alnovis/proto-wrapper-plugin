@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "io.alnovis"
-    version = "2.3.1"
+    version = "2.3.2"
 
     repositories {
         mavenCentral()

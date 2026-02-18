@@ -93,16 +93,16 @@ class ContractMatrixGoldenTest {
         }
 
         @Test
-        @DisplayName("Proto2 optional message: hasMethod=YES, nullable=YES")
+        @DisplayName("Proto2 optional message: hasMethod=YES, returns default instance")
         void proto2OptionalMessage() {
             MergedFieldContract contract = createProto2Contract(
                     "config", Type.TYPE_MESSAGE, Label.LABEL_OPTIONAL, ".example.Config", false);
 
             assertAll("Proto2 optional message",
                     () -> assertTrue(contract.unified().hasMethodExists()),
-                    () -> assertTrue(contract.unified().getterUsesHasCheck()),
-                    () -> assertTrue(contract.unified().nullable()),
-                    () -> assertEquals(FieldContract.DefaultValue.NULL,
+                    () -> assertFalse(contract.unified().getterUsesHasCheck()),
+                    () -> assertFalse(contract.unified().nullable()),
+                    () -> assertEquals(FieldContract.DefaultValue.DEFAULT_INSTANCE,
                             contract.unified().defaultValueWhenUnset())
             );
         }
@@ -151,10 +151,7 @@ class ContractMatrixGoldenTest {
                     () -> assertTrue(contract.unified().hasMethodExists()),
                     () -> assertFalse(contract.unified().getterUsesHasCheck()),
                     () -> assertFalse(contract.unified().nullable()),
-                    // Note: Current implementation returns NULL for non-nullable messages.
-                    // This is technically a gap - required messages should have default instance.
-                    // However, in practice required fields are always set.
-                    () -> assertEquals(FieldContract.DefaultValue.NULL,
+                    () -> assertEquals(FieldContract.DefaultValue.DEFAULT_INSTANCE,
                             contract.unified().defaultValueWhenUnset())
             );
         }
@@ -204,20 +201,20 @@ class ContractMatrixGoldenTest {
         }
 
         @Test
-        @DisplayName("Proto3 implicit message: hasMethod=YES, nullable=YES (exception!)")
+        @DisplayName("Proto3 implicit message: hasMethod=YES, returns default instance")
         void proto3ImplicitMessage() {
-            // MESSAGE is the exception - always has presence even in proto3
+            // MESSAGE always has presence even in proto3, but returns default instance not null
             MergedFieldContract contract = createProto3ImplicitContract(
                     "config", Type.TYPE_MESSAGE, ".example.Config");
 
-            assertAll("Proto3 implicit message (exception to implicit rule)",
+            assertAll("Proto3 implicit message",
                     () -> assertTrue(contract.unified().hasMethodExists(),
                             "hasMethodExists should be true (messages always have presence)"),
-                    () -> assertTrue(contract.unified().getterUsesHasCheck(),
-                            "getterUsesHasCheck should be true"),
-                    () -> assertTrue(contract.unified().nullable(),
-                            "nullable should be true"),
-                    () -> assertEquals(FieldContract.DefaultValue.NULL,
+                    () -> assertFalse(contract.unified().getterUsesHasCheck(),
+                            "getterUsesHasCheck should be false (returns default instance)"),
+                    () -> assertFalse(contract.unified().nullable(),
+                            "nullable should be false (returns default instance)"),
+                    () -> assertEquals(FieldContract.DefaultValue.DEFAULT_INSTANCE,
                             contract.unified().defaultValueWhenUnset())
             );
         }
@@ -260,8 +257,25 @@ class ContractMatrixGoldenTest {
                     Arguments.of("bool", Type.TYPE_BOOL, null),
                     Arguments.of("string", Type.TYPE_STRING, null),
                     Arguments.of("bytes", Type.TYPE_BYTES, null),
-                    Arguments.of("enum", Type.TYPE_ENUM, ".example.Status"),
-                    Arguments.of("message", Type.TYPE_MESSAGE, ".example.Config")
+                    Arguments.of("enum", Type.TYPE_ENUM, ".example.Status")
+            );
+        }
+
+        @Test
+        @DisplayName("Proto3 explicit optional message: hasMethod=YES, returns default instance")
+        void proto3ExplicitMessage() {
+            MergedFieldContract contract = createProto3ExplicitContract(
+                    "config", Type.TYPE_MESSAGE, ".example.Config");
+
+            assertAll("Proto3 explicit optional message",
+                    () -> assertTrue(contract.unified().hasMethodExists(),
+                            "hasMethodExists should be true (messages always have presence)"),
+                    () -> assertFalse(contract.unified().getterUsesHasCheck(),
+                            "getterUsesHasCheck should be false (returns default instance)"),
+                    () -> assertFalse(contract.unified().nullable(),
+                            "nullable should be false (returns default instance)"),
+                    () -> assertEquals(FieldContract.DefaultValue.DEFAULT_INSTANCE,
+                            contract.unified().defaultValueWhenUnset())
             );
         }
     }

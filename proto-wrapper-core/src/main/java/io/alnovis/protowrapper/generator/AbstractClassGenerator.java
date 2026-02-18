@@ -383,6 +383,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
         ClassName versionContextType = ClassName.get(config.getApiPackage(), "VersionContext");
         ClassName interfaceType = ClassName.get(config.getApiPackage(), interfaceName);
         String parseMethodName = "parse" + message.getName() + "FromBytes";
+        String parsePartialMethodName = "parsePartial" + message.getName() + "FromBytes";
         ClassName invalidProtocolBufferException = ClassName.get(
                 "com.google.protobuf", "InvalidProtocolBufferException");
 
@@ -395,7 +396,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("return this")
                 .endControlFlow()
                 .beginControlFlow("try")
-                .addStatement("return targetContext.$L(this.toBytes())", parseMethodName)
+                .addStatement("return targetContext.$L(this.toBytes())", parsePartialMethodName)
                 .nextControlFlow("catch ($T e)", invalidProtocolBufferException)
                 .addStatement("throw new $T($T.format($S, getClass().getSimpleName(), " +
                         "getWrapperVersionId(), targetContext.getVersionId(), e.getMessage()), e)",
@@ -424,7 +425,7 @@ public class AbstractClassGenerator extends BaseGenerator<MergedMessage> {
                 .addStatement("$T targetContext = $T.forVersionId(targetVersionId)", versionContextType, versionContextType)
                 .addStatement("byte[] bytes = this.toBytes()")
                 .addStatement("$T parseMethod = targetContext.getClass().getMethod($S, byte[].class)",
-                        Method.class, parseMethodName)
+                        Method.class, parsePartialMethodName)
                 .addStatement("return versionClass.cast(parseMethod.invoke(targetContext, bytes))")
                 .nextControlFlow("catch ($T e)", java.lang.reflect.InvocationTargetException.class)
                 // Get the real cause from InvocationTargetException

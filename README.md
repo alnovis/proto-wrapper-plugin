@@ -93,7 +93,7 @@ byte[] bytes = order.toBytes();
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.1</version>
+    <version>2.3.2</version>
     <configuration>
         <basePackage>com.example.model</basePackage>
         <protoRoot>${basedir}/proto</protoRoot>
@@ -120,7 +120,7 @@ mvn generate-sources
 
 ```kotlin
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.3.1"
+    id("io.alnovis.proto-wrapper") version "2.3.2"
 }
 
 protoWrapper {
@@ -162,6 +162,7 @@ protoWrapper {
 | Renumber detection | Heuristic detection of field renumbering in diff tool | v2.2.0 |
 | Validation annotations | Auto-generated `@NotNull`, `@Valid` on interface getters | v2.3.0 |
 | Schema metadata | Runtime access to enum values, field info, and version diffs | v2.3.1 |
+| Default instance for messages | Unset message getters return empty wrapper (like protobuf) instead of null | v2.3.2 |
 
 ### Type Conflict Handling
 
@@ -243,7 +244,7 @@ Add dependency (plugins auto-download):
 <dependency>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-core</artifactId>
-    <version>2.3.1</version>
+    <version>2.3.2</version>
 </dependency>
 ```
 

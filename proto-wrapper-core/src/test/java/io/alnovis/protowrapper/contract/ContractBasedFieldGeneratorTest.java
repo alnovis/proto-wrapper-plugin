@@ -65,17 +65,17 @@ class ContractBasedFieldGeneratorTest {
         }
 
         @Test
-        @DisplayName("Proto2 optional message - getter with has-check")
-        void proto2OptionalMessage_getterWithHasCheck() {
+        @DisplayName("Proto2 optional message - getter returns directly (default instance)")
+        void proto2OptionalMessage_getterReturnsDirect() {
             FieldContract contract = new FieldContract(
                     FieldCardinality.SINGULAR,
                     FieldTypeCategory.MESSAGE,
                     FieldPresence.PROTO2_OPTIONAL,
                     false,  // inOneof
                     true,   // hasMethodExists
-                    true,   // getterUsesHasCheck
-                    true,   // nullable
-                    FieldContract.DefaultValue.NULL
+                    false,  // getterUsesHasCheck (messages return default instance)
+                    false,  // nullable (messages return default instance)
+                    FieldContract.DefaultValue.DEFAULT_INSTANCE
             );
 
             FieldMethodNames names = FieldMethodNames.from("address");
@@ -85,9 +85,9 @@ class ContractBasedFieldGeneratorTest {
             MethodSpec getter = generator.generateGetter();
 
             assertEquals("getAddress", getter.name);
-            assertTrue(getter.toString().contains("extractHasAddress(proto)"));
+            assertFalse(getter.toString().contains("extractHasAddress"));
             assertTrue(getter.toString().contains("extractAddress(proto)"));
-            assertTrue(getter.toString().contains("null"));
+            assertFalse(getter.toString().contains("null"));
         }
 
         @Test
@@ -195,7 +195,7 @@ class ContractBasedFieldGeneratorTest {
         }
 
         @Test
-        @DisplayName("Message type - has method exists")
+        @DisplayName("Message type - has method exists (even with default instance behavior)")
         void messageType_hasMethodExists() {
             FieldContract contract = new FieldContract(
                     FieldCardinality.SINGULAR,
@@ -203,9 +203,9 @@ class ContractBasedFieldGeneratorTest {
                     FieldPresence.PROTO3_IMPLICIT,
                     false,  // inOneof
                     true,   // hasMethodExists (messages always have has)
-                    true,   // getterUsesHasCheck
-                    true,   // nullable
-                    FieldContract.DefaultValue.NULL
+                    false,  // getterUsesHasCheck (messages return default instance)
+                    false,  // nullable (messages return default instance)
+                    FieldContract.DefaultValue.DEFAULT_INSTANCE
             );
 
             FieldMethodNames names = FieldMethodNames.from("nestedMessage");

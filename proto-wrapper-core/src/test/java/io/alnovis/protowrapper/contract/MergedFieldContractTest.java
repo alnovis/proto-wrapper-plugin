@@ -238,8 +238,8 @@ class MergedFieldContractTest {
         }
 
         @Test
-        @DisplayName("Message field - always nullable")
-        void messageField_alwaysNullable() {
+        @DisplayName("Message field - returns default instance, not nullable")
+        void messageField_returnsDefaultInstance() {
             FieldInfo v1Field = new FieldInfo(
                     "config", "config", 1, Type.TYPE_MESSAGE,
                     Label.LABEL_OPTIONAL, ".example.Config");
@@ -250,8 +250,8 @@ class MergedFieldContractTest {
 
             MergedFieldContract contract = MergedFieldContract.from(merged);
 
-            assertTrue(contract.unified().nullable());
-            assertTrue(contract.unified().getterUsesHasCheck());
+            assertFalse(contract.unified().nullable());
+            assertFalse(contract.unified().getterUsesHasCheck());
         }
     }
 

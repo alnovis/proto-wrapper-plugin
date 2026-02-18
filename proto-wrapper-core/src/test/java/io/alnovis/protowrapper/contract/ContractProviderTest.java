@@ -69,7 +69,7 @@ class ContractProviderTest {
             assertNotNull(contract);
             assertEquals(FieldTypeCategory.MESSAGE, contract.unified().typeCategory());
             assertTrue(contract.unified().hasMethodExists());
-            assertTrue(contract.unified().nullable());
+            assertFalse(contract.unified().nullable());
         }
 
         @Test
@@ -295,7 +295,7 @@ class ContractProviderTest {
         }
 
         @Test
-        @DisplayName("isNullable for message field")
+        @DisplayName("isNullable for message field (returns false — messages return default instance)")
         void isNullable_messageField() {
             FieldInfo fieldInfo = new FieldInfo(
                     "config", "config", 1, Type.TYPE_MESSAGE,
@@ -305,7 +305,7 @@ class ContractProviderTest {
                     .addVersionField("v1", fieldInfo)
                     .build();
 
-            assertTrue(provider.isNullable(field));
+            assertFalse(provider.isNullable(field));
         }
 
         @Test

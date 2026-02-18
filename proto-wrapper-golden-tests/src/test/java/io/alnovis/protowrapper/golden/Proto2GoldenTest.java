@@ -226,12 +226,14 @@ class Proto2GoldenTest {
 
         @ParameterizedTest(name = "Version {0}")
         @MethodSource("io.alnovis.protowrapper.golden.Proto2GoldenTest#allVersions")
-        @DisplayName("optional message - unset returns null")
-        void optionalMessage_unset_returnsNull(VersionContext ctx) {
+        @DisplayName("optional message - unset returns default instance")
+        void optionalMessage_unset_returnsDefaultInstance(VersionContext ctx) {
             AllFieldTypes msg = buildWithRequiredFields(ctx).build();
 
-            // Message returns null when unset (consistent with has*() returning false)
-            assertThat(msg.getOptionalMessage()).isNull();
+            // Message returns default instance when unset (consistent with protobuf behavior)
+            assertThat(msg.getOptionalMessage()).isNotNull();
+            assertThat(msg.getOptionalMessage().getId()).isEqualTo(0);
+            assertThat(msg.getOptionalMessage().getName()).isEmpty();
             assertThat(msg.hasOptionalMessage()).isFalse();
         }
 

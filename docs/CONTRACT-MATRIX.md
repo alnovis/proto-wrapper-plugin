@@ -36,7 +36,7 @@ flowchart TD
 
     IS_ONEOF -->|No| IS_MESSAGE{Message type?}
 
-    IS_MESSAGE -->|Yes| MESSAGE_RESULT[/"hasMethod: YES<br/>nullable: YES<br/>default: null"/]
+    IS_MESSAGE -->|Yes| MESSAGE_RESULT[/"hasMethod: YES<br/>nullable: NO<br/>default: default instance"/]
 
     IS_MESSAGE -->|No| CHECK_SYNTAX{Proto syntax?}
 
@@ -84,7 +84,7 @@ flowchart TD
 | string | required | No | YES | NO | NO | "" |
 | bytes | optional | No | **YES** | YES | YES | null |
 | bytes | required | No | YES | NO | NO | empty bytes |
-| message | optional | No | **YES** | YES | **YES** | null |
+| message | optional | No | **YES** | NO | **NO** | default instance |
 | message | required | No | YES | NO | NO | default instance |
 | enum | optional | No | **YES** | YES | YES | null |
 | enum | required | No | YES | NO | NO | first value |
@@ -101,7 +101,7 @@ Fields without `optional` keyword in proto3 have **implicit presence** - they ca
 | bool | **NO** | NO | NO | false |
 | string | **NO** | NO | NO | "" |
 | bytes | **NO** | NO | NO | empty bytes |
-| message | **YES** | YES | **YES** | null |
+| message | **YES** | NO | **NO** | default instance |
 | enum | **NO** | NO | NO | first value (0) |
 
 ### Proto3 Singular Fields (Explicit Presence)
@@ -115,7 +115,7 @@ Fields with `optional` keyword in proto3 have **explicit presence** via syntheti
 | bool | **YES** | YES | YES | null (boxed) |
 | string | **YES** | YES | YES | null |
 | bytes | **YES** | YES | YES | null |
-| message | **YES** | YES | YES | null |
+| message | **YES** | NO | NO | default instance |
 | enum | **YES** | YES | YES | null |
 
 ### Proto3 Oneof Fields
@@ -242,11 +242,14 @@ Some field conflicts affect whether builder setters can be generated:
 
 ```
 nullable = true when:
-  - Proto2 optional field (any type)
-  - Proto3 message field
-  - Proto3 optional scalar field
-  - Any field in oneof
+  - Proto2 optional scalar/enum field
+  - Proto3 optional scalar/enum field
+  - Any field in oneof (including message)
   - Multi-version: ANY version is nullable
+
+NOT nullable (returns default instance):
+  - Message fields (non-oneof) — getter returns empty wrapper
+    Use hasXxx() to check if explicitly set
 ```
 
 ### When is has*() method generated?

@@ -381,11 +381,12 @@ class NestedConflictsIntegrationTest {
         }
 
         @Test
-        @DisplayName("FLOAT_DOUBLE in nested causes proto wire format incompatibility")
+        @DisplayName("FLOAT_DOUBLE in nested: cross-version conversion loses precision due to wire format mismatch")
         void floatDoubleNestedCausesWireFormatIncompatibility() {
-            // This test documents that FLOAT_DOUBLE conflict in nested messages
-            // causes protobuf wire format incompatibility during cross-version conversion.
-            // This is expected behavior because float and double have different wire formats.
+            // FLOAT_DOUBLE conflict: float (wire type fixed32) vs double (wire type fixed64).
+            // With parsePartial, wire type mismatches don't throw — the mismatched bytes
+            // go into protobuf unknown fields, and the target field gets its default value (0.0).
+            // The conversion succeeds but the precision value is silently lost.
 
             VersionContext v1 = VersionContext.forVersionId("v1");
 
@@ -402,11 +403,12 @@ class NestedConflictsIntegrationTest {
                     .setData(nestedData)
                     .build();
 
-            // Cross-version conversion fails due to wire format incompatibility
-            assertThatThrownBy(() ->
-                    v1Instance.asVersion(io.alnovis.protowrapper.it.model.v2.NestedAllConflicts.class))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("precision");
+            // Conversion succeeds (parsePartial is lenient), but precision is lost
+            NestedAllConflicts v2Instance =
+                    v1Instance.asVersion(io.alnovis.protowrapper.it.model.v2.NestedAllConflicts.class);
+            assertThat(v2Instance.getId()).isEqualTo("test-1");
+            // precision field has default value due to wire type mismatch (float→double)
+            assertThat(v2Instance.getData().getPrecision()).isEqualTo(0.0);
         }
     }
 
