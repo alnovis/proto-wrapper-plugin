@@ -31,7 +31,7 @@ Complete reference for all Proto Wrapper Plugin configuration options for both M
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.1</version>
+    <version>2.3.2</version>
     <configuration>
         <!-- Configuration options here -->
     </configuration>
@@ -271,7 +271,7 @@ mvn compile -Dproto-wrapper.incremental=false
 <plugin>
     <groupId>io.alnovis</groupId>
     <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.1</version>
+    <version>2.3.2</version>
     <configuration>
         <!-- Required -->
         <basePackage>com.example.model</basePackage>
@@ -334,7 +334,7 @@ mvn compile -Dproto-wrapper.incremental=false
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("io.alnovis.proto-wrapper") version "2.3.1"
+    id("io.alnovis.proto-wrapper") version "2.3.2"
 }
 ```
 
@@ -346,7 +346,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.3.1")
+        classpath("io.alnovis:proto-wrapper-gradle-plugin:2.3.2")
     }
 }
 
@@ -508,7 +508,7 @@ protoWrapper {
 // build.gradle.kts
 plugins {
     java
-    id("io.alnovis.proto-wrapper") version "2.3.1"
+    id("io.alnovis.proto-wrapper") version "2.3.2"
 }
 
 protoWrapper {

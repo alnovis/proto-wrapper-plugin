@@ -117,6 +117,15 @@ print_info() {
 # Version Management - Generic Functions
 # ============================================================================
 
+# Portable sed in-place (macOS BSD sed requires -i '', GNU sed uses -i)
+sedi() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 get_current_version() {
     grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/'
 }
@@ -177,7 +186,7 @@ update_pom_property() {
     local property="$2"
     local old="$3"
     local new="$4"
-    sed -i "s/<$property>$old<\/$property>/<$property>$new<\/$property>/" "$file"
+    sedi "s/<$property>$old<\/$property>/<$property>$new<\/$property>/" "$file"
 }
 
 # Update version in build.gradle.kts
@@ -185,7 +194,7 @@ update_gradle() {
     local file="$1"
     local old="$2"
     local new="$3"
-    sed -i "s/version = \"$old\"/version = \"$new\"/" "$file"
+    sedi "s/version = \"$old\"/version = \"$new\"/" "$file"
 }
 
 # ============================================================================
@@ -270,8 +279,11 @@ bump_version() {
 
     print_section "Bumping version: $old -> $new"
 
-    # Root pom.xml
-    sed -i "0,/<version>$old<\/version>/s//<version>$new<\/version>/" pom.xml
+    # Root pom.xml (replace first <version> occurrence only)
+    awk -v old="$old" -v new="$new" '
+        !done && /<version>/ { gsub("<version>"old"</version>", "<version>"new"</version>"); done=1 }
+        { print }
+    ' pom.xml > pom.xml.tmp && mv pom.xml.tmp pom.xml
     print_success "pom.xml"
 
     # Root build.gradle.kts
@@ -305,7 +317,7 @@ bump_version() {
     # Documentation
     for file in "${DOC_FILES[@]}"; do
         if [[ -f "$file" ]]; then
-            sed -i "s/$old/$new/g" "$file"
+            sedi "s/$old/$new/g" "$file"
             print_success "$file"
         fi
     done

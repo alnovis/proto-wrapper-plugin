@@ -273,11 +273,11 @@ class ContractBasedGeneratorComparisonTest {
         /**
          * Proto3 message field (always has has*() method):
          * - has*() method exists
-         * - Getter uses has-check (returns null when not set)
-         * - setXxx and clearXxx methods
+         * - Getter returns default instance (no has-check)
+         * - setXxx method
          */
         @Test
-        @DisplayName("Proto3 message field - has method exists, getter with has check")
+        @DisplayName("Proto3 message field - has method exists, getter returns default instance")
         void proto3MessageField() {
             FieldContract contract = new FieldContract(
                     FieldCardinality.SINGULAR,
@@ -285,9 +285,9 @@ class ContractBasedGeneratorComparisonTest {
                     FieldPresence.PROTO3_IMPLICIT,
                     false,
                     true,   // hasMethodExists (messages always have has)
-                    true,   // getterUsesHasCheck (return null when not set)
-                    true,   // nullable
-                    FieldContract.DefaultValue.NULL
+                    false,  // getterUsesHasCheck (returns default instance)
+                    false,  // nullable (returns default instance)
+                    FieldContract.DefaultValue.DEFAULT_INSTANCE
             );
 
             FieldMethodNames names = FieldMethodNames.from("config");
@@ -297,14 +297,15 @@ class ContractBasedGeneratorComparisonTest {
             // Has method exists for messages
             assertTrue(generator.generateHasMethod().isPresent());
 
-            // Getter uses has-check
+            // Getter returns directly (no has-check)
             MethodSpec getter = generator.generateGetter();
-            assertTrue(getter.toString().contains("extractHasConfig"));
-            assertTrue(getter.toString().contains("null"));
+            assertFalse(getter.toString().contains("extractHasConfig"));
+            assertFalse(getter.toString().contains("null"));
+            assertTrue(getter.toString().contains("extractConfig"));
 
-            // Builder has both set and clear
+            // Builder has set method
             List<MethodSpec> builderMethods = generator.generateBuilderMethods(BUILDER_TYPE);
-            assertEquals(2, builderMethods.size());
+            assertFalse(builderMethods.isEmpty());
         }
 
         @Test
@@ -314,8 +315,8 @@ class ContractBasedGeneratorComparisonTest {
                     FieldCardinality.SINGULAR,
                     FieldTypeCategory.MESSAGE,
                     FieldPresence.PROTO2_OPTIONAL,
-                    false, true, true, true,
-                    FieldContract.DefaultValue.NULL
+                    false, true, false, false,
+                    FieldContract.DefaultValue.DEFAULT_INSTANCE
             );
 
             FieldMethodNames names = FieldMethodNames.from("data");
@@ -323,7 +324,8 @@ class ContractBasedGeneratorComparisonTest {
                     contract, names, NESTED_TYPE, PROTO_TYPE);
 
             assertTrue(generator.generateHasMethod().isPresent());
-            assertTrue(generator.generateGetter().toString().contains("extractHasData"));
+            assertFalse(generator.generateGetter().toString().contains("extractHasData"));
+            assertTrue(generator.generateGetter().toString().contains("extractData"));
         }
     }
 
@@ -440,8 +442,8 @@ class ContractBasedGeneratorComparisonTest {
             assertEquals(FieldCardinality.SINGULAR, contract.cardinality());
             assertEquals(FieldTypeCategory.MESSAGE, contract.typeCategory());
             assertTrue(contract.hasMethodExists(), "Messages should have has*() method");
-            assertTrue(contract.getterUsesHasCheck(), "Messages should use has-check");
-            assertTrue(contract.nullable(), "Messages should be nullable");
+            assertFalse(contract.getterUsesHasCheck(), "Messages should not use has-check (return default instance)");
+            assertFalse(contract.nullable(), "Messages should not be nullable (return default instance)");
         }
 
         /**
@@ -546,8 +548,8 @@ class ContractBasedGeneratorComparisonTest {
                     FieldCardinality.SINGULAR,
                     FieldTypeCategory.MESSAGE,
                     FieldPresence.PROTO3_IMPLICIT,
-                    false, true, true, true,
-                    FieldContract.DefaultValue.NULL
+                    false, true, false, false,
+                    FieldContract.DefaultValue.DEFAULT_INSTANCE
             );
 
             TypeName messageType = ClassName.get("com.example", "Nested");

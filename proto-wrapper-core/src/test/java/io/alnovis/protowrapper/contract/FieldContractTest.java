@@ -72,16 +72,16 @@ class FieldContractTest {
             }
 
             @Test
-            @DisplayName("optional message - has exists, nullable, null when unset")
+            @DisplayName("optional message - has exists, returns default instance when unset")
             void optionalMessage() {
                 FieldContract contract = createContract(
                         ProtoSyntax.PROTO2, Label.LABEL_OPTIONAL, Type.TYPE_MESSAGE, false);
 
                 assertThat(contract.typeCategory()).isEqualTo(FieldTypeCategory.MESSAGE);
                 assertThat(contract.hasMethodExists()).isTrue();
-                assertThat(contract.getterUsesHasCheck()).isTrue();
-                assertThat(contract.nullable()).isTrue();
-                assertThat(contract.defaultValueWhenUnset()).isEqualTo(DefaultValue.NULL);
+                assertThat(contract.getterUsesHasCheck()).isFalse();
+                assertThat(contract.nullable()).isFalse();
+                assertThat(contract.defaultValueWhenUnset()).isEqualTo(DefaultValue.DEFAULT_INSTANCE);
             }
 
             @Test
@@ -230,16 +230,16 @@ class FieldContractTest {
         }
 
         @Test
-        @DisplayName("implicit message - HAS exists (always for messages), nullable, null when unset")
+        @DisplayName("implicit message - HAS exists (always for messages), returns default instance when unset")
         void implicitMessage() {
             FieldContract contract = createContract(
                     ProtoSyntax.PROTO3, Label.LABEL_OPTIONAL, Type.TYPE_MESSAGE, false);
 
             // Message types ALWAYS have has*() even in proto3 implicit
             assertThat(contract.hasMethodExists()).isTrue();
-            assertThat(contract.getterUsesHasCheck()).isTrue();
-            assertThat(contract.nullable()).isTrue();
-            assertThat(contract.defaultValueWhenUnset()).isEqualTo(DefaultValue.NULL);
+            assertThat(contract.getterUsesHasCheck()).isFalse();
+            assertThat(contract.nullable()).isFalse();
+            assertThat(contract.defaultValueWhenUnset()).isEqualTo(DefaultValue.DEFAULT_INSTANCE);
         }
 
         @Test

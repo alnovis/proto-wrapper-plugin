@@ -265,14 +265,20 @@ class ContractMatrixRuntimeTest {
         }
 
         @Test
-        @DisplayName("Proto3 singular message: NULLABLE (returns null when unset)")
-        void proto3SingularMessage_nullable() {
+        @DisplayName("Proto3 singular message: returns default instance when unset")
+        void proto3SingularMessage_returnsDefaultInstance() {
             var ctx = io.alnovis.protowrapper.golden.proto3.wrapper.api.VersionContext.forVersionId("v1");
             var msg = ctx.newAllFieldTypesBuilder().build();
 
             assertThat(msg.getSingularMessage())
-                    .as("Proto3 message field returns null when unset (CONTRACT-MATRIX.md: exception)")
-                    .isNull();
+                    .as("Proto3 message field returns default instance when unset (consistent with protobuf)")
+                    .isNotNull();
+            assertThat(msg.getSingularMessage().getId())
+                    .as("Default instance has default int value")
+                    .isEqualTo(0);
+            assertThat(msg.getSingularMessage().getName())
+                    .as("Default instance has default string value")
+                    .isEmpty();
             assertThat(msg.hasSingularMessage())
                     .as("Proto3 message field has*() returns false when unset")
                     .isFalse();
@@ -412,14 +418,14 @@ class ContractMatrixRuntimeTest {
         }
 
         @Test
-        @DisplayName("Proto2 optional message: NULLABLE (returns null when unset)")
-        void proto2OptionalMessage_nullable() {
+        @DisplayName("Proto2 optional message: returns default instance when unset")
+        void proto2OptionalMessage_returnsDefaultInstance() {
             var ctx = io.alnovis.protowrapper.golden.proto2.wrapper.api.VersionContext.forVersionId("v1");
             var msg = buildProto2WithRequiredFields(ctx).build();
 
             assertThat(msg.getOptionalMessage())
-                    .as("Proto2 optional message returns null when unset (CONTRACT-MATRIX.md)")
-                    .isNull();
+                    .as("Proto2 optional message returns default instance when unset (consistent with protobuf)")
+                    .isNotNull();
             assertThat(msg.hasOptionalMessage())
                     .as("Proto2 optional message has*() returns false when unset")
                     .isFalse();
@@ -550,9 +556,9 @@ class ContractMatrixRuntimeTest {
             var msgV1 = v1.newAllFieldTypesBuilder().build();
             var msgV2 = v2.newAllFieldTypesBuilder().build();
 
-            // Both versions should have same nullability behavior
-            assertThat(msgV1.getSingularMessage()).isNull();
-            assertThat(msgV2.getSingularMessage()).isNull();
+            // Both versions should have same behavior for unset fields
+            assertThat(msgV1.getSingularMessage()).isNotNull();
+            assertThat(msgV2.getSingularMessage()).isNotNull();
 
             assertThat(msgV1.getOptionalInt32()).isNull();
             assertThat(msgV2.getOptionalInt32()).isNull();
@@ -573,12 +579,12 @@ class ContractMatrixRuntimeTest {
             var msgV1 = buildProto2WithRequiredFields(v1).build();
             var msgV2 = buildProto2WithRequiredFields(v2).build();
 
-            // Both versions should have same nullability behavior
+            // Both versions should have same behavior for unset fields
             assertThat(msgV1.getOptionalInt32()).isNull();
             assertThat(msgV2.getOptionalInt32()).isNull();
 
-            assertThat(msgV1.getOptionalMessage()).isNull();
-            assertThat(msgV2.getOptionalMessage()).isNull();
+            assertThat(msgV1.getOptionalMessage()).isNotNull();
+            assertThat(msgV2.getOptionalMessage()).isNotNull();
 
             assertThat(msgV1.getRepeatedInt32()).isEmpty();
             assertThat(msgV2.getRepeatedInt32()).isEmpty();

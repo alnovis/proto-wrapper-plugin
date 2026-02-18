@@ -318,6 +318,53 @@ class AbstractClassGeneratorTest {
     }
 
     @Nested
+    @DisplayName("asVersion() uses parsePartial for lenient conversion")
+    class AsVersionParsePartialTests {
+
+        @Test
+        @DisplayName("asVersion(VersionContext) calls parsePartial*FromBytes instead of parse*FromBytes")
+        void asVersionContextUsesParsePartial() {
+            MergedMessage message = createSimpleMoneyMessage();
+            JavaFile javaFile = generator.generate(message, ctx);
+            String code = javaFile.toString();
+
+            // Find the asVersion(VersionContext) method
+            int asVersionStart = code.indexOf("public Money asVersion(VersionContext targetContext)");
+            assertThat(asVersionStart)
+                    .as("asVersion(VersionContext) method should exist")
+                    .isGreaterThan(0);
+
+            int asVersionEnd = code.indexOf("}", code.indexOf("}", asVersionStart) + 1);
+            String asVersionMethod = code.substring(asVersionStart, asVersionEnd);
+
+            // Should use parsePartial (lenient) instead of strict parse
+            assertThat(asVersionMethod).contains("parsePartialMoneyFromBytes");
+            assertThat(asVersionMethod).doesNotContain("targetContext.parseMoneyFromBytes");
+        }
+
+        @Test
+        @DisplayName("convertToVersion() reflection calls parsePartial*FromBytes")
+        void convertToVersionUsesParsePartial() {
+            MergedMessage message = createSimpleMoneyMessage();
+            JavaFile javaFile = generator.generate(message, ctx);
+            String code = javaFile.toString();
+
+            // Find the convertToVersion method
+            int convertStart = code.indexOf("protected <T extends Money> T convertToVersion");
+            assertThat(convertStart)
+                    .as("convertToVersion method should exist")
+                    .isGreaterThan(0);
+
+            int convertEnd = code.indexOf("private static", convertStart);
+            String convertMethod = code.substring(convertStart, convertEnd);
+
+            // Reflection should look up parsePartial, not strict parse
+            assertThat(convertMethod).contains("\"parsePartialMoneyFromBytes\"");
+            assertThat(convertMethod).doesNotContain("\"parseMoneyFromBytes\"");
+        }
+    }
+
+    @Nested
     @DisplayName("Java 8 compatibility")
     class Java8CompatibilityTests {
 

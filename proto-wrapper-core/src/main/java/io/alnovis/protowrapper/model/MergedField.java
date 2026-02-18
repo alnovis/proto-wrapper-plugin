@@ -1104,9 +1104,10 @@ public class MergedField {
      * This is consistent with proto semantics where only one field can be set at a time.</p>
      *
      * <h3>Message fields</h3>
-     * <p>Message fields return null when unset (if has*() is available).
-     * Without this check, proto returns a default instance instead of null,
-     * which is inconsistent with {@code has*()} returning false.</p>
+     * <p>Message fields return a default (empty) wrapper instance when unset,
+     * consistent with protobuf behavior where {@code getXxx()} always returns
+     * a non-null default instance. Use {@code hasXxx()} to check if the field
+     * was explicitly set.</p>
      *
      * <h3>Primitive fields</h3>
      * <p>Primitive optional fields (Integer, Boolean, etc.) return null when unset,
@@ -1124,9 +1125,9 @@ public class MergedField {
         if (isInOneof) {
             return true;
         }
-        // Message fields should return null when unset (consistent with has*() returning false)
+        // Message fields return default instance, not null (consistent with protobuf behavior)
         if (message) {
-            return optional && allVersionsSupportHas;
+            return false;
         }
         // Primitive optional fields need has-check only when has*() is available
         return optional && primitive && allVersionsSupportHas;

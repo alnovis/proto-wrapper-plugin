@@ -99,7 +99,9 @@ public record FieldContract(
         /** Return empty immutable list */
         EMPTY_LIST("java.util.List.of()"),
         /** Return empty immutable map */
-        EMPTY_MAP("java.util.Map.of()");
+        EMPTY_MAP("java.util.Map.of()"),
+        /** Return default (empty) wrapper instance — message fields return non-null default */
+        DEFAULT_INSTANCE("/* default instance */");
 
         private final String expression;
 
@@ -300,7 +302,8 @@ public record FieldContract(
      * Use has-check pattern IF:
      *   - has*() method exists
      *   - AND NOT required (required fields always have value)
-     *   - AND (message type OR nullable)
+     *   - AND NOT message type (messages return default instance, not null)
+     *   - AND nullable scalar or oneof
      * </pre>
      *
      * <p>The has-check pattern is: {@code return has*() ? value : null}</p>
@@ -327,13 +330,14 @@ public record FieldContract(
             return false;
         }
 
-        // Rule: Message types use has-check to return null when unset
-        if (typeCategory == FieldTypeCategory.MESSAGE) {
-            return true;
+        // Rule: Message types return default instance, not null (consistent with protobuf)
+        // Oneof message fields still use has-check (handled by inOneof below)
+        if (typeCategory == FieldTypeCategory.MESSAGE && !inOneof) {
+            return false;
         }
 
-        // Rule: Nullable scalars use has-check
-        // This includes: proto2 optional, proto3 explicit optional, oneof
+        // Rule: Nullable scalars and oneof fields use has-check
+        // This includes: proto2 optional, proto3 explicit optional, oneof (any type)
         return presence.scalarNullable() || inOneof;
     }
 
@@ -343,8 +347,8 @@ public record FieldContract(
      * <pre>
      * Field is nullable IF:
      *   - Singular AND NOT required
-     *   - AND (has*() exists for scalar types
-     *          OR is message type)
+     *   - AND NOT non-oneof message type (messages return default instance)
+     *   - AND (oneof OR has*() exists for scalar types)
      * </pre>
      */
     private static boolean computeNullable(
@@ -363,9 +367,10 @@ public record FieldContract(
             return false;
         }
 
-        // Rule: Message types are nullable (return null when unset)
-        if (typeCategory == FieldTypeCategory.MESSAGE) {
-            return true;
+        // Rule: Message types return default instance, not null (consistent with protobuf)
+        // Oneof message fields are still nullable (return null when oneof-case is not active)
+        if (typeCategory == FieldTypeCategory.MESSAGE && !inOneof) {
+            return false;
         }
 
         // Rule: Oneof fields are always nullable
@@ -409,7 +414,7 @@ public record FieldContract(
             case SCALAR_STRING -> DefaultValue.EMPTY_STRING;
             case SCALAR_BYTES -> DefaultValue.EMPTY_BYTES;
             case ENUM -> DefaultValue.FIRST_ENUM_VALUE;
-            case MESSAGE -> DefaultValue.NULL; // Should not reach here if nullable logic is correct
+            case MESSAGE -> DefaultValue.DEFAULT_INSTANCE; // Message fields return default wrapper instance
         };
     }
 

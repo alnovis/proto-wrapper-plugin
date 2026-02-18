@@ -1,333 +1,119 @@
-# Release Notes - Proto Wrapper Plugin v2.3.1
+# Release Notes - Proto Wrapper Plugin v2.3.2
 
-**Release Date:** January 29, 2026
+**Release Date:** February 18, 2026
 
 ## Overview
 
-Version 2.3.1 introduces **Schema Metadata** — runtime access to enum values, message metadata, and version diffs without hardcoding.
+Version 2.3.2 changes **message field getter behavior** to match native protobuf semantics — unset message fields now return a **non-null default instance** instead of `null`.
 
-Key highlights:
-- **Runtime Schema Introspection** — access enum values and message info at runtime via `SchemaInfo`
-- **Version Diff API** — programmatically query what changed between versions via `VersionSchemaDiff`
-- **Dynamic Validation** — validate enum values against actual schema without magic numbers
-- **Migration Tooling** — understand field changes, type changes, and get migration hints
+This eliminates a common source of `NullPointerException` in code that chains message getters (e.g., `request.getTicket().hasParentTicket()`), and makes wrapper behavior consistent with protobuf's `getXxx()` contract.
 
-> **Note:** This builds on v2.3.0 which added Validation Annotations support.
+> **Note:** This is a behavioral change. Code that checks `getXxx() == null` for message fields should migrate to `hasXxx()`. See [Migration](#migration) below.
 
-## Bug Fixes
+## What Changed
 
-- **Gradle plugin now generates SchemaInfo and SchemaDiff classes** — previously the Gradle plugin accepted `generateSchemaMetadata=true` configuration but did not actually generate the metadata files (`SchemaInfoVx.java`, `SchemaDiffVxToVy.java`). Now both Maven and Gradle plugins generate metadata classes identically.
+### Message getters return default instance instead of null
 
-## New Features
-
-### Schema Metadata
-
-Generate runtime metadata classes for schema introspection:
-
-**Maven:**
-```xml
-<configuration>
-    <generateSchemaMetadata>true</generateSchemaMetadata>
-</configuration>
-```
-
-**Gradle:**
-```kotlin
-protoWrapper {
-    generateSchemaMetadata.set(true)
-}
-```
-
-### Usage Examples
-
-#### Access Enum Values at Runtime
-
+**Before (v2.3.1):**
 ```java
-VersionContext ctx = VersionContext.forVersionId(ProtocolVersions.V2);
-SchemaInfo schema = ctx.getSchemaInfo();
-
-// Get enum values without hardcoding
-schema.getEnum("TaxTypeEnum").ifPresent(enumInfo -> {
-    for (SchemaInfo.EnumValue value : enumInfo.getValues()) {
-        System.out.println(value.name() + " = " + value.number());
-    }
-});
-// Output: VAT = 100, EXCISE = 200, NO_TAX = 0
+AllFieldTypes msg = ctx.newAllFieldTypesBuilder().build();
+msg.getSingularMessage()           // → null
+msg.getSingularMessage().getId()   // → NPE!
+msg.hasSingularMessage()           // → false
 ```
 
-#### Query Version Differences
-
+**After (v2.3.2):**
 ```java
-VersionContext v2Ctx = VersionContext.forVersionId(ProtocolVersions.V2);
-
-v2Ctx.getDiffFrom(ProtocolVersions.V1).ifPresent(diff -> {
-    // Find what changed for a specific field
-    diff.findFieldChange("Tax", "type").ifPresent(fc -> {
-        System.out.println("Change: " + fc.changeType());
-        System.out.println("Old type: " + fc.oldType());
-        System.out.println("New type: " + fc.newType());
-        System.out.println("Hint: " + fc.migrationHint());
-    });
-
-    // Get all removed fields
-    for (var fc : diff.getRemovedFields()) {
-        System.out.println("Removed: " + fc.messageName() + "." + fc.fieldName());
-    }
-});
+AllFieldTypes msg = ctx.newAllFieldTypesBuilder().build();
+msg.getSingularMessage()           // → non-null default instance
+msg.getSingularMessage().getId()   // → 0 (default)
+msg.getSingularMessage().getName() // → "" (default)
+msg.hasSingularMessage()           // → false (unchanged)
 ```
 
-#### Dynamic Enum Validation
+### What is affected
 
-```java
-public void validateEnumValue(int rawValue, String enumName, String versionId) {
-    VersionContext ctx = VersionContext.forVersionId(versionId);
-    SchemaInfo schema = ctx.getSchemaInfo();
+| Field type | Old behavior | New behavior |
+|------------|-------------|-------------|
+| Singular message (proto3) | `null` when unset | Default instance |
+| Optional message (proto3) | `null` when unset | Default instance |
+| Optional message (proto2) | `null` when unset | Default instance |
+| Required message (proto2) | Default instance | Default instance (unchanged) |
 
-    schema.getEnum(enumName).ifPresent(enumInfo -> {
-        boolean isValid = enumInfo.getValues().stream()
-                .anyMatch(v -> v.number() == rawValue);
+### What is NOT affected
 
-        if (!isValid) {
-            String validValues = enumInfo.getValues().stream()
-                    .map(v -> v.name() + "(" + v.number() + ")")
-                    .collect(Collectors.joining(", "));
-            throw new IllegalArgumentException(
-                "Invalid " + enumName + " value " + rawValue +
-                ". Valid values: " + validValues);
-        }
-    });
-}
-```
+| Field type | Behavior |
+|------------|----------|
+| Oneof message fields | Still `null` when oneof case is not active |
+| Optional primitive fields | Still `null` when unset (`Integer`, `Boolean`, etc.) |
+| `hasXxx()` methods | Still `false` for unset fields |
+| Builder methods | No changes |
+| Missing-in-version fields | Still `null` (field doesn't exist in that proto version) |
 
-### Generated Code Structure
+## Bug Fix
 
-```
-com.example.model/
-├── api/
-│   └── VersionContext.java     # + getSchemaInfo(), getDiffFrom()
-├── metadata/                   # NEW package
-│   ├── SchemaInfoV1.java       # Enum/message metadata for V1
-│   ├── SchemaInfoV2.java       # Enum/message metadata for V2
-│   └── SchemaDiffV1ToV2.java   # Changes from V1 to V2
-├── v1/
-│   └── VersionContextV1.java   # Implements metadata methods
-└── v2/
-    └── VersionContextV2.java   # Implements metadata methods
-```
-
-### API Summary
-
-| Interface | Description |
-|-----------|-------------|
-| `SchemaInfo` | Access enum values and message metadata |
-| `SchemaInfo.EnumInfo` | Enum name, full name, and values |
-| `SchemaInfo.EnumValue` | Enum value name and number |
-| `VersionSchemaDiff` | Schema changes between versions |
-| `VersionSchemaDiff.FieldChange` | Field addition, removal, type change, etc. |
-| `VersionSchemaDiff.EnumChange` | Enum value additions and removals |
-
----
-
-## Previous Release: v2.3.0 - Validation Annotations
-
-Version 2.3.0 introduced **Validation Annotations** — automatic generation of Bean Validation (JSR-380) annotations.
-
-### Configuration
-
-Generate Bean Validation annotations on wrapper interface getters based on proto field analysis:
-
-**Maven:**
-```xml
-<configuration>
-    <generateValidationAnnotations>true</generateValidationAnnotations>
-    <validationAnnotationStyle>jakarta</validationAnnotationStyle>
-</configuration>
-```
-
-**Gradle:**
-```kotlin
-protoWrapper {
-    generateValidationAnnotations.set(true)
-    validationAnnotationStyle.set("jakarta")
-}
-```
-
-### Generated Code Example
-
-Given this proto:
-```protobuf
-message Order {
-    string order_id = 1;
-    repeated OrderItem items = 2;
-    Customer customer = 3;
-    int64 total_amount = 4;
-}
-```
-
-Generated interface:
-```java
-public interface Order {
-    String getOrderId();  // No @NotNull - optional scalar
-
-    @NotNull  // Repeated field - always returns List, never null
-    List<@Valid OrderItem> getItems();  // @Valid for nested message validation
-
-    @Valid
-    @NotNull  // Message field present in all versions
-    Customer getCustomer();
-
-    long getTotalAmount();  // No @NotNull - primitive type
-}
-```
-
-### Auto-Detection Rules
-
-#### @NotNull Applied To:
-| Field Type | Condition |
-|------------|-----------|
-| Repeated fields | Always (List is never null) |
-| Map fields | Always (Map is never null) |
-| Message fields | When present in all versions and non-optional |
-
-#### @NotNull Skipped For:
-| Field Type | Reason |
-|------------|--------|
-| Primitive types | `int`, `long`, `boolean`, etc. cannot be null |
-| Type conflicts | Field has different types across versions |
-| Oneof fields | Only one field in oneof can be set |
-| Version-specific | Field not present in all schema versions |
-
-#### @Valid Applied To:
-| Field Type | Condition |
-|------------|-----------|
-| Message fields | Always (enables nested validation) |
-| Repeated message | On list element type: `List<@Valid Item>` |
-
-### Namespace Configuration
-
-| Style | Package | Use Case |
-|-------|---------|----------|
-| `jakarta` | `jakarta.validation.constraints` | Java 9+, Spring Boot 3.x |
-| `javax` | `javax.validation.constraints` | Java 8, Spring Boot 2.x |
-
-> **Auto-Switch:** When `targetJavaVersion` is set to `8`, the plugin automatically uses `javax` namespace regardless of the configured style.
-
-## Configuration Reference
-
-### New Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `generateValidationAnnotations` | `false` | Enable validation annotation generation |
-| `validationAnnotationStyle` | `jakarta` | Namespace: `jakarta` or `javax` |
-
-### Maven Configuration
-
-```xml
-<plugin>
-    <groupId>io.alnovis</groupId>
-    <artifactId>proto-wrapper-maven-plugin</artifactId>
-    <version>2.3.0</version>
-    <configuration>
-        <basePackage>com.example.model</basePackage>
-        <protoRoot>${basedir}/proto</protoRoot>
-        <generateValidationAnnotations>true</generateValidationAnnotations>
-        <validationAnnotationStyle>jakarta</validationAnnotationStyle>
-        <versions>
-            <version><protoDir>v1</protoDir></version>
-            <version><protoDir>v2</protoDir></version>
-        </versions>
-    </configuration>
-</plugin>
-```
-
-### Gradle Configuration
-
-```kotlin
-protoWrapper {
-    basePackage.set("com.example.model")
-    protoRoot.set(file("proto"))
-    generateValidationAnnotations.set(true)
-    validationAnnotationStyle.set("jakarta")
-    versions {
-        version("v1")
-        version("v2")
-    }
-}
-```
-
-## Dependencies
-
-To use validation annotations, add the validation API to your project:
-
-**Jakarta (Java 9+, Spring Boot 3.x):**
-```xml
-<dependency>
-    <groupId>jakarta.validation</groupId>
-    <artifactId>jakarta.validation-api</artifactId>
-    <version>3.0.2</version>
-</dependency>
-```
-
-**Javax (Java 8, Spring Boot 2.x):**
-```xml
-<dependency>
-    <groupId>javax.validation</groupId>
-    <artifactId>validation-api</artifactId>
-    <version>2.0.1.Final</version>
-</dependency>
-```
-
-For runtime validation, add a validator implementation (e.g., Hibernate Validator).
+- **Eliminated NPE risk for unset message fields** — code like `request.getTicket().hasParentTicket()` no longer throws `NullPointerException` when `ticket` is not set. This was the original motivation for the change: the previous null-returning behavior broke the protobuf contract and caused runtime failures.
 
 ## Migration
 
-### From 2.2.x
+### From v2.3.1
 
-1. Update plugin version to `2.3.0`
-2. (Optional) Enable validation annotations:
-   ```xml
-   <generateValidationAnnotations>true</generateValidationAnnotations>
-   ```
-3. Add validation API dependency if using annotations
+1. Update plugin version to `2.3.2`
+2. Regenerate wrappers (`mvn clean generate-sources` or `gradle generateProtoWrappers`)
+3. Review code that checks message getters for null:
 
-### No Breaking Changes
+**Replace null checks with `hasXxx()`:**
+```java
+// Before — worked in v2.3.1, still works in v2.3.2
+if (request.getTicket() != null) {
+    process(request.getTicket());
+}
 
-This release is fully backward compatible. Validation annotations are opt-in and disabled by default.
+// After — idiomatic, recommended approach
+if (request.hasTicket()) {
+    process(request.getTicket());
+}
+```
+
+**Chained getters are now safe:**
+```java
+// Before — NPE if ticket is not set
+boolean hasParent = request.getTicket().hasParentTicket();
+
+// After — safe, returns false (default instance has no parent ticket)
+boolean hasParent = request.getTicket().hasParentTicket();
+```
+
+### No Breaking Changes for Common Patterns
+
+- `hasXxx()` + `getXxx()` pattern: works identically
+- `getXxx() != null` checks: still true (default instance is non-null), but `hasXxx()` is preferred
+- Builder `.setXxx()` / `.clearXxx()`: unchanged
+
+### Potentially Breaking Pattern
+
+Code that relies on `getXxx() == null` to detect unset message fields will no longer work:
+
+```java
+// This pattern BREAKS — getXxx() is never null for message fields
+if (request.getTicket() == null) {
+    // This branch is now unreachable for message fields
+}
+
+// Fix: use hasXxx() instead
+if (!request.hasTicket()) {
+    // Correct way to check if field is unset
+}
+```
 
 ## Implementation Details
 
-New classes added to `proto-wrapper-core`:
-
-| Class | Description |
-|-------|-------------|
-| `FieldConstraints` | Record model for validation constraint metadata |
-| `ValidationConstraintResolver` | Resolves constraints from MergedField based on auto-detection rules |
-| `ValidationAnnotationGenerator` | Converts FieldConstraints to JavaPoet AnnotationSpec |
-
-## Roadmap: Phase 2
-
-Phase 2 (planned for v2.7.0) will add support for custom constraints via buf.validate:
-
-```protobuf
-import "buf/validate/validate.proto";
-
-message User {
-    string email = 1 [(buf.validate.field).string.email = true];
-    int32 age = 2 [(buf.validate.field).int32 = {gte: 0, lte: 150}];
-}
-```
-
-Generated:
-```java
-public interface User {
-    @Email
-    String getEmail();
-
-    @Min(0) @Max(150)
-    int getAge();
-}
-```
+| Component | Change |
+|-----------|--------|
+| `MergedField.needsHasCheck()` | Returns `false` for non-oneof message fields (was `true` for optional messages) |
+| `FieldContract.computeNullable()` | Returns `false` for non-oneof message fields |
+| `FieldContract.computeDefaultValue()` | Returns `DEFAULT_INSTANCE` for message fields |
+| `CONTRACT-MATRIX.md` | Updated to reflect new message field behavior |
 
 ## Full Changelog
 
@@ -337,6 +123,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete list of changes.
 
 ## Previous Releases
 
+- [v2.3.1](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.3.1) - Schema Metadata, Gradle plugin fix
+- [v2.3.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.3.0) - Validation Annotations
 - [v2.2.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.2.0) - Per-version proto syntax, field mappings
 - [v2.1.1](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.1.1) - defaultVersion configuration
 - [v2.1.0](https://github.com/alnovis/proto-wrapper-plugin/releases/tag/v2.1.0) - ProtocolVersions class generation, parallel generation

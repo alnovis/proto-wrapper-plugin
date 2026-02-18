@@ -139,8 +139,8 @@ public class FieldMappingIntegrationTest {
         }
 
         @Test
-        @DisplayName("parent_ref is null when not set in v1")
-        void parentRefNullWhenNotSetV1() {
+        @DisplayName("parent_ref returns default instance when not set in v1")
+        void parentRefDefaultInstanceWhenNotSetV1() {
             VersionContext ctx = VersionContext.forVersionId("v1");
             ShipmentRequest request = ctx.newShipmentRequestBuilder()
                     .setId(1L)
@@ -148,12 +148,12 @@ public class FieldMappingIntegrationTest {
                     .build();
 
             assertFalse(request.hasParentRef());
-            assertNull(request.getParentRef());
+            assertNotNull(request.getParentRef());
         }
 
         @Test
-        @DisplayName("parent_ref is null when not set in v2")
-        void parentRefNullWhenNotSetV2() {
+        @DisplayName("parent_ref returns default instance when not set in v2")
+        void parentRefDefaultInstanceWhenNotSetV2() {
             VersionContext ctx = VersionContext.forVersionId("v2");
             ShipmentRequest request = ctx.newShipmentRequestBuilder()
                     .setId(2L)
@@ -161,7 +161,7 @@ public class FieldMappingIntegrationTest {
                     .build();
 
             assertFalse(request.hasParentRef());
-            assertNull(request.getParentRef());
+            assertNotNull(request.getParentRef());
         }
 
         @Test
@@ -181,7 +181,7 @@ public class FieldMappingIntegrationTest {
                     .build();
 
             assertFalse(request.hasParentRef());
-            assertNull(request.getParentRef());
+            assertNotNull(request.getParentRef());
         }
 
         @Test
@@ -201,7 +201,7 @@ public class FieldMappingIntegrationTest {
                     .build();
 
             assertFalse(request.hasParentRef());
-            assertNull(request.getParentRef());
+            assertNotNull(request.getParentRef());
         }
     }
 

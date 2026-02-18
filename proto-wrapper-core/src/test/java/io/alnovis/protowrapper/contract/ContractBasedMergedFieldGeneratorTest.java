@@ -147,8 +147,8 @@ class ContractBasedMergedFieldGeneratorTest {
     class GetterPatternTests {
 
         @Test
-        @DisplayName("Nullable field - getter uses has-check")
-        void nullableField_getterUsesHasCheck() {
+        @DisplayName("Message field - getter returns directly (default instance, no has-check)")
+        void messageField_getterReturnsDirect() {
             FieldInfo v1 = new FieldInfo("config", "config", 1, Type.TYPE_MESSAGE, Label.LABEL_OPTIONAL, ".example.Config");
 
             MergedField merged = MergedField.builder()
@@ -164,9 +164,9 @@ class ContractBasedMergedFieldGeneratorTest {
             MethodSpec getter = generator.generateGetter();
             String code = getter.toString();
 
-            assertTrue(code.contains("extractHasConfig"));
+            assertFalse(code.contains("extractHasConfig"));
             assertTrue(code.contains("extractConfig"));
-            assertTrue(code.contains("null"));
+            assertFalse(code.contains("null"));
         }
 
         @Test
