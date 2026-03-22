@@ -46,7 +46,7 @@ dependency-reduced-pom.xml
 
 # Service md documents
 *.ru.md
-docs/archive/
+docs/research/
 
 # Local integration tests (not committed - contains private proto files)
 local-integration-tests/
