@@ -35,9 +35,11 @@ public class IrcraftBridge {
         return new SchemaOp(
                 scalaList(schema.getVersions()),
                 scala.collection.immutable.Map$.MODULE$.empty(),
-                scalaVector(messages),
-                scalaVector(enums),
-                scalaVector(List.of()),       // conflictEnums (TODO: convert from schema)
+                scalaVector(List.of(
+                        region("messages", messages),
+                        region("enums", enums),
+                        region("conflictEnums", List.of())
+                )),
                 AttributeMap.empty(),
                 scala.Option.empty()
         );
@@ -67,10 +69,12 @@ public class IrcraftBridge {
         return new MessageOp(
                 msg.getName(),
                 scalaSet(msg.getPresentInVersions()),
-                scalaVector(fields),
-                scalaVector(oneofs),
-                scalaVector(nestedMessages),
-                scalaVector(nestedEnums),
+                scalaVector(List.of(
+                        region("fields", fields),
+                        region("oneofs", oneofs),
+                        region("nestedMessages", nestedMessages),
+                        region("nestedEnums", nestedEnums)
+                )),
                 AttributeMap.empty(),
                 scala.Option.empty()
         );
@@ -87,7 +91,7 @@ public class IrcraftBridge {
                 field.isOptional(),
                 field.isRepeated(),
                 field.isMap(),
-                scala.collection.immutable.Map$.MODULE$.empty(), // typesPerVersion
+                scala.collection.immutable.Map$.MODULE$.empty(),
                 AttributeMap.empty(),
                 scala.Option.empty()
         );
@@ -104,7 +108,7 @@ public class IrcraftBridge {
                 oneof.getJavaName(),
                 oneof.getCaseEnumName(),
                 scalaSet(oneof.getPresentInVersions()),
-                scalaVector(fields),
+                scalaVector(List.of(region("fields", fields))),
                 AttributeMap.empty(),
                 scala.Option.empty()
         );
@@ -125,7 +129,7 @@ public class IrcraftBridge {
         return new EnumOp(
                 en.getName(),
                 scalaSet(en.getPresentInVersions()),
-                scalaVector(values),
+                scalaVector(List.of(region("values", values))),
                 AttributeMap.empty(),
                 scala.Option.empty()
         );
@@ -167,7 +171,7 @@ public class IrcraftBridge {
         };
     }
 
-    // ── Scala collection helpers ─────────────────────────────────────────
+    // ── Scala collection & region helpers ─────────────────────────────────
 
     @SuppressWarnings("unchecked")
     private <T> scala.collection.immutable.List<T> scalaList(Collection<T> javaCollection) {
@@ -186,5 +190,13 @@ public class IrcraftBridge {
     private <T> scala.collection.immutable.Set<T> scalaSet(Set<T> javaSet) {
         return scala.jdk.CollectionConverters.SetHasAsScala(javaSet)
                 .asScala().toSet();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Region region(String name, List<? extends Operation> ops) {
+        var scalaOps = scala.jdk.CollectionConverters.ListHasAsScala(
+                (List<Operation>) (List<?>) ops
+        ).asScala().toVector();
+        return new Region(name, scalaOps);
     }
 }

@@ -68,7 +68,7 @@
         <!-- IRCraft: MLIR-inspired IR for multi-language code generation -->
         <dependency>
             <groupId>io.alnovis.ircraft</groupId>
-            <artifactId>ircraft-dialect-java_3</artifactId>
+            <artifactId>ircraft-pipeline-proto-to-java_3</artifactId>
             <version>0.1.0-SNAPSHOT</version>
         </dependency>
 
