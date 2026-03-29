@@ -1,6 +1,6 @@
 package io.alnovis.protowrapper.ircraft;
 
-import io.alnovis.ircraft.core.Module;
+import io.alnovis.ircraft.core.IrModule;
 import io.alnovis.ircraft.core.*;
 import io.alnovis.ircraft.dialect.proto.ops.*;
 import io.alnovis.protowrapper.PluginLogger;

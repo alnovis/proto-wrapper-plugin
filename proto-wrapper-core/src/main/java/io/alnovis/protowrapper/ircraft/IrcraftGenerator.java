@@ -1,11 +1,13 @@
 package io.alnovis.protowrapper.ircraft;
 
-import io.alnovis.ircraft.core.Module;
+import io.alnovis.ircraft.core.IrPrinter;
+import io.alnovis.ircraft.core.IrModule;
 import io.alnovis.ircraft.core.PassContext;
+import io.alnovis.ircraft.core.serde.IrJsonCodec;
 import io.alnovis.ircraft.dialect.java.emit.DirectJavaEmitter;
-import io.alnovis.ircraft.pipeline.prototojava.ProtoToJavaPipeline;
 import io.alnovis.ircraft.dialect.proto.ops.SchemaOp;
 import io.alnovis.ircraft.dialect.proto.lowering.LoweringConfig;
+import io.alnovis.protowrapper.ircraft.passes.ProtoWrapperPipeline;
 import io.alnovis.protowrapper.generator.GeneratorConfig;
 import io.alnovis.protowrapper.PluginLogger;
 import io.alnovis.protowrapper.model.MergedSchema;
@@ -65,7 +67,7 @@ public class IrcraftGenerator {
                 "Abstract"
         );
 
-        ProtoToJavaPipeline pipeline = new ProtoToJavaPipeline(loweringConfig);
+        ProtoWrapperPipeline pipeline = new ProtoWrapperPipeline(loweringConfig, new DirectJavaEmitter());
 
         @SuppressWarnings("unchecked")
         Vector<io.alnovis.ircraft.core.Operation> topLevel =
@@ -74,25 +76,21 @@ public class IrcraftGenerator {
                                 java.util.List.<io.alnovis.ircraft.core.Operation>of(protoIR)
                         ).asScala()
                 );
-        Module module = new Module("proto-wrapper", topLevel,
+        IrModule module = new IrModule("proto-wrapper", topLevel,
                 io.alnovis.ircraft.core.AttributeMap.empty(),
                 scala.Option.empty());
+
+        // Dump Proto IR (before pipeline)
+        dumpIr(module, "1-proto-ir");
 
         var passContext = new PassContext(
                 scala.collection.immutable.Map$.MODULE$.empty(),
                 io.alnovis.ircraft.core.PassLogger.noop()
         );
 
-        Path cacheDir = config.getCacheDirectory();
-        var result = cacheDir != null
-                ? pipeline.executeIncremental(module, cacheDir, passContext)
-                : pipeline.execute(module, passContext);
+        var result = pipeline.execute(module, passContext);
 
-        if (cacheDir != null) {
-            logger.info("[ircraft] Running incremental Proto → Java pipeline...");
-        } else {
-            logger.info("[ircraft] Running Proto → Java pipeline...");
-        }
+        logger.info("[ircraft] Running Proto → Java pipeline...");
 
         if (result.isLeft()) {
             var errors = scala.jdk.CollectionConverters.SeqHasAsJava(result.left().get()).asJava();
@@ -104,11 +102,6 @@ public class IrcraftGenerator {
 
         Map<String, String> files = scala.jdk.CollectionConverters.MapHasAsJava(result.toOption().get()).asJava();
 
-        if (cacheDir != null && files.isEmpty()) {
-            logger.info("[ircraft] All files up to date, nothing to generate");
-            return 0;
-        }
-
         Path outputDir = config.getOutputDirectory();
         int count = 0;
         for (var entry : files.entrySet()) {
@@ -118,7 +111,34 @@ public class IrcraftGenerator {
             count++;
         }
 
-        logger.info("[ircraft] Generated " + count + " files" + (cacheDir != null ? " (incremental)" : ""));
+        logger.info("[ircraft] Generated " + count + " files");
         return count;
+    }
+
+    /**
+     * Dump IR to the configured dump directory in both textual and JSON formats.
+     *
+     * @param module the IR module to dump
+     * @param stage  stage name (used as filename prefix, e.g. "1-proto-ir", "2-semantic-ir")
+     */
+    private void dumpIr(IrModule module, String stage) {
+        Path dumpDir = config.getIrDumpDirectory();
+        if (dumpDir == null) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(dumpDir);
+
+            String textIr = IrPrinter.print(module);
+            Files.writeString(dumpDir.resolve(stage + ".ir"), textIr);
+
+            String jsonIr = IrJsonCodec.toJson(module);
+            Files.writeString(dumpDir.resolve(stage + ".json"), jsonIr);
+
+            logger.info("[ircraft] IR dump: " + stage + " -> " + dumpDir);
+        } catch (IOException e) {
+            logger.warn("[ircraft] Failed to dump IR (" + stage + "): " + e.getMessage());
+        }
     }
 }

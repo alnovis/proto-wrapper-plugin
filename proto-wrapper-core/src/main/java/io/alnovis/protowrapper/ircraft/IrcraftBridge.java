@@ -4,6 +4,7 @@ import io.alnovis.ircraft.core.*;
 import io.alnovis.ircraft.core.TypeRef$;
 import io.alnovis.ircraft.dialect.proto.ops.*;
 import io.alnovis.ircraft.dialect.proto.types.ConflictType;
+import io.alnovis.ircraft.dialect.proto.types.ProtoSyntax;
 import io.alnovis.protowrapper.model.*;
 
 import java.util.*;
@@ -32,15 +33,44 @@ public class IrcraftBridge {
             enums.add(convertEnum(en));
         }
 
+        // Convert conflict enums
+        var conflictEnums = new ArrayList<ConflictEnumOp>();
+        for (ConflictEnumInfo cei : schema.getConflictEnums()) {
+            conflictEnums.add(convertConflictEnum(cei));
+        }
+
+        // Convert version syntax map
+        var syntaxMap = new HashMap<String, ProtoSyntax>();
+        for (String version : schema.getVersions()) {
+            var ps = schema.getVersionSyntax(version);
+            if (ps != null) {
+                syntaxMap.put(version, mapProtoSyntax(ps));
+            }
+        }
+
+        // Build attributes with equivalentEnumMappings
+        var attrs = AttributeMap.empty();
+        var eqMappings = schema.getEquivalentEnumMappings();
+        if (eqMappings != null && !eqMappings.isEmpty()) {
+            var entries = new ArrayList<String>();
+            for (var entry : eqMappings.entrySet()) {
+                entries.add(entry.getKey() + "=" + entry.getValue());
+            }
+            attrs = attrs.$plus(new Attribute.StringListAttr(
+                    "proto.equivalentEnumMappings",
+                    scalaList(entries)
+            ));
+        }
+
         return new SchemaOp(
                 scalaList(schema.getVersions()),
-                scala.collection.immutable.Map$.MODULE$.empty(),
+                scalaMap(syntaxMap),
                 scalaVector(List.of(
                         region("messages", messages),
                         region("enums", enums),
-                        region("conflictEnums", List.of())
+                        region("conflictEnums", conflictEnums)
                 )),
-                AttributeMap.empty(),
+                attrs,
                 scala.Option.empty()
         );
     }
@@ -81,6 +111,15 @@ public class IrcraftBridge {
     }
 
     private FieldOp convertField(MergedField field) {
+        // Build attributes for WKT and version-specific type info
+        var attrs = AttributeMap.empty();
+
+        // Well-known type
+        var wkt = field.getWellKnownType();
+        if (wkt != null) {
+            attrs = attrs.$plus(new Attribute.StringAttr("proto.wellKnownType", wkt.name()));
+        }
+
         return new FieldOp(
                 field.getName(),
                 field.getJavaName(),
@@ -92,7 +131,7 @@ public class IrcraftBridge {
                 field.isRepeated(),
                 field.isMap(),
                 scala.collection.immutable.Map$.MODULE$.empty(),
-                AttributeMap.empty(),
+                attrs,
                 scala.Option.empty()
         );
     }
@@ -133,6 +172,35 @@ public class IrcraftBridge {
                 AttributeMap.empty(),
                 scala.Option.empty()
         );
+    }
+
+    private ConflictEnumOp convertConflictEnum(ConflictEnumInfo cei) {
+        var values = new ArrayList<EnumValueOp>();
+        for (ConflictEnumInfo.EnumValue value : cei.getValues()) {
+            values.add(new EnumValueOp(
+                    value.name(),
+                    value.number(),
+                    scalaSet(Set.of()), // conflict enum values are version-agnostic
+                    AttributeMap.empty(),
+                    scala.Option.empty()
+            ));
+        }
+
+        return new ConflictEnumOp(
+                cei.getFieldName(),
+                cei.getEnumName(),
+                cei.getMessageName(),
+                scalaVector(List.of(region("values", values))),
+                AttributeMap.empty(),
+                scala.Option.empty()
+        );
+    }
+
+    private ProtoSyntax mapProtoSyntax(io.alnovis.protowrapper.model.ProtoSyntax ps) {
+        return switch (ps) {
+            case PROTO2 -> ProtoSyntax.valueOf("Proto2");
+            default -> ProtoSyntax.valueOf("Proto3");
+        };
     }
 
     // ── Type mapping ─────────────────────────────────────────────────────
@@ -190,6 +258,15 @@ public class IrcraftBridge {
     private <T> scala.collection.immutable.Set<T> scalaSet(Set<T> javaSet) {
         return scala.jdk.CollectionConverters.SetHasAsScala(javaSet)
                 .asScala().toSet();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <K, V> scala.collection.immutable.Map<K, V> scalaMap(Map<K, V> javaMap) {
+        var result = (scala.collection.immutable.Map<K, V>) scala.collection.immutable.Map$.MODULE$.empty();
+        for (var entry : javaMap.entrySet()) {
+            result = result.$plus(new scala.Tuple2<>(entry.getKey(), entry.getValue()));
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")

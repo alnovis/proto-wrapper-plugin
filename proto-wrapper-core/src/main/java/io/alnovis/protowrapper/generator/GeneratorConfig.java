@@ -95,6 +95,9 @@ public class GeneratorConfig {
     private Path cacheDirectory;
     private boolean forceRegenerate = false;
 
+    // IR dump for debugging (writes textual IR + JSON to directory)
+    private Path irDumpDirectory;
+
     // Target Java version (8 = Java 8 compatible, 9+ = use modern features)
     private int targetJavaVersion = 9;
 
@@ -218,6 +221,8 @@ public class GeneratorConfig {
     public Path getCacheDirectory() { return cacheDirectory; }
     /** @return true if forced regeneration is enabled */
     public boolean isForceRegenerate() { return forceRegenerate; }
+    /** @return the IR dump directory (null if dump disabled) */
+    public Path getIrDumpDirectory() { return irDumpDirectory; }
     /** @return the target Java version (8, 9, 11, 17, etc.) */
     public int getTargetJavaVersion() { return targetJavaVersion; }
     /** @return true if generating Java 8 compatible code */
@@ -674,6 +679,19 @@ public class GeneratorConfig {
          */
         public Builder cacheDirectory(Path cacheDirectory) {
             config.cacheDirectory = cacheDirectory;
+            return this;
+        }
+
+        /**
+         * Set directory for IR dump output (textual IR + JSON).
+         * When set, the ircraft pipeline writes intermediate representations
+         * for debugging and diagnostics.
+         *
+         * @param irDumpDirectory path to dump directory
+         * @return this builder
+         */
+        public Builder irDumpDirectory(Path irDumpDirectory) {
+            config.irDumpDirectory = irDumpDirectory;
             return this;
         }
 
