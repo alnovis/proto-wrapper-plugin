@@ -41,6 +41,9 @@ public class IrcraftGenerator {
     /**
      * Generate Java source files from a MergedSchema using the ircraft pipeline.
      *
+     * <p>When {@code config.getCacheDirectory()} is non-null, uses incremental generation:
+     * only files for changed entities (plus global files) are written. Unchanged files are skipped.
+     *
      * @param schema the merged schema
      * @return number of files generated
      * @throws IOException if file writing fails
@@ -62,7 +65,6 @@ public class IrcraftGenerator {
                 "Abstract"
         );
 
-        logger.info("[ircraft] Running Proto → Java pipeline...");
         ProtoToJavaPipeline pipeline = new ProtoToJavaPipeline(loweringConfig);
 
         @SuppressWarnings("unchecked")
@@ -76,10 +78,21 @@ public class IrcraftGenerator {
                 io.alnovis.ircraft.core.AttributeMap.empty(),
                 scala.Option.empty());
 
-        var result = pipeline.execute(module, new PassContext(
+        var passContext = new PassContext(
                 scala.collection.immutable.Map$.MODULE$.empty(),
                 io.alnovis.ircraft.core.PassLogger.noop()
-        ));
+        );
+
+        Path cacheDir = config.getCacheDirectory();
+        var result = cacheDir != null
+                ? pipeline.executeIncremental(module, cacheDir, passContext)
+                : pipeline.execute(module, passContext);
+
+        if (cacheDir != null) {
+            logger.info("[ircraft] Running incremental Proto → Java pipeline...");
+        } else {
+            logger.info("[ircraft] Running Proto → Java pipeline...");
+        }
 
         if (result.isLeft()) {
             var errors = scala.jdk.CollectionConverters.SeqHasAsJava(result.left().get()).asJava();
@@ -91,17 +104,21 @@ public class IrcraftGenerator {
 
         Map<String, String> files = scala.jdk.CollectionConverters.MapHasAsJava(result.toOption().get()).asJava();
 
+        if (cacheDir != null && files.isEmpty()) {
+            logger.info("[ircraft] All files up to date, nothing to generate");
+            return 0;
+        }
+
         Path outputDir = config.getOutputDirectory();
         int count = 0;
         for (var entry : files.entrySet()) {
             Path filePath = outputDir.resolve(entry.getKey());
             Files.createDirectories(filePath.getParent());
             Files.writeString(filePath, entry.getValue());
-            logger.info("[ircraft] Generated: " + entry.getKey());
             count++;
         }
 
-        logger.info("[ircraft] Generated " + count + " files total");
+        logger.info("[ircraft] Generated " + count + " files" + (cacheDir != null ? " (incremental)" : ""));
         return count;
     }
 }
