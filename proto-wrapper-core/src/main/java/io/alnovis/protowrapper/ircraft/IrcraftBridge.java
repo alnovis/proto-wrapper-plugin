@@ -130,7 +130,7 @@ public class IrcraftBridge {
                 field.isOptional(),
                 field.isRepeated(),
                 field.isMap(),
-                scala.collection.immutable.Map$.MODULE$.empty(),
+                scalaMap(field.getTypesPerVersion()),
                 attrs,
                 scala.Option.empty()
         );

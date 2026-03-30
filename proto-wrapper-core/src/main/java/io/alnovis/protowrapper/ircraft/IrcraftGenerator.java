@@ -67,7 +67,7 @@ public class IrcraftGenerator {
                 "Abstract"
         );
 
-        ProtoWrapperPipeline pipeline = new ProtoWrapperPipeline(loweringConfig, new DirectJavaEmitter());
+        ProtoWrapperPipeline pipeline = new ProtoWrapperPipeline(loweringConfig, new DirectJavaEmitter(), protoIR);
 
         @SuppressWarnings("unchecked")
         Vector<io.alnovis.ircraft.core.Operation> topLevel =
@@ -111,8 +111,38 @@ public class IrcraftGenerator {
             count++;
         }
 
+        // Emit StructConverter if WKT Struct fields are used
+        if (config.isConvertWellKnownTypes() && hasStructFields(schema)) {
+            count += emitStructConverter(outputDir, files);
+        }
+
         logger.info("[ircraft] Generated " + count + " files");
         return count;
+    }
+
+    private boolean hasStructFields(MergedSchema schema) {
+        return schema.getMessages().stream()
+                .flatMap(m -> m.getFields().stream())
+                .anyMatch(f -> {
+                    var wkt = f.getWellKnownType();
+                    return wkt != null && (wkt.equals("Struct") || wkt.equals("Value") || wkt.equals("ListValue"));
+                });
+    }
+
+    private int emitStructConverter(Path outputDir, Map<String, String> existingFiles) throws IOException {
+        try (var is = getClass().getResourceAsStream("/io/alnovis/protowrapper/templates/StructConverter.java.template")) {
+            if (is == null) {
+                logger.warn("[ircraft] StructConverter template not found on classpath");
+                return 0;
+            }
+            String template = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            String source = template.replace("${PACKAGE}", config.getApiPackage());
+            String relativePath = config.getApiPackage().replace('.', '/') + "/StructConverter.java";
+            Path filePath = outputDir.resolve(relativePath);
+            Files.createDirectories(filePath.getParent());
+            Files.writeString(filePath, source);
+            return 1;
+        }
     }
 
     /**

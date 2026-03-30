@@ -6,6 +6,7 @@ import io.alnovis.ircraft.core.PassContext;
 import io.alnovis.ircraft.core.Pipeline;
 import io.alnovis.ircraft.core.emit.Emitter;
 import io.alnovis.ircraft.dialect.proto.lowering.LoweringConfig;
+import io.alnovis.ircraft.dialect.proto.ops.SchemaOp;
 import io.alnovis.ircraft.dialect.proto.pipeline.GenericProtoToCodePipeline;
 import scala.collection.immutable.List;
 import scala.util.Either;
@@ -25,10 +26,12 @@ public class ProtoWrapperPipeline {
 
     private final GenericProtoToCodePipeline generic;
     private final Emitter emitter;
+    private final SchemaOp schemaOp;
 
-    public ProtoWrapperPipeline(LoweringConfig config, Emitter emitter) {
+    public ProtoWrapperPipeline(LoweringConfig config, Emitter emitter, SchemaOp schemaOp) {
         this.generic = new GenericProtoToCodePipeline(config, emitter);
         this.emitter = emitter;
+        this.schemaOp = schemaOp;
     }
 
     /**
@@ -45,13 +48,15 @@ public class ProtoWrapperPipeline {
      */
     public Pipeline build() {
         return generic.pipeline()
+                .andThen(new ConflictEnumEnrichmentPassJava())
                 .andThen(new ConflictResolutionPassJava())
                 .andThen(new ProtoWrapperPassJava())
                 .andThen(new CommonMethodsPassJava())
                 .andThen(new VersionContextPassJava())
                 .andThen(new ProtocolVersionsPassJava())
                 .andThen(new VersionConversionPassJava())
-                .andThen(new SchemaMetadataPassJava());
+                .andThen(new SchemaMetadataPassJava())
+                .andThen(new SchemaDiffPassJava(schemaOp));
     }
 
     /**
