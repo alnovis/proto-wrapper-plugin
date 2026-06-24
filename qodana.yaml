@@ -5,8 +5,8 @@
 
 version: "1.0"
 
-# JVM linter for Java + Kotlin
-linter: jetbrains/qodana-jvm:2025.2
+# JVM linter for Java + Kotlin (Community edition - no Cloud license/token required)
+linter: jetbrains/qodana-jvm-community:2026.1
 
 # Project profile (inspections to run)
 profile:
