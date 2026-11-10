@@ -14,6 +14,7 @@ Supports both **Maven** and **Gradle** build systems.
 ## The Problem
 
 This project originated from a production integration where independently evolving Protocol Buffers schemas made compatibility difficult to manage.
+
 When protobuf schemas evolve across versions, you face:
 
 - **Type mismatches**: `int32` in v1 becomes `enum` in v2
