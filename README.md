@@ -1,4 +1,4 @@
-# Proto Wrapper Plugin
+![Proto Wrapper](docs/images/cover.png)
 
 [![Build Status](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/build.yml)
 [![Qodana](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/code_quality.yml/badge.svg)](https://github.com/alnovis/proto-wrapper-plugin/actions/workflows/code_quality.yml)
